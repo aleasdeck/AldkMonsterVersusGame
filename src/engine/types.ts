@@ -1,0 +1,311 @@
+// ─── Базовые ───────────────────────────────────────────────────────────────
+
+export type GearTier = 1 | 2 | 3 | 4 | 5;
+export type ArtTier = 1 | 2 | 3;
+export type LocationId = 'forest' | 'crypt' | 'caves';
+
+export const MAX_ENEMIES = 3;
+
+// ─── Статусы ───────────────────────────────────────────────────────────────
+
+export type StatusId =
+  | 'strength' // +value к урону атак, до конца боя
+  | 'weak' // урон атак −25 %, turns ходов
+  | 'bleed' // value урона в начале хода, turns ходов
+  | 'burn' // то же, магический флейвор
+  | 'stun' // пропуск следующего действия (только враги)
+  | 'exhaust' // −value STA на следующем ходу (только герой)
+  | 'dodge' // следующие value атак не наносят урона
+  | 'thorns' // атакующий получает value урона
+  | 'regen' // +value HP в начале хода
+  | 'invuln'; // не получает урона, turns ходов
+
+export interface Status {
+  id: StatusId;
+  value: number;
+  /** −1 — до конца боя. */
+  turns: number;
+}
+
+// ─── Производные статы героя ───────────────────────────────────────────────
+
+export interface DerivedStats {
+  maxHp: number;
+  def: number;
+  maxMp: number;
+  mpRegen: number;
+  sta: number;
+  str: number;
+  /** Разброс урона оружия без учёта Силы. */
+  dmgMin: number;
+  dmgMax: number;
+  thorns: number;
+  lifesteal: number;
+  regen: number;
+  /** 0..1 */
+  crit: number;
+  spellPower: number;
+  firstTurnSta: number;
+}
+
+export type StatMods = Partial<DerivedStats>;
+
+// ─── Артефакты ─────────────────────────────────────────────────────────────
+
+export type TargetKind = 'enemy' | 'allEnemies' | 'self';
+
+export type Effect =
+  | { type: 'attack'; bonus: number; target: 'enemy' | 'allEnemies' }
+  | { type: 'spell'; amount: number; target: 'enemy' | 'allEnemies'; drain?: boolean }
+  | { type: 'block'; amount: number }
+  | { type: 'heal'; amount: number }
+  | { type: 'status'; target: TargetKind; status: StatusId; value: number; turns: number }
+  | { type: 'gainSta'; amount: number };
+
+export interface ArtifactDef {
+  id: string;
+  name: string;
+  glyph: string;
+  kind: 'passive' | 'active';
+  school?: 'physical' | 'magic';
+  cost?: { sta?: number; mp?: number };
+  cooldown?: (tier: ArtTier) => number;
+  target?: TargetKind;
+  effects?: (tier: ArtTier) => Effect[];
+  mods?: (tier: ArtTier) => StatMods;
+  describe: (tier: ArtTier) => string;
+}
+
+export interface ArtifactInstance {
+  id: string;
+  tier: ArtTier;
+}
+
+// ─── Экипировка ────────────────────────────────────────────────────────────
+
+export type GearKind = 'weapon' | 'armor';
+
+/** Случайный бонус предмета: прибавка к одному стату. */
+export interface GearAffix {
+  stat: keyof DerivedStats;
+  value: number;
+}
+
+export interface GearInstance {
+  kind: GearKind;
+  tier: GearTier;
+  name: string;
+  /** Разброс урона (оружие). У брони 0. */
+  dmgMin: number;
+  dmgMax: number;
+  /** Защита (броня). */
+  def: number;
+  /** HP (броня). */
+  hp: number;
+  affix: GearAffix | null;
+  slots: (ArtifactInstance | null)[];
+}
+
+// ─── Спрайты ───────────────────────────────────────────────────────────────
+
+export type HeadStyle = 'helmet' | 'hat' | 'hood' | 'plume' | 'horns' | 'bare' | 'skull' | 'crown';
+
+export type SpriteSpec =
+  | { type: 'humanoid'; head: HeadStyle; palette: Record<string, string> }
+  | { type: 'blob'; palette: { outline: string; body: string; shade: string; eye: string }; seed?: string; size?: number };
+
+// ─── Герои ─────────────────────────────────────────────────────────────────
+
+export interface HeroDef {
+  id: string;
+  name: string;
+  role: string;
+  hp: number;
+  def: number;
+  mp: number;
+  mpRegen: number;
+  sta: number;
+  weapon: { name: string; dmgMin: number; dmgMax: number };
+  armor: { name: string; def: number; hp: number };
+  artifacts: [string, string];
+  sprite: SpriteSpec;
+}
+
+// ─── Враги ─────────────────────────────────────────────────────────────────
+
+export type EnemyEffect =
+  | { type: 'attack'; amount: number; hits?: number }
+  | { type: 'block'; amount: number }
+  | { type: 'buffStr'; amount: number; target: 'self' | 'allies' | 'kind' }
+  | { type: 'heal'; amount: number; target: 'self' | 'allies' }
+  | { type: 'debuff'; status: StatusId; value: number; turns: number }
+  | { type: 'drainMp'; amount: number }
+  | { type: 'summon'; enemyId: string; count: number }
+  | { type: 'invuln' }
+  | { type: 'thorns'; amount: number };
+
+export interface AiCtx {
+  self: EnemyState;
+  enemies: EnemyState[];
+  hero: HeroBattle;
+  turn: number;
+}
+
+export interface EnemyAction {
+  id: string;
+  name: string;
+  effects: EnemyEffect[];
+  /** Для циклов: действие пропускается, если условие ложно. */
+  condition?: (ctx: AiCtx) => boolean;
+}
+
+export interface BossRule {
+  action: string;
+  /** 0 — только через followUp. */
+  weight: number;
+  condition?: (ctx: AiCtx) => boolean;
+  /** Не чаще, чем раз в N ходов. */
+  cooldown?: number;
+  /** Максимум раз за бой. */
+  maxUses?: number;
+  /** Обязательное следующее действие. */
+  followUp?: string;
+}
+
+export interface EnemyDef {
+  id: string;
+  name: string;
+  hp: number;
+  location: LocationId;
+  rank: 'normal' | 'elite' | 'boss';
+  actions: EnemyAction[];
+  ai: { type: 'cycle'; order: string[] } | { type: 'boss'; rules: BossRule[] };
+  sprite: SpriteSpec;
+}
+
+// ─── Состояние боя ─────────────────────────────────────────────────────────
+
+export interface Combatant {
+  hp: number;
+  maxHp: number;
+  block: number;
+  statuses: Status[];
+}
+
+export interface HeroBattle extends Combatant {
+  sta: number;
+  maxSta: number;
+  mp: number;
+  maxMp: number;
+  cooldowns: Record<string, number>;
+  stats: DerivedStats;
+  /** Снимок вставленных артефактов на момент начала боя. */
+  artifacts: ArtifactInstance[];
+}
+
+export interface EnemyState extends Combatant {
+  uid: number;
+  defId: string;
+  name: string;
+  /** id действия, объявленного на следующий ход. */
+  intent: string;
+  cycleIdx: number;
+  uses: Record<string, number>;
+  lastUsedTurn: Record<string, number>;
+  lastAction: string | null;
+  forcedNext: string | null;
+}
+
+export type EventTarget = 'hero' | number;
+
+export type BattleEvent =
+  | { type: 'damage'; target: EventTarget; amount: number; kind: 'hit' | 'dot' | 'thorns' | 'spell' | 'blocked' | 'crit' }
+  | { type: 'heal'; target: EventTarget; amount: number }
+  | { type: 'block'; target: EventTarget; amount: number }
+  | { type: 'status'; target: EventTarget; status: StatusId; value: number }
+  | { type: 'death'; target: number }
+  | { type: 'summon'; target: number }
+  | { type: 'enemyAction'; target: number; name: string }
+  | { type: 'stunned'; target: number }
+  | { type: 'log'; text: string };
+
+export interface BattleState {
+  hero: HeroBattle;
+  enemies: EnemyState[];
+  turn: number;
+  phase: 'player' | 'enemy' | 'won' | 'lost';
+  enemyQueue: number[];
+  events: BattleEvent[];
+  log: string[];
+  nextUid: number;
+  stats: { damageDealt: number; damageTaken: number; kills: number };
+}
+
+export type PlayerAction =
+  | { type: 'attack'; target: number }
+  | { type: 'defend' }
+  | { type: 'artifact'; artifactId: string; target?: number };
+
+// ─── Забег ─────────────────────────────────────────────────────────────────
+
+export type RoomKind = 'fight' | 'event' | 'elite' | 'boss';
+
+export interface LootArtifact {
+  kind: 'artifact';
+  artifact: ArtifactInstance;
+}
+export interface LootGear {
+  kind: 'gear';
+  gear: GearInstance;
+}
+export type LootItem = LootArtifact | LootGear;
+
+export interface HeroPersistent {
+  defId: string;
+  hp: number;
+  weapon: GearInstance;
+  armor: GearInstance;
+}
+
+export type RunPhase = 'map' | 'battle' | 'reward' | 'event' | 'camp' | 'victory' | 'defeat';
+
+export interface RewardScreen {
+  title: string;
+  options: LootItem[];
+}
+
+export interface PendingPlacement {
+  /** Артефакты, которым не хватило слотов; обрабатываются по одному. */
+  artifacts: ArtifactInstance[];
+}
+
+export type EventOption =
+  | { id: 'spring'; title: string; desc: string }
+  | { id: 'altar'; title: string; desc: string; artifact: ArtifactInstance }
+  | { id: 'chest'; title: string; desc: string; gear: GearInstance };
+
+export interface RunStats {
+  kills: number;
+  turns: number;
+  damageDealt: number;
+  damageTaken: number;
+  roomsCleared: number;
+}
+
+export const SAVE_VERSION = 2;
+
+export interface RunState {
+  version: typeof SAVE_VERSION;
+  seed: number;
+  rng: { state: number };
+  hero: HeroPersistent;
+  locationIndex: number;
+  roomIndex: number;
+  phase: RunPhase;
+  battle: BattleState | null;
+  /** Очередь экранов награды: первый — текущий. */
+  rewards: RewardScreen[];
+  event: { options: EventOption[] } | null;
+  pending: PendingPlacement | null;
+  stats: RunStats;
+}
