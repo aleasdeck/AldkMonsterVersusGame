@@ -27,32 +27,29 @@ export function campScreen(app: App): HTMLElement {
     () => app.campRest(),
   );
 
+  // Список без описаний: строка на артефакт, что даст апгрейд — в подсказке при наведении.
   const forgeCard = h(
     'div',
-    { class: 'card camp-card' },
-    h('div', { class: 'glyph big' }, '⚒'),
-    h('div', { class: 'card-name' }, 'Кузница'),
-    h('div', { class: 'card-desc' }, 'Повысить тир одного артефакта на 1 (максимум 3).'),
+    { class: 'card camp-card forge-card' },
+    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, '⚒'), h('span', { class: 'card-name' }, 'Кузница')),
+    h('div', { class: 'card-desc' }, 'Повысить тир одного артефакта на 1 (максимум 3). Наведи, чтобы увидеть, что изменится.'),
     upg.length === 0
       ? h('div', { class: 'note' }, 'Все артефакты уже на максимуме.')
       : h(
           'div',
-          { class: 'socket-list' },
+          { class: 'forge-list' },
           ...upg.map((s) => {
             const art = s.art!;
             const def = artifactDef(art.id);
             const nextTier = (art.tier + 1) as ArtTier;
+            const title = `${def.name}, тир ${art.tier} → ${nextTier}\nСейчас: ${def.describe(art.tier)}\nСтанет: ${def.describe(nextTier)}`;
             return h(
               'div',
-              { class: 'socket-row' },
+              { class: 'forge-row', title },
               artifactChip(s.art),
-              h(
-                'div',
-                { class: 'socket-name' },
-                h('div', null, `${def.name} · тир ${art.tier} → ${nextTier}`),
-                h('div', { class: 'upgrade-line' }, h('span', { class: 'dim' }, def.describe(art.tier)), ' → ', h('span', { class: 'good' }, def.describe(nextTier))),
-              ),
-              button('Улучшить', () => app.campForge(s.kind, s.index)),
+              h('span', { class: 'forge-name' }, def.name),
+              h('span', { class: 'forge-tier' }, `${art.tier} → ${nextTier}`),
+              button('Улучшить', () => app.campForge(s.kind, s.index), { class: 'small', title }),
             );
           }),
         ),
@@ -69,8 +66,7 @@ export function campScreen(app: App): HTMLElement {
       h(
         'div',
         { class: 'main', style: backgroundStyle(loc.id, 0.78) },
-        h('h2', null, 'Привал'),
-        h('p', { class: 'dim' }, `Впереди — ${next?.name ?? '???'}. Выберите одно.`),
+        h('div', { class: 'title-row' }, h('h2', null, 'Привал'), h('p', { class: 'dim' }, `Впереди — ${next?.name ?? '???'}. Выберите одно.`)),
         h('div', { class: 'cards' }, restCard, forgeCard),
       ),
     ),
