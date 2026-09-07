@@ -11,32 +11,29 @@ import { STATUS_HINTS, STATUS_NAMES } from '../engine/combat';
 import { spriteImg } from './sprites';
 import type { App } from './app';
 
-export function bar(cls: string, cur: number, max: number, label = ''): HTMLElement {
+export function bar(cls: string, cur: number, max: number, label = '', title = ''): HTMLElement {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
   return h(
     'div',
-    { class: `bar bar-${cls}` },
+    title ? { class: `bar bar-${cls}`, title } : { class: `bar bar-${cls}` },
     h('div', { class: 'bar-fill', style: `width:${pct}%` }),
     h('span', { class: 'bar-text' }, `${label ? label + ' ' : ''}${cur}/${max}`),
   );
 }
 
 /**
- * Полоска расходуемого ресурса: одна ячейка — одно очко.
- * Мана и стамина показываются одинаково, отличаются только цветом.
+ * Полоска стамины во всю ширину, как HP, поделённая на секции — по одному удару.
+ * Секций всегда maxSta, поэтому ширина секции не скачет от бонусной стамины
+ * («Кольцо выносливости» даёт сверх максимума: при 5/4 залиты все 4, счётчик — 5/4).
  */
-export function resBar(kind: 'mp' | 'sta', cur: number, max: number): HTMLElement {
-  const label = kind === 'mp' ? 'MP' : 'STA';
-  const title = kind === 'mp' ? `Мана ${cur}/${max}` : `Стамина ${cur}/${max}`;
-  const total = Math.max(cur, max);
-  const cells: HTMLElement[] = [];
-  for (let i = 0; i < total; i++) cells.push(h('span', { class: `res-cell ${i < cur ? 'on' : ''}` }));
+export function staBar(cur: number, max: number): HTMLElement {
+  const segs: HTMLElement[] = [];
+  for (let i = 0; i < max; i++) segs.push(h('div', { class: `seg ${i < cur ? 'on' : ''}` }));
   return h(
     'div',
-    { class: `res res-${kind}`, title },
-    h('span', { class: 'res-label' }, label),
-    h('div', { class: 'res-track' }, ...cells),
-    h('span', { class: 'res-text' }, `${cur}/${max}`),
+    { class: 'bar bar-sta', title: `Стамина ${cur}/${max}` },
+    h('div', { class: 'segs' }, ...segs),
+    h('span', { class: 'bar-text' }, `STA ${cur}/${max}`),
   );
 }
 

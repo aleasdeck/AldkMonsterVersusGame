@@ -5,12 +5,17 @@ import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
 import { canUseAction, computeIntent, previewAttack, rangeText } from '../../engine/combat';
 import { currentLocation, currentRoomKind } from '../../engine/run';
-import type { EnemyState, PlayerAction } from '../../engine/types';
-import { bar, resBar, statusIcons } from '../components';
+import type { Combatant, EnemyState, PlayerAction } from '../../engine/types';
+import { bar, staBar, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
 import { statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
 import type { App } from '../app';
+
+/** Блок и статусы — над головой бойца. */
+function badges(c: Combatant): HTMLElement {
+  return h('div', { class: 'badges' }, c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, statusIcons(c));
+}
 
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
@@ -31,10 +36,10 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
       h('div', { class: 'intent-main' }, ...(intent.stunned ? [statusIcon('stun', 20), ' оглушён'] : [`${intent.icon} ${intent.label}`.trim()])),
       h('div', { class: 'intent-name' }, intent.name),
     ),
+    badges(e),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
     h('div', { class: 'name' }, e.name),
     bar('hp', e.hp, e.maxHp),
-    h('div', { class: 'badges' }, e.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${e.block}`) : null, statusIcons(e)),
   );
 }
 
@@ -145,17 +150,12 @@ export function battleScreen(app: App): HTMLElement {
   const heroZone = h(
     'div',
     { class: 'hero-zone' },
-    statusIcons(b.hero),
+    badges(b.hero),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, 112, 'bob')),
     h('div', { class: 'name' }, def.name),
     bar('hp', b.hero.hp, b.hero.maxHp, 'HP'),
-    h(
-      'div',
-      { class: 'res-list' },
-      resBar('sta', b.hero.sta, b.hero.maxSta),
-      b.hero.maxMp > 0 ? resBar('mp', b.hero.mp, b.hero.maxMp) : null,
-      b.hero.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${b.hero.block}`) : null,
-    ),
+    staBar(b.hero.sta, b.hero.maxSta),
+    b.hero.maxMp > 0 ? bar('mp', b.hero.mp, b.hero.maxMp, 'MP', `Мана ${b.hero.mp}/${b.hero.maxMp}`) : null,
   );
 
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));
