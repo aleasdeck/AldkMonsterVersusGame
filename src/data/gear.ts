@@ -27,31 +27,55 @@ export const ART_TIER_COLORS: Record<1 | 2 | 3, string> = {
 
 type Gender = 0 | 1 | 2 | 3; // m, f, n, pl
 
-interface Base {
+export interface Base {
+  id: string;
   name: string;
   g: Gender;
   /** narrow — разброс уже (мин +1), wide — шире (мин −1, макс +1). */
   spread?: 'narrow' | 'wide';
 }
 
-const WEAPON_BASES: Base[] = [
-  { name: 'меч', g: 0 },
-  { name: 'топор', g: 0, spread: 'wide' },
-  { name: 'булава', g: 1 },
-  { name: 'кинжал', g: 0, spread: 'narrow' },
-  { name: 'посох', g: 0 },
-  { name: 'копьё', g: 2 },
-  { name: 'молот', g: 0, spread: 'wide' },
+export const WEAPON_BASES: Base[] = [
+  { id: 'sword', name: 'меч', g: 0 },
+  { id: 'axe', name: 'топор', g: 0, spread: 'wide' },
+  { id: 'mace', name: 'булава', g: 1 },
+  { id: 'dagger', name: 'кинжал', g: 0, spread: 'narrow' },
+  { id: 'staff', name: 'посох', g: 0 },
+  { id: 'spear', name: 'копьё', g: 2 },
+  { id: 'hammer', name: 'молот', g: 0, spread: 'wide' },
 ];
 
-const ARMOR_BASES: Base[] = [
-  { name: 'кольчуга', g: 1 },
-  { name: 'латы', g: 3 },
-  { name: 'доспех', g: 0 },
-  { name: 'роба', g: 1 },
-  { name: 'панцирь', g: 0 },
-  { name: 'плащ', g: 0 },
+export const ARMOR_BASES: Base[] = [
+  { id: 'mail', name: 'кольчуга', g: 1 },
+  { id: 'plate', name: 'латы', g: 3 },
+  { id: 'harness', name: 'доспех', g: 0 },
+  { id: 'robe', name: 'роба', g: 1 },
+  { id: 'shell', name: 'панцирь', g: 0 },
+  { id: 'cloak', name: 'плащ', g: 0 },
 ];
+
+export function gearBases(kind: GearKind): Base[] {
+  return kind === 'weapon' ? WEAPON_BASES : ARMOR_BASES;
+}
+
+/** Разброс урона базы на тире — с учётом её ширины. */
+export function baseDamage(base: Base, tier: GearTier): { min: number; max: number } {
+  const info = GEAR_TIERS[tier];
+  let min = info.dmgMin;
+  let max = info.dmgMax;
+  if (base.spread === 'narrow') min += 1;
+  if (base.spread === 'wide') {
+    min = Math.max(1, min - 1);
+    max += 1;
+  }
+  return { min, max };
+}
+
+/** Название базы с префиксом тира: «Драконий меч». */
+export function baseTitle(base: Base, tier: GearTier, variant = 0): string {
+  const forms = PREFIXES[tier][variant % PREFIXES[tier].length];
+  return `${forms[base.g]} ${base.name}`;
+}
 
 /** Формы прилагательного: [м, ж, ср, мн]. */
 const PREFIXES: Record<GearTier, string[][]> = {
@@ -142,20 +166,12 @@ export function affixMods(gear: GearInstance): StatMods {
 // ─── Генерация ─────────────────────────────────────────────────────────────
 
 export function makeGear(rng: Rng, kind: GearKind, tier: GearTier): GearInstance {
-  const base = pick(rng, kind === 'weapon' ? WEAPON_BASES : ARMOR_BASES);
+  const base = pick(rng, gearBases(kind));
   const prefix = pick(rng, PREFIXES[tier])[base.g];
   const info = GEAR_TIERS[tier];
-  let dmgMin = 0;
-  let dmgMax = 0;
-  if (kind === 'weapon') {
-    dmgMin = info.dmgMin;
-    dmgMax = info.dmgMax;
-    if (base.spread === 'narrow') dmgMin += 1;
-    if (base.spread === 'wide') {
-      dmgMin = Math.max(1, dmgMin - 1);
-      dmgMax += 1;
-    }
-  }
+  const dmg = baseDamage(base, tier);
+  const dmgMin = kind === 'weapon' ? dmg.min : 0;
+  const dmgMax = kind === 'weapon' ? dmg.max : 0;
   return {
     kind,
     tier,

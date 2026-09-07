@@ -3,6 +3,7 @@ import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, 
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { ART_TIER_COLORS, GEAR_TIERS, gearStatText } from '../data/gear';
+import type { Collectible } from '../data/collection';
 import { heroDef } from '../data/heroes';
 import { heroStats } from '../engine/run';
 import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
@@ -20,11 +21,47 @@ export function bar(cls: string, cur: number, max: number, label = ''): HTMLElem
   );
 }
 
-export function staPips(cur: number, max: number): HTMLElement {
-  const pips: HTMLElement[] = [];
+/**
+ * Полоска расходуемого ресурса: одна ячейка — одно очко.
+ * Мана и стамина показываются одинаково, отличаются только цветом.
+ */
+export function resBar(kind: 'mp' | 'sta', cur: number, max: number): HTMLElement {
+  const label = kind === 'mp' ? 'MP' : 'STA';
+  const title = kind === 'mp' ? `Мана ${cur}/${max}` : `Стамина ${cur}/${max}`;
   const total = Math.max(cur, max);
-  for (let i = 0; i < total; i++) pips.push(h('span', { class: `pip ${i < cur ? 'on' : ''}` }));
-  return h('div', { class: 'sta', title: `Стамина ${cur}/${max}` }, h('span', { class: 'sta-label' }, 'STA'), ...pips);
+  const cells: HTMLElement[] = [];
+  for (let i = 0; i < total; i++) cells.push(h('span', { class: `res-cell ${i < cur ? 'on' : ''}` }));
+  return h(
+    'div',
+    { class: `res res-${kind}`, title },
+    h('span', { class: 'res-label' }, label),
+    h('div', { class: 'res-track' }, ...cells),
+    h('span', { class: 'res-text' }, `${cur}/${max}`),
+  );
+}
+
+/** Плитка предмета каталога: в сетке коллекции и в ленте сундука. */
+export function collectibleTile(c: Collectible, locked = false): HTMLElement {
+  if (locked) {
+    return h('div', { class: 'coll-tile locked', title: 'Ещё не найдено' }, h('span', { class: 'coll-glyph' }, '?'), h('span', { class: 'coll-name' }, '???'));
+  }
+  return h(
+    'div',
+    { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, title: `${c.name}\n${c.sub}\n${c.desc}` },
+    h('span', { class: 'coll-glyph', style: `color:${c.color}` }, c.glyph),
+    h('span', { class: 'coll-name' }, c.name),
+  );
+}
+
+/** Крупная карточка находки — показывается после крутки сундука. */
+export function collectibleCard(c: Collectible): HTMLElement {
+  return h(
+    'div',
+    { class: 'card coll-card', style: `border-color:${c.color}` },
+    h('div', { class: 'card-head' }, h('span', { class: 'glyph', style: `color:${c.color}` }, c.glyph), h('span', { class: 'card-name' }, c.name)),
+    h('div', { class: 'card-sub', style: `color:${c.color}` }, c.sub),
+    ...c.desc.split('\n').map((line) => h('div', { class: 'card-desc' }, line)),
+  );
 }
 
 export function tierBadge(tier: GearTier): HTMLElement {

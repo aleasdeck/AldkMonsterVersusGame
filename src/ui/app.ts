@@ -2,7 +2,9 @@ import { h } from './dom';
 import type { BattleEvent, GearKind, PlayerAction, RunState } from '../engine/types';
 import * as R from '../engine/run';
 import { STATUS_NAMES, canUseAction } from '../engine/combat';
-import { clearRun, loadBest, loadRun, recordResult, saveRun, type BestRecord } from './save';
+import { claimChest, clearRun, loadProfile, loadRun, recordResult, saveRun, type Profile } from './save';
+import { rollCollectible } from '../data/collection';
+import { createRng } from '../engine/rng';
 import { menuScreen } from './screens/menu';
 import { heroSelectScreen } from './screens/heroSelect';
 import { mapScreen } from './screens/map';
@@ -11,6 +13,8 @@ import { rewardScreen } from './screens/reward';
 import { eventScreen } from './screens/event';
 import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
+import { collectionScreen } from './screens/collection';
+import { SPIN_MS, buildStrip, chestScreen, type ChestState } from './screens/chest';
 
 const ENEMY_STEP_MS = 600;
 const FLOAT_MS = 900;
@@ -18,18 +22,21 @@ const FLOAT_MS = 900;
 export class App {
   root: HTMLElement;
   run: RunState | null = null;
-  screen: 'menu' | 'heroSelect' | 'run' = 'menu';
+  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'chest' = 'menu';
   /** Выбранная цель в бою (uid врага). */
   target: number | null = null;
   /** Идёт ход врагов — кнопки заблокированы. */
   busy = false;
-  best: BestRecord;
+  profile: Profile;
+  /** Состояние крутки сундука; null — сундук ещё не открыт. */
+  chest: ChestState | null = null;
   private stepTimer: number | null = null;
+  private spinTimer: number | null = null;
   private resultRecorded = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
-    this.best = loadBest();
+    this.profile = loadProfile();
   }
 
   start(): void {
@@ -55,6 +62,8 @@ export class App {
   render(): void {
     let el: HTMLElement;
     if (this.screen === 'heroSelect') el = heroSelectScreen(this);
+    else if (this.screen === 'collection') el = collectionScreen(this);
+    else if (this.screen === 'chest') el = chestScreen(this);
     else if (this.screen === 'menu' || !this.run) el = menuScreen(this);
     else {
       switch (this.run.phase) {
@@ -90,7 +99,7 @@ export class App {
     if (this.run && R.isRunOver(this.run)) {
       if (!this.resultRecorded) {
         this.resultRecorded = true;
-        this.best = recordResult(this.run);
+        this.profile = recordResult(this.run);
       }
       clearRun();
       this.render();
@@ -103,6 +112,8 @@ export class App {
 
   showMenu(): void {
     this.stopStepping();
+    this.stopSpin();
+    this.chest = null;
     if (this.run && R.isRunOver(this.run)) this.run = null;
     this.screen = 'menu';
     this.render();
@@ -110,12 +121,63 @@ export class App {
 
   showHeroSelect(): void {
     this.stopStepping();
+    this.stopSpin();
+    this.chest = null;
     if (this.run && R.isRunOver(this.run)) this.run = null;
     this.screen = 'heroSelect';
     this.render();
   }
 
+  showCollection(): void {
+    this.stopSpin();
+    this.chest = null;
+    this.screen = 'collection';
+    this.render();
+  }
+
+  showChest(): void {
+    this.stopSpin();
+    this.chest = null;
+    this.screen = 'chest';
+    this.render();
+  }
+
+  /** Списывает сундук, сразу записывает находку и запускает прокрутку ленты. */
+  openChest(): void {
+    if (this.profile.chests <= 0) return;
+    const rng = createRng(R.randomSeed());
+    const prize = rollCollectible(rng, this.profile.collection);
+    if (!prize) return;
+    this.stopSpin();
+    this.profile = claimChest(prize);
+    this.chest = buildStrip(rng, prize);
+    this.screen = 'chest';
+    this.render();
+    this.spinTimer = window.setTimeout(() => {
+      this.spinTimer = null;
+      this.finishSpin();
+    }, SPIN_MS);
+  }
+
+  skipSpin(): void {
+    this.stopSpin();
+    this.finishSpin();
+  }
+
+  private finishSpin(): void {
+    if (!this.chest || this.chest.phase === 'done') return;
+    this.chest.phase = 'done';
+    this.render();
+  }
+
+  private stopSpin(): void {
+    if (this.spinTimer !== null) window.clearTimeout(this.spinTimer);
+    this.spinTimer = null;
+  }
+
   newRun(heroId: string, seed?: number): void {
+    this.stopSpin();
+    this.chest = null;
     this.run = R.newRun(heroId, seed);
     this.target = null;
     this.resultRecorded = false;

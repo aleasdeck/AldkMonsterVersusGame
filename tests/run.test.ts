@@ -287,6 +287,17 @@ describe('забег', () => {
     expect(run.phase).toBe('camp');
   });
 
+  it('после финального босса награды нет — сразу победа', () => {
+    const run = newRun('warrior', 11);
+    run.locationIndex = 2;
+    run.roomIndex = ROOMS_PER_LOCATION - 1;
+    enterRoom(run);
+    expect(run.battle?.enemies[0].defId).toBe('dragon');
+    winCurrentBattle(run);
+    expect(run.rewards.length).toBe(0);
+    expect(run.phase).toBe('victory');
+  });
+
   it('все герои доигрывают забег без ошибок на разных сидах', () => {
     for (const hero of HERO_LIST) {
       for (let seed = 1; seed <= 6; seed++) {

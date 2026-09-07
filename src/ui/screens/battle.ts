@@ -6,7 +6,7 @@ import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
 import { canUseAction, computeIntent, previewAttack, rangeText } from '../../engine/combat';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { EnemyState, PlayerAction } from '../../engine/types';
-import { bar, staPips, statusIcons } from '../components';
+import { bar, resBar, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
 import { statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
@@ -149,8 +149,13 @@ export function battleScreen(app: App): HTMLElement {
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, 112, 'bob')),
     h('div', { class: 'name' }, def.name),
     bar('hp', b.hero.hp, b.hero.maxHp, 'HP'),
-    h('div', { class: 'res-row' }, bar('mp', b.hero.mp, b.hero.maxMp, 'MP'), b.hero.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${b.hero.block}`) : null),
-    staPips(b.hero.sta, b.hero.maxSta),
+    h(
+      'div',
+      { class: 'res-list' },
+      resBar('sta', b.hero.sta, b.hero.maxSta),
+      b.hero.maxMp > 0 ? resBar('mp', b.hero.mp, b.hero.maxMp) : null,
+      b.hero.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${b.hero.block}`) : null,
+    ),
   );
 
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));

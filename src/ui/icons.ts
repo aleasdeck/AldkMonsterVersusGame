@@ -148,3 +148,44 @@ export function statusIcon(id: StatusId, px = 20): HTMLImageElement {
   img.draggable = false;
   return img;
 }
+
+/** Пиксельный сундук 16×16 для экрана находок. */
+const CHEST_ROWS = [
+  '................',
+  '................',
+  '...oooooooooo...',
+  '..owwwwwwwwwwo..',
+  '.owwwwwwwwwwwwo.',
+  '.owwwwwmmwwwwwo.',
+  '.ommmmmmmmmmmmo.',
+  '.oddddddddddddo.',
+  '.oddddmllmddddo.',
+  '.oddddmllmddddo.',
+  '.oddddddddddddo.',
+  '.oddddddddddddo.',
+  '.ommmmmmmmmmmmo.',
+  '.oddddddddddddo.',
+  '..oooooooooooo..',
+  '................',
+];
+
+const CHEST_COLORS: Record<string, string> = {
+  o: '#2a1a0e',
+  w: '#9c6b33',
+  d: '#6f4520',
+  m: '#c9a227',
+  l: '#ffd166',
+};
+
+let chestUrl = '';
+
+export function chestIcon(px = 96): HTMLImageElement {
+  if (!chestUrl) chestUrl = drawGrid(16, 16, (x, y) => CHEST_COLORS[CHEST_ROWS[y]?.[x] ?? '.'] ?? null);
+  const img = document.createElement('img');
+  img.src = chestUrl;
+  img.width = px;
+  img.height = px;
+  img.className = 'sprite';
+  img.alt = 'сундук';
+  return img;
+}

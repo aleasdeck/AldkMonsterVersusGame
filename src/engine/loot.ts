@@ -49,16 +49,18 @@ export function rollRewards(rng: Rng, hero: HeroPersistent, loc: LocationDef, so
 }
 
 export function rollBossRewards(rng: Rng, hero: HeroPersistent, loc: LocationDef): RewardScreen[] {
-  const screens: RewardScreen[] = [];
-  if (loc.bossGearTier) {
-    screens.push({
+  // Финальный босс: забег на этом заканчивается, награда игроку уже не нужна.
+  const gearTier = loc.bossGearTier;
+  if (!gearTier) return [];
+  const screens: RewardScreen[] = [
+    {
       title: 'Трофей босса',
       options: [
-        { kind: 'gear', gear: makeGear(rng, 'weapon', loc.bossGearTier) },
-        { kind: 'gear', gear: makeGear(rng, 'armor', loc.bossGearTier) },
+        { kind: 'gear', gear: makeGear(rng, 'weapon', gearTier) },
+        { kind: 'gear', gear: makeGear(rng, 'armor', gearTier) },
       ],
-    });
-  }
+    },
+  ];
   const arts: LootItem[] = [];
   const used: string[] = [];
   const tiers = bump(loc.artTiers, 3 as ArtTier);

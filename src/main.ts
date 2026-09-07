@@ -1,5 +1,7 @@
 import { App } from './ui/app';
 import { ROOMS_PER_LOCATION } from './data/locations';
+import { COLLECTIBLE_IDS } from './data/collection';
+import { loadProfile, saveProfile } from './ui/save';
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -21,6 +23,28 @@ app.start();
 // Отладочный быстрый старт: ?hero=warrior&seed=5&enter=1 — новый забег и сразу первая комната.
 // ?hero=...&phase=reward|event|camp|end — сразу нужный экран (бой выигрывается читом).
 const params = new URLSearchParams(window.location.search);
+
+// &mock=1 — демо-профиль: статистика, сундуки и часть коллекции (для отладки экранов)
+if (params.get('mock')) {
+  saveProfile({
+    ...loadProfile(),
+    runs: 12,
+    victories: 3,
+    furthest: 15,
+    furthestHero: 'rogue',
+    kills: 214,
+    turns: 638,
+    damageDealt: 4321,
+    damageTaken: 3187,
+    heroRuns: { warrior: 4, rogue: 5, mage: 3 },
+    heroWins: { rogue: 2, warrior: 1 },
+    chests: 3,
+    collection: COLLECTIBLE_IDS.filter((_, i) => i % 3 === 0),
+  });
+  app.profile = loadProfile();
+  app.render();
+}
+
 const heroParam = params.get('hero');
 if (heroParam) {
   const seedRaw = params.get('seed');
@@ -62,8 +86,13 @@ if (heroParam) {
   } else {
     app.render();
   }
-} else if (params.get('screen') === 'select') {
-  app.showHeroSelect();
+} else {
+  // ?screen=select|collection|chest — сразу нужный экран вне забега
+  const screen = params.get('screen');
+  if (screen === 'select') app.showHeroSelect();
+  else if (screen === 'collection') app.showCollection();
+  else if (screen === 'chest') app.showChest();
+  else if (screen === 'spin') app.openChest();
 }
 
 // Для отладки из консоли: mv.run, mv.render()
