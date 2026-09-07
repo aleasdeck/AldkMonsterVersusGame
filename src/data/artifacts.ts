@@ -164,6 +164,22 @@ const list: ArtifactDef[] = [
     describe: (tier) => `+${t(2, 3, 4)(tier)} к Силе на этот и следующий ход. КД 3`,
   },
   {
+    id: 'rage',
+    name: 'Ярость',
+    glyph: '✸',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 0 },
+    cooldown: () => 2,
+    target: 'self',
+    effects: (tier) => [
+      { type: 'selfDamage', amount: t(2, 1, 1)(tier) },
+      { type: 'gainSta', amount: t(3, 3, 4)(tier) },
+      { type: 'status', target: 'self', status: 'strength', value: t(1, 2, 3)(tier), turns: 1 },
+    ],
+    describe: (tier) => `Ранит себя на ${t(3, 3, 2)(tier)} HP, даёт +${t(3, 3, 4)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
+  },
+  {
     id: 'second_wind',
     name: 'Второе дыхание',
     glyph: '↻',

@@ -76,13 +76,14 @@ describe('базовые действия', () => {
     const w = mkBattle('warrior', ['bear']);
     const b = mkBattle('berserk', ['bear']);
     expect(w.state.hero.stats.fatigue).toBe(0.75);
-    expect(b.state.hero.stats.fatigue).toBe(0.88);
+    expect(b.state.hero.stats.fatigue).toBeCloseTo(0.9);
   });
 
   it('защита даёт блок = DEF героя + DEF брони, блок съедает урон врага', () => {
     const { state, rng } = mkBattle('warrior', ['wolf']);
     performAction(state, { type: 'defend' }, rng);
-    expect(state.hero.block).toBe(7);
+    // 6 героя + 1 кольчуга + 1 Парирование меча
+    expect(state.hero.block).toBe(8);
     const hpBefore = state.hero.hp;
     pass(state, rng);
     expect(state.hero.hp).toBe(hpBefore);
@@ -264,7 +265,8 @@ describe('новые механики врагов', () => {
     bat.intent = 'flutter';
     pass(state, rng);
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: bat.uid }, rng);
-    expect(bat.hp).toBe(9 - 7);
+    // 7 по тиру + 1 к заклинаниям от магического посоха
+    expect(bat.hp).toBe(9 - 8);
   });
 
   it('вампирская атака лечит врага', () => {
@@ -336,10 +338,12 @@ describe('мана и артефакты', () => {
   it('огненный шар тратит ману, бьёт по тиру + сила заклинаний, раз в ход', () => {
     const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'sage_eye', tier: 1 }] });
     const boar = first(state);
-    expect(state.hero.mp).toBe(10);
+    // 10 маги + 2 Резерв посоха
+    expect(state.hero.mp).toBe(12);
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid }, rng);
-    expect(boar.hp).toBe(18 - 8);
-    expect(state.hero.mp).toBe(8);
+    // 7 по тиру + 1 Око мудреца + 1 магический посох
+    expect(boar.hp).toBe(18 - 9);
+    expect(state.hero.mp).toBe(10);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid })).toMatch(/Перезарядка/);
     pass(state, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid })).toBeNull();
@@ -348,9 +352,9 @@ describe('мана и артефакты', () => {
   it('мана восстанавливается на реген со второго хода', () => {
     const { state, rng } = mkBattle('mage', ['boar']);
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: first(state).uid }, rng);
-    expect(state.hero.mp).toBe(8);
-    pass(state, rng);
     expect(state.hero.mp).toBe(10);
+    pass(state, rng);
+    expect(state.hero.mp).toBe(12);
   });
 
   it('лечение паладина: стоит ману и стамину, кулдаун 3', () => {
@@ -404,7 +408,8 @@ describe('мана и артефакты', () => {
   it('у плута врождённый крит складывается с талисманом', () => {
     const hero = mkHero('rogue');
     const s = computeStats(heroDef('rogue'), hero.weapon, hero.armor);
-    expect(s.crit).toBeCloseTo(0.25);
+    // 10 % врождённых + 15 % талисман + 10 % Точный кинжал
+    expect(s.crit).toBeCloseTo(0.35);
   });
 });
 
@@ -459,8 +464,8 @@ describe('боссы', () => {
     const { state, rng } = mkBattle('mage', ['lich']);
     first(state).intent = 'wither';
     pass(state, rng);
-    // 10 базовых, −3 иссушение, +2 реген в начале следующего хода
-    expect(state.hero.mp).toBe(10 - 3 + 2);
+    // 10 базовых + 2 посох, −3 иссушение, +2 реген в начале следующего хода
+    expect(state.hero.mp).toBe(12 - 3 + 2);
   });
 });
 
@@ -487,8 +492,8 @@ describe('лучник', () => {
     const e = first(state);
     const hp = e.hp;
     performAction(state, { type: 'artifact', artifactId: 'aimed_shot', target: e.uid }, rng);
-    // урон лука зафиксирован на 5, бонус тира 1 — +2, крит ×2
-    expect(hp - e.hp).toBe(14);
+    // урон лука зафиксирован на 5, бонус тира 1 — +2, Прицел лука — +2 к первому удару, крит ×2
+    expect(hp - e.hp).toBe(18);
     expect(state.hero.sta).toBe(1);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'aimed_shot', target: e.uid })).toMatch(/Перезарядка/);
   });
@@ -498,7 +503,8 @@ describe('лучник', () => {
     const e = first(state);
     const hp = e.hp;
     performAction(state, { type: 'artifact', artifactId: 'crippling_shot', target: e.uid }, rng);
-    expect(hp - e.hp).toBe(5);
+    // 5 лука + 2 Прицел первого удара
+    expect(hp - e.hp).toBe(7);
     expect(getStatus(e, 'weak')?.turns).toBe(1);
   });
 });

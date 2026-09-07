@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { heroDef } from '../src/data/heroes';
-import { makeGear, makeStartingGear } from '../src/data/gear';
+import { makeGear, makeStartingGear, weaponDice } from '../src/data/gear';
 import { addArtifact, equipGear, isMaxed, replaceArtifact, socketRefs, upgradableSockets } from '../src/engine/equipment';
 import { computeStats } from '../src/engine/stats';
 import { createRng } from '../src/engine/rng';
@@ -85,7 +85,8 @@ describe('расчёт статов', () => {
     const h = mkHero('warrior');
     const s = computeStats(heroDef('warrior'), h.weapon, h.armor);
     expect(s.maxHp).toBe(44 + 6);
-    expect(s.def).toBe(6 + 1);
+    // 6 героя + 1 кольчуга + 1 Парирование меча
+    expect(s.def).toBe(6 + 1 + 1);
     expect([s.dmgMin, s.dmgMax]).toEqual([4, 6]);
     expect(s.sta).toBe(3);
   });
@@ -126,6 +127,6 @@ describe('расчёт статов', () => {
     equipGear(h, w);
     const s = computeStats(heroDef('warrior'), h.weapon, h.armor);
     expect(s.str).toBe(2);
-    expect(s.dmgMin).toBe(w.dmgMin);
+    expect(s.dmgMin).toBe(weaponDice(heroDef('warrior'), w).min);
   });
 });

@@ -2,7 +2,7 @@ import type { GearKind, GearTier } from '../engine/types';
 import type { Rng } from '../engine/rng';
 import { pick } from '../engine/rng';
 import { ARTIFACT_IDS, artifactCostText, artifactDef } from './artifacts';
-import { GEAR_TIERS, baseDamage, baseTitle, gearBases } from './gear';
+import { GEAR_TIERS, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseDamage, baseTitle, gearBases, weaponTypeText } from './gear';
 
 /**
  * Каталог всего, что встречается в приключениях: артефакты и базы экипировки.
@@ -62,14 +62,20 @@ function gearEntry(kind: GearKind, baseId: string): Collectible {
     kind === 'weapon'
       ? `Урон ${lo.min}–${lo.max} на 1 тире, ${hi.min}–${hi.max} на 5 тире`
       : `+${t1.def} DEF и +${t1.hp} HP на 1 тире, +${t5.def} DEF и +${t5.hp} HP на 5 тире`;
+  const type = base.type ?? 'melee';
+  const perkLines: string[] = [];
+  if (kind === 'weapon') {
+    perkLines.push(`${WEAPON_TYPE_NAMES[type]} оружие: ${weaponTypeText(type, 1)}`);
+    if (base.perk) perkLines.push(`${base.perk.name}: ${base.perk.text(1)}; на 5 тире — ${base.perk.text(5)}`);
+  }
   return {
     id: `${kind}:${baseId}`,
     kind,
     name: base.name[0].toUpperCase() + base.name.slice(1),
-    glyph: kind === 'weapon' ? '⚔' : '⛨',
+    glyph: kind === 'weapon' ? WEAPON_TYPE_GLYPHS[type] : '⛨',
     color: KIND_COLORS[kind],
-    sub: kind === 'weapon' ? `${KIND_NAMES.weapon} · ${spread}` : KIND_NAMES.armor,
-    desc: `${stats}\nВстречается от «${baseTitle(base, 1)}» до «${baseTitle(base, 5)}»`,
+    sub: kind === 'weapon' ? `${WEAPON_TYPE_NAMES[type]} · ${spread}` : KIND_NAMES.armor,
+    desc: [stats, ...perkLines, `Встречается от «${baseTitle(base, 1)}» до «${baseTitle(base, 5)}»`].join('\n'),
   };
 }
 

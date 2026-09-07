@@ -4,6 +4,11 @@ export type GearTier = 1 | 2 | 3 | 4 | 5;
 export type ArtTier = 1 | 2 | 3;
 export type LocationId = 'forest' | 'crypt' | 'caves' | 'swamp' | 'hive' | 'ship';
 
+/** Тип оружия: ближнее, дальнее, магическое. */
+export type WeaponType = 'melee' | 'ranged' | 'magic';
+/** Умение героя владеть типом оружия: мастер — полный урон, знаком — 75 %, чужое — 50 %. */
+export type Mastery = 'master' | 'trained' | 'foreign';
+
 export const MAX_ENEMIES = 3;
 /** Союзников рядом с героем. */
 export const MAX_ALLIES = 2;
@@ -50,6 +55,25 @@ export interface DerivedStats {
   firstTurnSta: number;
   /** Во сколько раз слабее каждая следующая атака в ходу. */
   fatigue: number;
+  // ── Перки оружия ──
+  /** Бонус урона первого удара в ходу. */
+  firstHit: number;
+  /** Множитель крита (обычно 2). */
+  critMult: number;
+  /** >0 — удары игнорируют блок врага. */
+  pierceBlock: number;
+  /** >0 — герой не получает урон от шипов врага при ударе. */
+  thornsImmune: number;
+  /** Доля урона одиночного удара, которая достаётся следующему врагу. */
+  splash: number;
+  /** Кровотечение, которое вешает каждый удар (на 2 хода). */
+  onHitBleed: number;
+  /** >0 — крит оглушает цель. */
+  stunOnCrit: number;
+  /** Блок за каждый удар. */
+  blockOnHit: number;
+  /** Лечение за каждое заклинание. */
+  spellLeech: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -66,7 +90,9 @@ export type Effect =
   | { type: 'status'; target: TargetKind; status: StatusId; value: number; turns: number }
   | { type: 'gainSta'; amount: number }
   /** Призыв союзника по описанию врага; hpBonus — прибавка к его HP. */
-  | { type: 'summon'; enemyId: string; hpBonus: number };
+  | { type: 'summon'; enemyId: string; hpBonus: number }
+  /** Герой ранит себя: мимо блока и защиты. Нельзя применить, если HP не больше amount. */
+  | { type: 'selfDamage'; amount: number };
 
 export interface ArtifactDef {
   id: string;
@@ -100,6 +126,8 @@ export interface GearAffix {
 export interface GearInstance {
   kind: GearKind;
   tier: GearTier;
+  /** id базы («sword», «bow», «mail»): у оружия задаёт тип и перк. */
+  base: string;
   name: string;
   /** Разброс урона (оружие). У брони 0. */
   dmgMin: number;
@@ -135,8 +163,10 @@ export interface HeroDef {
   crit?: number;
   /** Своя усталость: во сколько раз слабее каждая следующая атака в ходу (по умолчанию 0.75). */
   fatigue?: number;
-  weapon: { name: string; dmgMin: number; dmgMax: number };
-  armor: { name: string; def: number; hp: number };
+  /** Умение владения каждым типом оружия. */
+  mastery: Record<WeaponType, Mastery>;
+  weapon: { base: string; name: string; dmgMin: number; dmgMax: number };
+  armor: { base: string; name: string; def: number; hp: number };
   artifacts: [string, string];
   sprite: SpriteSpec;
 }
@@ -307,9 +337,15 @@ export interface HeroPersistent {
 
 export type RunPhase = 'map' | 'battle' | 'reward' | 'event' | 'camp' | 'victory' | 'defeat';
 
+/** Откуда награда — по нему же перебрасываются варианты. */
+export type RewardSource = 'fight' | 'elite' | 'bossGear' | 'bossArt';
+
 export interface RewardScreen {
   title: string;
+  source: RewardSource;
   options: LootItem[];
+  /** Переброс уже потрачен (один на экран). */
+  rerolled: boolean;
 }
 
 export interface PendingPlacement {
@@ -334,13 +370,15 @@ export interface RunStats {
   roomsCleared: number;
 }
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
   seed: number;
   rng: { state: number };
   hero: HeroPersistent;
+  /** Золото: капает за бои, тратится на переброс наград. */
+  gold: number;
   /** Три локации этого забега в порядке прохождения — без повторов. */
   locations: LocationId[];
   locationIndex: number;

@@ -1,15 +1,18 @@
 import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
+import { heroDef } from '../../data/heroes';
 import { findSameArtifact, gearOf, socketRefs } from '../../engine/equipment';
-import { currentLocation } from '../../engine/run';
-import { artifactCard, gearCard, heroPanel, pendingModal, pickable } from '../components';
+import { REROLL_COST } from '../../engine/loot';
+import { canReroll, currentLocation } from '../../engine/run';
+import { artifactCard, gearCard, goldBadge, heroPanel, pendingModal, pickable } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import type { ArtTier } from '../../engine/types';
 import type { App } from '../app';
 
 export function rewardScreen(app: App): HTMLElement {
   const run = app.run!;
+  const def = heroDef(run.hero.defId);
   const screen = run.rewards[0];
   const loc = currentLocation(run);
   const cards = (screen?.options ?? []).map((item, i) => {
@@ -30,9 +33,13 @@ export function rewardScreen(app: App): HTMLElement {
       );
     }
     const cur = gearOf(run.hero, item.gear.kind);
-    return pickable(gearCard(item.gear, cur, button('Надеть', () => app.takeReward(i), { class: 'primary' })), () => app.takeReward(i));
+    return pickable(
+      gearCard(item.gear, { def, current: cur, footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }),
+      () => app.takeReward(i),
+    );
   });
 
+  const rerollErr = canReroll(run);
   return h(
     'div',
     { class: 'screen reward' },
@@ -47,7 +54,16 @@ export function rewardScreen(app: App): HTMLElement {
         h('h2', null, screen?.title ?? 'Награда'),
         h('p', { class: 'dim' }, 'Можно взять только одно.'),
         h('div', { class: 'cards' }, ...cards),
-        h('div', { class: 'row' }, button('Пропустить', () => app.skipReward())),
+        h(
+          'div',
+          { class: 'row' },
+          button('Пропустить', () => app.skipReward()),
+          button(`Перебросить за ${REROLL_COST} ◉`, () => app.rerollReward(), {
+            disabled: !!rerollErr,
+            title: rerollErr ?? 'Заменить все варианты на новые. Один раз на награду.',
+          }),
+          goldBadge(run.gold),
+        ),
       ),
     ),
     pendingModal(app),

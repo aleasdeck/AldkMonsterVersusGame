@@ -3,8 +3,9 @@
  * Запуск: SIM=1 npx vitest run tests/_sim.test.ts  (по умолчанию пропускается)
  */
 import { it } from 'vitest';
-import { HERO_LIST } from '../src/data/heroes';
+import { HERO_LIST, heroDef } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
+import { weaponDice } from '../src/data/gear';
 import { enemyAction, enemyDef } from '../src/data/enemies';
 import { canUseAction, getStatus, statusValue } from '../src/engine/combat';
 import {
@@ -43,6 +44,13 @@ function incomingDamage(b: BattleState): number {
   return total;
 }
 
+/** Счётчик применений артефактов за прогон героя — видно, чем бот реально играет. */
+const USES: Record<string, number> = {};
+function useArt(run: RunState, id: string, target?: number): void {
+  USES[id] = (USES[id] ?? 0) + 1;
+  battleAction(run, { type: 'artifact', artifactId: id, target });
+}
+
 function pickTarget(b: BattleState): number | undefined {
   const alive = b.enemies.filter((e) => !getStatus(e, 'dodge'));
   const pool = alive.length ? alive : b.enemies;
@@ -73,36 +81,43 @@ function playBattle(run: RunState): void {
 
     if (has('heal') && ok('heal') && b.hero.hp < b.hero.maxHp * 0.5) {
       used.add('heal');
-      battleAction(run, { type: 'artifact', artifactId: 'heal' });
+      useArt(run, 'heal');
       continue;
     }
     if (has('second_wind') && ok('second_wind') && b.hero.hp < b.hero.maxHp * 0.6) {
       used.add('second_wind');
-      battleAction(run, { type: 'artifact', artifactId: 'second_wind' });
+      useArt(run, 'second_wind');
       continue;
     }
     if (has('mana_shield') && ok('mana_shield') && incoming >= 5) {
       used.add('mana_shield');
-      battleAction(run, { type: 'artifact', artifactId: 'mana_shield' });
+      useArt(run, 'mana_shield');
       continue;
     }
     if (has('dodge') && ok('dodge') && incoming >= 6) {
       used.add('dodge');
-      battleAction(run, { type: 'artifact', artifactId: 'dodge' });
+      useArt(run, 'dodge');
       continue;
     }
     if (!b.hero.defended && b.hero.sta >= 1 && Math.min(incoming, b.hero.stats.def) >= 3 && canUseAction(b, { type: 'defend' }) === null) {
       battleAction(run, { type: 'defend' });
       continue;
     }
-    const skip = new Set(['heal', 'second_wind', 'mana_shield', 'dodge']);
+    // Ярость — когда бой не заканчивается сам (врагам ещё жить) и после самоурона HP переживёт ход врагов с запасом.
+    const enemyHp = b.enemies.reduce((s, e) => s + e.hp + e.block, 0);
+    if (has('rage') && ok('rage') && enemyHp >= 12 && b.hero.hp - 3 > incoming + 4) {
+      used.add('rage');
+      useArt(run, 'rage');
+      continue;
+    }
+    const skip = new Set(['heal', 'second_wind', 'mana_shield', 'dodge', 'rage']);
     const usable = b.hero.artifacts.find((a) => artifactDef(a.id).kind === 'active' && !skip.has(a.id) && ok(a.id));
     if (usable) {
       used.add(usable.id);
       // Кровотечение — по самому жирному врагу, остальное — по слабейшему
       const fat = b.enemies.reduce((m, e) => (e.hp > m.hp ? e : m), b.enemies[0]);
       const t = usable.id === 'bleed_cut' && fat ? fat.uid : target;
-      battleAction(run, { type: 'artifact', artifactId: usable.id, target: t });
+      useArt(run, usable.id, t);
       continue;
     }
     if (target !== undefined && canUseAction(b, { type: 'attack', target }) === null) battleAction(run, { type: 'attack', target });
@@ -120,7 +135,13 @@ function chooseReward(run: RunState): void {
     if (o.kind === 'gear') {
       const cur = gearOf(run.hero, o.gear.kind);
       score = (o.gear.tier - cur.tier) * 10;
-      score += o.gear.kind === 'weapon' ? o.gear.dmgMin + o.gear.dmgMax - cur.dmgMin - cur.dmgMax : (o.gear.def - cur.def) * 2 + (o.gear.hp - cur.hp) * 0.5;
+      if (o.gear.kind === 'weapon') {
+        // Кубик в руках героя: чужое оружие бьёт вполсилы, бот это видит так же, как игрок на карточке.
+        const def = heroDef(run.hero.defId);
+        const a = weaponDice(def, o.gear);
+        const c = weaponDice(def, cur);
+        score += a.min + a.max - c.min - c.max;
+      } else score += (o.gear.def - cur.def) * 2 + (o.gear.hp - cur.hp) * 0.5;
       score += (o.gear.affix ? 1 : 0) - (cur.affix ? 1 : 0);
       if (o.gear.slots.length < cur.slots.filter(Boolean).length) score -= 20;
     } else {
@@ -176,10 +197,14 @@ function playRun(run: RunState, onBoss?: (run: RunState) => void): void {
 // без @types/node: читаем переменные окружения через globalThis
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 const N = Number(env.SIM_N ?? 60);
+/** SIM_HERO=berserk — прогнать только одного героя. */
+const ONLY = env.SIM_HERO;
 
 it.skipIf(!env.SIM)('симуляция баланса', () => {
   const lines: string[] = [];
   for (const hero of HERO_LIST) {
+    if (ONLY && hero.id !== ONLY) continue;
+    for (const k of Object.keys(USES)) delete USES[k];
     let wins = 0;
     let cleared = 0;
     const deaths: Record<string, number> = {};
@@ -208,8 +233,13 @@ it.skipIf(!env.SIM)('симуляция баланса', () => {
       .slice(0, 4)
       .map(([k, v]) => `${k}:${v}`)
       .join(' ');
+    const uses = Object.entries(USES)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([k, v]) => `${k}:${(v / N).toFixed(1)}`)
+      .join(' ');
     lines.push(
-      `${hero.name.padEnd(8)} побед ${String(wins).padStart(2)}/${N}  боёв ${(cleared / N).toFixed(1).padStart(4)}  HP у босса: ${avg(bossHp[0])} ${avg(bossHp[1])} ${avg(bossHp[2])}  смерти: ${top}  где: ${locTop}`,
+      `${hero.name.padEnd(8)} побед ${String(wins).padStart(2)}/${N}  боёв ${(cleared / N).toFixed(1).padStart(4)}  HP у босса: ${avg(bossHp[0])} ${avg(bossHp[1])} ${avg(bossHp[2])}  смерти: ${top}  где: ${locTop}  приёмы/забег: ${uses}`,
     );
   }
   console.log('\n' + lines.join('\n'));

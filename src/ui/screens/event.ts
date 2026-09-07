@@ -1,7 +1,8 @@
 import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
-import { gearStatText } from '../../data/gear';
+import { gearStatText, weaponPerkText } from '../../data/gear';
+import { heroDef } from '../../data/heroes';
 import { gearOf } from '../../engine/equipment';
 import { currentLocation } from '../../engine/run';
 import { artifactChip, heroPanel, pendingModal, pickable, tierBadge } from '../components';
@@ -25,14 +26,16 @@ function contents(app: App, o: EventOption): HTMLElement | null {
     );
   }
   if (o.id === 'chest') {
+    const def = heroDef(run.hero.defId);
     const cur = gearOf(run.hero, o.gear.kind);
     return h(
       'div',
       { class: 'event-loot' },
       h('div', { class: 'card-sub' }, tierBadge(o.gear.tier)),
       h('div', { class: 'card-desc' }, o.gear.name),
-      h('div', { class: 'note' }, `${gearStatText(o.gear)} · слотов: ${o.gear.slots.length}`),
-      h('div', { class: 'card-compare' }, `Сейчас: ${cur.name} — ${gearStatText(cur)}, слотов: ${cur.slots.length}`),
+      h('div', { class: 'note' }, `${gearStatText(o.gear, def)} · слотов: ${o.gear.slots.length}`),
+      o.gear.kind === 'weapon' ? h('div', { class: 'card-perk' }, weaponPerkText(o.gear)) : null,
+      h('div', { class: 'card-compare' }, `Сейчас: ${cur.name} — ${gearStatText(cur, def)}, слотов: ${cur.slots.length}`),
     );
   }
   return null;
