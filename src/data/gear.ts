@@ -92,7 +92,7 @@ type Gender = 0 | 1 | 2 | 3; // m, f, n, pl
 type ByTier = [number, number, number, number, number];
 const byTier = (v: ByTier) => (tier: GearTier) => v[tier - 1];
 
-/** Перк базы оружия: чем меч отличается от копья. */
+/** Перк базы: чем меч отличается от копья, а латы — от плаща. */
 export interface Perk {
   name: string;
   mods: (tier: GearTier) => StatMods;
@@ -239,13 +239,48 @@ export const WEAPON_BASES: Base[] = [
   },
 ];
 
+/** Перки брони — защитные, в пару к перкам оружия: латы держат удар, плащ его избегает, роба прикрывает кастера. */
 export const ARMOR_BASES: Base[] = [
-  { id: 'mail', name: 'кольчуга', g: 1 },
-  { id: 'plate', name: 'латы', g: 3 },
-  { id: 'harness', name: 'доспех', g: 0 },
-  { id: 'robe', name: 'роба', g: 1 },
-  { id: 'shell', name: 'панцирь', g: 0 },
-  { id: 'cloak', name: 'плащ', g: 0 },
+  {
+    id: 'mail',
+    name: 'кольчуга',
+    g: 1,
+    perk: { name: 'Кольца', mods: (t) => ({ hitReduce: byTier([1, 1, 1, 2, 2])(t) }), text: (t) => `каждый удар по герою слабее на ${byTier([1, 1, 1, 2, 2])(t)}` },
+  },
+  {
+    id: 'plate',
+    name: 'латы',
+    g: 3,
+    perk: { name: 'Стойкость', mods: (t) => ({ defendBonus: byTier([1, 1, 2, 2, 3])(t) }), text: (t) => `«Защититься» даёт +${byTier([1, 1, 2, 2, 3])(t)} блока` },
+  },
+  {
+    id: 'harness',
+    name: 'доспех',
+    g: 0,
+    perk: { name: 'Второе дыхание', mods: (t) => ({ firstTurnSta: byTier([1, 1, 1, 2, 2])(t) }), text: (t) => `+${byTier([1, 1, 1, 2, 2])(t)} STA в первый ход боя` },
+  },
+  {
+    id: 'robe',
+    name: 'роба',
+    g: 1,
+    perk: { name: 'Чары', mods: (t) => ({ blockOnSpell: byTier([1, 1, 2, 2, 3])(t) }), text: (t) => `каждое заклинание даёт +${byTier([1, 1, 2, 2, 3])(t)} блока` },
+  },
+  {
+    id: 'shell',
+    name: 'панцирь',
+    g: 0,
+    perk: { name: 'Панцирь', mods: (t) => ({ blockKeep: byTier([2, 2, 3, 4, 5])(t) }), text: (t) => `до ${byTier([2, 2, 3, 4, 5])(t)} блока не сгорает в начале хода` },
+  },
+  {
+    id: 'cloak',
+    name: 'плащ',
+    g: 0,
+    perk: {
+      name: 'Скрытность',
+      mods: (t) => ({ dodgeStart: byTier([1, 1, 1, 2, 2])(t) }),
+      text: (t) => (byTier([1, 1, 1, 2, 2])(t) === 1 ? 'первая атака врага в бою промахивается' : `первые ${byTier([1, 1, 1, 2, 2])(t)} атаки врага в бою промахиваются`),
+    },
+  },
 ];
 
 export function gearBases(kind: GearKind): Base[] {
@@ -288,13 +323,18 @@ export function weaponPerkMods(gear: GearInstance): StatMods {
   return out;
 }
 
+/** Модификаторы перка базы брони (без аффикса). */
+export function armorPerkMods(gear: GearInstance): StatMods {
+  return baseOf('armor', gear.base).perk?.mods(gear.tier) ?? {};
+}
+
 /**
- * Строка перка базы оружия: «Прицел: первый удар +2».
- * Тип и его свойство здесь не пишутся: тип показывает иконка у бейджа тира,
+ * Строка перка базы: «Прицел: первый удар +2», «Кольца: каждый удар по герою слабее на 1».
+ * Тип оружия и его свойство здесь не пишутся: тип показывает иконка у бейджа тира,
  * свойство типа и долю кубика — подсказка строки владения в панели героя.
  */
-export function weaponPerkText(gear: GearInstance): string {
-  const base = weaponBase(gear);
+export function gearPerkText(gear: GearInstance): string {
+  const base = baseOf(gear.kind, gear.base);
   return base.perk ? `${base.perk.name}: ${base.perk.text(gear.tier)}` : '';
 }
 

@@ -2,10 +2,10 @@ import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
 import { heroDef } from '../../data/heroes';
-import { findSameArtifact, gearOf } from '../../engine/equipment';
+import { findSameArtifact } from '../../engine/equipment';
 import { REROLL_COST } from '../../engine/loot';
 import { canReroll, currentLocation } from '../../engine/run';
-import { artifactCard, gearCard, heroPanel, pendingModal, pickable } from '../components';
+import { artifactCard, coin, gearCard, heroPanel, pendingModal, pickable } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import type { ArtTier } from '../../engine/types';
 import type { App } from '../app';
@@ -32,11 +32,7 @@ export function rewardScreen(app: App): HTMLElement {
         () => app.takeReward(i),
       );
     }
-    const cur = gearOf(run.hero, item.gear.kind);
-    return pickable(
-      gearCard(item.gear, { def, current: cur, footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }),
-      () => app.takeReward(i),
-    );
+    return pickable(gearCard(item.gear, { def, footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i));
   });
 
   const rerollErr = canReroll(run);
@@ -57,7 +53,7 @@ export function rewardScreen(app: App): HTMLElement {
           'div',
           { class: 'row' },
           button('Пропустить', () => app.skipReward()),
-          button(`Перебросить за ${REROLL_COST} ◉`, () => app.rerollReward(), {
+          button(h('span', null, `Перебросить за ${REROLL_COST} `, coin()), () => app.rerollReward(), {
             disabled: !!rerollErr,
             title: rerollErr ?? 'Заменить все варианты на новые. Один раз на награду.',
           }),

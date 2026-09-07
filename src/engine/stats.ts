@@ -1,6 +1,6 @@
 import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef, HeroPersistent, StatMods } from './types';
 import { ARTIFACTS } from '../data/artifacts';
-import { affixMods, weaponDice, weaponPerkMods } from '../data/gear';
+import { affixMods, armorPerkMods, weaponDice, weaponPerkMods } from '../data/gear';
 
 export function socketedArtifacts(weapon: GearInstance, armor: GearInstance): ArtifactInstance[] {
   const out: ArtifactInstance[] = [];
@@ -18,7 +18,7 @@ export const DEFAULT_FATIGUE = 0.75;
 export const DEFAULT_CRIT_MULT = 2;
 
 /**
- * Статы героя: база героя → кубик оружия в его руках (владение, тип) → перки оружия →
+ * Статы героя: база героя → кубик оружия в его руках (владение, тип) → перки оружия и брони →
  * аффиксы → пассивные артефакты.
  */
 export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInstance): DerivedStats {
@@ -48,8 +48,14 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     stunOnCrit: 0,
     blockOnHit: 0,
     spellLeech: 0,
+    hitReduce: 0,
+    defendBonus: 0,
+    blockKeep: 0,
+    blockOnSpell: 0,
+    dodgeStart: 0,
   };
   applyMods(s, weaponPerkMods(weapon));
+  applyMods(s, armorPerkMods(armor));
   applyMods(s, affixMods(weapon));
   applyMods(s, affixMods(armor));
   for (const a of socketedArtifacts(weapon, armor)) {

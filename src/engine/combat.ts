@@ -180,6 +180,8 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
       log(state, 'Герой уклоняется');
       return 0;
     }
+    // Кольца кольчуги гасят часть каждого удара ещё до блока.
+    if (h.stats.hitReduce > 0) rest = Math.max(0, rest - h.stats.hitReduce);
     if (!pierce) {
       const b = Math.min(h.block, rest);
       h.block -= b;
@@ -451,6 +453,10 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       }
       if (eff.drain) healHero(state, amount);
       if (h.stats.spellLeech > 0) healHero(state, h.stats.spellLeech);
+      if (h.stats.blockOnSpell > 0) {
+        h.block += h.stats.blockOnSpell;
+        state.events.push({ type: 'block', target: 'hero', amount: h.stats.blockOnSpell });
+      }
       break;
     }
     case 'selfDamage':
@@ -491,9 +497,10 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   } else if (action.type === 'defend') {
     h.sta -= 1;
     h.defended = true;
-    h.block += h.stats.def;
-    state.events.push({ type: 'block', target: 'hero', amount: h.stats.def });
-    log(state, `Герой защищается: +${h.stats.def} блока`);
+    const gain = h.stats.def + h.stats.defendBonus;
+    h.block += gain;
+    state.events.push({ type: 'block', target: 'hero', amount: gain });
+    log(state, `Герой защищается: +${gain} блока`);
   } else {
     const def = artifactDef(action.artifactId);
     const inst = h.artifacts.find((a) => a.id === def.id)!;
@@ -513,7 +520,8 @@ function startPlayerTurn(state: BattleState): void {
   const h = state.hero;
   state.turn += 1;
   state.phase = 'player';
-  h.block = 0;
+  // Панцирь оставляет часть блока на следующий ход.
+  h.block = Math.min(h.block, h.stats.blockKeep);
   h.defended = false;
   h.attacks = 0;
   const ex = getStatus(h, 'exhaust');
@@ -791,6 +799,8 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     stats: { damageDealt: 0, damageTaken: 0, kills: 0 },
   };
   for (const id of enemyIds) spawnEnemy(state, id, rng, false);
+  // Скрытность плаща: первые атаки врага в этом бою промахиваются.
+  if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
   startPlayerTurn(state);
   return state;
 }

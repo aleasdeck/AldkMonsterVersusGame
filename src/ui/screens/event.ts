@@ -1,7 +1,7 @@
 import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
-import { gearStatText, weaponPerkText } from '../../data/gear';
+import { gearPerkText, gearStatText } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { currentLocation } from '../../engine/run';
 import { artifactChip, heroPanel, pendingModal, pickable, tierBadge, weaponTypeIcon } from '../components';
@@ -32,7 +32,7 @@ function contents(app: App, o: EventOption): HTMLElement | null {
       h('div', { class: 'card-sub' }, tierBadge(o.gear.tier, o.gear.kind === 'weapon' ? weaponTypeIcon(o.gear, def) : null)),
       h('div', { class: 'card-desc' }, o.gear.name),
       h('div', { class: 'note' }, gearStatText(o.gear, def)),
-      o.gear.kind === 'weapon' ? h('div', { class: 'card-perk' }, weaponPerkText(o.gear)) : null,
+      h('div', { class: 'card-perk' }, gearPerkText(o.gear)),
       h('div', { class: 'slots' }, ...o.gear.slots.map(() => artifactChip(null))),
     );
   }

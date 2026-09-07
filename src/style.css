@@ -182,7 +182,8 @@ p {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  /* Плотнее, чем остальные панели: у обоих предметов теперь строка перка, всё должно влезть в 540px без прокрутки. */
+  gap: 4px;
 }
 .hero-panel .stats-grid {
   font-size: 17px;
@@ -407,11 +408,8 @@ p {
   font-size: 16px;
   color: var(--mp);
 }
-.card-compare {
-  font-size: 15px;
-  color: var(--dim);
-  border-top: 1px dotted var(--border);
-  padding-top: 4px;
+.coin {
+  color: #ffd166;
 }
 .card-foot {
   margin-top: auto;
@@ -431,7 +429,7 @@ p {
 }
 /* Компактная карточка панели героя: тир справа в шапке, слоты в строке с уроном. */
 .gear-card.compact {
-  gap: 4px;
+  gap: 3px;
 }
 .gear-card.compact .card-head .tier {
   margin-left: auto;
@@ -452,7 +450,7 @@ p {
 }
 .hero-panel .card {
   min-width: 0;
-  padding: 6px 8px;
+  padding: 4px 8px;
 }
 .hero-panel .card-name {
   font-size: 19px;
@@ -503,7 +501,6 @@ p {
   font-size: 14px;
   line-height: 1.1;
 }
-.cards .card-compare,
 .cards .note {
   font-size: 14px;
 }

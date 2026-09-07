@@ -7,7 +7,7 @@ import { canUseAction, computeIntent, previewAttack, rangeText } from '../../eng
 import { goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, Combatant, EnemyState, PlayerAction } from '../../engine/types';
-import { bar, segBar, statusIcons } from '../components';
+import { bar, coin, segBar, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
 import { statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
@@ -109,7 +109,7 @@ function actionBar(app: App): HTMLElement {
   );
   const def: PlayerAction = { type: 'defend' };
   buttons.push(
-    actionButton('⛨ Защититься', `+${b.hero.stats.def} блока`, '1 STA', canUseAction(b, def), busy, 'Блок до начала следующего хода', () =>
+    actionButton('⛨ Защититься', `+${b.hero.stats.def + b.hero.stats.defendBonus} блока`, '1 STA', canUseAction(b, def), busy, 'Блок до начала следующего хода', () =>
       app.battleAction(def),
     ),
   );
@@ -205,7 +205,7 @@ export function battleScreen(app: App): HTMLElement {
           'div',
           { class: `panel result ${won ? 'won' : 'lost'}` },
           h('h2', null, won ? 'Победа!' : 'Герой пал'),
-          h('p', { class: 'dim' }, won ? `Бой занял ${b.turn} ход(ов). Добыча: +${goldReward(currentRoomKind(run))} ◉ золота.` : 'Забег окончен.'),
+          h('p', { class: 'dim' }, ...(won ? [`Бой занял ${b.turn} ход(ов). Добыча: +${goldReward(currentRoomKind(run))} `, coin(), ' золота.'] : ['Забег окончен.'])),
           button(won ? 'Забрать награду' : 'К итогам', () => app.finishBattle(), { class: 'primary big' }),
         ),
       ),

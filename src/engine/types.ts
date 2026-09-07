@@ -74,6 +74,17 @@ export interface DerivedStats {
   blockOnHit: number;
   /** Лечение за каждое заклинание. */
   spellLeech: number;
+  // ── Перки брони ──
+  /** На сколько слабее каждый удар врага по герою (после уклонения, до блока). */
+  hitReduce: number;
+  /** Блок сверх DEF за «Защититься». */
+  defendBonus: number;
+  /** Столько блока переживает начало хода вместо полного сгорания. */
+  blockKeep: number;
+  /** Блок за каждое заклинание. */
+  blockOnSpell: number;
+  /** Уклонений в начале боя: первые N атак врага промахиваются. */
+  dodgeStart: number;
 }
 
 export type StatMods = Partial<DerivedStats>;

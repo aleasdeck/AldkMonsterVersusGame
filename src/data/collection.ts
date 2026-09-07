@@ -64,10 +64,8 @@ function gearEntry(kind: GearKind, baseId: string): Collectible {
       : `+${t1.def} DEF и +${t1.hp} HP на 1 тире, +${t5.def} DEF и +${t5.hp} HP на 5 тире`;
   const type = base.type ?? 'melee';
   const perkLines: string[] = [];
-  if (kind === 'weapon') {
-    perkLines.push(`${WEAPON_TYPE_NAMES[type]} оружие: ${weaponTypeText(type, 1)}`);
-    if (base.perk) perkLines.push(`${base.perk.name}: ${base.perk.text(1)}; на 5 тире — ${base.perk.text(5)}`);
-  }
+  if (kind === 'weapon') perkLines.push(`${WEAPON_TYPE_NAMES[type]} оружие: ${weaponTypeText(type, 1)}`);
+  if (base.perk) perkLines.push(`${base.perk.name}: ${base.perk.text(1)}; на 5 тире — ${base.perk.text(5)}`);
   return {
     id: `${kind}:${baseId}`,
     kind,
