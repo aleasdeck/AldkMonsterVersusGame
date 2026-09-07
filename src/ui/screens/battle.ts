@@ -6,7 +6,7 @@ import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
 import { canUseAction, computeIntent, previewAttack, rangeText } from '../../engine/combat';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { Combatant, EnemyState, PlayerAction } from '../../engine/types';
-import { bar, staBar, statusIcons } from '../components';
+import { bar, segBar, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
 import { statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
@@ -154,8 +154,8 @@ export function battleScreen(app: App): HTMLElement {
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, 112, 'bob')),
     h('div', { class: 'name' }, def.name),
     bar('hp', b.hero.hp, b.hero.maxHp, 'HP'),
-    staBar(b.hero.sta, b.hero.maxSta),
-    b.hero.maxMp > 0 ? bar('mp', b.hero.mp, b.hero.maxMp, 'MP', `Мана ${b.hero.mp}/${b.hero.maxMp}`) : null,
+    segBar('sta', b.hero.sta, b.hero.maxSta),
+    b.hero.maxMp > 0 ? segBar('mp', b.hero.mp, b.hero.maxMp) : null,
   );
 
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));

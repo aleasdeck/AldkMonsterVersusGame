@@ -22,18 +22,19 @@ export function bar(cls: string, cur: number, max: number, label = '', title = '
 }
 
 /**
- * Полоска стамины во всю ширину, как HP, поделённая на секции — по одному удару.
- * Секций всегда maxSta, поэтому ширина секции не скачет от бонусной стамины
- * («Кольцо выносливости» даёт сверх максимума: при 5/4 залиты все 4, счётчик — 5/4).
+ * Расходуемый ресурс: полоска во всю ширину, как HP, поделённая на секции —
+ * по одному очку. Секций всегда max, поэтому ширина секции не скачет от бонуса
+ * сверх максимума («Кольцо выносливости»: при 5/4 залиты все 4, счётчик — 5/4).
  */
-export function staBar(cur: number, max: number): HTMLElement {
+export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElement {
   const segs: HTMLElement[] = [];
   for (let i = 0; i < max; i++) segs.push(h('div', { class: `seg ${i < cur ? 'on' : ''}` }));
+  const label = kind === 'sta' ? 'STA' : 'MP';
   return h(
     'div',
-    { class: 'bar bar-sta', title: `Стамина ${cur}/${max}` },
+    { class: `bar bar-${kind}`, title: `${kind === 'sta' ? 'Стамина' : 'Мана'} ${cur}/${max}` },
     h('div', { class: 'segs' }, ...segs),
-    h('span', { class: 'bar-text' }, `STA ${cur}/${max}`),
+    h('span', { class: 'bar-text' }, `${label} ${cur}/${max}`),
   );
 }
 
