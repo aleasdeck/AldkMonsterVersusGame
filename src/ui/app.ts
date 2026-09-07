@@ -28,6 +28,8 @@ export class App {
   target: number | null = null;
   /** Идёт ход врагов — кнопки заблокированы. */
   busy = false;
+  /** Лог боя раскрыт на всю нижнюю панель вместо действий. Сбрасывается по концу боя. */
+  logOpen = false;
   profile: Profile;
   /** Состояние крутки сундука; null — сундук ещё не открыт. */
   chest: ChestState | null = null;
@@ -104,6 +106,7 @@ export class App {
     if (this.run && R.isRunOver(this.run)) {
       if (!this.resultRecorded) {
         this.resultRecorded = true;
+        this.run.stats.finishedAt = Date.now();
         this.profile = recordResult(this.run);
       }
       clearRun();
@@ -284,10 +287,16 @@ export class App {
     this.busy = false;
   }
 
+  toggleLog(): void {
+    this.logOpen = !this.logOpen;
+    this.render();
+  }
+
   finishBattle(): void {
     if (!this.run) return;
     R.finishBattle(this.run);
     this.target = null;
+    this.logOpen = false;
     this.afterPhaseChange();
   }
 

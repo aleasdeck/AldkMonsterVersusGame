@@ -13,7 +13,8 @@ export function randomSeed(): number {
   return (Math.random() * 0xffffffff) >>> 0;
 }
 
-export function newRun(heroId: string, seed: number = randomSeed()): RunState {
+/** `now` — момент старта; тесты и симулятор могут подставить свой, чтобы состояние не зависело от часов. */
+export function newRun(heroId: string, seed: number = randomSeed(), now: number = Date.now()): RunState {
   const def = heroDef(heroId);
   const gear = makeStartingGear(def);
   const stats = computeStats(def, gear.weapon, gear.armor);
@@ -32,7 +33,7 @@ export function newRun(heroId: string, seed: number = randomSeed()): RunState {
     rewards: [],
     event: null,
     pending: null,
-    stats: { kills: 0, turns: 0, damageDealt: 0, damageTaken: 0, roomsCleared: 0 },
+    stats: { kills: 0, turns: 0, damageDealt: 0, damageTaken: 0, roomsCleared: 0, startedAt: now, finishedAt: 0 },
   };
 }
 

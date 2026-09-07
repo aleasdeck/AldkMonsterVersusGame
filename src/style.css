@@ -983,19 +983,20 @@ p {
   align-items: stretch;
   min-width: 0;
 }
+/* Сетка 5×2: максимум действий — удар, защита и до 8 активных артефактов, всё без прокрутки. */
 .action-list {
   flex: 1;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-auto-rows: 82px;
   gap: 6px;
   overflow-y: auto;
   min-width: 0;
   align-content: flex-start;
 }
 .btn.action {
-  width: 148px;
+  min-width: 0;
   height: 82px;
-  flex: none;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1067,17 +1068,34 @@ p {
   font-size: 22px;
   padding: 0 8px;
 }
+/* Раскрытый лог: вся нижняя панель, прокрутка к последним записям. */
 .log {
-  width: 200px;
-  flex: none;
-  padding: 6px 10px;
-  font-size: 15px;
+  flex: 1;
+  min-width: 0;
+  padding: 6px 14px;
+  font-size: 16px;
   color: var(--dim);
+  overflow-y: auto;
+}
+/* Узкая вертикальная кнопка у правого края: открывает лог, в раскрытом — закрывает. */
+.log-toggle {
+  flex: none;
+  width: 40px;
+  padding: 0;
+  border: none;
   border-left: 3px solid var(--border);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  box-shadow: none;
+  writing-mode: vertical-rl;
+  font-size: 18px;
+  letter-spacing: 1px;
+  color: var(--dim);
+}
+.log-toggle.open {
+  color: var(--accent);
+}
+.log-toggle:active:not([disabled]) {
+  transform: none;
+  box-shadow: none;
 }
 .log-turn {
   color: var(--accent);

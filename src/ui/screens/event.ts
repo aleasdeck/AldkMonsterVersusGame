@@ -20,7 +20,7 @@ function contents(app: App, o: EventOption): HTMLElement | null {
       'div',
       { class: 'event-loot' },
       h('div', { class: 'slots' }, artifactChip(o.artifact)),
-      h('div', { class: 'card-sub' }, `${def.name} · тир ${o.artifact.tier}`),
+      h('div', { class: 'card-sub' }, def.name),
       h('div', { class: 'note' }, def.describe(o.artifact.tier)),
     );
   }

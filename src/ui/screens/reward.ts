@@ -2,7 +2,7 @@ import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
 import { heroDef } from '../../data/heroes';
-import { findSameArtifact, gearOf, socketRefs } from '../../engine/equipment';
+import { findSameArtifact, gearOf } from '../../engine/equipment';
 import { REROLL_COST } from '../../engine/loot';
 import { canReroll, currentLocation } from '../../engine/run';
 import { artifactCard, gearCard, heroPanel, pendingModal, pickable } from '../components';
@@ -17,18 +17,18 @@ export function rewardScreen(app: App): HTMLElement {
   const loc = currentLocation(run);
   const cards = (screen?.options ?? []).map((item, i) => {
     if (item.kind === 'artifact') {
+      // Заметка только про слияние с уже стоящим артефактом; про свободные слоты не пишем — это видно по чипам в панели.
       const same = findSameArtifact(run.hero, item.artifact.id);
-      const free = socketRefs(run.hero).some((s) => !s.art);
-      let note: string;
+      let note: string | null = null;
       if (same?.art) {
         if (same.art.tier >= 3) note = 'Уже стоит на максимальном тире';
         else {
           const nextTier = Math.min(3, Math.max(same.art.tier + 1, item.artifact.tier)) as ArtTier;
           note = `Улучшит стоящий до тира ${nextTier}: ${artifactDef(item.artifact.id).describe(nextTier)}`;
         }
-      } else note = free ? 'Встанет в свободный слот' : 'Свободных слотов нет — придётся заменить';
+      }
       return pickable(
-        artifactCard(item.artifact, h('div', null, h('div', { class: 'note' }, note), button('Взять', () => app.takeReward(i), { class: 'primary' }))),
+        artifactCard(item.artifact, h('div', null, note ? h('div', { class: 'note' }, note) : null, button('Взять', () => app.takeReward(i), { class: 'primary' }))),
         () => app.takeReward(i),
       );
     }

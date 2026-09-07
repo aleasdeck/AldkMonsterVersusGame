@@ -2,7 +2,7 @@ import { button, h, type Child } from './dom';
 import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, GearTier, RunState, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
-import { ART_TIER_COLORS, GEAR_TIERS, MASTERY_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, gearStatText, weaponPerkText, weaponType, weaponTypeTitle } from '../data/gear';
+import { ART_TIER_COLORS, GEAR_TIERS, MASTERY_NAMES, WEAPON_TYPE_GLYPHS, gearStatText, masteryTitle, weaponPerkText, weaponType, weaponTypeTitle } from '../data/gear';
 import type { Collectible } from '../data/collection';
 import { heroDef } from '../data/heroes';
 import { heroStats } from '../engine/run';
@@ -117,7 +117,8 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child): HTMLElemen
     'div',
     { class: 'card art-card', style: `border-color:${color}` },
     h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, def.glyph), h('span', { class: 'card-name' }, def.name)),
-    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · тир ${inst.tier} · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}`),
+    // Тир не пишем: его показывает цвет рамки и подписи.
+    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}`),
     h('div', { class: 'card-desc' }, def.describe(inst.tier)),
     def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def)}`) : null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
@@ -171,14 +172,17 @@ export function gearCard(gear: GearInstance, opts: { def?: HeroDef; current?: Ge
   );
 }
 
-/** Строка владения героя: «⚔ Мастер · ➶ Знаком · ✦ Чужое». */
+/**
+ * Строка владения героя: «⚔ Мастер · ➶ Знаком · ✦ Чужое».
+ * Наведение на пункт показывает долю кубика оружия и свойство типа — карточки оружия этого не повторяют.
+ */
 export function masteryLine(def: HeroDef): HTMLElement {
   const types: WeaponType[] = ['melee', 'ranged', 'magic'];
   return h(
     'div',
-    { class: 'mastery', title: 'Владение оружием: мастер — полный урон, знаком — 75 %, чужое — 50 % от кубика оружия' },
+    { class: 'mastery', title: 'Владение оружием. Наведи на тип: доля кубика и свойство типа' },
     ...types.map((t) =>
-      h('span', { class: `mastery-${def.mastery[t]}`, title: `${WEAPON_TYPE_NAMES[t]}: ${MASTERY_NAMES[def.mastery[t]]}` }, `${WEAPON_TYPE_GLYPHS[t]} ${MASTERY_NAMES[def.mastery[t]]}`),
+      h('span', { class: `mastery-${def.mastery[t]}`, title: masteryTitle(t, def.mastery[t]) }, `${WEAPON_TYPE_GLYPHS[t]} ${MASTERY_NAMES[def.mastery[t]]}`),
     ),
   );
 }

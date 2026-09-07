@@ -368,6 +368,10 @@ export interface RunStats {
   damageDealt: number;
   damageTaken: number;
   roomsCleared: number;
+  /** Время старта забега, мс эпохи. В старых сейвах отсутствует — экран итогов тогда время не пишет. */
+  startedAt: number;
+  /** Время конца забега (победа или гибель), 0 — ещё идёт. */
+  finishedAt: number;
 }
 
 export const SAVE_VERSION = 6;
