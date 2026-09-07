@@ -245,59 +245,26 @@ p {
   text-align: center;
   font-size: 15px;
   line-height: 14px;
-  text-shadow: 1px 1px 0 #000;
+  /* Обводка со всех сторон: текст читается и на светлой заливке, и на тёмном фоне. */
+  text-shadow:
+    1px 1px 0 #000,
+    -1px 1px 0 #000,
+    1px -1px 0 #000,
+    -1px -1px 0 #000;
 }
 
-/* Мана и стамина показываются одинаково: подпись, ячейки по очку, счётчик. */
-.res-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-}
-.res {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.res-label {
-  font-size: 15px;
-  color: var(--dim);
-  width: 34px;
-  flex: none;
-}
-.res-track {
+/* Стамина — секции по одному удару на общей полоске. */
+.bar-sta .segs {
   display: flex;
   gap: 3px;
-  height: 14px;
-  flex: 1;
-  min-width: 0;
+  height: 100%;
 }
-.res-cell {
+.bar-sta .seg {
   flex: 1 1 0;
-  min-width: 3px;
-  max-width: 16px;
-  border: 2px solid var(--border);
-  background: #0a0a12;
+  background: #1c1c2c; /* светлее фона полоски, чтобы секции читались и пустыми */
 }
-.res-sta .res-cell {
-  border-color: var(--sta);
-}
-.res-mp .res-cell {
-  border-color: var(--mp);
-}
-.res-sta .res-cell.on {
+.bar-sta .seg.on {
   background: var(--sta);
-}
-.res-mp .res-cell.on {
-  background: var(--mp);
-}
-.res-text {
-  font-size: 15px;
-  color: var(--dim);
-  width: 42px;
-  flex: none;
-  text-align: right;
 }
 
 .block-badge {
@@ -588,14 +555,6 @@ p {
 }
 .hero-zone .bar {
   width: 200px;
-}
-.res-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.res-row .bar {
-  width: 130px;
 }
 .enemy-zone {
   flex: 1;
