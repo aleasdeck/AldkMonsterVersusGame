@@ -5,7 +5,7 @@ import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
 import { canUseAction, computeIntent, previewAttack, rangeText } from '../../engine/combat';
 import { currentLocation, currentRoomKind } from '../../engine/run';
-import type { Combatant, EnemyState, PlayerAction } from '../../engine/types';
+import type { AllyState, Combatant, EnemyState, PlayerAction } from '../../engine/types';
 import { bar, segBar, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
 import { statusIcon } from '../icons';
@@ -40,6 +40,18 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
     h('div', { class: 'name' }, e.name),
     bar('hp', e.hp, e.maxHp),
+  );
+}
+
+function allyView(a: AllyState): HTMLElement {
+  const def = enemyDef(a.defId);
+  return h(
+    'div',
+    { class: 'ally', 'data-uid': a.uid },
+    badges(a),
+    h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, spriteSize(def.sprite) * 4)),
+    h('div', { class: 'name' }, a.name),
+    bar('hp', a.hp, a.maxHp),
   );
 }
 
@@ -161,8 +173,9 @@ export function battleScreen(app: App): HTMLElement {
     b.hero.maxMp > 0 ? segBar('mp', b.hero.mp, b.hero.maxMp) : null,
   );
 
+  const allyZone = h('div', { class: 'ally-zone' }, ...b.allies.map(allyView));
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));
-  const field = h('div', { class: 'field', style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, enemyZone);
+  const field = h('div', { class: 'field', style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, allyZone, enemyZone);
 
   const logEl = h('div', { class: 'log' }, ...b.log.slice(-8).map((l) => h('div', { class: l.startsWith('—') ? 'log-turn' : '' }, l)));
   const bottom = h('div', { class: 'bottom' }, actionBar(app), logEl);

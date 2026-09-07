@@ -502,3 +502,45 @@ describe('лучник', () => {
     expect(getStatus(e, 'weak')?.turns).toBe(1);
   });
 });
+
+describe('призыв волка', () => {
+  it('волк появляется рядом, после хода героя кусает самого раненого врага, а враги бьют волка вместо героя', () => {
+    const { state, rng } = mkBattle('mage', ['wolf', 'rat'], { extra: [{ id: 'wolf_whistle', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    expect(state.allies.map((a) => a.name)).toEqual(['Волк']);
+    expect(state.allies[0].hp).toBe(12);
+    const heroHp = state.hero.hp;
+    pass(state, rng);
+    // укус 5 по крысе (7 HP) — самому раненому
+    expect(state.enemies.find((e) => e.defId === 'rat')!.hp).toBe(2);
+    // волк 5 + крыса 3 пришлись на союзника
+    expect(state.hero.hp).toBe(heroHp);
+    expect(state.allies[0].hp).toBe(12 - 5 - 3);
+  });
+
+  it('павший волк исчезает, удары снова идут в героя', () => {
+    const { state, rng } = mkBattle('mage', ['wolf'], { extra: [{ id: 'wolf_whistle', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    state.allies[0].hp = 1;
+    const heroHp = state.hero.hp;
+    pass(state, rng);
+    expect(state.allies).toEqual([]);
+    expect(state.hero.hp).toBe(heroHp);
+    pass(state, rng);
+    expect(state.hero.hp).toBeLessThan(heroHp);
+  });
+
+  it('рядом помещаются два волка, третьему нет места', () => {
+    const { state, rng } = mkBattle('mage', ['bear'], { extra: [{ id: 'wolf_whistle', tier: 3 }] });
+    for (let i = 0; i < 2; i++) {
+      state.hero.cooldowns = {};
+      state.hero.mp = 10;
+      performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    }
+    state.hero.cooldowns = {};
+    state.hero.mp = 10;
+    expect(state.allies.length).toBe(2);
+    expect(state.allies[0].maxHp).toBe(20);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'wolf_whistle' })).toMatch(/места/);
+  });
+});
