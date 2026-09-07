@@ -78,9 +78,10 @@ export function pickable(el: HTMLElement, onclick?: () => void): HTMLElement {
   return el;
 }
 
-export function tierBadge(tier: GearTier): HTMLElement {
+/** Бейдж тира: «Редкий», у оружия с иконкой типа внутри — «Редкий · ⚔» (цвет иконки — владение героя). */
+export function tierBadge(tier: GearTier, typeIcon?: HTMLElement | null): HTMLElement {
   const info = GEAR_TIERS[tier];
-  return h('span', { class: 'tier', style: `color:${info.color};border-color:${info.color}` }, `${info.name} · ${tier}`);
+  return h('span', { class: 'tier', style: `color:${info.color};border-color:${info.color}`, title: `${info.name} предмет, тир ${tier}` }, info.name, typeIcon ? ' · ' : null, typeIcon);
 }
 
 export function artifactTitle(inst: ArtifactInstance): string {
@@ -150,7 +151,7 @@ export function gearCard(gear: GearInstance, opts: { def?: HeroDef; current?: Ge
     return h(
       'div',
       { class: 'card gear-card compact', style: `border-color:${info.color}` },
-      h('div', { class: 'card-head' }, glyph, name, tierBadge(gear.tier), typeIcon),
+      h('div', { class: 'card-head' }, glyph, name, tierBadge(gear.tier, typeIcon)),
       h('div', { class: 'card-desc' }, gearStatText(gear, def)),
       isWeapon ? h('div', { class: 'card-perk' }, weaponPerkText(gear)) : null,
       slotsRow(gear),
@@ -161,7 +162,7 @@ export function gearCard(gear: GearInstance, opts: { def?: HeroDef; current?: Ge
     'div',
     { class: 'card gear-card', style: `border-color:${info.color}` },
     h('div', { class: 'card-head' }, glyph, name),
-    h('div', { class: 'card-sub' }, tierBadge(gear.tier), typeIcon),
+    h('div', { class: 'card-sub' }, tierBadge(gear.tier, typeIcon)),
     h('div', { class: 'card-desc' }, gearStatText(gear, def)),
     isWeapon ? h('div', { class: 'card-perk' }, weaponPerkText(gear)) : null,
     slotsRow(gear),
