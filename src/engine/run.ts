@@ -7,7 +7,7 @@ import { ACTS, ACTS_PER_RUN, ROOMS_PER_LOCATION, locationDef, pickRunLocations, 
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
 import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact } from './equipment';
-import { rollBossRewards, rollEvent, rollRewards } from './loot';
+import { REROLL_COST, START_GOLD, goldReward, rollBossRewards, rollEvent, rollRewardOptions, rollRewards } from './loot';
 
 export function randomSeed(): number {
   return (Math.random() * 0xffffffff) >>> 0;
@@ -23,6 +23,7 @@ export function newRun(heroId: string, seed: number = randomSeed()): RunState {
     seed,
     rng,
     hero: { defId: heroId, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor },
+    gold: START_GOLD,
     locations: pickRunLocations(rng),
     locationIndex: 0,
     roomIndex: 0,
@@ -145,10 +146,12 @@ export function finishBattle(run: RunState): void {
   const kind = currentRoomKind(run);
   const act = currentAct(run);
   run.battle = null;
-  run.rewards =
-    kind === 'boss'
-      ? rollBossRewards(run.rng, run.hero, act)
-      : [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', options: rollRewards(run.rng, run.hero, act, kind === 'elite' ? 'elite' : 'fight') }];
+  run.gold += goldReward(kind);
+  if (kind === 'boss') run.rewards = rollBossRewards(run.rng, run.hero, act);
+  else {
+    const source = kind === 'elite' ? 'elite' : 'fight';
+    run.rewards = [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', source, options: rollRewards(run.rng, run.hero, act, source), rerolled: false }];
+  }
   if (run.rewards.length === 0) {
     advanceRoom(run);
     return;
@@ -204,6 +207,26 @@ export function skipReward(run: RunState): void {
   if (run.phase !== 'reward' || run.pending) return;
   run.rewards.shift();
   afterReward(run);
+}
+
+/** Почему нельзя перебросить текущую награду; null — можно. */
+export function canReroll(run: RunState): string | null {
+  if (run.phase !== 'reward' || run.pending) return 'Сейчас нельзя';
+  const screen = run.rewards[0];
+  if (!screen) return 'Нет награды';
+  if (screen.rerolled) return 'Переброс уже использован';
+  if (run.gold < REROLL_COST) return `Нужно ${REROLL_COST} золота`;
+  return null;
+}
+
+/** Перебросить варианты награды за золото. Один раз на экран. */
+export function rerollReward(run: RunState): boolean {
+  if (canReroll(run)) return false;
+  const screen = run.rewards[0];
+  run.gold -= REROLL_COST;
+  screen.rerolled = true;
+  screen.options = rollRewardOptions(run.rng, run.hero, currentAct(run), screen.source);
+  return true;
 }
 
 function continueAfterPending(run: RunState): void {

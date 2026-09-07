@@ -4,6 +4,7 @@ import * as R from '../engine/run';
 import { STATUS_NAMES, canUseAction } from '../engine/combat';
 import { claimChest, clearRun, loadProfile, loadRun, recordResult, saveRun, type Profile } from './save';
 import { rollCollectible } from '../data/collection';
+import { HERO_LIST } from '../data/heroes';
 import { createRng } from '../engine/rng';
 import { menuScreen } from './screens/menu';
 import { heroSelectScreen } from './screens/heroSelect';
@@ -30,6 +31,10 @@ export class App {
   profile: Profile;
   /** Состояние крутки сундука; null — сундук ещё не открыт. */
   chest: ChestState | null = null;
+  /** Герой, подсвеченный в сетке выбора: справа показано его превью. */
+  heroPick: string = HERO_LIST[0].id;
+  /** Текст поля «Сид» на экране выбора — переживает перерисовку при клике по плитке. */
+  seedText = '';
   private stepTimer: number | null = null;
   private spinTimer: number | null = null;
   private resultRecorded = false;
@@ -125,6 +130,11 @@ export class App {
     this.chest = null;
     if (this.run && R.isRunOver(this.run)) this.run = null;
     this.screen = 'heroSelect';
+    this.render();
+  }
+
+  selectHero(id: string): void {
+    this.heroPick = id;
     this.render();
   }
 
@@ -293,6 +303,11 @@ export class App {
     if (!this.run) return;
     R.skipReward(this.run);
     this.afterPhaseChange();
+  }
+
+  rerollReward(): void {
+    if (!this.run) return;
+    if (R.rerollReward(this.run)) this.commit();
   }
 
   pendingPlace(kind: GearKind, index: number): void {

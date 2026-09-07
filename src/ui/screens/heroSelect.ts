@@ -1,41 +1,80 @@
 import { button, h } from '../dom';
-import { HERO_LIST } from '../../data/heroes';
+import { HERO_LIST, heroDef } from '../../data/heroes';
 import { makeStartingGear } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
-import { artifactChip, pickable, statsGrid } from '../components';
+import { artifactCard, gearCard, masteryLine, statsGrid } from '../components';
 import { spriteImg } from '../sprites';
+import type { HeroDef } from '../../engine/types';
 import type { App } from '../app';
 
-export function heroSelectScreen(app: App): HTMLElement {
-  const seedInput = h('input', { class: 'seed', placeholder: 'необязательно', type: 'text', spellcheck: 'false' }) as HTMLInputElement;
+/** Число — как есть, любая другая строка — хэш; пусто — случайный сид. */
+function parseSeed(raw: string): number | undefined {
+  const s = raw.trim();
+  if (!s) return undefined;
+  return /^\d+$/.test(s) ? Number(s) >>> 0 : hashString(s);
+}
 
-  function start(id: string): void {
-    const raw = seedInput.value.trim();
-    let seed: number | undefined;
-    if (raw) seed = /^\d+$/.test(raw) ? Number(raw) >>> 0 : hashString(raw);
-    app.newRun(id, seed);
-  }
+/** Плитка в сетке слева: спрайт и имя. Клик — превью, двойной клик — сразу в забег. */
+function heroTile(app: App, def: HeroDef): HTMLElement {
+  const selected = app.heroPick === def.id;
+  return h(
+    'div',
+    {
+      class: `hero-tile ${selected ? 'selected' : ''}`,
+      title: def.role,
+      onclick: () => app.selectHero(def.id),
+      ondblclick: () => app.newRun(def.id, parseSeed(app.seedText)),
+    },
+    spriteImg(def.sprite, def.id, 64),
+    h('div', { class: 'hero-tile-name' }, def.name),
+  );
+}
 
-  const cards = HERO_LIST.map((def) => {
-    const gear = makeStartingGear(def);
-    const s = computeStats(def, gear.weapon, gear.armor);
-    return pickable(
-      h(
+/** Превью справа: всё о герое — роль, статы, владение, стартовое снаряжение и артефакты. */
+function heroPreview(app: App, def: HeroDef): HTMLElement {
+  const gear = makeStartingGear(def);
+  const s = computeStats(def, gear.weapon, gear.armor);
+  return h(
+    'div',
+    { class: 'hero-preview' },
+    h(
       'div',
-      { class: 'card hero-card' },
-      h('div', { class: 'hero-card-top' }, spriteImg(def.sprite, def.id, 64), h('div', { class: 'card-name' }, def.name)),
-      h('div', { class: 'card-desc' }, def.role),
-      h('div', { class: 'stat hp-line' }, h('span', { class: 'stat-k' }, 'HP'), h('span', { class: 'stat-v' }, `${s.maxHp}`)),
-      statsGrid(s),
-      h('div', { class: 'card-sub' }, `${def.weapon.name} · ${def.armor.name}`),
-      h('div', { class: 'slots' }, ...def.artifacts.map((id) => artifactChip({ id, tier: 1 }))),
-      button('Выбрать', () => start(def.id), { class: 'primary' }),
+      { class: 'preview-head' },
+      spriteImg(def.sprite, def.id, 128, 'bob'),
+      h('div', { class: 'preview-title' }, h('div', { class: 'preview-name' }, def.name), h('div', { class: 'preview-role' }, def.role), masteryLine(def)),
+    ),
+    h(
+      'div',
+      { class: 'preview-body' },
+      h(
+        'div',
+        { class: 'preview-col' },
+        h('h3', null, 'Характеристики'),
+        h('div', { class: 'stat hp-line' }, h('span', { class: 'stat-k' }, 'HP'), h('span', { class: 'stat-v' }, `${s.maxHp}`)),
+        statsGrid(s),
       ),
-      () => start(def.id),
-    );
-  });
+      h('div', { class: 'preview-col' }, h('h3', null, 'Снаряжение'), gearCard(gear.weapon, { def }), gearCard(gear.armor)),
+    ),
+    h('h3', null, 'Стартовые артефакты'),
+    h('div', { class: 'preview-arts' }, ...def.artifacts.map((id) => artifactCard({ id, tier: 1 }))),
+    h('div', { class: 'row' }, button(`Выбрать: ${def.name}`, () => app.newRun(def.id, parseSeed(app.seedText)), { class: 'primary big' })),
+  );
+}
 
+export function heroSelectScreen(app: App): HTMLElement {
+  // Поле сида живёт в App: экран перерисовывается при каждом клике по плитке.
+  const seedInput = h('input', {
+    class: 'seed',
+    placeholder: 'необязательно',
+    type: 'text',
+    spellcheck: 'false',
+    value: app.seedText,
+    oninput: (ev: Event) => {
+      app.seedText = (ev.target as HTMLInputElement).value;
+    },
+  });
+  const def = heroDef(app.heroPick);
   return h(
     'div',
     { class: 'screen hero-select' },
@@ -46,6 +85,6 @@ export function heroSelectScreen(app: App): HTMLElement {
       h('span', { class: 'title-sm' }, 'Выбор героя'),
       h('label', { class: 'seed-label' }, 'Сид: ', seedInput),
     ),
-    h('div', { class: 'hero-cards' }, ...cards),
+    h('div', { class: 'body' }, h('div', { class: 'hero-grid' }, ...HERO_LIST.map((d) => heroTile(app, d))), heroPreview(app, def)),
   );
 }

@@ -4,6 +4,7 @@ import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
 import { canUseAction, computeIntent, previewAttack, rangeText } from '../../engine/combat';
+import { goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, Combatant, EnemyState, PlayerAction } from '../../engine/types';
 import { bar, segBar, statusIcons } from '../components';
@@ -102,7 +103,7 @@ function actionBar(app: App): HTMLElement {
       canUseAction(b, atk),
       busy,
       `Базовая атака: случайный урон из разброса оружия + Сила.
-Каждая следующая атака в этом ходу бьёт на 25 % слабее (сделано: ${b.hero.attacks})`,
+Каждая следующая атака в этом ходу бьёт на ${Math.round((1 - b.hero.stats.fatigue) * 100)} % слабее (сделано: ${b.hero.attacks})`,
       () => app.battleAction(atk),
     ),
   );
@@ -192,7 +193,7 @@ export function battleScreen(app: App): HTMLElement {
           'div',
           { class: `panel result ${won ? 'won' : 'lost'}` },
           h('h2', null, won ? 'Победа!' : 'Герой пал'),
-          h('p', { class: 'dim' }, won ? `Бой занял ${b.turn} ход(ов).` : 'Забег окончен.'),
+          h('p', { class: 'dim' }, won ? `Бой занял ${b.turn} ход(ов). Добыча: +${goldReward(currentRoomKind(run))} ◉ золота.` : 'Забег окончен.'),
           button(won ? 'Забрать награду' : 'К итогам', () => app.finishBattle(), { class: 'primary big' }),
         ),
       ),

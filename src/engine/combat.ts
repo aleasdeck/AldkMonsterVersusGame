@@ -115,7 +115,18 @@ function aiCtx(state: BattleState, e: EnemyState): AiCtx {
 
 type DamageKind = 'hit' | 'spell' | 'dot' | 'thorns';
 
-function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, crit = false, attacker?: AllyState): number {
+interface HitOpts {
+  crit?: boolean;
+  /** Игнорировать блок цели (Дробящая булава). */
+  pierce?: boolean;
+  /** Не отвечать шипами: сквозной урон копья. */
+  noThorns?: boolean;
+  /** Бьёт союзник, а не герой: шипы отвечают ему. */
+  attacker?: AllyState;
+}
+
+function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, opts: HitOpts = {}): number {
+  const crit = opts.crit ?? false;
   if (getStatus(e, 'invuln')) {
     state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
     log(state, `${e.name} неуязвим`);
@@ -132,7 +143,7 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     }
   }
   let rest = Math.max(0, amount);
-  if (kind === 'hit' || kind === 'spell') {
+  if ((kind === 'hit' && !opts.pierce) || kind === 'spell') {
     const b = Math.min(e.block, rest);
     e.block -= b;
     rest -= b;
@@ -140,12 +151,12 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   e.hp -= rest;
   state.stats.damageDealt += rest;
   state.events.push({ type: 'damage', target: e.uid, amount: rest, kind: rest === 0 ? 'blocked' : crit ? 'crit' : kind });
-  if (kind === 'hit') {
+  if (kind === 'hit' && !opts.noThorns) {
     const th = statusValue(e, 'thorns');
-    if (th > 0 && attacker) {
-      log(state, `Шипы ${e.name}: ${th} урона ${attacker.name}`);
-      damageAlly(state, attacker, th, true);
-    } else if (th > 0) {
+    if (th > 0 && opts.attacker) {
+      log(state, `Шипы ${e.name}: ${th} урона ${opts.attacker.name}`);
+      damageAlly(state, opts.attacker, th, true);
+    } else if (th > 0 && state.hero.stats.thornsImmune <= 0) {
       log(state, `Шипы ${e.name}: ${th} урона герою`);
       damageHero(state, th, 'thorns');
     }
@@ -182,7 +193,7 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
     const th = h.stats.thorns + statusValue(h, 'thorns');
     if (th > 0) {
       log(state, `Шипы героя: ${th} урона ${source.name}`);
-      damageEnemy(state, source, th, 'thorns');
+      damageEnemy(state, source, th, 'thorns', { noThorns: true });
     }
   }
   if (h.hp <= 0) {
@@ -248,7 +259,7 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
           const target = state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
           if (!target) break;
           log(state, `${a.name} атакует ${target.name}: ${dmg}`);
-          damageEnemy(state, target, dmg, 'hit', false, a);
+          damageEnemy(state, target, dmg, 'hit', { attacker: a });
         }
         break;
       }
@@ -314,14 +325,53 @@ export function fatigueMult(state: BattleState): number {
   return state.hero.stats.fatigue ** state.hero.attacks;
 }
 
+/** Бонус первого удара в ходу (Прицел лука): пока атак в этом ходу не было. */
+function firstHitBonus(state: BattleState): number {
+  return state.hero.attacks === 0 ? state.hero.stats.firstHit : 0;
+}
+
 function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false): { dmg: number; crit: boolean } {
   const h = state.hero;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
-  let dmg = Math.floor((roll + h.stats.str + statusValue(h, 'strength') + bonus) * mult * fatigueMult(state));
+  let dmg = Math.floor((roll + h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state)) * mult * fatigueMult(state));
   const crit = sureCrit || (h.stats.crit > 0 && chance(rng, h.stats.crit));
-  if (crit) dmg *= 2;
+  if (crit) dmg *= h.stats.critMult;
   if (getStatus(h, 'weak')) dmg = Math.floor(dmg * 0.75);
   return { dmg: Math.max(0, dmg), crit };
+}
+
+interface StrikeOpts {
+  bonus?: number;
+  mult?: number;
+  sureCrit?: boolean;
+  /** Одиночный удар: сквозной урон копья уходит следующему врагу. */
+  single?: boolean;
+}
+
+/** Удар героя по врагу со всеми перками оружия: пробой блока, оглушение критом, кровотечение, блок за удар, сквозной урон. */
+function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpts = {}): { dmg: number; crit: boolean } {
+  const h = state.hero;
+  const { dmg, crit } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit);
+  const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce: h.stats.pierceBlock > 0 });
+  if (dealt > 0 && e.hp > 0) {
+    if (crit && h.stats.stunOnCrit > 0 && !getStatus(e, 'stun')) addStatus(state, e, e.uid, 'stun', 1, -1);
+    if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
+  }
+  if (h.stats.blockOnHit > 0) {
+    h.block += h.stats.blockOnHit;
+    state.events.push({ type: 'block', target: 'hero', amount: h.stats.blockOnHit });
+  }
+  if (opts.single && h.stats.splash > 0 && dmg > 0) {
+    const next = state.enemies.find((x) => x.uid !== e.uid && x.hp > 0);
+    if (next) {
+      const part = Math.floor(dmg * h.stats.splash);
+      if (part > 0) {
+        log(state, `Сквозной удар по ${next.name}: ${part}`);
+        damageEnemy(state, next, part, 'hit', { pierce: h.stats.pierceBlock > 0, noThorns: true });
+      }
+    }
+  }
+  return { dmg, crit };
 }
 
 export interface DamageRange {
@@ -332,7 +382,7 @@ export interface DamageRange {
 /** Предпросмотр разброса урона атаки без крита — для интерфейса. */
 export function previewAttack(state: BattleState, bonus = 0, mult = 1): DamageRange {
   const h = state.hero;
-  const flat = h.stats.str + statusValue(h, 'strength') + bonus;
+  const flat = h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state);
   const scale = mult * fatigueMult(state);
   let min = Math.floor((h.stats.dmgMin + flat) * scale);
   let max = Math.floor((h.stats.dmgMax + flat) * scale);
@@ -370,6 +420,9 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if ((def.cost?.mp ?? 0) > h.mp) return 'Нет маны';
       if (def.target === 'enemy' && !findEnemy(state, action.target ?? -1)) return 'Нет цели';
       if (state.allies.length >= MAX_ALLIES && def.effects?.(inst.tier).some((e) => e.type === 'summon')) return 'Рядом нет места';
+      for (const eff of def.effects?.(inst.tier) ?? []) {
+        if (eff.type === 'selfDamage' && h.hp <= eff.amount) return 'Слишком мало HP';
+      }
       return null;
     }
   }
@@ -386,9 +439,8 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
   switch (eff.type) {
     case 'attack':
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        const { dmg, crit } = heroAttackDamage(state, rng, eff.bonus, eff.mult ?? 1, eff.sureCrit);
+        const { dmg, crit } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy' });
         log(state, `Удар по ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
-        damageEnemy(state, e, dmg, 'hit', crit);
       }
       break;
     case 'spell': {
@@ -398,8 +450,13 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
         damageEnemy(state, e, amount, 'spell');
       }
       if (eff.drain) healHero(state, amount);
+      if (h.stats.spellLeech > 0) healHero(state, h.stats.spellLeech);
       break;
     }
+    case 'selfDamage':
+      log(state, `Герой ранит себя: ${eff.amount}`);
+      damageHero(state, eff.amount, 'dot', undefined, true);
+      break;
     case 'block':
       h.block += eff.amount;
       state.events.push({ type: 'block', target: 'hero', amount: eff.amount });
@@ -427,10 +484,9 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   if (action.type === 'attack') {
     h.sta -= 1;
     const e = findEnemy(state, action.target)!;
-    const { dmg, crit } = heroAttackDamage(state, rng, 0);
+    const { dmg, crit } = heroStrike(state, rng, e, { single: true });
     h.attacks += 1;
     log(state, `Герой бьёт ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
-    damageEnemy(state, e, dmg, 'hit', crit);
     if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal);
   } else if (action.type === 'defend') {
     h.sta -= 1;

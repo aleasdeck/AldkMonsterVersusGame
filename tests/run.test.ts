@@ -157,7 +157,7 @@ describe('забег', () => {
     const run = newRun('warrior', 11);
     enterRoom(run);
     winCurrentBattle(run);
-    run.rewards = [{ title: 'x', options: [{ kind: 'artifact', artifact: { id: 'thorns', tier: 1 } }] }];
+    run.rewards = [{ title: 'x', source: 'fight', rerolled: false, options: [{ kind: 'artifact', artifact: { id: 'thorns', tier: 1 } }] }];
     takeReward(run, 0);
     expect(run.pending?.artifacts[0].id).toBe('thorns');
     expect(run.pending?.cancellable).toBe(true);
@@ -178,7 +178,7 @@ describe('забег', () => {
     run.hero.armor.slots.push(null);
     enterRoom(run);
     winCurrentBattle(run);
-    run.rewards = [{ title: 'x', options: [{ kind: 'artifact', artifact: { id: 'thorns', tier: 1 } }] }];
+    run.rewards = [{ title: 'x', source: 'fight', rerolled: false, options: [{ kind: 'artifact', artifact: { id: 'thorns', tier: 1 } }] }];
     takeReward(run, 0);
     expect(run.pending).not.toBeNull();
     pendingPlace(run, 'armor', 1);
@@ -191,7 +191,7 @@ describe('забег', () => {
     const run = newRun('warrior', 11);
     enterRoom(run);
     winCurrentBattle(run);
-    run.rewards = [{ title: 'x', options: [{ kind: 'artifact', artifact: { id: 'troll_heart', tier: 1 } }] }];
+    run.rewards = [{ title: 'x', source: 'fight', rerolled: false, options: [{ kind: 'artifact', artifact: { id: 'troll_heart', tier: 1 } }] }];
     takeReward(run, 0);
     expect(run.pending).toBeNull();
     expect(run.hero.armor.slots[0]?.tier).toBe(2);
@@ -206,10 +206,12 @@ describe('забег', () => {
     run.rewards = [
       {
         title: 'x',
+        source: 'fight',
+        rerolled: false,
         options: [
           {
             kind: 'gear',
-            gear: { kind: 'armor', tier: 5, name: 'Тест', dmgMin: 0, dmgMax: 0, def: 5, hp: 15, affix: null, slots: [null, null, null, null] },
+            gear: { kind: 'armor', tier: 5, base: 'mail', name: 'Тест', dmgMin: 0, dmgMax: 0, def: 5, hp: 15, affix: null, slots: [null, null, null, null] },
           },
         ],
       },
@@ -221,7 +223,9 @@ describe('забег', () => {
     run.rewards = [
       {
         title: 'x',
-        options: [{ kind: 'gear', gear: { kind: 'armor', tier: 1, name: 'Тряпка', dmgMin: 0, dmgMax: 0, def: 0, hp: 0, affix: null, slots: [null] } }],
+        source: 'fight',
+        rerolled: false,
+        options: [{ kind: 'gear', gear: { kind: 'armor', tier: 1, base: 'robe', name: 'Тряпка', dmgMin: 0, dmgMax: 0, def: 0, hp: 0, affix: null, slots: [null] } }],
       },
     ];
     takeReward(run, 0);

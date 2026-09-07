@@ -2,10 +2,11 @@ import { button, h, type Child } from './dom';
 import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, GearTier, RunState, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
-import { ART_TIER_COLORS, GEAR_TIERS, gearStatText } from '../data/gear';
+import { ART_TIER_COLORS, GEAR_TIERS, MASTERY_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, gearStatText, weaponPerkText, weaponType } from '../data/gear';
 import type { Collectible } from '../data/collection';
 import { heroDef } from '../data/heroes';
 import { heroStats } from '../engine/run';
+import type { HeroDef, WeaponType } from '../engine/types';
 import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
 import { STATUS_HINTS, STATUS_NAMES } from '../engine/combat';
 import { spriteImg } from './sprites';
@@ -126,20 +127,45 @@ export function slotsRow(gear: GearInstance): HTMLElement {
   return h('div', { class: 'slots' }, ...gear.slots.map((s) => artifactChip(s)));
 }
 
-export function gearCard(gear: GearInstance, current?: GearInstance, footer?: Child): HTMLElement {
+/**
+ * Карточка предмета. С героем оружие показывает кубик в его руках (владение) и перки;
+ * `current` — что надето сейчас, для сравнения.
+ */
+export function gearCard(gear: GearInstance, opts: { def?: HeroDef; current?: GearInstance; footer?: Child } = {}): HTMLElement {
   const info = GEAR_TIERS[gear.tier];
+  const { def, current, footer } = opts;
+  const isWeapon = gear.kind === 'weapon';
   return h(
     'div',
     { class: 'card gear-card', style: `border-color:${info.color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, gear.kind === 'weapon' ? '⚔' : '⛨'), h('span', { class: 'card-name' }, gear.name)),
-    h('div', { class: 'card-sub' }, tierBadge(gear.tier)),
-    h('div', { class: 'card-desc' }, `${gearStatText(gear)} · слотов: ${gear.slots.length}`),
+    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? WEAPON_TYPE_GLYPHS[weaponTypeOf(gear)] : '⛨'), h('span', { class: 'card-name' }, gear.name)),
+    h('div', { class: 'card-sub' }, tierBadge(gear.tier), isWeapon ? h('span', { class: 'wtype' }, WEAPON_TYPE_NAMES[weaponTypeOf(gear)]) : null),
+    h('div', { class: 'card-desc' }, `${gearStatText(gear, def)} · слотов: ${gear.slots.length}`),
+    isWeapon ? h('div', { class: 'card-perk' }, weaponPerkText(gear)) : null,
     slotsRow(gear),
     current
-      ? h('div', { class: 'card-compare' }, `Сейчас: ${current.name} — ${gearStatText(current)}, слотов: ${current.slots.length}`)
+      ? h('div', { class: 'card-compare' }, `Сейчас: ${current.name} — ${gearStatText(current, def)}, слотов: ${current.slots.length}`)
       : null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
+}
+
+const weaponTypeOf = weaponType;
+
+/** Строка владения героя: «⚔ Мастер · ➶ Знаком · ✦ Чужое». */
+export function masteryLine(def: HeroDef): HTMLElement {
+  const types: WeaponType[] = ['melee', 'ranged', 'magic'];
+  return h(
+    'div',
+    { class: 'mastery', title: 'Владение оружием: мастер — полный урон, знаком — 75 %, чужое — 50 % от кубика оружия' },
+    ...types.map((t) =>
+      h('span', { class: `mastery-${def.mastery[t]}`, title: `${WEAPON_TYPE_NAMES[t]}: ${MASTERY_NAMES[def.mastery[t]]}` }, `${WEAPON_TYPE_GLYPHS[t]} ${MASTERY_NAMES[def.mastery[t]]}`),
+    ),
+  );
+}
+
+export function goldBadge(gold: number): HTMLElement {
+  return h('span', { class: 'gold', title: 'Золото: капает за бои, тратится на переброс награды' }, `◉ ${gold}`);
 }
 
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
@@ -173,7 +199,8 @@ export function statsGrid(s: DerivedStats): HTMLElement {
     row('STA', `${s.sta}${s.firstTurnSta ? ` (+${s.firstTurnSta})` : ''}`, 'Очки действий за ход'),
     row('MP', `${s.maxMp}${s.mpRegen ? ` (+${s.mpRegen})` : ''}`, 'Мана и реген за ход'),
     row('Устал.', `−${Math.round((1 - s.fatigue) * 100)}%`, 'На столько слабее каждая следующая атака в этом ходу'),
-    s.crit ? row('Крит', `${Math.round(s.crit * 100)} %`, 'Шанс двойного урона атак') : null,
+    s.crit ? row('Крит', `${Math.round(s.crit * 100)} %`, `Шанс крита (урон ×${s.critMult})`) : null,
+    s.firstHit ? row('1-й удар', `+${s.firstHit}`, 'Бонус урона первого удара в ходу') : null,
     s.spellPower ? row('Закл.', `+${s.spellPower}`, 'Бонус к урону заклинаний') : null,
     s.thorns ? row('Шипы', `${s.thorns}`, 'Урон атакующему') : null,
     s.lifesteal ? row('Вамп.', `${s.lifesteal}`, 'Лечение при базовой атаке') : null,
@@ -187,9 +214,15 @@ export function heroPanel(run: RunState): HTMLElement {
   return h(
     'div',
     { class: 'hero-panel' },
-    h('div', { class: 'hero-head' }, spriteImg(def.sprite, def.id, 64), h('div', null, h('div', { class: 'name' }, def.name), bar('hp', run.hero.hp, s.maxHp, 'HP'))),
+    h(
+      'div',
+      { class: 'hero-head' },
+      spriteImg(def.sprite, def.id, 64),
+      h('div', null, h('div', { class: 'name' }, def.name, goldBadge(run.gold)), bar('hp', run.hero.hp, s.maxHp, 'HP')),
+    ),
     statsGrid(s),
-    gearCard(run.hero.weapon),
+    masteryLine(def),
+    gearCard(run.hero.weapon, { def }),
     gearCard(run.hero.armor),
   );
 }

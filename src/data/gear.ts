@@ -1,5 +1,5 @@
-import type { DerivedStats, GearAffix, GearInstance, GearKind, GearTier, HeroDef, StatMods } from '../engine/types';
-import { pick, type Rng } from '../engine/rng';
+import type { DerivedStats, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Mastery, StatMods, WeaponType } from '../engine/types';
+import { pick, weighted, type Rng } from '../engine/rng';
 
 export interface TierInfo {
   name: string;
@@ -25,7 +25,79 @@ export const ART_TIER_COLORS: Record<1 | 2 | 3, string> = {
   3: '#ff9800',
 };
 
+// ─── Типы оружия и владение ────────────────────────────────────────────────
+
+export const WEAPON_TYPE_NAMES: Record<WeaponType, string> = {
+  melee: 'Ближнее',
+  ranged: 'Дальнее',
+  magic: 'Магическое',
+};
+
+export const WEAPON_TYPE_GLYPHS: Record<WeaponType, string> = {
+  melee: '⚔',
+  ranged: '➶',
+  magic: '✦',
+};
+
+export const MASTERY_NAMES: Record<Mastery, string> = {
+  master: 'Мастер',
+  trained: 'Знаком',
+  foreign: 'Чужое',
+};
+
+/** Множитель кубика оружия по умению владения. Сила и артефакты не трогаются. */
+export const MASTERY_MULT: Record<Mastery, number> = {
+  master: 1,
+  trained: 0.75,
+  foreign: 0.5,
+};
+
+/** Веса типа при выпадении оружия: мастерское чаще, чужое реже. */
+export const MASTERY_DROP_WEIGHT: Record<Mastery, number> = {
+  master: 50,
+  trained: 30,
+  foreign: 20,
+};
+
+/** Бонус к заклинаниям, встроенный в магическое оружие, по тиру. */
+export const MAGIC_SPELL_POWER: [number, number, number, number, number] = [1, 1, 2, 3, 4];
+
+/** Что даёт сам тип, помимо перка базы. */
+export function weaponTypeMods(type: WeaponType, tier: GearTier): StatMods {
+  switch (type) {
+    case 'melee':
+      return {};
+    case 'ranged':
+      return { thornsImmune: 1 };
+    case 'magic':
+      return { spellPower: MAGIC_SPELL_POWER[tier - 1] };
+  }
+}
+
+export function weaponTypeText(type: WeaponType, tier: GearTier): string {
+  switch (type) {
+    case 'melee':
+      return 'полный урон в упор';
+    case 'ranged':
+      return 'не боится шипов врага';
+    case 'magic':
+      return `−1 к максимуму урона, +${MAGIC_SPELL_POWER[tier - 1]} к заклинаниям`;
+  }
+}
+
+// ─── Базы ──────────────────────────────────────────────────────────────────
+
 type Gender = 0 | 1 | 2 | 3; // m, f, n, pl
+
+type ByTier = [number, number, number, number, number];
+const byTier = (v: ByTier) => (tier: GearTier) => v[tier - 1];
+
+/** Перк базы оружия: чем меч отличается от копья. */
+export interface Perk {
+  name: string;
+  mods: (tier: GearTier) => StatMods;
+  text: (tier: GearTier) => string;
+}
 
 export interface Base {
   id: string;
@@ -33,17 +105,138 @@ export interface Base {
   g: Gender;
   /** narrow — разброс уже (мин +1), wide — шире (мин −1, макс +1). */
   spread?: 'narrow' | 'wide';
+  /** Только у оружия. */
+  type?: WeaponType;
+  perk?: Perk;
 }
 
+const pct = (v: number) => `${Math.round(v * 100)} %`;
+
 export const WEAPON_BASES: Base[] = [
-  { id: 'sword', name: 'меч', g: 0 },
-  { id: 'axe', name: 'топор', g: 0, spread: 'wide' },
-  { id: 'mace', name: 'булава', g: 1 },
-  { id: 'dagger', name: 'кинжал', g: 0, spread: 'narrow' },
-  { id: 'staff', name: 'посох', g: 0 },
-  { id: 'spear', name: 'копьё', g: 2 },
-  { id: 'hammer', name: 'молот', g: 0, spread: 'wide' },
-  { id: 'bow', name: 'лук', g: 0, spread: 'wide' },
+  // ── Ближнее ──
+  {
+    id: 'sword',
+    name: 'меч',
+    g: 0,
+    type: 'melee',
+    perk: { name: 'Парирование', mods: (t) => ({ def: byTier([1, 1, 2, 2, 3])(t) }), text: (t) => `+${byTier([1, 1, 2, 2, 3])(t)} к Защите` },
+  },
+  {
+    id: 'axe',
+    name: 'топор',
+    g: 0,
+    spread: 'wide',
+    type: 'melee',
+    perk: {
+      name: 'Свирепость',
+      mods: (t) => ({ fatigue: byTier([0.05, 0.05, 0.08, 0.08, 0.1])(t) }),
+      text: (t) => `усталость мягче на ${pct(byTier([0.05, 0.05, 0.08, 0.08, 0.1])(t))}`,
+    },
+  },
+  {
+    id: 'mace',
+    name: 'булава',
+    g: 1,
+    type: 'melee',
+    perk: { name: 'Дробящая', mods: () => ({ pierceBlock: 1 }), text: () => 'удары игнорируют блок врага' },
+  },
+  {
+    id: 'dagger',
+    name: 'кинжал',
+    g: 0,
+    spread: 'narrow',
+    type: 'melee',
+    perk: { name: 'Точный', mods: () => ({ crit: 0.1 }), text: () => '+10 % шанс крита' },
+  },
+  {
+    id: 'spear',
+    name: 'копьё',
+    g: 2,
+    type: 'melee',
+    perk: {
+      name: 'Сквозной удар',
+      mods: (t) => ({ splash: byTier([0.3, 0.3, 0.4, 0.4, 0.5])(t) }),
+      text: (t) => `${pct(byTier([0.3, 0.3, 0.4, 0.4, 0.5])(t))} урона удара достаётся следующему врагу`,
+    },
+  },
+  {
+    id: 'hammer',
+    name: 'молот',
+    g: 0,
+    spread: 'wide',
+    type: 'melee',
+    perk: { name: 'Сокрушение', mods: () => ({ critMult: 1 }), text: () => 'крит бьёт ×3 вместо ×2' },
+  },
+  // ── Дальнее ──
+  {
+    id: 'bow',
+    name: 'лук',
+    g: 0,
+    spread: 'wide',
+    type: 'ranged',
+    perk: { name: 'Прицел', mods: (t) => ({ firstHit: byTier([2, 2, 3, 3, 4])(t) }), text: (t) => `первый удар в ходу +${byTier([2, 2, 3, 3, 4])(t)}` },
+  },
+  {
+    id: 'crossbow',
+    name: 'арбалет',
+    g: 0,
+    spread: 'narrow',
+    type: 'ranged',
+    perk: { name: 'Павеза', mods: (t) => ({ blockOnHit: byTier([1, 1, 1, 2, 2])(t) }), text: (t) => `каждый удар даёт +${byTier([1, 1, 1, 2, 2])(t)} блока` },
+  },
+  {
+    id: 'sling',
+    name: 'праща',
+    g: 1,
+    spread: 'wide',
+    type: 'ranged',
+    perk: { name: 'Оглушающий камень', mods: () => ({ stunOnCrit: 1 }), text: () => 'крит оглушает цель' },
+  },
+  {
+    id: 'darts',
+    name: 'дротики',
+    g: 3,
+    spread: 'narrow',
+    type: 'ranged',
+    perk: {
+      name: 'Отравленные',
+      mods: (t) => ({ onHitBleed: byTier([1, 1, 2, 2, 3])(t) }),
+      text: (t) => `каждый удар вешает ${byTier([1, 1, 2, 2, 3])(t)} кровотечения на 2 хода`,
+    },
+  },
+  // ── Магическое ──
+  {
+    id: 'staff',
+    name: 'посох',
+    g: 0,
+    type: 'magic',
+    perk: { name: 'Резерв', mods: (t) => ({ maxMp: byTier([2, 2, 3, 4, 5])(t) }), text: (t) => `+${byTier([2, 2, 3, 4, 5])(t)} к максимуму маны` },
+  },
+  {
+    id: 'wand',
+    name: 'жезл',
+    g: 0,
+    type: 'magic',
+    perk: { name: 'Фокус', mods: (t) => ({ mpRegen: byTier([1, 1, 1, 2, 2])(t) }), text: (t) => `+${byTier([1, 1, 1, 2, 2])(t)} к регену маны` },
+  },
+  {
+    id: 'scepter',
+    name: 'скипетр',
+    g: 0,
+    type: 'magic',
+    perk: {
+      name: 'Вытягивание',
+      mods: (t) => ({ spellLeech: byTier([1, 1, 2, 2, 3])(t) }),
+      text: (t) => `каждое заклинание лечит на ${byTier([1, 1, 2, 2, 3])(t)}`,
+    },
+  },
+  {
+    id: 'orb',
+    name: 'сфера',
+    g: 1,
+    type: 'magic',
+    perk: { name: 'Отражение', mods: (t) => ({ thorns: byTier([1, 1, 2, 2, 3])(t) }), text: (t) => `+${byTier([1, 1, 2, 2, 3])(t)} шипы` },
+  },
 ];
 
 export const ARMOR_BASES: Base[] = [
@@ -57,6 +250,51 @@ export const ARMOR_BASES: Base[] = [
 
 export function gearBases(kind: GearKind): Base[] {
   return kind === 'weapon' ? WEAPON_BASES : ARMOR_BASES;
+}
+
+export function baseOf(kind: GearKind, id: string): Base {
+  const b = gearBases(kind).find((x) => x.id === id);
+  if (!b) throw new Error(`Unknown ${kind} base: ${id}`);
+  return b;
+}
+
+export function weaponBase(gear: GearInstance): Base {
+  return baseOf('weapon', gear.base);
+}
+
+export function weaponType(gear: GearInstance): WeaponType {
+  return weaponBase(gear).type ?? 'melee';
+}
+
+export function masteryOf(def: HeroDef, gear: GearInstance): Mastery {
+  return def.mastery[weaponType(gear)];
+}
+
+/** Итоговый кубик оружия в руках героя: владение, штраф магического типа. */
+export function weaponDice(def: HeroDef, gear: GearInstance): { min: number; max: number } {
+  const mult = MASTERY_MULT[masteryOf(def, gear)];
+  const min = Math.max(1, Math.floor(gear.dmgMin * mult));
+  let max = Math.max(min, Math.floor(gear.dmgMax * mult));
+  if (weaponType(gear) === 'magic') max = Math.max(min, max - 1);
+  return { min, max };
+}
+
+/** Модификаторы самого оружия: тип + перк базы (без аффикса). */
+export function weaponPerkMods(gear: GearInstance): StatMods {
+  const base = weaponBase(gear);
+  const out: StatMods = { ...weaponTypeMods(base.type ?? 'melee', gear.tier) };
+  const perk = base.perk?.mods(gear.tier) ?? {};
+  for (const key of Object.keys(perk) as (keyof DerivedStats)[]) out[key] = (out[key] ?? 0) + (perk[key] ?? 0);
+  return out;
+}
+
+/** Строка перков оружия: «Дальнее: не боится шипов · Прицел: первый удар +2». */
+export function weaponPerkText(gear: GearInstance): string {
+  const base = weaponBase(gear);
+  const type = base.type ?? 'melee';
+  const parts = [`${WEAPON_TYPE_NAMES[type]}: ${weaponTypeText(type, gear.tier)}`];
+  if (base.perk) parts.push(`${base.perk.name}: ${base.perk.text(gear.tier)}`);
+  return parts.join(' · ');
 }
 
 /** Разброс урона базы на тире — с учётом её ширины. */
@@ -107,7 +345,7 @@ const PREFIXES: Record<GearTier, string[][]> = {
 interface AffixDef {
   stat: keyof DerivedStats;
   /** Значение по тиру 1..5; 0 — на этом тире не выпадает. */
-  values: [number, number, number, number, number];
+  values: ByTier;
 }
 
 const WEAPON_AFFIXES: AffixDef[] = [
@@ -166,8 +404,19 @@ export function affixMods(gear: GearInstance): StatMods {
 
 // ─── Генерация ─────────────────────────────────────────────────────────────
 
-export function makeGear(rng: Rng, kind: GearKind, tier: GearTier): GearInstance {
-  const base = pick(rng, gearBases(kind));
+/** База оружия под героя: тип выбирается по весам владения, внутри типа — поровну. */
+function pickWeaponBase(rng: Rng, mastery?: HeroDef['mastery']): Base {
+  if (!mastery) return pick(rng, WEAPON_BASES);
+  const types = (Object.keys(mastery) as WeaponType[]).map((type) => ({ item: type, weight: MASTERY_DROP_WEIGHT[mastery[type]] }));
+  const type = weighted(rng, types);
+  return pick(
+    rng,
+    WEAPON_BASES.filter((b) => b.type === type),
+  );
+}
+
+export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, mastery?: HeroDef['mastery']): GearInstance {
+  const base = kind === 'weapon' ? pickWeaponBase(rng, mastery) : pick(rng, ARMOR_BASES);
   const prefix = pick(rng, PREFIXES[tier])[base.g];
   const info = GEAR_TIERS[tier];
   const dmg = baseDamage(base, tier);
@@ -176,6 +425,7 @@ export function makeGear(rng: Rng, kind: GearKind, tier: GearTier): GearInstance
   return {
     kind,
     tier,
+    base: base.id,
     name: `${prefix} ${base.name}`,
     dmgMin,
     dmgMax,
@@ -191,6 +441,7 @@ export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: G
     weapon: {
       kind: 'weapon',
       tier: 1,
+      base: def.weapon.base,
       name: def.weapon.name,
       dmgMin: def.weapon.dmgMin,
       dmgMax: def.weapon.dmgMax,
@@ -202,6 +453,7 @@ export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: G
     armor: {
       kind: 'armor',
       tier: 1,
+      base: def.armor.base,
       name: def.armor.name,
       dmgMin: 0,
       dmgMax: 0,
@@ -213,10 +465,21 @@ export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: G
   };
 }
 
-export function gearStatText(g: GearInstance): string {
+/**
+ * Характеристики предмета. Для оружия с героем — ещё и кубик в его руках:
+ * «Урон 5–9 → 3–6 (Чужое)», если владение или тип его меняют.
+ */
+export function gearStatText(g: GearInstance, def?: HeroDef): string {
   const parts: string[] = [];
-  if (g.kind === 'weapon') parts.push(`Урон ${g.dmgMin}–${g.dmgMax}`);
-  else {
+  if (g.kind === 'weapon') {
+    let text = `Урон ${g.dmgMin}–${g.dmgMax}`;
+    if (def) {
+      const d = weaponDice(def, g);
+      const m = masteryOf(def, g);
+      if (d.min !== g.dmgMin || d.max !== g.dmgMax || m !== 'master') text += ` → ${d.min}–${d.max} (${MASTERY_NAMES[m]})`;
+    }
+    parts.push(text);
+  } else {
     if (g.def) parts.push(`+${g.def} DEF`);
     if (g.hp) parts.push(`+${g.hp} HP`);
   }
