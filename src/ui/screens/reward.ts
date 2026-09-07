@@ -5,7 +5,7 @@ import { heroDef } from '../../data/heroes';
 import { findSameArtifact, gearOf, socketRefs } from '../../engine/equipment';
 import { REROLL_COST } from '../../engine/loot';
 import { canReroll, currentLocation } from '../../engine/run';
-import { artifactCard, gearCard, goldBadge, heroPanel, pendingModal, pickable } from '../components';
+import { artifactCard, gearCard, heroPanel, pendingModal, pickable } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import type { ArtTier } from '../../engine/types';
 import type { App } from '../app';
@@ -51,8 +51,7 @@ export function rewardScreen(app: App): HTMLElement {
       h(
         'div',
         { class: 'main', style: backgroundStyle(loc.id, 0.78) },
-        h('h2', null, screen?.title ?? 'Награда'),
-        h('p', { class: 'dim' }, 'Можно взять только одно.'),
+        h('div', { class: 'title-row' }, h('h2', null, screen?.title ?? 'Награда'), h('p', { class: 'dim' }, 'Можно взять только одно.')),
         h('div', { class: 'cards' }, ...cards),
         h(
           'div',
@@ -62,7 +61,6 @@ export function rewardScreen(app: App): HTMLElement {
             disabled: !!rerollErr,
             title: rerollErr ?? 'Заменить все варианты на новые. Один раз на награду.',
           }),
-          goldBadge(run.gold),
         ),
       ),
     ),

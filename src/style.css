@@ -176,13 +176,19 @@ p {
 .hero-panel {
   width: 300px;
   flex: none;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: #121220;
   border-right: 3px solid var(--border);
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+.hero-panel .stats-grid {
+  font-size: 17px;
+}
+.hero-panel .mastery {
+  font-size: 14px;
 }
 .hero-head {
   display: flex;
@@ -196,10 +202,16 @@ p {
   font-size: 22px;
   color: var(--accent);
 }
+.name-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
 .gold {
   color: #ffd166;
   font-size: 17px;
-  margin-left: 8px;
+  margin-left: auto;
   white-space: nowrap;
 }
 .mastery {
@@ -217,10 +229,12 @@ p {
 .mastery-foreign {
   color: #ff8787;
 }
-.wtype {
-  margin-left: 6px;
-  font-size: 15px;
+/* Иконка типа оружия у бейджа тира; цвет — владение героя (классы mastery-*). */
+.wtype-icon {
+  font-size: 18px;
+  line-height: 1;
   color: var(--dim);
+  cursor: help;
 }
 .card-perk {
   font-size: 15px;
@@ -402,6 +416,27 @@ p {
 .gear-card {
   max-width: none;
 }
+/* Компактная карточка панели героя: тир справа в шапке, слоты в строке с уроном. */
+.gear-card.compact {
+  gap: 4px;
+}
+.gear-card.compact .card-head .tier {
+  margin-left: auto;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.gear-card.compact .card-desc {
+  font-size: 15px;
+}
+.gear-card.compact .card-perk {
+  font-size: 14px;
+  line-height: 1.1;
+}
+.gear-card.compact .chip {
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+}
 .hero-panel .card {
   min-width: 0;
   padding: 6px 8px;
@@ -413,9 +448,62 @@ p {
   font-size: 16px;
 }
 .tier {
+  display: inline-block;
   border: 2px solid;
   padding: 0 6px;
   font-size: 15px;
+  white-space: nowrap;
+}
+.card-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+/* Карточки выбора (награда, событие): три в ряд на 640px, поэтому текст мельче, чем в панели. */
+.reward .main {
+  display: flex;
+  flex-direction: column;
+}
+/* Карточки занимают всю высоту до ряда кнопок, кнопки внутри карточек прижаты к их низу. */
+.reward .cards {
+  flex: 1;
+  min-height: 0;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.reward .cards .card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+}
+.reward .row {
+  flex: none;
+}
+.cards .card-name {
+  font-size: 20px;
+}
+.cards .card-desc {
+  font-size: 16px;
+}
+.cards .card-perk {
+  font-size: 14px;
+  line-height: 1.1;
+}
+.cards .card-compare,
+.cards .note {
+  font-size: 14px;
+}
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.title-row h2,
+.title-row p {
+  margin: 0;
 }
 
 /* ─── Меню ──────────────────────────────────────────────────────────── */
@@ -493,11 +581,12 @@ p {
 .hero-preview {
   flex: 1;
   min-width: 0;
-  padding: 12px 16px;
-  overflow: auto;
+  padding: 10px 16px;
+  /* Всё превью рассчитано под кадр 540px: скролла здесь быть не должно. */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .preview-head {
   display: flex;
@@ -517,10 +606,15 @@ p {
 .preview-role {
   font-size: 18px;
 }
+.preview-gear {
+  font-size: 16px;
+  color: var(--dim);
+}
 .preview-body {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 250px 1fr;
   gap: 8px 16px;
+  align-items: start;
 }
 .preview-col {
   display: flex;
@@ -541,6 +635,19 @@ p {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+.preview-arts .card {
+  padding: 6px 8px;
+  gap: 4px;
+}
+.preview-arts .card-name {
+  font-size: 19px;
+}
+.preview-arts .card-desc {
+  font-size: 16px;
+}
+.preview-foot {
+  margin-top: auto;
 }
 .seed {
   font: inherit;

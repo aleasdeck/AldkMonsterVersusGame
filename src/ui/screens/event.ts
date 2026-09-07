@@ -5,7 +5,7 @@ import { gearStatText, weaponPerkText } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { gearOf } from '../../engine/equipment';
 import { currentLocation } from '../../engine/run';
-import { artifactChip, heroPanel, pendingModal, pickable, tierBadge } from '../components';
+import { artifactChip, heroPanel, pendingModal, pickable, tierBadge, weaponTypeIcon } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import type { EventOption } from '../../engine/types';
 import type { App } from '../app';
@@ -31,11 +31,12 @@ function contents(app: App, o: EventOption): HTMLElement | null {
     return h(
       'div',
       { class: 'event-loot' },
-      h('div', { class: 'card-sub' }, tierBadge(o.gear.tier)),
+      h('div', { class: 'card-sub' }, tierBadge(o.gear.tier), o.gear.kind === 'weapon' ? weaponTypeIcon(o.gear, def) : null),
       h('div', { class: 'card-desc' }, o.gear.name),
-      h('div', { class: 'note' }, `${gearStatText(o.gear, def)} · слотов: ${o.gear.slots.length}`),
+      h('div', { class: 'note' }, gearStatText(o.gear, def)),
       o.gear.kind === 'weapon' ? h('div', { class: 'card-perk' }, weaponPerkText(o.gear)) : null,
-      h('div', { class: 'card-compare' }, `Сейчас: ${cur.name} — ${gearStatText(cur, def)}, слотов: ${cur.slots.length}`),
+      h('div', { class: 'slots' }, ...o.gear.slots.map(() => artifactChip(null))),
+      h('div', { class: 'card-compare' }, `Сейчас: ${cur.name} — ${gearStatText(cur, def)}`),
     );
   }
   return null;

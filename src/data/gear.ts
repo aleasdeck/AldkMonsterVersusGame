@@ -288,13 +288,24 @@ export function weaponPerkMods(gear: GearInstance): StatMods {
   return out;
 }
 
-/** Строка перков оружия: «Дальнее: не боится шипов · Прицел: первый удар +2». */
+/**
+ * Строка перков оружия: «Прицел: первый удар +2 · не боится шипов врага».
+ * Название типа не пишется — его показывает иконка у бейджа тира; у ближнего свойства типа нет.
+ */
 export function weaponPerkText(gear: GearInstance): string {
   const base = weaponBase(gear);
   const type = base.type ?? 'melee';
-  const parts = [`${WEAPON_TYPE_NAMES[type]}: ${weaponTypeText(type, gear.tier)}`];
-  if (base.perk) parts.push(`${base.perk.name}: ${base.perk.text(gear.tier)}`);
-  return parts.join(' · ');
+  const perk = base.perk ? `${base.perk.name}: ${base.perk.text(gear.tier)}` : '';
+  const typeNote = type === 'melee' ? '' : weaponTypeText(type, gear.tier);
+  return [perk, typeNote].filter(Boolean).join(' · ');
+}
+
+/** Подсказка к иконке типа: «Магическое · Чужое: 50 % кубика оружия». */
+export function weaponTypeTitle(gear: GearInstance, def?: HeroDef): string {
+  const type = weaponType(gear);
+  if (!def) return WEAPON_TYPE_NAMES[type];
+  const m = masteryOf(def, gear);
+  return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[m]}: ${Math.round(MASTERY_MULT[m] * 100)} % кубика оружия`;
 }
 
 /** Разброс урона базы на тире — с учётом её ширины. */
@@ -467,7 +478,7 @@ export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: G
 
 /**
  * Характеристики предмета. Для оружия с героем — ещё и кубик в его руках:
- * «Урон 5–9 → 3–6 (Чужое)», если владение или тип его меняют.
+ * «Урон 5–9 → 3–6», если владение или тип его меняют. Само владение показывает цвет иконки типа.
  */
 export function gearStatText(g: GearInstance, def?: HeroDef): string {
   const parts: string[] = [];
@@ -475,8 +486,7 @@ export function gearStatText(g: GearInstance, def?: HeroDef): string {
     let text = `Урон ${g.dmgMin}–${g.dmgMax}`;
     if (def) {
       const d = weaponDice(def, g);
-      const m = masteryOf(def, g);
-      if (d.min !== g.dmgMin || d.max !== g.dmgMax || m !== 'master') text += ` → ${d.min}–${d.max} (${MASTERY_NAMES[m]})`;
+      if (d.min !== g.dmgMin || d.max !== g.dmgMax) text += ` → ${d.min}–${d.max}`;
     }
     parts.push(text);
   } else {
