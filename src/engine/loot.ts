@@ -25,7 +25,7 @@ const ARTIFACT_CHANCE = 0.55;
 
 export const START_GOLD = 10;
 export const REROLL_COST = 5;
-const GOLD_REWARD: Record<RoomKind, number> = { fight: 2, event: 0, elite: 4, boss: 6 };
+const GOLD_REWARD: Record<RoomKind, number> = { fight: 2, event: 0, elite: 4, shop: 0, boss: 6 };
 
 /** Сколько золота даёт победа в комнате этого типа. */
 export function goldReward(kind: RoomKind): number {

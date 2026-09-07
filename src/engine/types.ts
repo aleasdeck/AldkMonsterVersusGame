@@ -331,7 +331,8 @@ export type PlayerAction =
 
 // ─── Забег ─────────────────────────────────────────────────────────────────
 
-export type RoomKind = 'fight' | 'event' | 'elite' | 'boss';
+/** Клетки этажа: бои, событие, элита, торговец (остановка без боя) и босс. */
+export type RoomKind = 'fight' | 'event' | 'elite' | 'shop' | 'boss';
 
 export interface LootArtifact {
   kind: 'artifact';
@@ -352,7 +353,7 @@ export interface HeroPersistent {
 
 export type RunPhase = 'map' | 'battle' | 'reward' | 'shop' | 'event' | 'camp' | 'victory' | 'defeat';
 
-/** Магазин после элиты: лекарь, одна случайная экипировка, один случайный артефакт, переброс товаров один раз. */
+/** Торговец, остановка между элитой и боссом: лекарь, одна случайная экипировка, один случайный артефакт, переброс товаров один раз. */
 export interface ShopState {
   /** Товар куплен или не завёзли — null. */
   gear: GearInstance | null;
@@ -399,7 +400,7 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
@@ -416,7 +417,7 @@ export interface RunState {
   battle: BattleState | null;
   /** Очередь экранов награды: первый — текущий. */
   rewards: RewardScreen[];
-  /** Магазин открыт после награды за элиту, null — закрыт. */
+  /** Товары торговца, пока герой у него; null — закрыт. */
   shop: ShopState | null;
   event: { options: EventOption[] } | null;
   pending: PendingPlacement | null;

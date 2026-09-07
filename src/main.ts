@@ -74,14 +74,15 @@ if (heroParam) {
       if (i >= 0) app.takeReward(i);
     }
   } else if (phase === 'shop') {
-    // Элита выигрывается читом, награда пропускается — сразу торговец.
-    run.roomIndex = 5;
+    // Элита выигрывается читом, награда пропускается, с карты — сразу к торговцу.
+    run.roomIndex = ROOMS_PER_LOCATION - 3;
     run.hero.weapon.dmgMin = 999;
     run.hero.weapon.dmgMax = 999;
     app.enterRoom();
     for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid });
     app.finishBattle();
     app.skipReward();
+    app.enterRoom();
   } else if (phase === 'event') {
     run.roomIndex = 2;
     app.enterRoom();

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_LIST } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
-import { ACTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, enemyScale, pickRunLocations } from '../src/data/locations';
+import { ACTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
 import { createRng } from '../src/engine/rng';
 import { canUseAction } from '../src/engine/combat';
@@ -120,19 +120,22 @@ function winCurrentBattle(run: RunState): void {
   playBattle(run);
 }
 
-describe('торговец после элиты', () => {
-  /** Довести забег до торговца: элита выигрывается читом, награда пропускается. */
+describe('торговец между элитой и боссом', () => {
+  /** Довести забег до торговца: элита выигрывается читом, награда пропускается, с карты — к торговцу. */
   function toShop(seed: number, heroId = 'warrior'): RunState {
     const run = newRun(heroId, seed);
-    run.roomIndex = 5;
+    run.roomIndex = ROOM_KINDS.indexOf('elite');
     enterRoom(run);
     winCurrentBattle(run);
     skipReward(run);
+    expect(run.phase).toBe('map');
+    expect(currentRoomKind(run)).toBe('shop');
+    enterRoom(run);
     expect(run.phase).toBe('shop');
     return run;
   }
 
-  it('открывается после награды за элиту, после обычного боя — нет', () => {
+  it('после награды за элиту — карта с клеткой торговца, в него входят с карты', () => {
     const run = toShop(31);
     expect(run.shop?.gear).not.toBeNull();
     expect(run.shop?.artifact).not.toBeNull();
@@ -144,6 +147,7 @@ describe('торговец после элиты', () => {
     winCurrentBattle(plain);
     skipReward(plain);
     expect(plain.phase).toBe('map');
+    expect(currentRoomKind(plain)).toBe('fight');
     expect(plain.shop).toBeNull();
   });
 
@@ -195,7 +199,7 @@ describe('торговец после элиты', () => {
     expect(run.phase).toBe('shop');
     leaveShop(run);
     expect(run.phase).toBe('map');
-    expect(run.roomIndex).toBe(6);
+    expect(currentRoomKind(run)).toBe('boss');
     expect(run.shop).toBeNull();
   });
 
@@ -238,14 +242,14 @@ describe('торговец после элиты', () => {
 });
 
 describe('забег', () => {
-  it('этаж из 7 комнат: бой, бой, событие, бой, бой, элита, босс', () => {
+  it('этаж из 8 клеток: бой, бой, событие, бой, бой, элита, торговец, босс', () => {
     const run = newRun('warrior', 42);
     const kinds = [];
     for (let i = 0; i < ROOMS_PER_LOCATION; i++) {
       run.roomIndex = i;
       kinds.push(currentRoomKind(run));
     }
-    expect(kinds).toEqual(['fight', 'fight', 'event', 'fight', 'fight', 'elite', 'boss']);
+    expect(kinds).toEqual(['fight', 'fight', 'event', 'fight', 'fight', 'elite', 'shop', 'boss']);
     expect(FIGHTS_PER_RUN).toBe(18);
   });
 

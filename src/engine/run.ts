@@ -97,6 +97,10 @@ export function enterRoom(run: RunState): void {
     run.phase = 'event';
     return;
   }
+  if (kind === 'shop') {
+    openShop(run);
+    return;
+  }
   const table =
     kind === 'fight'
       ? run.roomIndex < 2
@@ -200,11 +204,8 @@ function giveGear(run: RunState, gear: LootItem & { kind: 'gear' }): void {
   if (overflow.length > 0) run.pending = { artifacts: overflow, cancellable: false, consumeReward: false };
 }
 
-/** Награды кончились: после элиты — к торговцу, иначе дальше по этажу. */
 function afterReward(run: RunState): void {
-  if (run.rewards.length > 0) return;
-  if (currentRoomKind(run) === 'elite') openShop(run);
-  else advanceRoom(run);
+  if (run.rewards.length === 0) advanceRoom(run);
 }
 
 export function takeReward(run: RunState, index: number): void {
@@ -308,8 +309,9 @@ export function chooseEvent(run: RunState, id: string): void {
   if (!run.pending) advanceRoom(run);
 }
 
-// ─── Магазин ───────────────────────────────────────────────────────────────
+// ─── Торговец ──────────────────────────────────────────────────────────────
 
+/** Вход в остановку торговца с карты: товары раскладываются при входе. */
 function openShop(run: RunState): void {
   run.shop = rollShop(run.rng, run.hero, currentAct(run));
   run.phase = 'shop';

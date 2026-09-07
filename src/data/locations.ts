@@ -261,17 +261,19 @@ export function enemyScale(homeTier: LocationTier, act: number, rank: 'normal' |
   return { hp: to.hp / from.hp, dmg: (to.dmg / from.dmg) * ACT_DMG_BONUS[idx] };
 }
 
-export const ROOM_KINDS: RoomKind[] = ['fight', 'fight', 'event', 'fight', 'fight', 'elite', 'boss'];
+/** Этаж локации: торговец — остановка без боя между элитой и боссом, в него входят с карты, как в комнату. */
+export const ROOM_KINDS: RoomKind[] = ['fight', 'fight', 'event', 'fight', 'fight', 'elite', 'shop', 'boss'];
 
 export const ROOMS_PER_LOCATION = ROOM_KINDS.length;
 
 /** Боёв за забег — для статистики и «лучшего результата». */
-export const FIGHTS_PER_RUN = ROOM_KINDS.filter((k) => k !== 'event').length * ACTS_PER_RUN;
+export const FIGHTS_PER_RUN = ROOM_KINDS.filter((k) => k !== 'event' && k !== 'shop').length * ACTS_PER_RUN;
 
 export const ROOM_NAMES: Record<RoomKind, string> = {
   fight: 'Бой',
   event: 'Событие',
   elite: 'Элита',
+  shop: 'Торговец',
   boss: 'Босс',
 };
 
