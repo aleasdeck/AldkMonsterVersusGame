@@ -236,35 +236,33 @@ p {
 .bar-hp .bar-fill {
   background: var(--hp);
 }
-.bar-mp .bar-fill {
-  background: var(--mp);
-}
 .bar-text {
   position: absolute;
   inset: 0;
   text-align: center;
   font-size: 15px;
   line-height: 14px;
-  /* Обводка со всех сторон: текст читается и на светлой заливке, и на тёмном фоне. */
-  text-shadow:
-    1px 1px 0 #000,
-    -1px 1px 0 #000,
-    1px -1px 0 #000,
-    -1px -1px 0 #000;
+  /* Обводка вокруг глифов: подпись читается и на светлой заливке, и на тёмном фоне. */
+  color: #fff;
+  -webkit-text-stroke: 2px #000;
+  paint-order: stroke fill;
 }
 
-/* Стамина — секции по одному удару на общей полоске. */
-.bar-sta .segs {
+/* Стамина и мана — секции по одному очку на общей полоске. */
+.segs {
   display: flex;
   gap: 3px;
   height: 100%;
 }
-.bar-sta .seg {
+.seg {
   flex: 1 1 0;
   background: #1c1c2c; /* светлее фона полоски, чтобы секции читались и пустыми */
 }
 .bar-sta .seg.on {
   background: var(--sta);
+}
+.bar-mp .seg.on {
+  background: var(--mp);
 }
 
 .block-badge {
