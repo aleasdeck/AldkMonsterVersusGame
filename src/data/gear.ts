@@ -43,6 +43,7 @@ export const WEAPON_BASES: Base[] = [
   { id: 'staff', name: 'посох', g: 0 },
   { id: 'spear', name: 'копьё', g: 2 },
   { id: 'hammer', name: 'молот', g: 0, spread: 'wide' },
+  { id: 'bow', name: 'лук', g: 0, spread: 'wide' },
 ];
 
 export const ARMOR_BASES: Base[] = [

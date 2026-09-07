@@ -78,6 +78,15 @@ const HEADS: Record<string, string[]> = {
     '....osssssso....',
     '.....oooooo..w..',
   ],
+  cap: [
+    '..........ww....',
+    '.....oooooo.w...',
+    '....ohhhhhhow...',
+    '....ohhhhhho....',
+    '....osesseso....',
+    '....osssssso....',
+    '.....oooooo..w..',
+  ],
   crown: [
     '....w.w..w.w....',
     '....wwwwwwww....',

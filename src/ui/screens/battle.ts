@@ -109,7 +109,9 @@ function actionBar(app: App): HTMLElement {
     let value = ad.describe(inst.tier);
     if (atkEff && atkEff.type === 'attack') {
       const extra = effects.some((e) => e.type === 'status') ? ' + эффект' : '';
-      value = `${rangeText(previewAttack(b, atkEff.bonus))} урона${atkEff.target === 'allEnemies' ? ' всем' : ''}${extra}`;
+      const r = previewAttack(b, atkEff.bonus);
+      const range = atkEff.sureCrit ? { min: r.min * 2, max: r.max * 2 } : r;
+      value = `${rangeText(range)} урона${atkEff.target === 'allEnemies' ? ' всем' : ''}${atkEff.sureCrit ? ' (крит)' : ''}${extra}`;
     }
     const total = ad.cooldown?.(inst.tier) ?? 0;
     buttons.push(

@@ -92,6 +92,14 @@ const list: ArtifactDef[] = [
     mods: (tier) => ({ spellPower: t(1, 2, 3)(tier) }),
     describe: (tier) => `+${t(1, 2, 3)(tier)} к урону заклинаний`,
   },
+  {
+    id: 'heavy_tip',
+    name: 'Тяжёлый наконечник',
+    glyph: '▲',
+    kind: 'passive',
+    mods: (tier) => ({ dmgMax: t(3, 6, 9)(tier) }),
+    describe: (tier) => `+${t(3, 6, 9)(tier)} к максимуму урона оружия`,
+  },
 
   // ─── Активные физические (STA) ───────────────────────────────────────────
   {
@@ -165,6 +173,33 @@ const list: ArtifactDef[] = [
     target: 'self',
     effects: (tier) => [{ type: 'gainSta', amount: t(2, 3, 4)(tier) }],
     describe: (tier) => `+${t(2, 3, 4)(tier)} стамины. КД 4`,
+  },
+  {
+    id: 'aimed_shot',
+    name: 'Прицельный выстрел',
+    glyph: '➶',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 2 },
+    cooldown: () => 2,
+    target: 'enemy',
+    effects: (tier) => [{ type: 'attack', bonus: t(2, 4, 6)(tier), target: 'enemy', sureCrit: true }],
+    describe: (tier) => `Атака +${t(2, 4, 6)(tier)}, всегда крит (урон ×2). КД 2`,
+  },
+  {
+    id: 'crippling_shot',
+    name: 'Подсечный выстрел',
+    glyph: '➴',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 2,
+    target: 'enemy',
+    effects: (tier) => [
+      { type: 'attack', bonus: t(0, 1, 2)(tier), target: 'enemy' },
+      { type: 'status', target: 'enemy', status: 'weak', value: 1, turns: t(1, 2, 3)(tier) },
+    ],
+    describe: (tier) => `Атака +${t(0, 1, 2)(tier)} и Слабость на ${t(1, 2, 3)(tier)} ход(а). КД 2`,
   },
 
   // ─── Активные магические (MP) ────────────────────────────────────────────

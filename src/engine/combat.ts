@@ -214,11 +214,11 @@ function cleanupDead(state: BattleState, rng: Rng): void {
 
 // ─── Герой ─────────────────────────────────────────────────────────────────
 
-function heroAttackDamage(state: BattleState, rng: Rng, bonus: number): { dmg: number; crit: boolean } {
+function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, sureCrit = false): { dmg: number; crit: boolean } {
   const h = state.hero;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
   let dmg = roll + h.stats.str + statusValue(h, 'strength') + bonus;
-  const crit = h.stats.crit > 0 && chance(rng, h.stats.crit);
+  const crit = sureCrit || (h.stats.crit > 0 && chance(rng, h.stats.crit));
   if (crit) dmg *= 2;
   if (getStatus(h, 'weak')) dmg = Math.floor(dmg * 0.75);
   return { dmg: Math.max(0, dmg), crit };
@@ -284,7 +284,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
   switch (eff.type) {
     case 'attack':
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        const { dmg, crit } = heroAttackDamage(state, rng, eff.bonus);
+        const { dmg, crit } = heroAttackDamage(state, rng, eff.bonus, eff.sureCrit);
         log(state, `Удар по ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
         damageEnemy(state, e, dmg, 'hit', crit);
       }

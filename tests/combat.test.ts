@@ -459,3 +459,25 @@ describe('пошаговый ход врагов', () => {
     expect(state.turn).toBe(2);
   });
 });
+
+describe('лучник', () => {
+  it('Прицельный выстрел критует даже при нулевом шансе крита', () => {
+    const { state, rng } = mkBattle('archer', ['bear']);
+    const e = first(state);
+    const hp = e.hp;
+    performAction(state, { type: 'artifact', artifactId: 'aimed_shot', target: e.uid }, rng);
+    // урон лука зафиксирован на 5, бонус тира 1 — +2, крит ×2
+    expect(hp - e.hp).toBe(14);
+    expect(state.hero.sta).toBe(1);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'aimed_shot', target: e.uid })).toMatch(/Перезарядка/);
+  });
+
+  it('Подсечный выстрел бьёт и вешает Слабость', () => {
+    const { state, rng } = mkBattle('archer', ['bear']);
+    const e = first(state);
+    const hp = e.hp;
+    performAction(state, { type: 'artifact', artifactId: 'crippling_shot', target: e.uid }, rng);
+    expect(hp - e.hp).toBe(5);
+    expect(getStatus(e, 'weak')?.turns).toBe(1);
+  });
+});

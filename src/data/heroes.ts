@@ -94,6 +94,24 @@ const list: HeroDef[] = [
       palette: { ...base, s: '#e0ac69', h: '#a0522d', b: '#6b4226', l: '#3d2b1f', w: '#ede0d4' },
     },
   },
+  {
+    id: 'archer',
+    name: 'Лучник',
+    role: 'Стрелок: Прицельный выстрел всегда критует, Подсечный ослабляет врага. Хрупкий, защита слабая.',
+    hp: 32,
+    def: 4,
+    mp: 3,
+    mpRegen: 1,
+    sta: 3,
+    weapon: { name: 'Лук', dmgMin: 3, dmgMax: 7 },
+    armor: { name: 'Куртка', def: 0, hp: 0 },
+    artifacts: ['aimed_shot', 'crippling_shot'],
+    sprite: {
+      type: 'humanoid',
+      head: 'cap',
+      palette: { ...base, s: '#f1c27d', h: '#2d6a4f', b: '#588157', l: '#5c4033', w: '#e9c46a' },
+    },
+  },
 ];
 
 export const HEROES: Record<string, HeroDef> = Object.fromEntries(list.map((h) => [h.id, h]));
