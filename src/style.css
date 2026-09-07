@@ -438,10 +438,12 @@ p {
   padding: 8px;
   overflow: hidden;
 }
+/* Спрайт над именем: с шестью карточками в ряд имя рядом со спрайтом не помещается. */
 .hero-card-top {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 .hero-card-top .card-name {
   font-size: 20px;
