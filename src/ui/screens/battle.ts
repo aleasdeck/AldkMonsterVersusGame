@@ -2,7 +2,7 @@ import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { ROOM_NAMES } from '../../data/locations';
+import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
 import { canUseAction, computeIntent, previewAttack, rangeText } from '../../engine/combat';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { EnemyState, PlayerAction } from '../../engine/types';
@@ -137,7 +137,7 @@ export function battleScreen(app: App): HTMLElement {
   const top = h(
     'div',
     { class: 'topbar' },
-    h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/5 · ${ROOM_NAMES[currentRoomKind(run)]}`),
+    h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/${ROOMS_PER_LOCATION} · ${ROOM_NAMES[currentRoomKind(run)]}`),
     h('span', { class: 'turn' }, b.phase === 'enemy' ? 'Ход врагов…' : `Ход ${b.turn}`),
     h('span', { class: 'dim' }, `сид ${run.seed}`),
   );

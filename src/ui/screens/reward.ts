@@ -1,3 +1,4 @@
+import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
 import { findSameArtifact, gearOf, socketRefs } from '../../engine/equipment';
@@ -35,7 +36,7 @@ export function rewardScreen(app: App): HTMLElement {
   return h(
     'div',
     { class: 'screen reward' },
-    h('div', { class: 'topbar' }, h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/5`), h('span', { class: 'dim' }, `сид ${run.seed}`)),
+    h('div', { class: 'topbar' }, h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/${ROOMS_PER_LOCATION}`), h('span', { class: 'dim' }, `сид ${run.seed}`)),
     h(
       'div',
       { class: 'body' },

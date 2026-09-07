@@ -6,7 +6,7 @@ import { makeStartingGear } from '../data/gear';
 import { LOCATIONS, ROOMS_PER_LOCATION, roomKind, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
-import { addArtifact, equipGear, gearOf, replaceArtifact } from './equipment';
+import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact } from './equipment';
 import { rollBossRewards, rollEvent, rollRewards } from './loot';
 
 export function randomSeed(): number {
@@ -69,7 +69,7 @@ export function enterRoom(run: RunState): void {
   }
   const table =
     kind === 'fight'
-      ? run.roomIndex === 0
+      ? run.roomIndex < 2
         ? loc.encounters.fight1
         : loc.encounters.fight2
       : kind === 'elite'
@@ -146,16 +146,25 @@ export function finishBattle(run: RunState): void {
 
 // ─── Награды и размещение ──────────────────────────────────────────────────
 
-function giveLoot(run: RunState, item: LootItem): void {
-  const before = heroStats(run).maxHp;
-  if (item.kind === 'artifact') {
-    const r = addArtifact(run.hero, item.artifact);
-    if (r === 'full') run.pending = { artifacts: [item.artifact] };
-  } else {
-    const overflow = equipGear(run.hero, item.gear);
-    if (overflow.length > 0) run.pending = { artifacts: overflow };
+/**
+ * Выдать артефакт. Дубликат апгрейдит стоящий сразу; новый артефакт ждёт выбора слота
+ * (игрок сам решает, куда ставить и что заменять).
+ */
+function giveArtifact(run: RunState, art: LootItem & { kind: 'artifact' }, opts: { cancellable: boolean; consumeReward: boolean }): void {
+  if (findSameArtifact(run.hero, art.artifact.id)) {
+    const before = heroStats(run).maxHp;
+    addArtifact(run.hero, art.artifact);
+    syncMaxHp(run, before);
+    return;
   }
+  run.pending = { artifacts: [art.artifact], cancellable: opts.cancellable, consumeReward: opts.consumeReward };
+}
+
+function giveGear(run: RunState, gear: LootItem & { kind: 'gear' }): void {
+  const before = heroStats(run).maxHp;
+  const overflow = equipGear(run.hero, gear.gear);
   syncMaxHp(run, before);
+  if (overflow.length > 0) run.pending = { artifacts: overflow, cancellable: false, consumeReward: false };
 }
 
 function afterReward(run: RunState): void {
@@ -167,8 +176,15 @@ export function takeReward(run: RunState, index: number): void {
   const screen = run.rewards[0];
   const item = screen?.options[index];
   if (!item) return;
+  if (item.kind === 'artifact') {
+    giveArtifact(run, item, { cancellable: true, consumeReward: true });
+    if (run.pending) return; // ждём выбора слота, награда ещё на экране
+    run.rewards.shift();
+    afterReward(run);
+    return;
+  }
   run.rewards.shift();
-  giveLoot(run, item);
+  giveGear(run, item);
   if (!run.pending) afterReward(run);
 }
 
@@ -183,18 +199,23 @@ function continueAfterPending(run: RunState): void {
   else if (run.phase === 'event') advanceRoom(run);
 }
 
-/** Поставить ожидающий артефакт вместо стоящего в слоте. */
-export function pendingReplace(run: RunState, kind: GearKind, index: number): void {
+function finishPendingStep(run: RunState): void {
+  const p = run.pending;
+  if (!p || p.artifacts.length > 0) return;
+  run.pending = null;
+  if (p.consumeReward) run.rewards.shift();
+  continueAfterPending(run);
+}
+
+/** Поставить ожидающий артефакт в слот (пустой или вместо стоящего). */
+export function pendingPlace(run: RunState, kind: GearKind, index: number): void {
   const p = run.pending;
   if (!p || p.artifacts.length === 0) return;
   const before = heroStats(run).maxHp;
   const art = p.artifacts.shift()!;
   replaceArtifact(run.hero, kind, index, art);
   syncMaxHp(run, before);
-  if (p.artifacts.length === 0) {
-    run.pending = null;
-    continueAfterPending(run);
-  }
+  finishPendingStep(run);
 }
 
 /** Выбросить ожидающий артефакт. */
@@ -202,10 +223,14 @@ export function pendingDiscard(run: RunState): void {
   const p = run.pending;
   if (!p || p.artifacts.length === 0) return;
   p.artifacts.shift();
-  if (p.artifacts.length === 0) {
-    run.pending = null;
-    continueAfterPending(run);
-  }
+  finishPendingStep(run);
+}
+
+/** Передумать: вернуться к выбору награды, если она ещё не потрачена. */
+export function pendingCancel(run: RunState): void {
+  const p = run.pending;
+  if (!p || !p.cancellable) return;
+  run.pending = null;
 }
 
 // ─── Событие ───────────────────────────────────────────────────────────────
@@ -219,9 +244,9 @@ export function chooseEvent(run: RunState, id: string): void {
     run.hero.hp = Math.min(max, run.hero.hp + Math.floor(max * 0.3));
   } else if (opt.id === 'altar') {
     run.hero.hp = Math.max(1, run.hero.hp - Math.floor(max * 0.1));
-    giveLoot(run, { kind: 'artifact', artifact: opt.artifact });
+    giveArtifact(run, { kind: 'artifact', artifact: opt.artifact }, { cancellable: false, consumeReward: false });
   } else {
-    giveLoot(run, { kind: 'gear', gear: opt.gear });
+    giveGear(run, { kind: 'gear', gear: opt.gear });
   }
   if (!run.pending) advanceRoom(run);
 }

@@ -27,7 +27,7 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     thorns: 0,
     lifesteal: 0,
     regen: 0,
-    crit: 0,
+    crit: def.crit ?? 0,
     spellPower: 0,
     firstTurnSta: 0,
   };

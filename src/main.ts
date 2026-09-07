@@ -1,4 +1,5 @@
 import { App } from './ui/app';
+import { ROOMS_PER_LOCATION } from './data/locations';
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -37,11 +38,16 @@ if (heroParam) {
     app.enterRoom();
     for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid });
     app.finishBattle();
+    // &take=art — сразу взять первый артефакт из награды (открывает выбор слота)
+    if (params.get('take') === 'art') {
+      const i = run.rewards[0]?.options.findIndex((o) => o.kind === 'artifact') ?? -1;
+      if (i >= 0) app.takeReward(i);
+    }
   } else if (phase === 'event') {
     run.roomIndex = 2;
     app.enterRoom();
   } else if (phase === 'camp') {
-    run.roomIndex = 5;
+    run.roomIndex = ROOMS_PER_LOCATION;
     run.phase = 'camp';
     app.render();
   } else if (phase === 'end') {

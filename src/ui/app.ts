@@ -233,9 +233,9 @@ export class App {
     this.afterPhaseChange();
   }
 
-  pendingReplace(kind: GearKind, index: number): void {
+  pendingPlace(kind: GearKind, index: number): void {
     if (!this.run) return;
-    R.pendingReplace(this.run, kind, index);
+    R.pendingPlace(this.run, kind, index);
     this.afterPhaseChange();
   }
 
@@ -243,6 +243,12 @@ export class App {
     if (!this.run) return;
     R.pendingDiscard(this.run);
     this.afterPhaseChange();
+  }
+
+  pendingCancel(): void {
+    if (!this.run) return;
+    R.pendingCancel(this.run);
+    this.render();
   }
 
   chooseEvent(id: string): void {

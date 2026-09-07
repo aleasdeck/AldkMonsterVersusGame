@@ -1,12 +1,13 @@
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
+import { FIGHTS_PER_RUN } from '../../data/locations';
 import type { App } from '../app';
 
 export function menuScreen(app: App): HTMLElement {
   const best = app.best;
   const hasSave = app.hasSave();
   const bestText = best.runs
-    ? `Забегов: ${best.runs} · Побед: ${best.victories} · Лучший результат: ${best.furthest}/12 боёв${
+    ? `Забегов: ${best.runs} · Побед: ${best.victories} · Лучший результат: ${best.furthest}/${FIGHTS_PER_RUN} боёв${
         best.furthestHero ? ` (${heroDef(best.furthestHero).name})` : ''
       }`
     : 'Ещё ни одного забега';

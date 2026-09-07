@@ -105,6 +105,16 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     log(state, `${e.name} неуязвим`);
     return 0;
   }
+  if (kind === 'hit') {
+    const d = getStatus(e, 'dodge');
+    if (d) {
+      d.value -= 1;
+      if (d.value <= 0) removeStatus(e, 'dodge');
+      state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
+      log(state, `${e.name} уворачивается`);
+      return 0;
+    }
+  }
   let rest = Math.max(0, amount);
   if (kind === 'hit' || kind === 'spell') {
     const b = Math.min(e.block, rest);
@@ -124,7 +134,7 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   return rest;
 }
 
-function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState): number {
+function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false): number {
   const h = state.hero;
   let rest = Math.max(0, amount);
   if (kind === 'hit') {
@@ -140,9 +150,11 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
       log(state, 'Герой уклоняется');
       return 0;
     }
-    const b = Math.min(h.block, rest);
-    h.block -= b;
-    rest -= b;
+    if (!pierce) {
+      const b = Math.min(h.block, rest);
+      h.block -= b;
+      rest -= b;
+    }
   }
   h.hp -= rest;
   state.stats.damageTaken += rest;
@@ -177,7 +189,7 @@ function healEnemy(state: BattleState, e: EnemyState, amount: number): void {
   state.events.push({ type: 'heal', target: e.uid, amount: healed });
 }
 
-function cleanupDead(state: BattleState): void {
+function cleanupDead(state: BattleState, rng: Rng): void {
   const dead = state.enemies.filter((e) => e.hp <= 0);
   if (dead.length === 0) return;
   for (const e of dead) {
@@ -187,6 +199,13 @@ function cleanupDead(state: BattleState): void {
   }
   state.enemies = state.enemies.filter((e) => e.hp > 0);
   state.enemyQueue = state.enemyQueue.filter((uid) => state.enemies.some((e) => e.uid === uid));
+  // предсмертные эффекты: деление, взрыв
+  for (const e of dead) {
+    const def = enemyDef(e.defId);
+    if (!def.onDeath || state.phase === 'lost') continue;
+    log(state, `${e.name}: ${def.onDeath.name}`);
+    for (const eff of def.onDeath.effects) applyEnemyEffect(state, e, eff, rng);
+  }
   if (state.enemies.length === 0 && state.phase !== 'lost') {
     state.phase = 'won';
     log(state, 'Победа!');
@@ -236,6 +255,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if (!findEnemy(state, action.target)) return 'Нет цели';
       return null;
     case 'defend':
+      if (h.defended) return 'Защита — раз за ход';
       if (h.sta < 1) return 'Нет стамины';
       return null;
     case 'artifact': {
@@ -308,6 +328,7 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal);
   } else if (action.type === 'defend') {
     h.sta -= 1;
+    h.defended = true;
     h.block += h.stats.def;
     state.events.push({ type: 'block', target: 'hero', amount: h.stats.def });
     log(state, `Герой защищается: +${h.stats.def} блока`);
@@ -321,7 +342,7 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     log(state, `Герой: ${def.name}`);
     for (const eff of def.effects?.(inst.tier) ?? []) applyEffect(state, eff, action.target, rng);
   }
-  cleanupDead(state);
+  cleanupDead(state, rng);
 }
 
 function startPlayerTurn(state: BattleState): void {
@@ -329,6 +350,7 @@ function startPlayerTurn(state: BattleState): void {
   state.turn += 1;
   state.phase = 'player';
   h.block = 0;
+  h.defended = false;
   const ex = getStatus(h, 'exhaust');
   h.sta = Math.max(0, h.maxSta - (ex?.value ?? 0));
   if (ex) removeStatus(h, 'exhaust');
@@ -434,15 +456,20 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       const hits = eff.hits ?? 1;
       for (let i = 0; i < hits; i++) {
         if (state.phase === 'lost') break;
-        const dealt = damageHero(state, dmg, 'hit', e);
-        log(state, `${e.name} атакует: ${dmg} (${dealt} по HP)`);
+        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce);
+        log(state, `${e.name} атакует: ${dmg} (${dealt} по HP${eff.pierce ? ', сквозь блок' : ''})`);
+        if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
       }
       break;
     }
-    case 'block':
-      e.block += eff.amount;
-      state.events.push({ type: 'block', target: e.uid, amount: eff.amount });
+    case 'block': {
+      const targets = eff.target === 'allies' ? state.enemies : [e];
+      for (const t of targets) {
+        t.block += eff.amount;
+        state.events.push({ type: 'block', target: t.uid, amount: eff.amount });
+      }
       break;
+    }
     case 'buffStr': {
       const targets =
         eff.target === 'self' ? [e] : eff.target === 'allies' ? state.enemies : state.enemies.filter((x) => x.defId === e.defId);
@@ -476,6 +503,19 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       break;
     case 'thorns':
       addStatus(state, e, e.uid, 'thorns', eff.amount, -1);
+      break;
+    case 'dodge':
+      addStatus(state, e, e.uid, 'dodge', eff.value, -1);
+      break;
+    case 'selfDestruct': {
+      const dealt = damageHero(state, eff.amount + statusValue(e, 'strength'), 'hit', e);
+      log(state, `${e.name} взрывается: ${dealt} по HP`);
+      if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', eff.burn, 3);
+      e.hp = 0;
+      break;
+    }
+    case 'none':
+      log(state, `${e.name} готовится`);
       break;
   }
 }
@@ -522,7 +562,7 @@ export function enemyStep(state: BattleState, rng: Rng): void {
     const e = findEnemy(state, uid);
     if (!e) continue;
     actEnemy(state, e, rng);
-    cleanupDead(state);
+    cleanupDead(state, rng);
     return;
   }
   startPlayerTurn(state);
@@ -550,6 +590,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       cooldowns: {},
       stats,
       artifacts: socketedArtifacts(hero.weapon, hero.armor),
+      defended: false,
     },
     enemies: [],
     turn: 0,
@@ -603,14 +644,29 @@ export function computeIntent(e: EnemyState): IntentInfo {
         if (getStatus(e, 'weak')) dmg = Math.floor(dmg * 0.75);
         const hits = eff.hits ?? 1;
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
-        parts.push(`Атака ${label}`);
+        const notes = [eff.pierce ? 'сквозь блок' : '', eff.drain ? 'вампиризм' : ''].filter(Boolean);
+        parts.push(`Атака ${label}${notes.length ? ` (${notes.join(', ')})` : ''}`);
         kinds.push('attack');
         break;
       }
       case 'block':
         if (!label) label = `${eff.amount}`;
-        parts.push(`Блок ${eff.amount}`);
+        parts.push(`Блок ${eff.amount}${eff.target === 'allies' ? ' всем' : ''}`);
         kinds.push('defend');
+        break;
+      case 'dodge':
+        parts.push(`Уклонение от ${eff.value} атак(и)`);
+        kinds.push('buff');
+        break;
+      case 'selfDestruct': {
+        const dmg = eff.amount + statusValue(e, 'strength');
+        label = `${dmg}`;
+        parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${eff.burn}` : ''}`);
+        kinds.push('attack');
+        break;
+      }
+      case 'none':
+        kinds.push('special');
         break;
       case 'buffStr':
         parts.push(
@@ -653,7 +709,7 @@ export function computeIntent(e: EnemyState): IntentInfo {
     icon: INTENT_ICON[kind],
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: a.name,
-    text: `${a.name}: ${parts.join(', ')}`,
+    text: parts.length ? `${a.name}: ${parts.join(', ')}` : a.name,
     stunned: !!getStatus(e, 'stun'),
   };
 }

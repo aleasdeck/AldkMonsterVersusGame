@@ -1,3 +1,4 @@
+import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { currentLocation } from '../../engine/run';
 import { artifactChip, heroPanel, pendingModal, tierBadge } from '../components';
@@ -25,7 +26,7 @@ export function eventScreen(app: App): HTMLElement {
   return h(
     'div',
     { class: 'screen event' },
-    h('div', { class: 'topbar' }, h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/5 · Событие`), h('span', { class: 'dim' }, `сид ${run.seed}`)),
+    h('div', { class: 'topbar' }, h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/${ROOMS_PER_LOCATION} · Событие`), h('span', { class: 'dim' }, `сид ${run.seed}`)),
     h(
       'div',
       { class: 'body' },

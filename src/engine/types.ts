@@ -125,6 +125,8 @@ export interface HeroDef {
   mp: number;
   mpRegen: number;
   sta: number;
+  /** Врождённый шанс крита, 0..1. */
+  crit?: number;
   weapon: { name: string; dmgMin: number; dmgMax: number };
   armor: { name: string; def: number; hp: number };
   artifacts: [string, string];
@@ -134,15 +136,21 @@ export interface HeroDef {
 // ─── Враги ─────────────────────────────────────────────────────────────────
 
 export type EnemyEffect =
-  | { type: 'attack'; amount: number; hits?: number }
-  | { type: 'block'; amount: number }
+  /** pierce — игнорирует блок героя, drain — лечит атакующего на нанесённый урон. */
+  | { type: 'attack'; amount: number; hits?: number; pierce?: boolean; drain?: boolean }
+  | { type: 'block'; amount: number; target?: 'self' | 'allies' }
   | { type: 'buffStr'; amount: number; target: 'self' | 'allies' | 'kind' }
   | { type: 'heal'; amount: number; target: 'self' | 'allies' }
   | { type: 'debuff'; status: StatusId; value: number; turns: number }
   | { type: 'drainMp'; amount: number }
   | { type: 'summon'; enemyId: string; count: number }
   | { type: 'invuln' }
-  | { type: 'thorns'; amount: number };
+  | { type: 'thorns'; amount: number }
+  | { type: 'dodge'; value: number }
+  /** Урон герою, после чего враг погибает. */
+  | { type: 'selfDestruct'; amount: number; burn?: number }
+  /** Замах: ход без эффекта, готовит следующий приём. */
+  | { type: 'none' };
 
 export interface AiCtx {
   self: EnemyState;
@@ -180,6 +188,8 @@ export interface EnemyDef {
   rank: 'normal' | 'elite' | 'boss';
   actions: EnemyAction[];
   ai: { type: 'cycle'; order: string[] } | { type: 'boss'; rules: BossRule[] };
+  /** Срабатывает при смерти: деление, взрыв. */
+  onDeath?: { name: string; effects: EnemyEffect[] };
   sprite: SpriteSpec;
 }
 
@@ -201,6 +211,8 @@ export interface HeroBattle extends Combatant {
   stats: DerivedStats;
   /** Снимок вставленных артефактов на момент начала боя. */
   artifacts: ArtifactInstance[];
+  /** «Защититься» уже использовано в этом ходу. */
+  defended: boolean;
 }
 
 export interface EnemyState extends Combatant {
@@ -275,8 +287,12 @@ export interface RewardScreen {
 }
 
 export interface PendingPlacement {
-  /** Артефакты, которым не хватило слотов; обрабатываются по одному. */
+  /** Артефакты, ждущие выбора слота; обрабатываются по одному. */
   artifacts: ArtifactInstance[];
+  /** Можно отменить и вернуться к выбору (награда ещё не потрачена). */
+  cancellable: boolean;
+  /** После размещения или отказа снять текущий экран награды. */
+  consumeReward: boolean;
 }
 
 export type EventOption =
@@ -292,7 +308,7 @@ export interface RunStats {
   roomsCleared: number;
 }
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

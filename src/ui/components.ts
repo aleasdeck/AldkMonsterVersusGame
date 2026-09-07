@@ -5,7 +5,7 @@ import { artifactCostText, artifactDef } from '../data/artifacts';
 import { ART_TIER_COLORS, GEAR_TIERS, gearStatText } from '../data/gear';
 import { heroDef } from '../data/heroes';
 import { heroStats } from '../engine/run';
-import { findSameArtifact, socketRefs } from '../engine/equipment';
+import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
 import { STATUS_HINTS, STATUS_NAMES } from '../engine/combat';
 import { spriteImg } from './sprites';
 import type { App } from './app';
@@ -143,40 +143,52 @@ export function heroPanel(run: RunState): HTMLElement {
   );
 }
 
-/** Модалка размещения артефакта, когда нет свободного слота. */
+/** Модалка выбора слота для артефакта: пустой — вставить, занятый — заменить. */
 export function pendingModal(app: App): HTMLElement | null {
   const run = app.run;
-  const art = run?.pending?.artifacts[0];
-  if (!run || !art) return null;
-  const def = artifactDef(art.id);
+  const p = run?.pending;
+  const art = p?.artifacts[0];
+  if (!run || !p || !art) return null;
   const sockets = socketRefs(run.hero);
   const same = findSameArtifact(run.hero, art.id);
+  const hasFree = sockets.some((s) => !s.art);
   return h(
     'div',
     { class: 'overlay' },
     h(
       'div',
       { class: 'panel modal' },
-      h('h2', null, 'Нет свободного слота'),
-      h('p', null, `Куда поставить «${def.name}» (тир ${art.tier})? Заменённый артефакт пропадёт.`),
+      h('h2', null, 'Куда вставить артефакт?'),
+      h(
+        'p',
+        { class: 'dim' },
+        hasFree ? 'Выберите слот. Занятый слот — замена, старый артефакт пропадёт.' : 'Свободных слотов нет: выберите, какой артефакт заменить.',
+      ),
       artifactCard(art),
       h(
         'div',
         { class: 'socket-list' },
-        ...sockets.map((s) =>
-          h(
+        ...sockets.map((s) => {
+          const gear = gearOf(run.hero, s.kind);
+          const isSame = !!same && same.kind === s.kind && same.index === s.index;
+          return h(
             'div',
-            { class: 'socket-row' },
-            h('span', { class: 'dim' }, s.kind === 'weapon' ? 'Оружие' : 'Броня', ` · слот ${s.index + 1}`),
+            { class: `socket-row ${s.art ? '' : 'free'}` },
+            h('span', { class: 'socket-gear' }, h('span', { class: 'dim' }, s.kind === 'weapon' ? 'Оружие' : 'Броня'), h('span', null, ` · ${gear.name} · слот ${s.index + 1}`)),
             artifactChip(s.art),
-            h('span', { class: 'socket-name' }, s.art ? `${artifactDef(s.art.id).name} (${s.art.tier})` : 'пусто'),
-            button('Заменить', () => app.pendingReplace(s.kind, s.index), {
-              disabled: !!same && same.kind === s.kind && same.index === s.index,
+            h('span', { class: 'socket-name' }, s.art ? `${artifactDef(s.art.id).name} (тир ${s.art.tier})` : 'пусто'),
+            button(s.art ? 'Заменить' : 'Вставить', () => app.pendingPlace(s.kind, s.index), {
+              class: s.art ? '' : 'primary',
+              disabled: isSame,
             }),
-          ),
-        ),
+          );
+        }),
       ),
-      h('div', { class: 'row' }, button('Выбросить', () => app.pendingDiscard(), { class: 'danger' })),
+      h(
+        'div',
+        { class: 'row' },
+        p.cancellable ? button('Отмена', () => app.pendingCancel()) : button('Выбросить', () => app.pendingDiscard(), { class: 'danger' }),
+      ),
     ),
   );
 }

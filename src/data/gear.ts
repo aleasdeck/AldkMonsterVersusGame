@@ -15,8 +15,8 @@ export const GEAR_TIERS: Record<GearTier, TierInfo> = {
   1: { name: 'Обычный', color: '#9a9a9a', slots: 1, dmgMin: 3, dmgMax: 5, def: 1, hp: 2 },
   2: { name: 'Необычный', color: '#4caf50', slots: 2, dmgMin: 4, dmgMax: 8, def: 2, hp: 4 },
   3: { name: 'Редкий', color: '#42a5f5', slots: 2, dmgMin: 6, dmgMax: 10, def: 3, hp: 7 },
-  4: { name: 'Мифический', color: '#ab47bc', slots: 3, dmgMin: 8, dmgMax: 14, def: 4, hp: 10 },
-  5: { name: 'Легендарный', color: '#ff9800', slots: 4, dmgMin: 11, dmgMax: 17, def: 6, hp: 15 },
+  4: { name: 'Мифический', color: '#ab47bc', slots: 3, dmgMin: 8, dmgMax: 14, def: 5, hp: 12 },
+  5: { name: 'Легендарный', color: '#ff9800', slots: 4, dmgMin: 11, dmgMax: 17, def: 7, hp: 18 },
 };
 
 export const ART_TIER_COLORS: Record<1 | 2 | 3, string> = {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_LIST } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
+import { FIGHTS_PER_RUN, ROOMS_PER_LOCATION } from '../src/data/locations';
 import { canUseAction } from '../src/engine/combat';
 import {
   battleAction,
@@ -15,12 +16,13 @@ import {
   heroStats,
   isRunOver,
   newRun,
+  pendingCancel,
   pendingDiscard,
-  pendingReplace,
+  pendingPlace,
   skipReward,
   takeReward,
 } from '../src/engine/run';
-import { addArtifact } from '../src/engine/equipment';
+import { socketRefs } from '../src/engine/equipment';
 import type { RunState } from '../src/engine/types';
 
 /** Простейший бот: бьёт первого врага, пока есть стамина, потом заканчивает ход. */
@@ -55,10 +57,25 @@ function playBattle(run: RunState): void {
   finishBattle(run);
 }
 
+/** Разместить ожидающий артефакт в первый свободный слот, иначе выбросить. */
+function resolvePending(run: RunState): void {
+  const free = socketRefs(run.hero).find((s) => !s.art);
+  if (free) pendingPlace(run, free.kind, free.index);
+  else pendingDiscard(run);
+}
+
 /** Играет забег до конца: бой ботом, награды — первая опция, привал — отдых. */
-function playRun(run: RunState): void {
+function playRun(run: RunState, immortal = false): void {
   let guard = 0;
-  while (!isRunOver(run) && guard++ < 500) {
+  while (!isRunOver(run) && guard++ < 800) {
+    if (immortal && run.phase === 'battle' && run.battle) {
+      run.battle.hero.hp = 99999;
+      run.battle.hero.maxHp = 99999;
+    }
+    if (run.pending) {
+      resolvePending(run);
+      continue;
+    }
     switch (run.phase) {
       case 'map':
         enterRoom(run);
@@ -67,12 +84,10 @@ function playRun(run: RunState): void {
         playBattle(run);
         break;
       case 'reward':
-        if (run.pending) pendingDiscard(run);
-        else takeReward(run, 0);
+        takeReward(run, 0);
         break;
       case 'event':
-        if (run.pending) pendingReplace(run, 'weapon', 0);
-        else chooseEvent(run, 'chest');
+        chooseEvent(run, immortal ? 'spring' : 'chest');
         break;
       case 'camp':
         campRest(run);
@@ -82,8 +97,27 @@ function playRun(run: RunState): void {
   if (!isRunOver(run)) throw new Error(`Run stuck in phase ${run.phase}`);
 }
 
+function winCurrentBattle(run: RunState): void {
+  run.battle!.hero.hp = 99999;
+  run.battle!.hero.maxHp = 99999;
+  run.battle!.hero.stats.dmgMin = 999;
+  run.battle!.hero.stats.dmgMax = 999;
+  playBattle(run);
+}
+
 describe('забег', () => {
-  it('новый забег: герой с полным HP, стартовая комната — бой', () => {
+  it('этаж из 7 комнат: бой, бой, событие, бой, бой, элита, босс', () => {
+    const run = newRun('warrior', 42);
+    const kinds = [];
+    for (let i = 0; i < ROOMS_PER_LOCATION; i++) {
+      run.roomIndex = i;
+      kinds.push(currentRoomKind(run));
+    }
+    expect(kinds).toEqual(['fight', 'fight', 'event', 'fight', 'fight', 'elite', 'boss']);
+    expect(FIGHTS_PER_RUN).toBe(18);
+  });
+
+  it('новый забег: герой с полным HP, стартовая комната — лёгкий бой', () => {
     const run = newRun('warrior', 42);
     expect(run.phase).toBe('map');
     expect(run.hero.hp).toBe(heroStats(run).maxHp);
@@ -91,7 +125,8 @@ describe('забег', () => {
     enterRoom(run);
     expect(run.phase).toBe('battle');
     expect(run.battle?.enemies.length).toBeGreaterThan(0);
-    expect(run.battle?.enemies.every((e) => ['wolf', 'boar'].includes(e.defId))).toBe(true);
+    const easy = ['wolf', 'boar', 'rat', 'bat', 'spider', 'goblin'];
+    expect(run.battle?.enemies.every((e) => easy.includes(e.defId))).toBe(true);
   });
 
   it('один и тот же сид даёт один и тот же забег', () => {
@@ -107,12 +142,7 @@ describe('забег', () => {
   it('после победы выдаётся награда, после награды — следующая комната', () => {
     const run = newRun('berserk', 3);
     enterRoom(run);
-    run.hero.hp = 9999;
-    if (run.battle) {
-      run.battle.hero.hp = 9999;
-      run.battle.hero.maxHp = 9999;
-    }
-    playBattle(run);
+    winCurrentBattle(run);
     expect(run.phase).toBe('reward');
     expect(run.rewards[0].options.length).toBe(3);
     skipReward(run);
@@ -120,20 +150,48 @@ describe('забег', () => {
     expect(run.roomIndex).toBe(1);
   });
 
-  it('полный слот → ожидание размещения → замена', () => {
+  it('артефакт из награды: выбор слота, отмена возвращает к награде, замена завершает', () => {
     const run = newRun('warrior', 11);
     enterRoom(run);
-    run.battle!.hero.hp = 9999;
-    run.battle!.hero.maxHp = 9999;
-    playBattle(run);
-    // подменяем награду на артефакт, которого нет в слотах
+    winCurrentBattle(run);
     run.rewards = [{ title: 'x', options: [{ kind: 'artifact', artifact: { id: 'thorns', tier: 1 } }] }];
     takeReward(run, 0);
     expect(run.pending?.artifacts[0].id).toBe('thorns');
+    expect(run.pending?.cancellable).toBe(true);
     expect(run.phase).toBe('reward');
-    pendingReplace(run, 'armor', 0);
+    pendingCancel(run);
+    expect(run.pending).toBeNull();
+    expect(run.rewards.length).toBe(1);
+    takeReward(run, 0);
+    pendingPlace(run, 'armor', 0);
     expect(run.pending).toBeNull();
     expect(run.hero.armor.slots[0]?.id).toBe('thorns');
+    expect(run.phase).toBe('map');
+  });
+
+  it('свободный слот: игрок сам выбирает, куда вставить', () => {
+    const run = newRun('warrior', 11);
+    run.hero.weapon.slots.push(null);
+    run.hero.armor.slots.push(null);
+    enterRoom(run);
+    winCurrentBattle(run);
+    run.rewards = [{ title: 'x', options: [{ kind: 'artifact', artifact: { id: 'thorns', tier: 1 } }] }];
+    takeReward(run, 0);
+    expect(run.pending).not.toBeNull();
+    pendingPlace(run, 'armor', 1);
+    expect(run.hero.armor.slots[1]?.id).toBe('thorns');
+    expect(run.hero.weapon.slots[1]).toBeNull();
+    expect(run.phase).toBe('map');
+  });
+
+  it('дубликат из награды апгрейдит сразу, без выбора слота', () => {
+    const run = newRun('warrior', 11);
+    enterRoom(run);
+    winCurrentBattle(run);
+    run.rewards = [{ title: 'x', options: [{ kind: 'artifact', artifact: { id: 'troll_heart', tier: 1 } }] }];
+    takeReward(run, 0);
+    expect(run.pending).toBeNull();
+    expect(run.hero.armor.slots[0]?.tier).toBe(2);
     expect(run.phase).toBe('map');
   });
 
@@ -186,8 +244,9 @@ describe('забег', () => {
     expect(altar).toBeDefined();
     const max2 = heroStats(run2).maxHp;
     chooseEvent(run2, 'altar');
-    // слоты паладина заняты → ожидание размещения
+    // новый артефакт → выбор слота, отменить нельзя (HP уже отдан)
     expect(run2.pending).not.toBeNull();
+    expect(run2.pending?.cancellable).toBe(false);
     pendingDiscard(run2);
     expect(run2.hero.hp).toBe(max2 - Math.floor(max2 * 0.1));
     expect(run2.phase).toBe('map');
@@ -196,7 +255,7 @@ describe('забег', () => {
   it('привал: отдых лечит половину, кузница поднимает тир', () => {
     const run = newRun('warrior', 2);
     run.phase = 'camp';
-    run.roomIndex = 5;
+    run.roomIndex = ROOMS_PER_LOCATION;
     run.hero.hp = 1;
     campRest(run);
     expect(run.hero.hp).toBe(1 + Math.floor(heroStats(run).maxHp * 0.5));
@@ -213,13 +272,10 @@ describe('забег', () => {
 
   it('босс леса даёт экипировку 3 тира и артефакт', () => {
     const run = newRun('berserk', 5);
-    run.roomIndex = 4;
-    addArtifact(run.hero, { id: 'strength_stone', tier: 3 });
+    run.roomIndex = ROOMS_PER_LOCATION - 1;
     enterRoom(run);
     expect(run.battle?.enemies[0].defId).toBe('alpha_wolf');
-    run.battle!.hero.hp = 99999;
-    run.battle!.hero.maxHp = 99999;
-    playBattle(run);
+    winCurrentBattle(run);
     expect(run.phase).toBe('reward');
     expect(run.rewards.length).toBe(2);
     expect(run.rewards[0].options.every((o) => o.kind === 'gear' && o.gear.tier === 3)).toBe(true);
@@ -227,6 +283,7 @@ describe('забег', () => {
     expect(run.rewards.length).toBe(1);
     expect(run.rewards[0].options.every((o) => o.kind === 'artifact')).toBe(true);
     takeReward(run, 0);
+    if (run.pending) resolvePending(run);
     expect(run.phase).toBe('camp');
   });
 
@@ -240,35 +297,10 @@ describe('забег', () => {
     }
   });
 
-  it('бессмертный герой доходит до победы', () => {
+  it('бессмертный герой доходит до победы через 18 боёв', () => {
     const run = newRun('warrior', 12345);
-    let guard = 0;
-    while (!isRunOver(run) && guard++ < 500) {
-      if (run.phase === 'battle' && run.battle) {
-        run.battle.hero.hp = 99999;
-        run.battle.hero.maxHp = 99999;
-      }
-      switch (run.phase) {
-        case 'map':
-          enterRoom(run);
-          break;
-        case 'battle':
-          playBattle(run);
-          break;
-        case 'reward':
-          if (run.pending) pendingDiscard(run);
-          else takeReward(run, 0);
-          break;
-        case 'event':
-          if (run.pending) pendingDiscard(run);
-          else chooseEvent(run, 'spring');
-          break;
-        case 'camp':
-          campRest(run);
-          break;
-      }
-    }
+    playRun(run, true);
     expect(run.phase).toBe('victory');
-    expect(run.stats.roomsCleared).toBe(12);
+    expect(run.stats.roomsCleared).toBe(FIGHTS_PER_RUN);
   });
 });
