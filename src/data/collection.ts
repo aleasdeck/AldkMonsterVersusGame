@@ -2,7 +2,8 @@ import type { GearKind, GearTier } from '../engine/types';
 import type { Rng } from '../engine/rng';
 import { pick } from '../engine/rng';
 import { ARTIFACT_IDS, artifactCostText, artifactDef } from './artifacts';
-import { GEAR_TIERS, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseDamage, baseTitle, gearBases, weaponTypeText } from './gear';
+import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, GEAR_TIERS, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseDamage, baseTitle, dropBases, gearBases, weaponTypeText } from './gear';
+import { HERO_LIST } from './heroes';
 
 /**
  * Каталог всего, что встречается в приключениях: артефакты и базы экипировки.
@@ -47,7 +48,7 @@ function artifactEntry(id: string): Collectible {
     glyph: def.glyph,
     color: KIND_COLORS.artifact,
     sub: `Артефакт · ${school}${cost}`,
-    desc: `Тир 1: ${def.describe(1)}\nТир 3: ${def.describe(3)}`,
+    desc: `Тир 1: ${def.describe(1)}\nТир 2: ${def.describe(2)}\nТир 3: ${def.describe(3)}`,
   };
 }
 
@@ -63,24 +64,29 @@ function gearEntry(kind: GearKind, baseId: string): Collectible {
       ? `Урон ${lo.min}–${lo.max} на 1 тире, ${hi.min}–${hi.max} на 5 тире`
       : `+${t1.def} DEF и +${t1.hp} HP на 1 тире, +${t5.def} DEF и +${t5.hp} HP на 5 тире`;
   const type = base.type ?? 'melee';
+  const armorType = base.armorType ?? 'medium';
   const perkLines: string[] = [];
   if (kind === 'weapon') perkLines.push(`${WEAPON_TYPE_NAMES[type]} оружие: ${weaponTypeText(type, 1)}`);
+  if (kind === 'armor') {
+    const wearers = HERO_LIST.filter((h) => h.armorSkill[armorType]).map((h) => h.name);
+    perkLines.push(`${ARMOR_TYPE_NAMES[armorType]} броня: перк работает только у тех, кто умеет её носить — ${wearers.join(', ')}`);
+  }
   if (base.perk) perkLines.push(`${base.perk.name}: ${base.perk.text(1)}; на 5 тире — ${base.perk.text(5)}`);
   return {
     id: `${kind}:${baseId}`,
     kind,
     name: base.name[0].toUpperCase() + base.name.slice(1),
-    glyph: kind === 'weapon' ? WEAPON_TYPE_GLYPHS[type] : '⛨',
+    glyph: kind === 'weapon' ? WEAPON_TYPE_GLYPHS[type] : ARMOR_TYPE_GLYPHS[armorType],
     color: KIND_COLORS[kind],
-    sub: kind === 'weapon' ? `${WEAPON_TYPE_NAMES[type]} · ${spread}` : KIND_NAMES.armor,
+    sub: kind === 'weapon' ? `${WEAPON_TYPE_NAMES[type]} · ${spread}` : `${ARMOR_TYPE_NAMES[armorType]} ${KIND_NAMES.armor.toLowerCase()}`,
     desc: [stats, ...perkLines, `Встречается от «${baseTitle(base, 1)}» до «${baseTitle(base, 5)}»`].join('\n'),
   };
 }
 
 export const COLLECTIBLES: Collectible[] = [
   ...ARTIFACT_IDS.map(artifactEntry),
-  ...gearBases('weapon').map((b) => gearEntry('weapon', b.id)),
-  ...gearBases('armor').map((b) => gearEntry('armor', b.id)),
+  ...dropBases('weapon').map((b) => gearEntry('weapon', b.id)),
+  ...dropBases('armor').map((b) => gearEntry('armor', b.id)),
 ];
 
 export const COLLECTIBLE_IDS: string[] = COLLECTIBLES.map((c) => c.id);

@@ -1,4 +1,4 @@
-import type { DerivedStats, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Mastery, StatMods, WeaponType } from '../engine/types';
+import type { ArmorType, DerivedStats, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Mastery, StatMods, WeaponType } from '../engine/types';
 import { pick, weighted, type Rng } from '../engine/rng';
 
 export interface TierInfo {
@@ -85,6 +85,23 @@ export function weaponTypeText(type: WeaponType, tier: GearTier): string {
   }
 }
 
+// ─── Типы брони и умение носить ────────────────────────────────────────────
+
+export const ARMOR_TYPE_NAMES: Record<ArmorType, string> = {
+  heavy: 'Тяжёлая',
+  medium: 'Средняя',
+  light: 'Лёгкая',
+};
+
+export const ARMOR_TYPE_GLYPHS: Record<ArmorType, string> = {
+  heavy: '◆',
+  medium: '◈',
+  light: '◇',
+};
+
+/** Веса типа при выпадении брони: тип, который герой умеет носить, вдвое чаще. */
+export const ARMOR_DROP_WEIGHT = { skilled: 40, unskilled: 20 };
+
 // ─── Базы ──────────────────────────────────────────────────────────────────
 
 type Gender = 0 | 1 | 2 | 3; // m, f, n, pl
@@ -107,7 +124,11 @@ export interface Base {
   spread?: 'narrow' | 'wide';
   /** Только у оружия. */
   type?: WeaponType;
+  /** Только у брони. */
+  armorType?: ArmorType;
   perk?: Perk;
+  /** Только стартовая вещь героя: не выпадает в награду и не входит в коллекцию. */
+  startOnly?: boolean;
 }
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
@@ -239,42 +260,62 @@ export const WEAPON_BASES: Base[] = [
   },
 ];
 
-/** Перки брони — защитные, в пару к перкам оружия: латы держат удар, плащ его избегает, роба прикрывает кастера. */
+/**
+ * Перки брони — защитные, в пару к перкам оружия: латы держат удар, плащ его избегает, роба прикрывает кастера.
+ * Каждая база — одного из трёх типов; перк работает, только если герой умеет носить этот тип (см. canWearArmor).
+ */
 export const ARMOR_BASES: Base[] = [
+  // ── Тяжёлая ──
   {
     id: 'mail',
     name: 'кольчуга',
     g: 1,
+    armorType: 'heavy',
     perk: { name: 'Кольца', mods: (t) => ({ hitReduce: byTier([1, 1, 1, 2, 2])(t) }), text: (t) => `каждый удар по герою слабее на ${byTier([1, 1, 1, 2, 2])(t)}` },
   },
   {
     id: 'plate',
     name: 'латы',
     g: 3,
+    armorType: 'heavy',
     perk: { name: 'Стойкость', mods: (t) => ({ defendBonus: byTier([1, 1, 2, 2, 3])(t) }), text: (t) => `«Защититься» даёт +${byTier([1, 1, 2, 2, 3])(t)} блока` },
   },
+  // ── Средняя ──
   {
     id: 'harness',
     name: 'доспех',
     g: 0,
+    armorType: 'medium',
     perk: { name: 'Второе дыхание', mods: (t) => ({ firstTurnSta: byTier([1, 1, 1, 2, 2])(t) }), text: (t) => `+${byTier([1, 1, 1, 2, 2])(t)} STA в первый ход боя` },
-  },
-  {
-    id: 'robe',
-    name: 'роба',
-    g: 1,
-    perk: { name: 'Чары', mods: (t) => ({ blockOnSpell: byTier([1, 1, 2, 2, 3])(t) }), text: (t) => `каждое заклинание даёт +${byTier([1, 1, 2, 2, 3])(t)} блока` },
   },
   {
     id: 'shell',
     name: 'панцирь',
     g: 0,
+    armorType: 'medium',
     perk: { name: 'Панцирь', mods: (t) => ({ blockKeep: byTier([2, 2, 3, 4, 5])(t) }), text: (t) => `до ${byTier([2, 2, 3, 4, 5])(t)} блока не сгорает в начале хода` },
+  },
+  // ── Лёгкая ──
+  {
+    id: 'robe',
+    name: 'роба',
+    g: 1,
+    armorType: 'light',
+    perk: { name: 'Чары', mods: (t) => ({ blockOnSpell: byTier([1, 1, 2, 2, 3])(t) }), text: (t) => `каждое заклинание даёт +${byTier([1, 1, 2, 2, 3])(t)} блока` },
+  },
+  {
+    // Стартовая одежда Берсерка: он не носит броню, и перка у неё нет, чтобы на панели не висела зачёркнутая строка.
+    id: 'hide',
+    name: 'шкура',
+    g: 1,
+    armorType: 'light',
+    startOnly: true,
   },
   {
     id: 'cloak',
     name: 'плащ',
     g: 0,
+    armorType: 'light',
     perk: {
       name: 'Скрытность',
       mods: (t) => ({ dodgeStart: byTier([1, 1, 1, 2, 2])(t) }),
@@ -285,6 +326,11 @@ export const ARMOR_BASES: Base[] = [
 
 export function gearBases(kind: GearKind): Base[] {
   return kind === 'weapon' ? WEAPON_BASES : ARMOR_BASES;
+}
+
+/** Базы, которые выпадают в награду и числятся в коллекции: без стартовых вещей вроде шкуры Берсерка. */
+export function dropBases(kind: GearKind): Base[] {
+  return gearBases(kind).filter((b) => !b.startOnly);
 }
 
 export function baseOf(kind: GearKind, id: string): Base {
@@ -305,6 +351,20 @@ export function masteryOf(def: HeroDef, gear: GearInstance): Mastery {
   return def.mastery[weaponType(gear)];
 }
 
+export function armorType(gear: GearInstance): ArmorType {
+  return baseOf('armor', gear.base).armorType ?? 'medium';
+}
+
+/** Умеет ли герой носить эту броню. Нет — перк базы не работает, DEF, HP и аффикс остаются. */
+export function canWearArmor(def: HeroDef, gear: GearInstance): boolean {
+  return def.armorSkill[armorType(gear)];
+}
+
+/** Есть ли у базы предмета перк вообще: у стартовой шкуры Берсерка его нет. */
+export function hasPerk(gear: GearInstance): boolean {
+  return !!baseOf(gear.kind, gear.base).perk;
+}
+
 /** Итоговый кубик оружия в руках героя: владение, штраф магического типа. */
 export function weaponDice(def: HeroDef, gear: GearInstance): { min: number; max: number } {
   const mult = MASTERY_MULT[masteryOf(def, gear)];
@@ -323,8 +383,9 @@ export function weaponPerkMods(gear: GearInstance): StatMods {
   return out;
 }
 
-/** Модификаторы перка базы брони (без аффикса). */
-export function armorPerkMods(gear: GearInstance): StatMods {
+/** Модификаторы перка базы брони (без аффикса). С героем — пусто, если он не умеет носить этот тип. */
+export function armorPerkMods(gear: GearInstance, def?: HeroDef): StatMods {
+  if (def && !canWearArmor(def, gear)) return {};
   return baseOf('armor', gear.base).perk?.mods(gear.tier) ?? {};
 }
 
@@ -343,6 +404,19 @@ export function weaponTypeTitle(gear: GearInstance, def?: HeroDef): string {
   const type = weaponType(gear);
   if (!def) return WEAPON_TYPE_NAMES[type];
   return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[masteryOf(def, gear)]}`;
+}
+
+/** Подсказка к иконке типа брони: «Тяжёлая броня · Умеет носить» или «… · Не умеет: перк не работает». */
+export function armorTypeTitle(gear: GearInstance, def?: HeroDef): string {
+  const type = armorType(gear);
+  if (!hasPerk(gear)) return `${ARMOR_TYPE_NAMES[type]} броня · без перка`;
+  if (!def) return `${ARMOR_TYPE_NAMES[type]} броня`;
+  return `${ARMOR_TYPE_NAMES[type]} броня · ${canWearArmor(def, gear) ? 'Умеет носить' : 'Не умеет: перк не работает'}`;
+}
+
+/** Подсказка пункта строки умений брони. */
+export function armorSkillTitle(type: ArmorType, skilled: boolean): string {
+  return `${ARMOR_TYPE_NAMES[type]} броня · ${skilled ? 'Умеет носить: перк базы работает' : 'Не умеет носить: перк базы не работает, DEF, HP и аффикс остаются'}`;
 }
 
 /** Свойство типа без привязки к тиру — для подсказки строки владения, где конкретного оружия нет. */
@@ -474,8 +548,24 @@ function pickWeaponBase(rng: Rng, mastery?: HeroDef['mastery']): Base {
   );
 }
 
-export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, mastery?: HeroDef['mastery']): GearInstance {
-  const base = kind === 'weapon' ? pickWeaponBase(rng, mastery) : pick(rng, ARMOR_BASES);
+/** База брони под героя: тип, который он умеет носить, выпадает чаще; внутри типа — поровну. */
+function pickArmorBase(rng: Rng, armorSkill?: HeroDef['armorSkill']): Base {
+  const pool = dropBases('armor');
+  if (!armorSkill) return pick(rng, pool);
+  const types = (Object.keys(armorSkill) as ArmorType[]).map((type) => ({
+    item: type,
+    weight: armorSkill[type] ? ARMOR_DROP_WEIGHT.skilled : ARMOR_DROP_WEIGHT.unskilled,
+  }));
+  const type = weighted(rng, types);
+  return pick(
+    rng,
+    pool.filter((b) => b.armorType === type),
+  );
+}
+
+/** Предмет случайной базы. С героем оружие выпадает под его владение, броня — под умение носить. */
+export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, def?: HeroDef): GearInstance {
+  const base = kind === 'weapon' ? pickWeaponBase(rng, def?.mastery) : pickArmorBase(rng, def?.armorSkill);
   const prefix = pick(rng, PREFIXES[tier])[base.g];
   const info = GEAR_TIERS[tier];
   const dmg = baseDamage(base, tier);

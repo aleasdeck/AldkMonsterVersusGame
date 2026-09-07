@@ -607,7 +607,7 @@ describe('перки брони', () => {
   });
 
   it('доспех: лишняя стамина только в первый ход', () => {
-    const { state, rng } = mkArmorBattle('berserk', 'harness', ['boar']);
+    const { state, rng } = mkArmorBattle('rogue', 'harness', ['boar']);
     expect(state.hero.sta).toBe(state.hero.maxSta + 1);
     pass(state, rng);
     expect(state.hero.sta).toBe(state.hero.maxSta);

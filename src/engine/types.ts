@@ -8,6 +8,8 @@ export type LocationId = 'forest' | 'crypt' | 'caves' | 'swamp' | 'hive' | 'ship
 export type WeaponType = 'melee' | 'ranged' | 'magic';
 /** Умение героя владеть типом оружия: мастер — полный урон, знаком — 75 %, чужое — 50 %. */
 export type Mastery = 'master' | 'trained' | 'foreign';
+/** Тип брони: тяжёлая, средняя, лёгкая. */
+export type ArmorType = 'heavy' | 'medium' | 'light';
 
 export const MAX_ENEMIES = 3;
 /** Союзников рядом с героем. */
@@ -176,6 +178,8 @@ export interface HeroDef {
   fatigue?: number;
   /** Умение владения каждым типом оружия. */
   mastery: Record<WeaponType, Mastery>;
+  /** Умение носить тип брони: умеет — перк базы работает, не умеет — броня даёт только DEF, HP и аффикс. */
+  armorSkill: Record<ArmorType, boolean>;
   weapon: { base: string; name: string; dmgMin: number; dmgMax: number };
   armor: { base: string; name: string; def: number; hp: number };
   artifacts: [string, string];
@@ -346,7 +350,17 @@ export interface HeroPersistent {
   armor: GearInstance;
 }
 
-export type RunPhase = 'map' | 'battle' | 'reward' | 'event' | 'camp' | 'victory' | 'defeat';
+export type RunPhase = 'map' | 'battle' | 'reward' | 'shop' | 'event' | 'camp' | 'victory' | 'defeat';
+
+/** Магазин после элиты: лекарь, одна случайная экипировка, один случайный артефакт, переброс товаров один раз. */
+export interface ShopState {
+  /** Товар куплен или не завёзли — null. */
+  gear: GearInstance | null;
+  artifact: ArtifactInstance | null;
+  /** Лечение уже куплено — один раз за визит. */
+  healed: boolean;
+  rerolled: boolean;
+}
 
 /** Откуда награда — по нему же перебрасываются варианты. */
 export type RewardSource = 'fight' | 'elite' | 'bossGear' | 'bossArt';
@@ -385,7 +399,7 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
@@ -402,6 +416,8 @@ export interface RunState {
   battle: BattleState | null;
   /** Очередь экранов награды: первый — текущий. */
   rewards: RewardScreen[];
+  /** Магазин открыт после награды за элиту, null — закрыт. */
+  shop: ShopState | null;
   event: { options: EventOption[] } | null;
   pending: PendingPlacement | null;
   stats: RunStats;

@@ -12,6 +12,7 @@ import { mapScreen } from './screens/map';
 import { battleScreen } from './screens/battle';
 import { rewardScreen } from './screens/reward';
 import { eventScreen } from './screens/event';
+import { shopScreen } from './screens/shop';
 import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
@@ -85,6 +86,9 @@ export class App {
           break;
         case 'event':
           el = eventScreen(this);
+          break;
+        case 'shop':
+          el = shopScreen(this);
           break;
         case 'camp':
           el = campScreen(this);
@@ -340,6 +344,34 @@ export class App {
   chooseEvent(id: string): void {
     if (!this.run) return;
     R.chooseEvent(this.run, id);
+    this.afterPhaseChange();
+  }
+
+  // ─── Магазин ─────────────────────────────────────────────────────────────
+
+  shopHeal(): void {
+    if (!this.run) return;
+    if (R.shopHeal(this.run)) this.commit();
+  }
+
+  shopBuyGear(): void {
+    if (!this.run) return;
+    if (R.shopBuyGear(this.run)) this.afterPhaseChange();
+  }
+
+  shopBuyArtifact(): void {
+    if (!this.run) return;
+    if (R.shopBuyArtifact(this.run)) this.afterPhaseChange();
+  }
+
+  shopReroll(): void {
+    if (!this.run) return;
+    if (R.shopReroll(this.run)) this.commit();
+  }
+
+  leaveShop(): void {
+    if (!this.run) return;
+    R.leaveShop(this.run);
     this.afterPhaseChange();
   }
 

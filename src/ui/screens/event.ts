@@ -1,10 +1,10 @@
 import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
-import { gearPerkText, gearStatText } from '../../data/gear';
+import { gearStatText } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { currentLocation } from '../../engine/run';
-import { artifactChip, heroPanel, pendingModal, pickable, tierBadge, weaponTypeIcon } from '../components';
+import { artifactChip, gearTypeIcon, heroPanel, pendingModal, perkLine, pickable, tierBadge } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import type { EventOption } from '../../engine/types';
 import type { App } from '../app';
@@ -29,10 +29,10 @@ function contents(app: App, o: EventOption): HTMLElement | null {
     return h(
       'div',
       { class: 'event-loot' },
-      h('div', { class: 'card-sub' }, tierBadge(o.gear.tier, o.gear.kind === 'weapon' ? weaponTypeIcon(o.gear, def) : null)),
+      h('div', { class: 'card-sub' }, tierBadge(o.gear.tier, gearTypeIcon(o.gear, def))),
       h('div', { class: 'card-desc' }, o.gear.name),
       h('div', { class: 'note' }, gearStatText(o.gear, def)),
-      h('div', { class: 'card-perk' }, gearPerkText(o.gear)),
+      perkLine(o.gear, def),
       h('div', { class: 'slots' }, ...o.gear.slots.map(() => artifactChip(null))),
     );
   }

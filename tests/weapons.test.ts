@@ -70,7 +70,7 @@ describe('типы оружия и владение', () => {
   it('оружие выпадает с учётом владения: лучнику чаще дальнее', () => {
     const rng = createRng(3);
     const count: Record<WeaponType, number> = { melee: 0, ranged: 0, magic: 0 };
-    for (let i = 0; i < 600; i++) count[weaponType(makeGear(rng, 'weapon', 2, heroDef('archer').mastery))]++;
+    for (let i = 0; i < 600; i++) count[weaponType(makeGear(rng, 'weapon', 2, heroDef('archer')))]++;
     expect(count.ranged).toBeGreaterThan(count.melee);
     expect(count.melee).toBeGreaterThan(count.magic);
     expect(count.magic).toBeGreaterThan(0);
@@ -192,11 +192,11 @@ describe('перки баз в бою', () => {
 describe('ярость берсерка', () => {
   it('стоит кровь, даёт стамину и Силу на ход, перезаряжается', () => {
     const { state, rng } = mkBattle('berserk', ['bear']);
-    expect(state.hero.sta).toBe(4); // 3 + Второе дыхание шкуры в первый ход
+    expect(state.hero.sta).toBe(3); // шкура без перка: лишней стамины в первый ход нет
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
-    expect(state.hero.hp).toBe(hp0 - 2);
-    expect(state.hero.sta).toBe(7);
+    expect(state.hero.hp).toBe(hp0 - 3);
+    expect(state.hero.sta).toBe(6);
     expect(getStatus(state.hero, 'strength')?.value).toBe(1);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'rage' })).toMatch(/Перезарядка/);
     endTurn(state);
@@ -211,12 +211,12 @@ describe('ярость берсерка', () => {
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
     expect(state.hero.block).toBe(block);
-    expect(state.hero.hp).toBe(hp0 - 2);
+    expect(state.hero.hp).toBe(hp0 - 3);
 
     const low = mkBattle('berserk', ['bear']);
-    low.state.hero.hp = 2;
-    expect(canUseAction(low.state, { type: 'artifact', artifactId: 'rage' })).toBe('Слишком мало HP');
     low.state.hero.hp = 3;
+    expect(canUseAction(low.state, { type: 'artifact', artifactId: 'rage' })).toBe('Слишком мало HP');
+    low.state.hero.hp = 4;
     expect(canUseAction(low.state, { type: 'artifact', artifactId: 'rage' })).toBeNull();
   });
 });

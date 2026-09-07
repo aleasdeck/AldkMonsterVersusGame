@@ -244,14 +244,21 @@ export function pickRunLocations(rng: Rng): LocationId[] {
 }
 
 /**
+ * Надбавка к урону врагов по акту поверх приведения: первый акт — обучающий, дальше все бьют на 15 % сильнее.
+ * Подобрана симулятором: без неё бот с торговцем выигрывал 65–78 % забегов, с ней — 47–59 %.
+ */
+export const ACT_DMG_BONUS: [number, number, number] = [1, 1.15, 1.15];
+
+/**
  * Множители для врага с «родной» локации tier, попавшего в акт act (0..2):
- * числа врага заданы под его tier, нужно привести их к акту.
+ * числа врага заданы под его tier, нужно привести их к акту и добавить надбавку акта к урону.
  */
 export function enemyScale(homeTier: LocationTier, act: number, rank: 'normal' | 'elite' | 'boss' = 'normal'): EnemyScale {
   const table = ACT_SCALE[rank === 'normal' ? 'normal' : 'elite'];
+  const idx = Math.max(0, Math.min(ACTS_PER_RUN - 1, act));
   const from = table[homeTier - 1];
-  const to = table[Math.max(0, Math.min(ACTS_PER_RUN - 1, act))];
-  return { hp: to.hp / from.hp, dmg: to.dmg / from.dmg };
+  const to = table[idx];
+  return { hp: to.hp / from.hp, dmg: (to.dmg / from.dmg) * ACT_DMG_BONUS[idx] };
 }
 
 export const ROOM_KINDS: RoomKind[] = ['fight', 'fight', 'event', 'fight', 'fight', 'elite', 'boss'];
