@@ -25,7 +25,7 @@ import {
   skipReward,
   takeReward,
 } from '../src/engine/run';
-import { canShopBuyArtifact, canShopBuyGear, canShopHeal, leaveShop, shopBuyArtifact, shopBuyGear, shopHeal } from '../src/engine/run';
+import { canShopBuyArtifact, canShopBuyGear, canShopHeal, currentRoomKind, leaveShop, shopBuyArtifact, shopBuyGear, shopHeal } from '../src/engine/run';
 import { findSameArtifact, gearOf, socketRefs, upgradableSockets } from '../src/engine/equipment';
 import type { BattleState, GearInstance, RunState } from '../src/engine/types';
 
@@ -181,7 +181,7 @@ function playRun(run: RunState, onBoss?: (run: RunState) => void): void {
     const max = heroStats(run).maxHp;
     switch (run.phase) {
       case 'map':
-        if (run.roomIndex === 6) onBoss?.(run);
+        if (currentRoomKind(run) === 'boss') onBoss?.(run);
         enterRoom(run);
         break;
       case 'battle':
