@@ -1268,18 +1268,53 @@ p {
 .camp .cards {
   align-items: flex-start;
 }
-.camp-card .socket-row {
-  align-items: flex-start;
+/* Кузница: список «чип · имя · тир → тир · Улучшить», описание апгрейда — в подсказке при наведении. */
+.forge-card {
+  max-width: 400px;
+  flex: 1;
 }
-.camp-card .socket-row .btn {
+.forge-card .card-desc {
+  font-size: 16px;
+}
+.forge-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  /* Страховка на два легендарных предмета с восемью артефактами: список прокручивается сам, а не экран. */
+  max-height: 300px;
+  overflow: auto;
+}
+.forge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px dotted #33334d;
+  cursor: help;
+}
+.forge-row .chip {
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
   flex: none;
 }
-.camp-card .socket-list {
-  width: 100%;
-  text-align: left;
+.forge-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
 }
-.camp-card .socket-name {
+.forge-tier {
+  color: var(--good);
   font-size: 16px;
+  white-space: nowrap;
+}
+.forge-row .btn {
+  flex: none;
 }
 .event-card .btn,
 .camp-card > .btn {
