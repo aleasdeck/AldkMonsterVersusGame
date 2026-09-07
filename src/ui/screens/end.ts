@@ -1,5 +1,6 @@
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
+import { enemyDef } from '../../data/enemies';
 import { ROOM_NAMES } from '../../data/locations';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import { spriteImg } from '../sprites';
@@ -10,6 +11,7 @@ export function endScreen(app: App): HTMLElement {
   const won = run.phase === 'victory';
   const def = heroDef(run.hero.defId);
   const loc = currentLocation(run);
+  const boss = enemyDef(loc.encounters.boss[0][0]).name;
   const s = run.stats;
   const row = (k: string, v: string) => h('div', { class: 'stat' }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
   return h(
@@ -19,7 +21,7 @@ export function endScreen(app: App): HTMLElement {
       'div',
       { class: 'panel result-panel' },
       h('h1', null, won ? 'Победа!' : 'Забег окончен'),
-      h('p', { class: 'dim' }, won ? 'Древний дракон повержен. Три локации пройдены.' : `${def.name} пал: ${loc.name}, комната ${run.roomIndex + 1} (${ROOM_NAMES[currentRoomKind(run)]}).`),
+      h('p', { class: 'dim' }, won ? `${boss} повержен. Три локации пройдены.` : `${def.name} пал: ${loc.name}, комната ${run.roomIndex + 1} (${ROOM_NAMES[currentRoomKind(run)]}).`),
       h(
         'div',
         { class: 'result-body' },

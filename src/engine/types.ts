@@ -2,7 +2,7 @@
 
 export type GearTier = 1 | 2 | 3 | 4 | 5;
 export type ArtTier = 1 | 2 | 3;
-export type LocationId = 'forest' | 'crypt' | 'caves';
+export type LocationId = 'forest' | 'crypt' | 'caves' | 'swamp' | 'hive' | 'ship';
 
 export const MAX_ENEMIES = 3;
 
@@ -232,6 +232,9 @@ export interface EnemyState extends Combatant {
   lastUsedTurn: Record<string, number>;
   lastAction: string | null;
   forcedNext: string | null;
+  /** Множители под акт забега: HP/блок/лечение и урон/DoT. Считаются при появлении. */
+  hpMult: number;
+  dmgMult: number;
 }
 
 export type EventTarget = 'hero' | number;
@@ -250,6 +253,8 @@ export type BattleEvent =
 export interface BattleState {
   hero: HeroBattle;
   enemies: EnemyState[];
+  /** Акт забега (0..2) для масштабирования врагов; null — без масштабирования. */
+  act: number | null;
   turn: number;
   phase: 'player' | 'enemy' | 'won' | 'lost';
   enemyQueue: number[];
@@ -314,13 +319,15 @@ export interface RunStats {
   roomsCleared: number;
 }
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
   seed: number;
   rng: { state: number };
   hero: HeroPersistent;
+  /** Три локации этого забега в порядке прохождения — без повторов. */
+  locations: LocationId[];
   locationIndex: number;
   roomIndex: number;
   phase: RunPhase;

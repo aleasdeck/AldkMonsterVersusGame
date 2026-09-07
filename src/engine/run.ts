@@ -3,7 +3,7 @@ import { SAVE_VERSION } from './types';
 import { createRng, pick } from './rng';
 import { heroDef } from '../data/heroes';
 import { makeStartingGear } from '../data/gear';
-import { LOCATIONS, ROOMS_PER_LOCATION, roomKind, type LocationDef } from '../data/locations';
+import { ACTS, ACTS_PER_RUN, ROOMS_PER_LOCATION, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
 import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact } from './equipment';
@@ -17,11 +17,13 @@ export function newRun(heroId: string, seed: number = randomSeed()): RunState {
   const def = heroDef(heroId);
   const gear = makeStartingGear(def);
   const stats = computeStats(def, gear.weapon, gear.armor);
+  const rng = createRng(seed);
   return {
     version: SAVE_VERSION,
     seed,
-    rng: createRng(seed),
+    rng,
     hero: { defId: heroId, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor },
+    locations: pickRunLocations(rng),
     locationIndex: 0,
     roomIndex: 0,
     phase: 'map',
@@ -33,8 +35,18 @@ export function newRun(heroId: string, seed: number = randomSeed()): RunState {
   };
 }
 
+/** Локация по номеру акта в этом забеге. */
+export function runLocation(run: RunState, index: number): LocationDef {
+  return locationDef(run.locations[Math.max(0, Math.min(index, run.locations.length - 1))]);
+}
+
 export function currentLocation(run: RunState): LocationDef {
-  return LOCATIONS[Math.min(run.locationIndex, LOCATIONS.length - 1)];
+  return runLocation(run, run.locationIndex);
+}
+
+/** Награды и тиры лута текущего акта — не зависят от того, какая локация выпала. */
+export function currentAct(run: RunState): ActDef {
+  return ACTS[Math.max(0, Math.min(run.locationIndex, ACTS.length - 1))];
 }
 
 export function currentRoomKind(run: RunState): RoomKind {
@@ -63,7 +75,7 @@ export function enterRoom(run: RunState): void {
   const kind = currentRoomKind(run);
   const loc = currentLocation(run);
   if (kind === 'event') {
-    run.event = { options: rollEvent(run.rng, run.hero, loc) };
+    run.event = { options: rollEvent(run.rng, run.hero, currentAct(run)) };
     run.phase = 'event';
     return;
   }
@@ -76,7 +88,7 @@ export function enterRoom(run: RunState): void {
         ? loc.encounters.elite
         : loc.encounters.boss;
   const ids = pick(run.rng, table);
-  run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng);
+  run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng, run.locationIndex);
   run.phase = 'battle';
 }
 
@@ -87,7 +99,7 @@ export function advanceRoom(run: RunState): void {
   run.pending = null;
   run.roomIndex += 1;
   if (run.roomIndex >= ROOMS_PER_LOCATION) {
-    if (run.locationIndex >= LOCATIONS.length - 1) {
+    if (run.locationIndex >= ACTS_PER_RUN - 1) {
       run.phase = 'victory';
       return;
     }
@@ -131,12 +143,12 @@ export function finishBattle(run: RunState): void {
   run.hero.hp = b.hero.hp;
   run.stats.roomsCleared += 1;
   const kind = currentRoomKind(run);
-  const loc = currentLocation(run);
+  const act = currentAct(run);
   run.battle = null;
   run.rewards =
     kind === 'boss'
-      ? rollBossRewards(run.rng, run.hero, loc)
-      : [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', options: rollRewards(run.rng, run.hero, loc, kind === 'elite' ? 'elite' : 'fight') }];
+      ? rollBossRewards(run.rng, run.hero, act)
+      : [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', options: rollRewards(run.rng, run.hero, act, kind === 'elite' ? 'elite' : 'fight') }];
   if (run.rewards.length === 0) {
     advanceRoom(run);
     return;

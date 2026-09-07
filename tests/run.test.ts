@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_LIST } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
-import { FIGHTS_PER_RUN, ROOMS_PER_LOCATION } from '../src/data/locations';
+import { ACTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, enemyScale, pickRunLocations } from '../src/data/locations';
+import { enemyDef } from '../src/data/enemies';
+import { createRng } from '../src/engine/rng';
 import { canUseAction } from '../src/engine/combat';
 import {
   battleAction,
@@ -119,6 +121,7 @@ describe('забег', () => {
 
   it('новый забег: герой с полным HP, стартовая комната — лёгкий бой', () => {
     const run = newRun('warrior', 42);
+    run.locations = ['forest', 'crypt', 'caves'];
     expect(run.phase).toBe('map');
     expect(run.hero.hp).toBe(heroStats(run).maxHp);
     expect(currentRoomKind(run)).toBe('fight');
@@ -270,8 +273,9 @@ describe('забег', () => {
     expect(run2.locationIndex).toBe(1);
   });
 
-  it('босс леса даёт экипировку 3 тира и артефакт', () => {
+  it('босс первого акта даёт экипировку 3 тира и артефакт', () => {
     const run = newRun('berserk', 5);
+    run.locations = ['forest', 'crypt', 'caves'];
     run.roomIndex = ROOMS_PER_LOCATION - 1;
     enterRoom(run);
     expect(run.battle?.enemies[0].defId).toBe('alpha_wolf');
@@ -292,10 +296,51 @@ describe('забег', () => {
     run.locationIndex = 2;
     run.roomIndex = ROOMS_PER_LOCATION - 1;
     enterRoom(run);
-    expect(run.battle?.enemies[0].defId).toBe('dragon');
+    expect(enemyDef(run.battle!.enemies[0].defId).rank).toBe('boss');
     winCurrentBattle(run);
     expect(run.rewards.length).toBe(0);
     expect(run.phase).toBe('victory');
+  });
+
+  it('забег получает три разные локации, набор зависит от сида', () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 30; seed++) {
+      const run = newRun('warrior', seed);
+      expect(run.locations.length).toBe(3);
+      expect(new Set(run.locations).size).toBe(3);
+      for (const id of run.locations) expect(LOCATIONS.some((l) => l.id === id)).toBe(true);
+      seen.add(run.locations.join(','));
+    }
+    expect(seen.size).toBeGreaterThan(5);
+    expect(pickRunLocations(createRng(9))).toEqual(pickRunLocations(createRng(9)));
+  });
+
+  it('враги масштабируются под акт, а не под родную локацию', () => {
+    // крыса из леса (tier 1) в третьем акте — вдвое толще и в полтора раза больнее
+    expect(enemyScale(1, 2)).toEqual({ hp: 2.7, dmg: 1.95 });
+    // враг пещер (tier 3) в первом акте — наоборот, тоньше; боссы растут мягче рядовых
+    expect(enemyScale(3, 0).hp).toBeCloseTo(1 / 2.7);
+    expect(enemyScale(1, 2, 'boss')).toEqual({ hp: 2.4, dmg: 1.7 });
+    const run = newRun('warrior', 3);
+    run.locations = ['ship', 'forest', 'swamp'];
+    enterRoom(run);
+    const e = run.battle!.enemies[0];
+    const def = enemyDef(e.defId);
+    const sc = enemyScale(LOCATIONS.find((l) => l.id === def.location)!.tier, 0, def.rank);
+    expect(e.maxHp).toBe(Math.max(1, Math.round(def.hp * sc.hp)));
+    expect(e.dmgMult).toBeCloseTo(sc.dmg);
+  });
+
+  it('лут привязан к акту: босс второго акта даёт 4 тир в любой локации', () => {
+    for (const first of ['swamp', 'ship'] as const) {
+      const run = newRun('rogue', 21);
+      run.locations = [first, 'hive', 'crypt'];
+      run.locationIndex = 1;
+      run.roomIndex = ROOMS_PER_LOCATION - 1;
+      enterRoom(run);
+      winCurrentBattle(run);
+      expect(run.rewards[0].options.every((o) => o.kind === 'gear' && o.gear.tier === ACTS[1].bossGearTier)).toBe(true);
+    }
   });
 
   it('все герои доигрывают забег без ошибок на разных сидах', () => {

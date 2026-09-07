@@ -3,6 +3,7 @@ import type {
   BattleState,
   Combatant,
   Effect,
+  EnemyDef,
   EnemyEffect,
   EnemyState,
   EventTarget,
@@ -15,6 +16,7 @@ import type {
 import { MAX_ENEMIES } from './types';
 import { chance, int, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef } from '../data/enemies';
+import { enemyScale, locationDef } from '../data/locations';
 import { artifactDef } from '../data/artifacts';
 import { computeStats, socketedArtifacts } from './stats';
 
@@ -45,6 +47,19 @@ export const STATUS_HINTS: Record<StatusId, string> = {
 };
 
 // ─── Статусы ───────────────────────────────────────────────────────────────
+
+/** Число врага, домноженное под акт: HP, блок и лечение — на hpMult, урон и DoT — на dmgMult. */
+function scaled(mult: number, amount: number): number {
+  return Math.max(1, Math.round(amount * mult));
+}
+
+function isDot(id: StatusId): boolean {
+  return id === 'bleed' || id === 'burn';
+}
+
+function scaleFor(state: BattleState, def: EnemyDef): { hp: number; dmg: number } {
+  return state.act === null ? { hp: 1, dmg: 1 } : enemyScale(locationDef(def.location).tier, state.act, def.rank);
+}
 
 export function getStatus(c: Combatant, id: StatusId): Status | undefined {
   return c.statuses.find((s) => s.id === id);
@@ -433,12 +448,14 @@ function chooseIntent(state: BattleState, e: EnemyState, rng: Rng): void {
 
 function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boolean): EnemyState {
   const def = enemyDef(defId);
+  const sc = scaleFor(state, def);
+  const hp = scaled(sc.hp, def.hp);
   const e: EnemyState = {
     uid: state.nextUid++,
     defId,
     name: def.name,
-    hp: def.hp,
-    maxHp: def.hp,
+    hp,
+    maxHp: hp,
     block: 0,
     statuses: [],
     intent: def.actions[0].id,
@@ -447,6 +464,8 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     lastUsedTurn: {},
     lastAction: null,
     forcedNext: null,
+    hpMult: sc.hp,
+    dmgMult: sc.dmg,
   };
   state.enemies.push(e);
   chooseIntent(state, e, rng);
@@ -461,7 +480,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
   const h = state.hero;
   switch (eff.type) {
     case 'attack': {
-      let dmg = eff.amount + statusValue(e, 'strength');
+      let dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
       if (getStatus(e, 'weak')) dmg = Math.floor(dmg * 0.75);
       const hits = eff.hits ?? 1;
       for (let i = 0; i < hits; i++) {
@@ -474,25 +493,26 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
     }
     case 'block': {
       const targets = eff.target === 'allies' ? state.enemies : [e];
+      const amt = scaled(e.hpMult, eff.amount);
       for (const t of targets) {
-        t.block += eff.amount;
-        state.events.push({ type: 'block', target: t.uid, amount: eff.amount });
+        t.block += amt;
+        state.events.push({ type: 'block', target: t.uid, amount: amt });
       }
       break;
     }
     case 'buffStr': {
       const targets =
         eff.target === 'self' ? [e] : eff.target === 'allies' ? state.enemies : state.enemies.filter((x) => x.defId === e.defId);
-      for (const t of targets) addStatus(state, t, t.uid, 'strength', eff.amount, -1);
+      for (const t of targets) addStatus(state, t, t.uid, 'strength', scaled(e.dmgMult, eff.amount), -1);
       break;
     }
     case 'heal': {
       const targets = eff.target === 'self' ? [e] : state.enemies;
-      for (const t of targets) healEnemy(state, t, eff.amount);
+      for (const t of targets) healEnemy(state, t, scaled(e.hpMult, eff.amount));
       break;
     }
     case 'debuff':
-      addStatus(state, h, 'hero', eff.status, eff.value, eff.turns);
+      addStatus(state, h, 'hero', eff.status, isDot(eff.status) ? scaled(e.dmgMult, eff.value) : eff.value, eff.turns);
       log(state, `На героя наложено: ${STATUS_NAMES[eff.status]}`);
       break;
     case 'drainMp': {
@@ -512,15 +532,15 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       addStatus(state, e, e.uid, 'invuln', 1, 2);
       break;
     case 'thorns':
-      addStatus(state, e, e.uid, 'thorns', eff.amount, -1);
+      addStatus(state, e, e.uid, 'thorns', scaled(e.dmgMult, eff.amount), -1);
       break;
     case 'dodge':
       addStatus(state, e, e.uid, 'dodge', eff.value, -1);
       break;
     case 'selfDestruct': {
-      const dealt = damageHero(state, eff.amount + statusValue(e, 'strength'), 'hit', e);
+      const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e);
       log(state, `${e.name} взрывается: ${dealt} по HP`);
-      if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', eff.burn, 3);
+      if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
       e.hp = 0;
       break;
     }
@@ -585,7 +605,7 @@ export function resolveEnemyTurn(state: BattleState, rng: Rng): void {
 
 // ─── Создание боя ──────────────────────────────────────────────────────────
 
-export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: string[], rng: Rng): BattleState {
+export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: string[], rng: Rng, act: number | null = null): BattleState {
   const stats = computeStats(heroDef, hero.weapon, hero.armor);
   const state: BattleState = {
     hero: {
@@ -604,6 +624,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       attacks: 0,
     },
     enemies: [],
+    act,
     turn: 0,
     phase: 'enemy',
     enemyQueue: [],
@@ -651,7 +672,7 @@ export function computeIntent(e: EnemyState): IntentInfo {
   for (const eff of a.effects) {
     switch (eff.type) {
       case 'attack': {
-        let dmg = eff.amount + statusValue(e, 'strength');
+        let dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
         if (getStatus(e, 'weak')) dmg = Math.floor(dmg * 0.75);
         const hits = eff.hits ?? 1;
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
@@ -660,19 +681,21 @@ export function computeIntent(e: EnemyState): IntentInfo {
         kinds.push('attack');
         break;
       }
-      case 'block':
-        if (!label) label = `${eff.amount}`;
-        parts.push(`Блок ${eff.amount}${eff.target === 'allies' ? ' всем' : ''}`);
+      case 'block': {
+        const blk = scaled(e.hpMult, eff.amount);
+        if (!label) label = `${blk}`;
+        parts.push(`Блок ${blk}${eff.target === 'allies' ? ' всем' : ''}`);
         kinds.push('defend');
         break;
+      }
       case 'dodge':
         parts.push(`Уклонение от ${eff.value} атак(и)`);
         kinds.push('buff');
         break;
       case 'selfDestruct': {
-        const dmg = eff.amount + statusValue(e, 'strength');
+        const dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
         label = `${dmg}`;
-        parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${eff.burn}` : ''}`);
+        parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${scaled(e.dmgMult, eff.burn)}` : ''}`);
         kinds.push('attack');
         break;
       }
@@ -681,17 +704,17 @@ export function computeIntent(e: EnemyState): IntentInfo {
         break;
       case 'buffStr':
         parts.push(
-          `+${eff.amount} к урону (${eff.target === 'self' ? 'себе' : eff.target === 'allies' ? 'всем союзникам' : 'всем: ' + def.name})`,
+          `+${scaled(e.dmgMult, eff.amount)} к урону (${eff.target === 'self' ? 'себе' : eff.target === 'allies' ? 'всем союзникам' : 'всем: ' + def.name})`,
         );
         kinds.push('buff');
         break;
       case 'heal':
-        parts.push(`Лечит ${eff.amount} (${eff.target === 'self' ? 'себя' : 'всех союзников'})`);
+        parts.push(`Лечит ${scaled(e.hpMult, eff.amount)} (${eff.target === 'self' ? 'себя' : 'всех союзников'})`);
         kinds.push('heal');
         break;
       case 'debuff': {
         const dur = eff.turns > 0 ? ` на ${eff.turns} ход(а)` : '';
-        const val = eff.status === 'bleed' || eff.status === 'burn' ? ` ${eff.value}` : '';
+        const val = isDot(eff.status) ? ` ${scaled(e.dmgMult, eff.value)}` : '';
         parts.push(`${STATUS_NAMES[eff.status]}${val}${dur}`);
         kinds.push('debuff');
         break;
@@ -709,7 +732,7 @@ export function computeIntent(e: EnemyState): IntentInfo {
         kinds.push('special');
         break;
       case 'thorns':
-        parts.push(`Шипы ${eff.amount}`);
+        parts.push(`Шипы ${scaled(e.dmgMult, eff.amount)}`);
         kinds.push('buff');
         break;
     }

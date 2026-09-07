@@ -2,7 +2,7 @@ import type { ArtTier, ArtifactInstance, EventOption, GearInstance, GearKind, Ge
 import { chance, pick, type Rng } from './rng';
 import { ARTIFACT_IDS } from '../data/artifacts';
 import { makeGear } from '../data/gear';
-import type { LocationDef } from '../data/locations';
+import type { ActDef } from '../data/locations';
 import { isMaxed } from './equipment';
 
 const ARTIFACT_CHANCE = 0.55;
@@ -23,9 +23,9 @@ export function rollGear(rng: Rng, tiers: GearTier[], kind?: GearKind): GearInst
   return makeGear(rng, k, pick(rng, tiers));
 }
 
-export function rollRewards(rng: Rng, hero: HeroPersistent, loc: LocationDef, source: 'fight' | 'elite'): LootItem[] {
-  const gearTiers = source === 'elite' ? bump(loc.gearTiers, 5 as GearTier) : loc.gearTiers;
-  const artTiers = source === 'elite' ? bump(loc.artTiers, 3 as ArtTier) : loc.artTiers;
+export function rollRewards(rng: Rng, hero: HeroPersistent, act: ActDef, source: 'fight' | 'elite'): LootItem[] {
+  const gearTiers = source === 'elite' ? bump(act.gearTiers, 5 as GearTier) : act.gearTiers;
+  const artTiers = source === 'elite' ? bump(act.artTiers, 3 as ArtTier) : act.artTiers;
   const items: LootItem[] = [];
   const usedArts: string[] = [];
   const gearKinds: GearKind[] = [];
@@ -48,9 +48,9 @@ export function rollRewards(rng: Rng, hero: HeroPersistent, loc: LocationDef, so
   return items;
 }
 
-export function rollBossRewards(rng: Rng, hero: HeroPersistent, loc: LocationDef): RewardScreen[] {
+export function rollBossRewards(rng: Rng, hero: HeroPersistent, act: ActDef): RewardScreen[] {
   // Финальный босс: забег на этом заканчивается, награда игроку уже не нужна.
-  const gearTier = loc.bossGearTier;
+  const gearTier = act.bossGearTier;
   if (!gearTier) return [];
   const screens: RewardScreen[] = [
     {
@@ -63,7 +63,7 @@ export function rollBossRewards(rng: Rng, hero: HeroPersistent, loc: LocationDef
   ];
   const arts: LootItem[] = [];
   const used: string[] = [];
-  const tiers = bump(loc.artTiers, 3 as ArtTier);
+  const tiers = bump(act.artTiers, 3 as ArtTier);
   for (let i = 0; i < 3; i++) {
     const a = rollArtifact(rng, hero, tiers, used);
     if (!a) break;
@@ -74,9 +74,9 @@ export function rollBossRewards(rng: Rng, hero: HeroPersistent, loc: LocationDef
   return screens;
 }
 
-export function rollEvent(rng: Rng, hero: HeroPersistent, loc: LocationDef): EventOption[] {
-  const art = rollArtifact(rng, hero, loc.artTiers, []);
-  const gear = rollGear(rng, loc.gearTiers);
+export function rollEvent(rng: Rng, hero: HeroPersistent, act: ActDef): EventOption[] {
+  const art = rollArtifact(rng, hero, act.artTiers, []);
+  const gear = rollGear(rng, act.gearTiers);
   const opts: EventOption[] = [{ id: 'spring', title: 'Родник', desc: 'Восстановить 30 % максимального HP.' }];
   if (art) {
     opts.push({

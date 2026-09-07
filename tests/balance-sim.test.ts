@@ -183,6 +183,7 @@ it.skipIf(!env.SIM)('симуляция баланса', () => {
     let wins = 0;
     let cleared = 0;
     const deaths: Record<string, number> = {};
+    const byLoc: Record<string, number> = {};
     const bossHp: number[][] = [[], [], []];
     for (let seed = 1; seed <= N; seed++) {
       const run = newRun(hero.id, seed * 7919);
@@ -192,6 +193,8 @@ it.skipIf(!env.SIM)('симуляция баланса', () => {
       if (run.phase === 'defeat') {
         const key = `L${run.locationIndex + 1}R${run.roomIndex + 1}`;
         deaths[key] = (deaths[key] ?? 0) + 1;
+        const lk = `${run.locations[run.locationIndex]}@${run.locationIndex + 1}`;
+        byLoc[lk] = (byLoc[lk] ?? 0) + 1;
       }
     }
     const top = Object.entries(deaths)
@@ -200,8 +203,13 @@ it.skipIf(!env.SIM)('симуляция баланса', () => {
       .map(([k, v]) => `${k}:${v}`)
       .join(' ');
     const avg = (xs: number[]) => (xs.length ? `${Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100)}%(${xs.length})` : '—');
+    const locTop = Object.entries(byLoc)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([k, v]) => `${k}:${v}`)
+      .join(' ');
     lines.push(
-      `${hero.name.padEnd(8)} побед ${String(wins).padStart(2)}/${N}  боёв ${(cleared / N).toFixed(1).padStart(4)}  HP у босса: ${avg(bossHp[0])} ${avg(bossHp[1])} ${avg(bossHp[2])}  смерти: ${top}`,
+      `${hero.name.padEnd(8)} побед ${String(wins).padStart(2)}/${N}  боёв ${(cleared / N).toFixed(1).padStart(4)}  HP у босса: ${avg(bossHp[0])} ${avg(bossHp[1])} ${avg(bossHp[2])}  смерти: ${top}  где: ${locTop}`,
     );
   }
   console.log('\n' + lines.join('\n'));

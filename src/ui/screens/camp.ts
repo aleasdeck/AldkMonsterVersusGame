@@ -1,8 +1,7 @@
 import { button, h } from '../dom';
-import { LOCATIONS } from '../../data/locations';
 import { artifactDef } from '../../data/artifacts';
 import { upgradableSockets } from '../../engine/equipment';
-import { currentLocation, heroStats } from '../../engine/run';
+import { currentLocation, heroStats, runLocation } from '../../engine/run';
 import { artifactChip, heroPanel, pickable } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import type { ArtTier } from '../../engine/types';
@@ -11,7 +10,7 @@ import type { App } from '../app';
 export function campScreen(app: App): HTMLElement {
   const run = app.run!;
   const loc = currentLocation(run);
-  const next = LOCATIONS[run.locationIndex + 1];
+  const next = runLocation(run, run.locationIndex + 1);
   const max = heroStats(run).maxHp;
   const heal = Math.min(Math.floor(max * 0.5), max - run.hero.hp);
   const upg = upgradableSockets(run.hero);

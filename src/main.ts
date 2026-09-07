@@ -1,5 +1,6 @@
 import { App } from './ui/app';
-import { ROOMS_PER_LOCATION } from './data/locations';
+import { LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locations';
+import type { LocationId } from './engine/types';
 import { COLLECTIBLE_IDS } from './data/collection';
 import { loadProfile, saveProfile } from './ui/save';
 
@@ -52,7 +53,10 @@ if (heroParam) {
   const run = app.run!;
   // &art=id1,id2 — досыпать артефакты в оружие (для отладки интерфейса)
   for (const id of (params.get('art') ?? '').split(',').filter(Boolean)) run.hero.weapon.slots.push({ id, tier: 1 });
-  // &loc=1 — начать с указанной локации (0..2)
+  // &locs=swamp,hive,ship — задать локации забега по порядку
+  const locs = (params.get('locs') ?? '').split(',').filter((id): id is LocationId => id in LOCATION_BY_ID);
+  if (locs.length) run.locations = locs.concat(run.locations.filter((id) => !locs.includes(id))).slice(0, 3);
+  // &loc=1 — начать с указанного акта (0..2)
   const locParam = params.get('loc');
   if (locParam) run.locationIndex = Math.max(0, Math.min(2, Number(locParam) || 0));
   const phase = params.get('phase');

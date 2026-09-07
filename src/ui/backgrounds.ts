@@ -32,6 +32,20 @@ function lerpColor(a: string, b: string, t: number): string {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
+function moon(ctx: Ctx, mx: number, my: number, r: number, light: string, shade: string): void {
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const d = dx * dx + dy * dy;
+      if (d <= r * r) px(ctx, mx + dx, my + dy, d > r * r * 0.72 ? shade : light);
+    }
+  }
+}
+
+function stars(ctx: Ctx, rng: Rng, W: number, H: number, upTo: number, colors: string[]): void {
+  const count = Math.round((W * H) / 600);
+  for (let i = 0; i < count; i++) px(ctx, int(rng, 0, W - 1), int(rng, 0, Math.round(H * upTo)), pick(rng, colors));
+}
+
 // ─── Лес ───────────────────────────────────────────────────────────────────
 
 function tree(ctx: Ctx, x: number, base: number, h: number, color: string, trunk?: string): void {
@@ -44,17 +58,8 @@ function tree(ctx: Ctx, x: number, base: number, h: number, color: string, trunk
 
 function drawForest(ctx: Ctx, rng: Rng, W: number, H: number): void {
   for (let y = 0; y < H; y++) rect(ctx, 0, y, W, 1, lerpColor('#0a0f1e', '#16263a', y / H));
-  const starCount = Math.round((W * H) / 600);
-  for (let i = 0; i < starCount; i++) px(ctx, int(rng, 0, W - 1), int(rng, 0, Math.round(H * 0.55)), pick(rng, ['#c9d6ff', '#8fa3d6', '#ffffff']));
-  const r = Math.max(5, Math.round(H * 0.08));
-  const mx = Math.round(W * 0.82);
-  const my = Math.round(H * 0.3);
-  for (let dy = -r; dy <= r; dy++) {
-    for (let dx = -r; dx <= r; dx++) {
-      const d = dx * dx + dy * dy;
-      if (d <= r * r) px(ctx, mx + dx, my + dy, d > r * r * 0.72 ? '#c8c6b0' : '#e8e6d0');
-    }
-  }
+  stars(ctx, rng, W, H, 0.55, ['#c9d6ff', '#8fa3d6', '#ffffff']);
+  moon(ctx, Math.round(W * 0.82), Math.round(H * 0.3), Math.max(5, Math.round(H * 0.08)), '#e8e6d0', '#c8c6b0');
   const farBase = Math.round(H * 0.8);
   for (let x = -6; x < W + 10; x += int(rng, 10, 16)) tree(ctx, x, farBase, int(rng, Math.round(H * 0.24), Math.round(H * 0.36)), '#0d1f17');
   const nearBase = Math.round(H * 0.88);
@@ -68,6 +73,51 @@ function drawForest(ctx: Ctx, rng: Rng, W: number, H: number): void {
     px(ctx, x, y, '#2f5a33');
     px(ctx, x, y - 1, '#2f5a33');
   }
+}
+
+// ─── Болота ────────────────────────────────────────────────────────────────
+
+function deadTree(ctx: Ctx, rng: Rng, x: number, base: number, h: number, color: string): void {
+  rect(ctx, x, base - h, 2, h, color);
+  const branches = int(rng, 2, 4);
+  for (let i = 0; i < branches; i++) {
+    const y = base - h + int(rng, 2, Math.max(3, Math.round(h * 0.6)));
+    const len = int(rng, 3, 7);
+    const dir = next(rng) < 0.5 ? -1 : 1;
+    rect(ctx, dir < 0 ? x - len : x + 2, y, len, 1, color);
+    px(ctx, dir < 0 ? x - len : x + 1 + len, y - 1, color);
+  }
+}
+
+function drawSwamp(ctx: Ctx, rng: Rng, W: number, H: number): void {
+  for (let y = 0; y < H; y++) rect(ctx, 0, y, W, 1, lerpColor('#0a1410', '#1c2e22', y / H));
+  stars(ctx, rng, W, H, 0.4, ['#8fa38f', '#c9d6c0']);
+  moon(ctx, Math.round(W * 0.16), Math.round(H * 0.26), Math.max(4, Math.round(H * 0.07)), '#cfe0b0', '#a8b890');
+  // туман полосами
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = 'rgba(140,180,140,0.07)';
+    ctx.fillRect(0, Math.round(H * (0.45 + i * 0.09)) + int(rng, -2, 2), W, Math.max(2, Math.round(H * 0.05)));
+  }
+  const waterY = Math.round(H * 0.74);
+  for (let x = -4; x < W + 6; x += int(rng, 18, 32)) deadTree(ctx, rng, x, waterY, int(rng, Math.round(H * 0.3), Math.round(H * 0.55)), '#0b160f');
+  // вода с бликами
+  rect(ctx, 0, waterY, W, H - waterY, '#10261c');
+  for (let y = waterY + 1; y < H; y += 3) {
+    const shift = int(rng, 0, 12);
+    for (let x = shift; x < W; x += int(rng, 10, 22)) rect(ctx, x, y, int(rng, 3, 8), 1, y % 2 === 0 ? '#1c3a2a' : '#173324');
+  }
+  // отражение луны
+  for (let y = waterY + 1; y < H; y += 2) rect(ctx, Math.round(W * 0.16) - int(rng, 1, 3), y, int(rng, 2, 5), 1, '#3a5a3a');
+  // кувшинки и камыши
+  for (let i = 0; i < Math.round(W / 24); i++) rect(ctx, int(rng, 0, W - 4), int(rng, waterY + 2, H - 2), 3, 1, '#2f5a3a');
+  for (let i = 0; i < Math.round(W / 7); i++) {
+    const x = int(rng, 0, W - 1);
+    const len = int(rng, 5, Math.max(6, Math.round(H * 0.16)));
+    rect(ctx, x, waterY - len, 1, len + 2, '#2a4a2a');
+    rect(ctx, x, waterY - len - 2, 1, 2, '#5a6a3a');
+  }
+  // светлячки
+  for (let i = 0; i < Math.round(W / 12); i++) px(ctx, int(rng, 0, W - 1), int(rng, Math.round(H * 0.35), waterY - 2), pick(rng, ['#c8ff70', '#e0ff90', '#a0e060']));
 }
 
 // ─── Склеп ─────────────────────────────────────────────────────────────────
@@ -124,6 +174,53 @@ function drawCrypt(ctx: Ctx, rng: Rng, W: number, H: number): void {
   }
 }
 
+// ─── Осквернённый улей ─────────────────────────────────────────────────────
+
+function hexCell(ctx: Ctx, x: number, y: number, color: string): void {
+  rect(ctx, x + 2, y, 8, 1, color);
+  rect(ctx, x + 1, y + 1, 10, 6, color);
+  rect(ctx, x + 2, y + 7, 8, 1, color);
+}
+
+function drawHive(ctx: Ctx, rng: Rng, W: number, H: number): void {
+  rect(ctx, 0, 0, W, H, '#150c1c');
+  const floorY = Math.round(H * 0.8);
+  const cw = 12;
+  const ch = 9;
+  for (let row = 0, y = -4; y < floorY; row++, y += ch) {
+    const offset = (row % 2) * 6;
+    for (let x = -offset - 12; x < W; x += cw) {
+      const r = next(rng);
+      const color = r < 0.08 ? '#a07020' : r < 0.2 ? '#2a1a30' : r < 0.6 ? '#3a2818' : '#4a3520';
+      hexCell(ctx, x, y, color);
+      if (r < 0.08) px(ctx, x + int(rng, 3, 8), y + int(rng, 2, 5), '#e0ff60');
+      else if (r > 0.9) px(ctx, x + int(rng, 3, 8), y + int(rng, 2, 5), '#1a1020');
+    }
+  }
+  // слизь свисает сверху
+  for (let i = 0; i < Math.round(W / 14); i++) {
+    const x = int(rng, 0, W - 1);
+    const len = int(rng, 3, Math.max(4, Math.round(H * 0.16)));
+    rect(ctx, x, 0, 1, len, '#7a4a9a');
+    px(ctx, x, len, '#c080d0');
+  }
+  // свечение сот
+  ctx.fillStyle = 'rgba(200,160,40,0.06)';
+  ctx.fillRect(0, Math.round(H * 0.2), W, Math.round(H * 0.4));
+  // хитиновый пол
+  rect(ctx, 0, floorY, W, H - floorY, '#24162a');
+  for (let i = 0; i < Math.round(W / 4); i++) {
+    const x = int(rng, 0, W - 3);
+    const y = int(rng, floorY + 1, H - 2);
+    rect(ctx, x, y, int(rng, 2, 4), 1, pick(rng, ['#34203c', '#3c2444', '#1c1022']));
+  }
+  for (let i = 0; i < 5; i++) {
+    const x = int(rng, 4, W - 6);
+    rect(ctx, x, floorY - 2, 3, 2, '#c0b0d0');
+    px(ctx, x + 1, floorY - 3, '#e0d0e8');
+  }
+}
+
 // ─── Пещеры огня ───────────────────────────────────────────────────────────
 
 function drawCaves(ctx: Ctx, rng: Rng, W: number, H: number): void {
@@ -162,6 +259,68 @@ function drawCaves(ctx: Ctx, rng: Rng, W: number, H: number): void {
   }
 }
 
+// ─── Пиратский корабль ─────────────────────────────────────────────────────
+
+function drawShip(ctx: Ctx, rng: Rng, W: number, H: number): void {
+  for (let y = 0; y < H; y++) rect(ctx, 0, y, W, 1, lerpColor('#060a18', '#111c34', y / H));
+  stars(ctx, rng, W, H, 0.5, ['#c9d6ff', '#ffffff', '#8fa3d6']);
+  moon(ctx, Math.round(W * 0.78), Math.round(H * 0.22), Math.max(4, Math.round(H * 0.06)), '#e8e6d0', '#c8c6b0');
+  const seaY = Math.round(H * 0.56);
+  const deckY = Math.round(H * 0.74);
+  // море
+  rect(ctx, 0, seaY, W, deckY - seaY, '#0c1a34');
+  for (let y = seaY + 1; y < deckY; y += 2) {
+    for (let x = int(rng, 0, 8); x < W; x += int(rng, 9, 18)) rect(ctx, x, y, int(rng, 2, 6), 1, y % 4 === 1 ? '#1c3a5a' : '#152c48');
+  }
+  for (let y = seaY + 1; y < deckY; y += 2) rect(ctx, Math.round(W * 0.78) - int(rng, 1, 3), y, int(rng, 2, 4), 1, '#5a6a7a');
+  // мачта и парус
+  const mastX = Math.round(W * 0.3);
+  rect(ctx, mastX + 4, Math.round(H * 0.08), 38, Math.round(H * 0.42), '#d8d0b8');
+  for (let y = Math.round(H * 0.08); y < Math.round(H * 0.5); y += 4) rect(ctx, mastX + 4, y, 38, 1, '#b8b0a0');
+  rect(ctx, mastX + 4, Math.round(H * 0.08), 38, 1, '#8a7a60');
+  rect(ctx, mastX, 0, 4, deckY, '#4a2e18');
+  rect(ctx, mastX + 1, 0, 1, deckY, '#6a4a2a');
+  rect(ctx, mastX - 8, Math.round(H * 0.07), 20, 2, '#4a2e18');
+  // такелаж
+  for (let k = 0; k < 2; k++) {
+    const x0 = mastX + 2;
+    const y0 = Math.round(H * 0.08);
+    const x1 = k === 0 ? 6 : W - 6;
+    const steps = Math.abs(x1 - x0);
+    for (let i = 0; i <= steps; i += 2) px(ctx, x0 + ((x1 - x0) * i) / steps, y0 + ((deckY - 4 - y0) * i) / steps, '#8a6a40');
+  }
+  // перила
+  rect(ctx, 0, deckY - 5, W, 1, '#6a4a2a');
+  for (let x = 2; x < W; x += 12) rect(ctx, x, deckY - 5, 2, 5, '#3a2412');
+  // палуба
+  rect(ctx, 0, deckY, W, H - deckY, '#5a3a20');
+  for (let y = deckY; y < H; y += 5) {
+    rect(ctx, 0, y, W, 1, '#3a2412');
+    for (let x = int(rng, 0, 20); x < W; x += int(rng, 24, 40)) {
+      rect(ctx, x, y + 1, 1, 4, '#3a2412');
+      px(ctx, x + 2, y + 2, '#2a1a0c');
+    }
+  }
+  for (let i = 0; i < Math.round(W / 10); i++) px(ctx, int(rng, 0, W - 1), int(rng, deckY + 1, H - 1), pick(rng, ['#6a4a2a', '#4a2e18']));
+  // фонарь
+  const lx = Math.round(W * 0.9);
+  const ly = deckY - 14;
+  ctx.fillStyle = 'rgba(255,170,60,0.12)';
+  ctx.fillRect(lx - 9, ly - 8, 20, 22);
+  rect(ctx, lx, ly, 3, 5, '#3a2412');
+  px(ctx, lx + 1, ly + 2, '#ffd166');
+  px(ctx, lx + 1, ly - 1, '#6a4a2a');
+}
+
+const DRAWERS: Record<LocationId, (ctx: Ctx, rng: Rng, W: number, H: number) => void> = {
+  forest: drawForest,
+  swamp: drawSwamp,
+  crypt: drawCrypt,
+  hive: drawHive,
+  caves: drawCaves,
+  ship: drawShip,
+};
+
 export function locationBackground(id: LocationId, variant: BgVariant = 'tall'): string {
   const key = `${id}:${variant}`;
   const hit = cache.get(key);
@@ -173,9 +332,7 @@ export function locationBackground(id: LocationId, variant: BgVariant = 'tall'):
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
   const rng = createRng(hashString(key));
-  if (id === 'forest') drawForest(ctx, rng, W, H);
-  else if (id === 'crypt') drawCrypt(ctx, rng, W, H);
-  else drawCaves(ctx, rng, W, H);
+  DRAWERS[id](ctx, rng, W, H);
   const url = canvas.toDataURL();
   cache.set(key, url);
   return url;
