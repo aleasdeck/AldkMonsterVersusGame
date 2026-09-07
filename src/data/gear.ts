@@ -289,23 +289,31 @@ export function weaponPerkMods(gear: GearInstance): StatMods {
 }
 
 /**
- * Строка перков оружия: «Прицел: первый удар +2 · не боится шипов врага».
- * Название типа не пишется — его показывает иконка у бейджа тира; у ближнего свойства типа нет.
+ * Строка перка базы оружия: «Прицел: первый удар +2».
+ * Тип и его свойство здесь не пишутся: тип показывает иконка у бейджа тира,
+ * свойство типа и долю кубика — подсказка строки владения в панели героя.
  */
 export function weaponPerkText(gear: GearInstance): string {
   const base = weaponBase(gear);
-  const type = base.type ?? 'melee';
-  const perk = base.perk ? `${base.perk.name}: ${base.perk.text(gear.tier)}` : '';
-  const typeNote = type === 'melee' ? '' : weaponTypeText(type, gear.tier);
-  return [perk, typeNote].filter(Boolean).join(' · ');
+  return base.perk ? `${base.perk.name}: ${base.perk.text(gear.tier)}` : '';
 }
 
-/** Подсказка к иконке типа: «Магическое · Чужое: 50 % кубика оружия». */
+/** Подсказка к иконке типа: «Магическое · Чужое». Проценты и свойство типа — в строке владения героя. */
 export function weaponTypeTitle(gear: GearInstance, def?: HeroDef): string {
   const type = weaponType(gear);
   if (!def) return WEAPON_TYPE_NAMES[type];
-  const m = masteryOf(def, gear);
-  return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[m]}: ${Math.round(MASTERY_MULT[m] * 100)} % кубика оружия`;
+  return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[masteryOf(def, gear)]}`;
+}
+
+/** Свойство типа без привязки к тиру — для подсказки строки владения, где конкретного оружия нет. */
+export function weaponTypeHint(type: WeaponType): string {
+  if (type === 'magic') return `−1 к максимуму урона, +${MAGIC_SPELL_POWER[0]}…+${MAGIC_SPELL_POWER[4]} к заклинаниям по тиру`;
+  return weaponTypeText(type, 1);
+}
+
+/** Подсказка пункта строки владения: «Дальнее · Мастер: 100 % кубика оружия\nСвойство типа: не боится шипов врага». */
+export function masteryTitle(type: WeaponType, m: Mastery): string {
+  return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[m]}: ${Math.round(MASTERY_MULT[m] * 100)} % кубика оружия\nСвойство типа: ${weaponTypeHint(type)}`;
 }
 
 /** Разброс урона базы на тире — с учётом её ширины. */

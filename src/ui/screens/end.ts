@@ -6,6 +6,17 @@ import { currentLocation, currentRoomKind } from '../../engine/run';
 import { spriteImg } from '../sprites';
 import type { App } from '../app';
 
+/** «45 с», «12 мин 34 с», «1 ч 05 мин» — крупнее часа секунды не нужны. */
+export function formatDuration(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${hours} ч ${String(minutes).padStart(2, '0')} мин`;
+  if (minutes > 0) return `${minutes} мин ${seconds} с`;
+  return `${seconds} с`;
+}
+
 export function endScreen(app: App): HTMLElement {
   const run = app.run!;
   const won = run.phase === 'victory';
@@ -33,6 +44,8 @@ export function endScreen(app: App): HTMLElement {
           row('Боёв выиграно', `${s.roomsCleared}`),
           row('Врагов убито', `${s.kills}`),
           row('Ходов', `${s.turns}`),
+          // Сейвы до появления поля времени не имеют startedAt — строку не показываем.
+          s.startedAt && s.finishedAt ? row('Время', formatDuration(s.finishedAt - s.startedAt)) : null,
           row('Урон нанесён', `${s.damageDealt}`),
           row('Урон получен', `${s.damageTaken}`),
           row('Сид', `${run.seed}`),

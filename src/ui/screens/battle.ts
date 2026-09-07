@@ -178,8 +178,20 @@ export function battleScreen(app: App): HTMLElement {
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));
   const field = h('div', { class: 'field', style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, allyZone, enemyZone);
 
-  const logEl = h('div', { class: 'log' }, ...b.log.slice(-8).map((l) => h('div', { class: l.startsWith('—') ? 'log-turn' : '' }, l)));
-  const bottom = h('div', { class: 'bottom' }, actionBar(app), logEl);
+  // Лог спрятан за узкой кнопкой справа: раскрытый занимает всю нижнюю панель вместо действий и кнопки конца хода.
+  const logToggle = button(app.logOpen ? '✕ Закрыть' : 'Лог боя', () => app.toggleLog(), {
+    class: `log-toggle ${app.logOpen ? 'open' : ''}`,
+    title: app.logOpen ? 'Вернуть действия' : 'Показать лог боя',
+  });
+  let bottom: HTMLElement;
+  if (app.logOpen) {
+    const logEl = h('div', { class: 'log' }, ...b.log.map((l) => h('div', { class: l.startsWith('—') ? 'log-turn' : '' }, l)));
+    // Прокрутка к последним записям — после вставки в документ, до этого scrollHeight равен нулю.
+    requestAnimationFrame(() => {
+      logEl.scrollTop = logEl.scrollHeight;
+    });
+    bottom = h('div', { class: 'bottom' }, logEl, logToggle);
+  } else bottom = h('div', { class: 'bottom' }, actionBar(app), logToggle);
 
   const screen = h('div', { class: 'screen battle' }, top, field, bottom);
 
