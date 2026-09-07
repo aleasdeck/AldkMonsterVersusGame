@@ -57,7 +57,7 @@ export type StatMods = Partial<DerivedStats>;
 export type TargetKind = 'enemy' | 'allEnemies' | 'self';
 
 export type Effect =
-  | { type: 'attack'; bonus: number; target: 'enemy' | 'allEnemies'; /** Доля урона оружия, 1 — полный. */ mult?: number }
+  | { type: 'attack'; bonus: number; target: 'enemy' | 'allEnemies'; /** Доля урона оружия, 1 — полный. */ mult?: number; sureCrit?: boolean }
   | { type: 'spell'; amount: number; target: 'enemy' | 'allEnemies'; drain?: boolean }
   | { type: 'block'; amount: number }
   | { type: 'heal'; amount: number }
@@ -110,7 +110,7 @@ export interface GearInstance {
 
 // ─── Спрайты ───────────────────────────────────────────────────────────────
 
-export type HeadStyle = 'helmet' | 'hat' | 'hood' | 'plume' | 'horns' | 'bare' | 'skull' | 'crown';
+export type HeadStyle = 'helmet' | 'hat' | 'hood' | 'plume' | 'horns' | 'bare' | 'skull' | 'crown' | 'cap';
 
 export type SpriteSpec =
   | { type: 'humanoid'; head: HeadStyle; palette: Record<string, string> }
