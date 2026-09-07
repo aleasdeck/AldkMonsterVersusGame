@@ -11,20 +11,30 @@ import {
   battleEnemyStep,
   campForge,
   campRest,
+  canShopBuyGear,
+  canShopHeal,
+  canShopReroll,
   chooseEvent,
   currentRoomKind,
   enterRoom,
   finishBattle,
   heroStats,
   isRunOver,
+  leaveShop,
   newRun,
   pendingCancel,
   pendingDiscard,
   pendingPlace,
+  shopBuyArtifact,
+  shopBuyGear,
+  shopHeal,
+  shopHealAmount,
+  shopReroll,
   skipReward,
   takeReward,
 } from '../src/engine/run';
-import { socketRefs } from '../src/engine/equipment';
+import { REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, artifactPrice, gearPrice } from '../src/engine/loot';
+import { gearOf, socketRefs } from '../src/engine/equipment';
 import type { RunState } from '../src/engine/types';
 
 /** Простейший бот: бьёт первого врага, пока есть стамина, потом заканчивает ход. */
@@ -91,6 +101,9 @@ function playRun(run: RunState, immortal = false): void {
       case 'event':
         chooseEvent(run, immortal ? 'spring' : 'chest');
         break;
+      case 'shop':
+        leaveShop(run);
+        break;
       case 'camp':
         campRest(run);
         break;
@@ -106,6 +119,123 @@ function winCurrentBattle(run: RunState): void {
   run.battle!.hero.stats.dmgMax = 999;
   playBattle(run);
 }
+
+describe('торговец после элиты', () => {
+  /** Довести забег до торговца: элита выигрывается читом, награда пропускается. */
+  function toShop(seed: number, heroId = 'warrior'): RunState {
+    const run = newRun(heroId, seed);
+    run.roomIndex = 5;
+    enterRoom(run);
+    winCurrentBattle(run);
+    skipReward(run);
+    expect(run.phase).toBe('shop');
+    return run;
+  }
+
+  it('открывается после награды за элиту, после обычного боя — нет', () => {
+    const run = toShop(31);
+    expect(run.shop?.gear).not.toBeNull();
+    expect(run.shop?.artifact).not.toBeNull();
+    expect(run.shop?.healed).toBe(false);
+    expect(run.shop?.rerolled).toBe(false);
+
+    const plain = newRun('warrior', 31);
+    enterRoom(plain);
+    winCurrentBattle(plain);
+    skipReward(plain);
+    expect(plain.phase).toBe('map');
+    expect(plain.shop).toBeNull();
+  });
+
+  it('лекарь: доля максимума за золото, один раз, не сверх максимума', () => {
+    const run = toShop(32);
+    const max = heroStats(run).maxHp;
+    run.hero.hp = 10;
+    run.gold = 20;
+    expect(shopHealAmount(run)).toBe(Math.floor(max * SHOP_HEAL_PCT));
+    expect(shopHeal(run)).toBe(true);
+    expect(run.hero.hp).toBe(10 + Math.floor(max * SHOP_HEAL_PCT));
+    expect(run.gold).toBe(20 - SHOP_HEAL_COST);
+    expect(canShopHeal(run)).toMatch(/уже/);
+    expect(shopHeal(run)).toBe(false);
+
+    const full = toShop(32);
+    full.hero.hp = heroStats(full).maxHp;
+    expect(canShopHeal(full)).toMatch(/полное/);
+
+    const almost = toShop(32);
+    almost.hero.hp = heroStats(almost).maxHp - 2;
+    expect(shopHealAmount(almost)).toBe(2);
+  });
+
+  it('экипировка надевается сразу, артефакт ждёт слота без отмены, товары уходят с прилавка', () => {
+    const run = toShop(33);
+    run.gold = 100;
+    const gear = run.shop!.gear!;
+    const art = run.shop!.artifact!;
+    expect(shopBuyGear(run)).toBe(true);
+    expect(run.gold).toBe(100 - gearPrice(gear));
+    expect(run.shop!.gear).toBeNull();
+    expect(gearOf(run.hero, gear.kind).name).toBe(gear.name);
+    expect(canShopBuyGear(run)).toBe('Продано');
+    expect(shopBuyGear(run)).toBe(false);
+
+    expect(shopBuyArtifact(run)).toBe(true);
+    expect(run.gold).toBe(100 - gearPrice(gear) - artifactPrice(art));
+    expect(run.shop!.artifact).toBeNull();
+    expect(run.phase).toBe('shop');
+    if (run.pending) {
+      // Новый артефакт ждёт выбора слота; пока он висит, уйти нельзя, отменить покупку — тоже.
+      expect(run.pending.cancellable).toBe(false);
+      leaveShop(run);
+      expect(run.phase).toBe('shop');
+      resolvePending(run);
+    }
+    expect(run.pending).toBeNull();
+    expect(run.phase).toBe('shop');
+    leaveShop(run);
+    expect(run.phase).toBe('map');
+    expect(run.roomIndex).toBe(6);
+    expect(run.shop).toBeNull();
+  });
+
+  it('без золота ничего не купить и не перебросить', () => {
+    const run = toShop(34);
+    run.gold = 0;
+    run.hero.hp = 5;
+    const hp = run.hero.hp;
+    expect(canShopHeal(run)).toMatch(/золота/);
+    expect(canShopBuyGear(run)).toMatch(/золота/);
+    expect(canShopReroll(run)).toMatch(/золота/);
+    expect(shopHeal(run)).toBe(false);
+    expect(shopBuyGear(run)).toBe(false);
+    expect(shopBuyArtifact(run)).toBe(false);
+    expect(shopReroll(run)).toBe(false);
+    expect(run.hero.hp).toBe(hp);
+    expect(run.shop!.gear).not.toBeNull();
+  });
+
+  it('переброс обновляет только непроданное, один раз за визит', () => {
+    const run = toShop(35);
+    run.gold = 100;
+    expect(shopBuyGear(run)).toBe(true);
+    const gold = run.gold;
+    expect(shopReroll(run)).toBe(true);
+    expect(run.gold).toBe(gold - REROLL_COST);
+    expect(run.shop!.rerolled).toBe(true);
+    expect(run.shop!.gear).toBeNull();
+    expect(run.shop!.artifact).not.toBeNull();
+    expect(canShopReroll(run)).toMatch(/уже/);
+    expect(shopReroll(run)).toBe(false);
+
+    const empty = toShop(35);
+    empty.gold = 100;
+    shopBuyGear(empty);
+    shopBuyArtifact(empty);
+    if (empty.pending) resolvePending(empty);
+    expect(canShopReroll(empty)).toMatch(/Нечего/);
+  });
+});
 
 describe('забег', () => {
   it('этаж из 7 комнат: бой, бой, событие, бой, бой, элита, босс', () => {
@@ -133,8 +263,9 @@ describe('забег', () => {
   });
 
   it('один и тот же сид даёт один и тот же забег', () => {
-    const a = newRun('rogue', 777);
-    const b = newRun('rogue', 777);
+    // Время старта фиксируем: иначе startedAt в статистике разъезжается на миллисекунду и тест мигает.
+    const a = newRun('rogue', 777, 1000);
+    const b = newRun('rogue', 777, 1000);
     playRun(a);
     playRun(b);
     expect(a.phase).toBe(b.phase);
@@ -320,11 +451,15 @@ describe('забег', () => {
   });
 
   it('враги масштабируются под акт, а не под родную локацию', () => {
-    // крыса из леса (tier 1) в третьем акте — вдвое толще и в полтора раза больнее
-    expect(enemyScale(1, 2)).toEqual({ hp: 2.7, dmg: 1.95 });
-    // враг пещер (tier 3) в первом акте — наоборот, тоньше; боссы растут мягче рядовых
+    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +15 % надбавки акта
+    expect(enemyScale(1, 2).hp).toBeCloseTo(2.7);
+    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * 1.15);
+    // враг пещер (tier 3) в первом акте — наоборот, тоньше, и без надбавки; боссы растут мягче рядовых
     expect(enemyScale(3, 0).hp).toBeCloseTo(1 / 2.7);
-    expect(enemyScale(1, 2, 'boss')).toEqual({ hp: 2.4, dmg: 1.7 });
+    expect(enemyScale(3, 0).dmg).toBeCloseTo(1 / 1.95);
+    expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4);
+    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * 1.15);
+    expect(enemyScale(2, 1).dmg).toBeCloseTo(1.15);
     const run = newRun('warrior', 3);
     run.locations = ['ship', 'forest', 'swamp'];
     enterRoom(run);

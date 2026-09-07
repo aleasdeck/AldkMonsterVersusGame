@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { COLLECTIBLES, COLLECTIBLE_IDS, PRIZE_INDEX, STRIP_LEN, buildChestStrip, collectible, lockedIds, rollCollectible } from '../src/data/collection';
 import { ARTIFACT_IDS } from '../src/data/artifacts';
-import { gearBases } from '../src/data/gear';
+import { dropBases } from '../src/data/gear';
 import { createRng } from '../src/engine/rng';
 
 describe('каталог находок', () => {
   it('содержит все артефакты и все базы экипировки, id уникальны', () => {
-    const expected = ARTIFACT_IDS.length + gearBases('weapon').length + gearBases('armor').length;
+    const expected = ARTIFACT_IDS.length + dropBases('weapon').length + dropBases('armor').length;
     expect(COLLECTIBLES.length).toBe(expected);
     expect(new Set(COLLECTIBLE_IDS).size).toBe(expected);
     for (const id of ARTIFACT_IDS) expect(collectible(`art:${id}`)).not.toBeNull();
-    for (const b of gearBases('weapon')) expect(collectible(`weapon:${b.id}`)).not.toBeNull();
-    for (const b of gearBases('armor')) expect(collectible(`armor:${b.id}`)).not.toBeNull();
+    for (const b of dropBases('weapon')) expect(collectible(`weapon:${b.id}`)).not.toBeNull();
+    for (const b of dropBases('armor')) expect(collectible(`armor:${b.id}`)).not.toBeNull();
   });
 
   it('у каждой записи есть имя, подпись и описание', () => {

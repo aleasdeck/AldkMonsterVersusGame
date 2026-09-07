@@ -5,7 +5,7 @@
 import { it } from 'vitest';
 import { HERO_LIST, heroDef } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
-import { weaponDice } from '../src/data/gear';
+import { canWearArmor, weaponDice } from '../src/data/gear';
 import { enemyAction, enemyDef } from '../src/data/enemies';
 import { canUseAction, getStatus, statusValue } from '../src/engine/combat';
 import {
@@ -25,8 +25,9 @@ import {
   skipReward,
   takeReward,
 } from '../src/engine/run';
+import { canShopBuyArtifact, canShopBuyGear, canShopHeal, leaveShop, shopBuyArtifact, shopBuyGear, shopHeal } from '../src/engine/run';
 import { findSameArtifact, gearOf, socketRefs, upgradableSockets } from '../src/engine/equipment';
-import type { BattleState, RunState } from '../src/engine/types';
+import type { BattleState, GearInstance, RunState } from '../src/engine/types';
 
 function incomingDamage(b: BattleState): number {
   let total = 0;
@@ -126,6 +127,26 @@ function playBattle(run: RunState): void {
   finishBattle(run);
 }
 
+/** Насколько предмет лучше надетого: тир, кубик в руках героя или защита, аффикс, потеря слотов. */
+function gearGain(run: RunState, gear: GearInstance): number {
+  const def = heroDef(run.hero.defId);
+  const cur = gearOf(run.hero, gear.kind);
+  let score = (gear.tier - cur.tier) * 10;
+  if (gear.kind === 'weapon') {
+    // Кубик в руках героя: чужое оружие бьёт вполсилы, бот это видит так же, как игрок на карточке.
+    const a = weaponDice(def, gear);
+    const c = weaponDice(def, cur);
+    score += a.min + a.max - c.min - c.max;
+  } else {
+    score += (gear.def - cur.def) * 2 + (gear.hp - cur.hp) * 0.5;
+    // Перк брони работает только у того, кто умеет её носить: карточка это показывает, бот учитывает так же.
+    score += (canWearArmor(def, gear) ? 3 : 0) - (canWearArmor(def, cur) ? 3 : 0);
+  }
+  score += (gear.affix ? 1 : 0) - (cur.affix ? 1 : 0);
+  if (gear.slots.length < cur.slots.filter(Boolean).length) score -= 20;
+  return score;
+}
+
 function chooseReward(run: RunState): void {
   const opts = run.rewards[0]?.options ?? [];
   let best = -1;
@@ -133,17 +154,7 @@ function chooseReward(run: RunState): void {
   opts.forEach((o, i) => {
     let score: number;
     if (o.kind === 'gear') {
-      const cur = gearOf(run.hero, o.gear.kind);
-      score = (o.gear.tier - cur.tier) * 10;
-      if (o.gear.kind === 'weapon') {
-        // Кубик в руках героя: чужое оружие бьёт вполсилы, бот это видит так же, как игрок на карточке.
-        const def = heroDef(run.hero.defId);
-        const a = weaponDice(def, o.gear);
-        const c = weaponDice(def, cur);
-        score += a.min + a.max - c.min - c.max;
-      } else score += (o.gear.def - cur.def) * 2 + (o.gear.hp - cur.hp) * 0.5;
-      score += (o.gear.affix ? 1 : 0) - (cur.affix ? 1 : 0);
-      if (o.gear.slots.length < cur.slots.filter(Boolean).length) score -= 20;
+      score = gearGain(run, o.gear);
     } else {
       const same = findSameArtifact(run.hero, o.artifact.id);
       const free = socketRefs(run.hero).some((s) => !s.art);
@@ -184,6 +195,15 @@ function playRun(run: RunState, onBoss?: (run: RunState) => void): void {
         chooseEvent(run, run.hero.hp < max * 0.65 ? 'spring' : free ? 'altar' : 'chest');
         break;
       }
+      case 'shop': {
+        // Торговец: лечиться при HP < 60 %, брать предмет, если он лучше надетого, артефакт — если есть куда; потом уйти.
+        const shop = run.shop!;
+        if (run.hero.hp < max * 0.6 && !canShopHeal(run)) shopHeal(run);
+        else if (shop.gear && !canShopBuyGear(run) && gearGain(run, shop.gear) > 0) shopBuyGear(run);
+        else if (shop.artifact && !canShopBuyArtifact(run) && (findSameArtifact(run.hero, shop.artifact.id) || socketRefs(run.hero).some((s) => !s.art))) shopBuyArtifact(run);
+        else leaveShop(run);
+        break;
+      }
       case 'camp': {
         const up = upgradableSockets(run.hero)[0];
         if (run.hero.hp < max * 0.7 || !up) campRest(run);
@@ -206,6 +226,8 @@ it.skipIf(!env.SIM)('симуляция баланса', () => {
     if (ONLY && hero.id !== ONLY) continue;
     for (const k of Object.keys(USES)) delete USES[k];
     let wins = 0;
+    /** Забег не кончился ни победой, ни смертью: бой упёрся в лимит ходов — пат, бот не может ни убить, ни умереть. */
+    let stuck = 0;
     let cleared = 0;
     const deaths: Record<string, number> = {};
     const byLoc: Record<string, number> = {};
@@ -214,6 +236,7 @@ it.skipIf(!env.SIM)('симуляция баланса', () => {
       const run = newRun(hero.id, seed * 7919);
       playRun(run, (r) => bossHp[r.locationIndex].push(r.hero.hp / heroStats(r).maxHp));
       if (run.phase === 'victory') wins++;
+      else if (run.phase !== 'defeat') stuck++;
       cleared += run.stats.roomsCleared;
       if (run.phase === 'defeat') {
         const key = `L${run.locationIndex + 1}R${run.roomIndex + 1}`;
@@ -239,8 +262,9 @@ it.skipIf(!env.SIM)('симуляция баланса', () => {
       .map(([k, v]) => `${k}:${(v / N).toFixed(1)}`)
       .join(' ');
     lines.push(
-      `${hero.name.padEnd(8)} побед ${String(wins).padStart(2)}/${N}  боёв ${(cleared / N).toFixed(1).padStart(4)}  HP у босса: ${avg(bossHp[0])} ${avg(bossHp[1])} ${avg(bossHp[2])}  смерти: ${top}  где: ${locTop}  приёмы/забег: ${uses}`,
+      `${hero.name.padEnd(8)} побед ${String(wins).padStart(2)}/${N}${stuck ? ` (пат: ${stuck})` : ''}  боёв ${(cleared / N).toFixed(1).padStart(4)}  HP у босса: ${avg(bossHp[0])} ${avg(bossHp[1])} ${avg(bossHp[2])}  смерти: ${top}  где: ${locTop}  приёмы/забег: ${uses}`,
     );
   }
   console.log('\n' + lines.join('\n'));
-});
+  // Большой SIM_N не укладывается в стандартные 5 секунд vitest.
+}, 300_000);

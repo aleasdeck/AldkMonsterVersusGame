@@ -7,7 +7,22 @@ import { ACTS, ACTS_PER_RUN, ROOMS_PER_LOCATION, locationDef, pickRunLocations, 
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
 import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact } from './equipment';
-import { REROLL_COST, START_GOLD, goldReward, rollBossRewards, rollEvent, rollRewardOptions, rollRewards } from './loot';
+import {
+  REROLL_COST,
+  SHOP_HEAL_COST,
+  SHOP_HEAL_PCT,
+  START_GOLD,
+  artifactPrice,
+  gearPrice,
+  goldReward,
+  rollArtifact,
+  rollBossRewards,
+  rollEvent,
+  rollGear,
+  rollRewardOptions,
+  rollRewards,
+  rollShop,
+} from './loot';
 
 export function randomSeed(): number {
   return (Math.random() * 0xffffffff) >>> 0;
@@ -31,6 +46,7 @@ export function newRun(heroId: string, seed: number = randomSeed(), now: number 
     phase: 'map',
     battle: null,
     rewards: [],
+    shop: null,
     event: null,
     pending: null,
     stats: { kills: 0, turns: 0, damageDealt: 0, damageTaken: 0, roomsCleared: 0, startedAt: now, finishedAt: 0 },
@@ -98,6 +114,7 @@ export function advanceRoom(run: RunState): void {
   run.battle = null;
   run.event = null;
   run.rewards = [];
+  run.shop = null;
   run.pending = null;
   run.roomIndex += 1;
   if (run.roomIndex >= ROOMS_PER_LOCATION) {
@@ -183,8 +200,11 @@ function giveGear(run: RunState, gear: LootItem & { kind: 'gear' }): void {
   if (overflow.length > 0) run.pending = { artifacts: overflow, cancellable: false, consumeReward: false };
 }
 
+/** Награды кончились: после элиты — к торговцу, иначе дальше по этажу. */
 function afterReward(run: RunState): void {
-  if (run.rewards.length === 0) advanceRoom(run);
+  if (run.rewards.length > 0) return;
+  if (currentRoomKind(run) === 'elite') openShop(run);
+  else advanceRoom(run);
 }
 
 export function takeReward(run: RunState, index: number): void {
@@ -233,6 +253,7 @@ export function rerollReward(run: RunState): boolean {
 function continueAfterPending(run: RunState): void {
   if (run.phase === 'reward') afterReward(run);
   else if (run.phase === 'event') advanceRoom(run);
+  // В магазине после покупки остаёмся: уйти игрок решает сам.
 }
 
 function finishPendingStep(run: RunState): void {
@@ -285,6 +306,108 @@ export function chooseEvent(run: RunState, id: string): void {
     giveGear(run, { kind: 'gear', gear: opt.gear });
   }
   if (!run.pending) advanceRoom(run);
+}
+
+// ─── Магазин ───────────────────────────────────────────────────────────────
+
+function openShop(run: RunState): void {
+  run.shop = rollShop(run.rng, run.hero, currentAct(run));
+  run.phase = 'shop';
+}
+
+/** Сколько HP даст лекарь сейчас: 30 % максимума, но не больше недостающего. */
+export function shopHealAmount(run: RunState): number {
+  const max = heroStats(run).maxHp;
+  return Math.max(0, Math.min(Math.floor(max * SHOP_HEAL_PCT), max - run.hero.hp));
+}
+
+function shopOpen(run: RunState): string | null {
+  if (run.phase !== 'shop' || !run.shop) return 'Магазин закрыт';
+  if (run.pending) return 'Сначала разместите артефакт';
+  return null;
+}
+
+function needGold(run: RunState, cost: number): string | null {
+  return run.gold < cost ? `Нужно ${cost} золота` : null;
+}
+
+/** Почему нельзя купить лечение; null — можно. */
+export function canShopHeal(run: RunState): string | null {
+  const err = shopOpen(run);
+  if (err) return err;
+  if (run.shop!.healed) return 'Лекарь уже помог';
+  if (shopHealAmount(run) <= 0) return 'HP и так полное';
+  return needGold(run, SHOP_HEAL_COST);
+}
+
+export function canShopBuyGear(run: RunState): string | null {
+  const err = shopOpen(run);
+  if (err) return err;
+  const gear = run.shop!.gear;
+  if (!gear) return 'Продано';
+  return needGold(run, gearPrice(gear));
+}
+
+export function canShopBuyArtifact(run: RunState): string | null {
+  const err = shopOpen(run);
+  if (err) return err;
+  const art = run.shop!.artifact;
+  if (!art) return 'Продано';
+  return needGold(run, artifactPrice(art));
+}
+
+export function canShopReroll(run: RunState): string | null {
+  const err = shopOpen(run);
+  if (err) return err;
+  const shop = run.shop!;
+  if (shop.rerolled) return 'Переброс уже использован';
+  if (!shop.gear && !shop.artifact) return 'Нечего перебрасывать';
+  return needGold(run, REROLL_COST);
+}
+
+export function shopHeal(run: RunState): boolean {
+  if (canShopHeal(run)) return false;
+  run.hero.hp += shopHealAmount(run);
+  run.gold -= SHOP_HEAL_COST;
+  run.shop!.healed = true;
+  return true;
+}
+
+/** Купить экипировку: надевается сразу, старая пропадает; лишние артефакты ждут выбора слота. */
+export function shopBuyGear(run: RunState): boolean {
+  if (canShopBuyGear(run)) return false;
+  const gear = run.shop!.gear!;
+  run.gold -= gearPrice(gear);
+  run.shop!.gear = null;
+  giveGear(run, { kind: 'gear', gear });
+  return true;
+}
+
+/** Купить артефакт: дубликат апгрейдит стоящий, новый ждёт выбора слота. Отменить покупку нельзя. */
+export function shopBuyArtifact(run: RunState): boolean {
+  if (canShopBuyArtifact(run)) return false;
+  const artifact = run.shop!.artifact!;
+  run.gold -= artifactPrice(artifact);
+  run.shop!.artifact = null;
+  giveArtifact(run, { kind: 'artifact', artifact }, { cancellable: false, consumeReward: false });
+  return true;
+}
+
+/** Перебросить непроданные товары за золото. Один раз за визит. */
+export function shopReroll(run: RunState): boolean {
+  if (canShopReroll(run)) return false;
+  const shop = run.shop!;
+  const act = currentAct(run);
+  run.gold -= REROLL_COST;
+  shop.rerolled = true;
+  if (shop.gear) shop.gear = rollGear(run.rng, run.hero, act.gearTiers);
+  if (shop.artifact) shop.artifact = rollArtifact(run.rng, run.hero, act.artTiers, []);
+  return true;
+}
+
+export function leaveShop(run: RunState): void {
+  if (run.phase !== 'shop' || run.pending) return;
+  advanceRoom(run);
 }
 
 // ─── Привал ────────────────────────────────────────────────────────────────

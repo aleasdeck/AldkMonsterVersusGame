@@ -10,6 +10,7 @@ import type {
   RewardScreen,
   RewardSource,
   RoomKind,
+  ShopState,
 } from './types';
 import { chance, pick, type Rng } from './rng';
 import { ARTIFACT_IDS } from '../data/artifacts';
@@ -31,6 +32,33 @@ export function goldReward(kind: RoomKind): number {
   return GOLD_REWARD[kind];
 }
 
+// ─── Магазин ───────────────────────────────────────────────────────────────
+
+/** Лекарь: доля максимума HP за визит и цена. 20 %, а не 30 %, как у родника: с 30 % бот выигрывал слишком часто. */
+export const SHOP_HEAL_PCT = 0.2;
+export const SHOP_HEAL_COST = 5;
+/** Цена экипировки по тиру и артефакта по тиру. Переброс товаров стоит как переброс награды. */
+export const SHOP_GEAR_PRICE: Record<GearTier, number> = { 1: 7, 2: 9, 3: 12, 4: 15, 5: 18 };
+export const SHOP_ART_PRICE: Record<ArtTier, number> = { 1: 6, 2: 9, 3: 12 };
+
+export function gearPrice(gear: GearInstance): number {
+  return SHOP_GEAR_PRICE[gear.tier];
+}
+
+export function artifactPrice(art: ArtifactInstance): number {
+  return SHOP_ART_PRICE[art.tier];
+}
+
+/** Товары магазина из пула текущего акта: экипировка под героя, артефакт из ещё не максимальных. */
+export function rollShop(rng: Rng, hero: HeroPersistent, act: ActDef): ShopState {
+  return {
+    gear: rollGear(rng, hero, act.gearTiers),
+    artifact: rollArtifact(rng, hero, act.artTiers, []),
+    healed: false,
+    rerolled: false,
+  };
+}
+
 // ─── Генерация ─────────────────────────────────────────────────────────────
 
 function bump<T extends number>(tiers: T[], max: T): T[] {
@@ -44,10 +72,10 @@ export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], e
   return { id: pick(rng, ids), tier: pick(rng, tiers) };
 }
 
-/** Экипировка под героя: оружие выпадает с учётом его владения. */
+/** Экипировка под героя: оружие выпадает с учётом его владения, броня — с учётом умения носить. */
 export function rollGear(rng: Rng, hero: HeroPersistent, tiers: GearTier[], kind?: GearKind): GearInstance {
   const k = kind ?? pick(rng, ['weapon', 'armor'] as GearKind[]);
-  return makeGear(rng, k, pick(rng, tiers), heroDef(hero.defId).mastery);
+  return makeGear(rng, k, pick(rng, tiers), heroDef(hero.defId));
 }
 
 export function rollRewards(rng: Rng, hero: HeroPersistent, act: ActDef, source: 'fight' | 'elite'): LootItem[] {

@@ -215,11 +215,23 @@ p {
   margin-left: auto;
   white-space: nowrap;
 }
+/* Умения одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇», подписи серые, иконки — цветом владения или умения. */
 .mastery {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  align-items: baseline;
   flex-wrap: wrap;
   font-size: 15px;
+}
+.mastery .lbl {
+  color: var(--dim);
+}
+.mastery .lbl + .lbl,
+.mastery span:not(.lbl) + .lbl {
+  margin-left: 8px;
+}
+.mastery span:not(.lbl) {
+  cursor: help;
 }
 .mastery-master {
   color: #8ce99a;
@@ -230,7 +242,14 @@ p {
 .mastery-foreign {
   color: #ff8787;
 }
-/* Иконка типа оружия у бейджа тира; цвет — владение героя (классы mastery-*). */
+/* Умение носить броню: два состояния, зелёный умеет, красный нет. */
+.skill-yes {
+  color: #8ce99a;
+}
+.skill-no {
+  color: #ff8787;
+}
+/* Иконка типа оружия или брони у бейджа тира; цвет — владение или умение героя (классы mastery-*, skill-*). */
 .wtype-icon {
   font-size: 15px;
   line-height: 1;
@@ -250,9 +269,23 @@ p {
 .wtype-icon.mastery-foreign {
   color: #ff8787;
 }
+.wtype-icon.skill-yes {
+  color: #8ce99a;
+}
+.wtype-icon.skill-no {
+  color: #ff8787;
+}
 .card-perk {
   font-size: 15px;
   color: #b8c0ff;
+}
+/* Перк брони, которую герой не умеет носить: зачёркнут и приглушён. */
+.card-perk.off {
+  color: var(--dim);
+  cursor: help;
+}
+.card-perk.off s {
+  text-decoration: line-through;
 }
 
 .stats-grid {
@@ -1090,6 +1123,14 @@ p {
 .log-toggle.open {
   color: var(--accent);
 }
+/* Кнопка выхода из законченного боя рядом с раскрытым логом. */
+.log-finish {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-left: 3px solid var(--border);
+}
 .log-toggle:active:not([disabled]) {
   transform: none;
   box-shadow: none;
@@ -1223,6 +1264,9 @@ p {
 .panel.result h2 {
   font-size: 40px;
 }
+.panel.result .row {
+  justify-content: center;
+}
 .panel.lost {
   border-color: var(--bad);
 }
@@ -1285,10 +1329,31 @@ p {
 /* ─── Событие / привал ──────────────────────────────────────────────── */
 
 .event-card,
-.camp-card {
+.camp-card,
+.shop-card {
   max-width: 260px;
   text-align: center;
   align-items: center;
+}
+/* Торговец: лекарь и заглушки проданного — узкие карточки, предметы — обычные карточки награды. */
+.shop-card.sold {
+  color: var(--dim);
+  border-style: dashed;
+  justify-content: center;
+}
+.shop .cards {
+  flex: 1;
+  min-height: 0;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.shop .cards .card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+}
+.shop .card-foot .btn {
+  white-space: nowrap;
 }
 .camp-card {
   max-width: 340px;

@@ -3,7 +3,7 @@ import { HERO_LIST, heroDef } from '../../data/heroes';
 import { makeStartingGear } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
-import { artifactCard, masteryLine, statsGrid } from '../components';
+import { artifactCard, skillLine, statsGrid } from '../components';
 import { spriteImg } from '../sprites';
 import type { HeroDef } from '../../engine/types';
 import type { App } from '../app';
@@ -32,7 +32,7 @@ function heroTile(app: App, def: HeroDef): HTMLElement {
 }
 
 /**
- * Превью справа: роль, владение, статы и стартовые артефакты. Всё умещается в кадр без прокрутки,
+ * Превью справа: роль, владение оружием и бронёй, статы и стартовые артефакты. Всё умещается в кадр без прокрутки,
  * поэтому стартовое снаряжение — одной строкой, а не карточками.
  */
 function heroPreview(app: App, def: HeroDef): HTMLElement {
@@ -50,7 +50,7 @@ function heroPreview(app: App, def: HeroDef): HTMLElement {
         { class: 'preview-title' },
         h('div', { class: 'preview-name' }, def.name),
         h('div', { class: 'preview-role' }, def.role),
-        masteryLine(def),
+        skillLine(def),
         h('div', { class: 'preview-gear' }, `Старт: ${def.weapon.name} (${gear.weapon.dmgMin}–${gear.weapon.dmgMax}) · ${def.armor.name}`),
       ),
     ),

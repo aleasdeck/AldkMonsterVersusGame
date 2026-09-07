@@ -22,7 +22,7 @@ const app = new App(root);
 app.start();
 
 // Отладочный быстрый старт: ?hero=warrior&seed=5&enter=1 — новый забег и сразу первая комната.
-// ?hero=...&phase=reward|event|camp|end — сразу нужный экран (бой выигрывается читом).
+// ?hero=...&phase=won|reward|shop|event|camp|end — сразу нужный экран (бой выигрывается читом); won — плашка победы, &log=1 — с раскрытым логом.
 const params = new URLSearchParams(window.location.search);
 
 // &mock=1 — демо-профиль: статистика, сундуки и часть коллекции (для отладки экранов)
@@ -60,17 +60,28 @@ if (heroParam) {
   const locParam = params.get('loc');
   if (locParam) run.locationIndex = Math.max(0, Math.min(2, Number(locParam) || 0));
   const phase = params.get('phase');
-  if (phase === 'reward') {
+  if (phase === 'reward' || phase === 'won') {
     run.hero.weapon.dmgMin = 999;
     run.hero.weapon.dmgMax = 999;
     app.enterRoom();
     for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid });
-    app.finishBattle();
+    // &phase=won — остаться на плашке победы, не забирая награду; &log=1 — сразу раскрыть лог боя.
+    if (phase === 'reward') app.finishBattle();
+    else if (params.get('log')) app.toggleLog();
     // &take=art — сразу взять первый артефакт из награды (открывает выбор слота)
     if (params.get('take') === 'art') {
       const i = run.rewards[0]?.options.findIndex((o) => o.kind === 'artifact') ?? -1;
       if (i >= 0) app.takeReward(i);
     }
+  } else if (phase === 'shop') {
+    // Элита выигрывается читом, награда пропускается — сразу торговец.
+    run.roomIndex = 5;
+    run.hero.weapon.dmgMin = 999;
+    run.hero.weapon.dmgMax = 999;
+    app.enterRoom();
+    for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid });
+    app.finishBattle();
+    app.skipReward();
   } else if (phase === 'event') {
     run.roomIndex = 2;
     app.enterRoom();

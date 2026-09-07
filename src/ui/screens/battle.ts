@@ -178,10 +178,14 @@ export function battleScreen(app: App): HTMLElement {
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));
   const field = h('div', { class: 'field', style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, allyZone, enemyZone);
 
+  const over = b.phase === 'won' || b.phase === 'lost';
+  const won = b.phase === 'won';
+  const finishLabel = won ? 'Забрать награду' : 'К итогам';
+
   // Лог спрятан за узкой кнопкой справа: раскрытый занимает всю нижнюю панель вместо действий и кнопки конца хода.
   const logToggle = button(app.logOpen ? '✕ Закрыть' : 'Лог боя', () => app.toggleLog(), {
     class: `log-toggle ${app.logOpen ? 'open' : ''}`,
-    title: app.logOpen ? 'Вернуть действия' : 'Показать лог боя',
+    title: app.logOpen ? (over ? 'Вернуть итог боя' : 'Вернуть действия') : 'Показать лог боя',
   });
   let bottom: HTMLElement;
   if (app.logOpen) {
@@ -190,13 +194,14 @@ export function battleScreen(app: App): HTMLElement {
     requestAnimationFrame(() => {
       logEl.scrollTop = logEl.scrollHeight;
     });
-    bottom = h('div', { class: 'bottom' }, logEl, logToggle);
+    // После боя итоговая плашка спрятана, чтобы не закрывать лог; кнопка выхода из боя стоит рядом с логом.
+    const finish = over ? h('div', { class: 'log-finish' }, button(finishLabel, () => app.finishBattle(), { class: 'primary' })) : null;
+    bottom = h('div', { class: 'bottom' }, logEl, finish, logToggle);
   } else bottom = h('div', { class: 'bottom' }, actionBar(app), logToggle);
 
   const screen = h('div', { class: 'screen battle' }, top, field, bottom);
 
-  if (b.phase === 'won' || b.phase === 'lost') {
-    const won = b.phase === 'won';
+  if (over && !app.logOpen) {
     screen.appendChild(
       h(
         'div',
@@ -206,7 +211,12 @@ export function battleScreen(app: App): HTMLElement {
           { class: `panel result ${won ? 'won' : 'lost'}` },
           h('h2', null, won ? 'Победа!' : 'Герой пал'),
           h('p', { class: 'dim' }, ...(won ? [`Бой занял ${b.turn} ход(ов). Добыча: +${goldReward(currentRoomKind(run))} `, coin(), ' золота.'] : ['Забег окончен.'])),
-          button(won ? 'Забрать награду' : 'К итогам', () => app.finishBattle(), { class: 'primary big' }),
+          h(
+            'div',
+            { class: 'row' },
+            button(finishLabel, () => app.finishBattle(), { class: 'primary big' }),
+            button('Лог боя', () => app.toggleLog(), { title: 'Перечитать ход боя, плашка итога вернётся по «Закрыть»' }),
+          ),
         ),
       ),
     );

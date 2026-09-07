@@ -18,8 +18,8 @@ export const DEFAULT_FATIGUE = 0.75;
 export const DEFAULT_CRIT_MULT = 2;
 
 /**
- * Статы героя: база героя → кубик оружия в его руках (владение, тип) → перки оружия и брони →
- * аффиксы → пассивные артефакты.
+ * Статы героя: база героя → кубик оружия в его руках (владение, тип) → перки оружия и брони
+ * (перк брони — только если герой умеет носить её тип) → аффиксы → пассивные артефакты.
  */
 export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInstance): DerivedStats {
   const dice = weaponDice(def, weapon);
@@ -55,7 +55,7 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     dodgeStart: 0,
   };
   applyMods(s, weaponPerkMods(weapon));
-  applyMods(s, armorPerkMods(armor));
+  applyMods(s, armorPerkMods(armor, def));
   applyMods(s, affixMods(weapon));
   applyMods(s, affixMods(armor));
   for (const a of socketedArtifacts(weapon, armor)) {

@@ -8,7 +8,7 @@ const list: ArtifactDef[] = [
   {
     id: 'strength_stone',
     name: 'Камень силы',
-    glyph: '✊',
+    glyph: 'ᚢ',
     kind: 'passive',
     mods: (tier) => ({ str: t(2, 4, 6)(tier) }),
     describe: (tier) => `+${t(2, 4, 6)(tier)} к Силе`,
@@ -173,11 +173,12 @@ const list: ArtifactDef[] = [
     cooldown: () => 2,
     target: 'self',
     effects: (tier) => [
-      { type: 'selfDamage', amount: t(2, 1, 1)(tier) },
+      // Цена крови 3/2/2: с 2/1/1 Берсерк был самым живучим героем у бота даже после общего нерфа.
+      { type: 'selfDamage', amount: t(3, 2, 2)(tier) },
       { type: 'gainSta', amount: t(3, 3, 4)(tier) },
       { type: 'status', target: 'self', status: 'strength', value: t(1, 2, 3)(tier), turns: 1 },
     ],
-    describe: (tier) => `Ранит себя на ${t(3, 3, 2)(tier)} HP, даёт +${t(3, 3, 4)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
+    describe: (tier) => `Ранит себя на ${t(3, 2, 2)(tier)} HP, даёт +${t(3, 3, 4)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
   },
   {
     id: 'second_wind',
