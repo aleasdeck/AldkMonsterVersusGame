@@ -15,7 +15,7 @@ import {
   resolveEnemyTurn,
 } from '../src/engine/combat';
 import { computeStats } from '../src/engine/stats';
-import type { ArtifactInstance, BattleState, HeroPersistent } from '../src/engine/types';
+import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
 
 function mkHero(heroId: string, extra: ArtifactInstance[] = []): HeroPersistent {
   const def = heroDef(heroId);
@@ -104,7 +104,8 @@ describe('базовые действия', () => {
     const hpBefore = state.hero.hp;
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     pass(state, rng);
-    expect(state.hero.hp).toBe(hpBefore - 5);
+    // Укус 5, Кольца кольчуги воина гасят 1
+    expect(state.hero.hp).toBe(hpBefore - 4);
     expect(state.hero.sta).toBe(3);
     expect(state.phase).toBe('player');
   });
@@ -197,7 +198,7 @@ describe('статусы', () => {
     expect(getStatus(boar, 'stun')).toBeUndefined();
     expect(boar.intent).toBe('ram');
     pass(state, rng);
-    expect(state.hero.hp).toBe(hp0 - 7);
+    expect(state.hero.hp).toBe(hp0 - 6); // таран 7, Кольца кольчуги гасят 1
   });
 
   it('слабость режет урон героя на 25 %', () => {
@@ -250,7 +251,7 @@ describe('новые механики врагов', () => {
     performAction(state, { type: 'defend' }, rng);
     const hp0 = state.hero.hp;
     pass(state, rng);
-    expect(state.hero.hp).toBe(hp0 - 5);
+    expect(state.hero.hp).toBe(hp0 - 4); // 5 сквозь блок, Кольца кольчуги гасят 1
   });
 
   it('уклонение врага съедает атаку, но не заклинание', () => {
@@ -275,7 +276,7 @@ describe('новые механики врагов', () => {
     v.hp = 10;
     v.intent = 'bite';
     pass(state, rng);
-    expect(v.hp).toBe(19);
+    expect(v.hp).toBe(18); // укус 9 − 1 Кольца кольчуги = 8 лечения
   });
 
   it('слизень делится при смерти', () => {
@@ -294,7 +295,7 @@ describe('новые механики врагов', () => {
     const hp0 = state.hero.hp;
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(state.phase).toBe('won');
-    expect(state.hero.hp).toBe(hp0 - 12);
+    expect(state.hero.hp).toBe(hp0 - 11); // взрыв 12, Кольца кольчуги гасят 1
     expect(getStatus(state.hero, 'burn')?.value).toBe(2);
   });
 
@@ -303,7 +304,7 @@ describe('новые механики врагов', () => {
     first(state).intent = 'boom';
     const hp0 = state.hero.hp;
     pass(state, rng);
-    expect(state.hero.hp).toBe(hp0 - 18);
+    expect(state.hero.hp).toBe(hp0 - 17); // подрыв 18, Кольца кольчуги гасят 1
     expect(state.enemies.length).toBe(0);
     expect(state.phase).toBe('won');
   });
@@ -426,7 +427,7 @@ describe('боссы', () => {
     expect(d.hp).toBe(hp0);
     const heroHp = state.hero.hp;
     pass(state, rng);
-    expect(state.hero.hp).toBe(heroHp - 30);
+    expect(state.hero.hp).toBe(heroHp - 29); // пике 30, Кольца кольчуги гасят 1
     expect(getStatus(d, 'invuln')).toBeUndefined();
     expect(d.intent).not.toBe('dive');
   });
@@ -476,10 +477,10 @@ describe('пошаговый ход врагов', () => {
     endTurn(state);
     expect(state.phase).toBe('enemy');
     enemyStep(state, rng);
-    expect(state.hero.hp).toBe(hp0 - 5);
+    expect(state.hero.hp).toBe(hp0 - 4); // укус 5, Кольца кольчуги гасят 1
     expect(state.phase).toBe('enemy');
     enemyStep(state, rng);
-    expect(state.hero.hp).toBe(hp0 - 10);
+    expect(state.hero.hp).toBe(hp0 - 8);
     enemyStep(state, rng);
     expect(state.phase).toBe('player');
     expect(state.turn).toBe(2);
@@ -548,5 +549,67 @@ describe('призыв волка', () => {
     expect(state.allies.length).toBe(2);
     expect(state.allies[0].maxHp).toBe(20);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'wolf_whistle' })).toMatch(/места/);
+  });
+});
+
+describe('перки брони', () => {
+  /** Герой со стартовой экипировкой, но с другой базой брони нужного тира. */
+  function mkArmorBattle(heroId: string, base: string, enemies: string[], tier: GearTier = 1) {
+    const rng = createRng(1);
+    const hero = mkHero(heroId);
+    hero.armor.base = base;
+    hero.armor.tier = tier;
+    const state = createBattle(heroDef(heroId), hero, enemies, rng);
+    state.hero.stats.crit = 0;
+    return { state, rng };
+  }
+
+  it('кольчуга: каждый удар слабее на 1, с 4 тира — на 2', () => {
+    const t1 = mkArmorBattle('warrior', 'mail', ['wolf']);
+    const hp1 = t1.state.hero.hp;
+    pass(t1.state, t1.rng);
+    expect(t1.state.hero.hp).toBe(hp1 - 4);
+    const t4 = mkArmorBattle('warrior', 'mail', ['wolf'], 4);
+    const hp4 = t4.state.hero.hp;
+    pass(t4.state, t4.rng);
+    expect(t4.state.hero.hp).toBe(hp4 - 3);
+  });
+
+  it('латы: «Защититься» даёт блок сверх DEF', () => {
+    const { state, rng } = mkArmorBattle('warrior', 'plate', ['wolf'], 3);
+    performAction(state, { type: 'defend' }, rng);
+    expect(state.hero.block).toBe(state.hero.stats.def + 2);
+  });
+
+  it('панцирь: часть блока переживает начало хода', () => {
+    const { state, rng } = mkArmorBattle('warrior', 'shell', ['wolf']);
+    performAction(state, { type: 'defend' }, rng);
+    // 8 блока − укус 5 = 3, из них до 2 остаются на следующий ход
+    pass(state, rng);
+    expect(state.hero.block).toBe(2);
+  });
+
+  it('роба: заклинание даёт блок', () => {
+    const { state, rng } = mkArmorBattle('mage', 'robe', ['boar']);
+    performAction(state, { type: 'artifact', artifactId: 'fireball', target: first(state).uid }, rng);
+    expect(state.hero.block).toBe(1);
+  });
+
+  it('плащ: первая атака врага в бою промахивается', () => {
+    const { state, rng } = mkArmorBattle('rogue', 'cloak', ['wolf']);
+    expect(getStatus(state.hero, 'dodge')?.value).toBe(1);
+    const hp = state.hero.hp;
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hp);
+    expect(getStatus(state.hero, 'dodge')).toBeUndefined();
+    pass(state, rng);
+    expect(state.hero.hp).toBeLessThan(hp);
+  });
+
+  it('доспех: лишняя стамина только в первый ход', () => {
+    const { state, rng } = mkArmorBattle('berserk', 'harness', ['boar']);
+    expect(state.hero.sta).toBe(state.hero.maxSta + 1);
+    pass(state, rng);
+    expect(state.hero.sta).toBe(state.hero.maxSta);
   });
 });

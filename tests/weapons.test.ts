@@ -192,11 +192,11 @@ describe('перки баз в бою', () => {
 describe('ярость берсерка', () => {
   it('стоит кровь, даёт стамину и Силу на ход, перезаряжается', () => {
     const { state, rng } = mkBattle('berserk', ['bear']);
-    expect(state.hero.sta).toBe(3);
+    expect(state.hero.sta).toBe(4); // 3 + Второе дыхание шкуры в первый ход
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
     expect(state.hero.hp).toBe(hp0 - 2);
-    expect(state.hero.sta).toBe(6);
+    expect(state.hero.sta).toBe(7);
     expect(getStatus(state.hero, 'strength')?.value).toBe(1);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'rage' })).toMatch(/Перезарядка/);
     endTurn(state);
