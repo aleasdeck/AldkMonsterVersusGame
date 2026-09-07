@@ -214,10 +214,15 @@ function cleanupDead(state: BattleState, rng: Rng): void {
 
 // ─── Герой ─────────────────────────────────────────────────────────────────
 
-function heroAttackDamage(state: BattleState, rng: Rng, bonus: number): { dmg: number; crit: boolean } {
+/** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя. */
+export function fatigueMult(state: BattleState): number {
+  return state.hero.stats.fatigue ** state.hero.attacks;
+}
+
+function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1): { dmg: number; crit: boolean } {
   const h = state.hero;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
-  let dmg = roll + h.stats.str + statusValue(h, 'strength') + bonus;
+  let dmg = Math.floor((roll + h.stats.str + statusValue(h, 'strength') + bonus) * mult * fatigueMult(state));
   const crit = h.stats.crit > 0 && chance(rng, h.stats.crit);
   if (crit) dmg *= 2;
   if (getStatus(h, 'weak')) dmg = Math.floor(dmg * 0.75);
@@ -230,11 +235,12 @@ export interface DamageRange {
 }
 
 /** Предпросмотр разброса урона атаки без крита — для интерфейса. */
-export function previewAttack(state: BattleState, bonus = 0): DamageRange {
+export function previewAttack(state: BattleState, bonus = 0, mult = 1): DamageRange {
   const h = state.hero;
   const flat = h.stats.str + statusValue(h, 'strength') + bonus;
-  let min = h.stats.dmgMin + flat;
-  let max = h.stats.dmgMax + flat;
+  const scale = mult * fatigueMult(state);
+  let min = Math.floor((h.stats.dmgMin + flat) * scale);
+  let max = Math.floor((h.stats.dmgMax + flat) * scale);
   if (getStatus(h, 'weak')) {
     min = Math.floor(min * 0.75);
     max = Math.floor(max * 0.75);
@@ -284,7 +290,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
   switch (eff.type) {
     case 'attack':
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        const { dmg, crit } = heroAttackDamage(state, rng, eff.bonus);
+        const { dmg, crit } = heroAttackDamage(state, rng, eff.bonus, eff.mult ?? 1);
         log(state, `Удар по ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
         damageEnemy(state, e, dmg, 'hit', crit);
       }
@@ -323,6 +329,7 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     h.sta -= 1;
     const e = findEnemy(state, action.target)!;
     const { dmg, crit } = heroAttackDamage(state, rng, 0);
+    h.attacks += 1;
     log(state, `Герой бьёт ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
     damageEnemy(state, e, dmg, 'hit', crit);
     if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal);
@@ -340,7 +347,9 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     const cd = def.cooldown?.(inst.tier) ?? 0;
     if (cd > 0) h.cooldowns[def.id] = cd;
     log(state, `Герой: ${def.name}`);
-    for (const eff of def.effects?.(inst.tier) ?? []) applyEffect(state, eff, action.target, rng);
+    const effects = def.effects?.(inst.tier) ?? [];
+    for (const eff of effects) applyEffect(state, eff, action.target, rng);
+    if (effects.some((e) => e.type === 'attack')) h.attacks += 1;
   }
   cleanupDead(state, rng);
 }
@@ -351,6 +360,7 @@ function startPlayerTurn(state: BattleState): void {
   state.phase = 'player';
   h.block = 0;
   h.defended = false;
+  h.attacks = 0;
   const ex = getStatus(h, 'exhaust');
   h.sta = Math.max(0, h.maxSta - (ex?.value ?? 0));
   if (ex) removeStatus(h, 'exhaust');
@@ -591,6 +601,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       stats,
       artifacts: socketedArtifacts(hero.weapon, hero.armor),
       defended: false,
+      attacks: 0,
     },
     enemies: [],
     turn: 0,

@@ -46,6 +46,8 @@ export interface DerivedStats {
   crit: number;
   spellPower: number;
   firstTurnSta: number;
+  /** Во сколько раз слабее каждая следующая атака в ходу. */
+  fatigue: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -55,7 +57,7 @@ export type StatMods = Partial<DerivedStats>;
 export type TargetKind = 'enemy' | 'allEnemies' | 'self';
 
 export type Effect =
-  | { type: 'attack'; bonus: number; target: 'enemy' | 'allEnemies' }
+  | { type: 'attack'; bonus: number; target: 'enemy' | 'allEnemies'; /** Доля урона оружия, 1 — полный. */ mult?: number }
   | { type: 'spell'; amount: number; target: 'enemy' | 'allEnemies'; drain?: boolean }
   | { type: 'block'; amount: number }
   | { type: 'heal'; amount: number }
@@ -127,6 +129,8 @@ export interface HeroDef {
   sta: number;
   /** Врождённый шанс крита, 0..1. */
   crit?: number;
+  /** Своя усталость: во сколько раз слабее каждая следующая атака в ходу (по умолчанию 0.75). */
+  fatigue?: number;
   weapon: { name: string; dmgMin: number; dmgMax: number };
   armor: { name: string; def: number; hp: number };
   artifacts: [string, string];
@@ -213,6 +217,8 @@ export interface HeroBattle extends Combatant {
   artifacts: ArtifactInstance[];
   /** «Защититься» уже использовано в этом ходу. */
   defended: boolean;
+  /** Сколько атакующих действий сделано в этом ходу — каждое следующее слабее. */
+  attacks: number;
 }
 
 export interface EnemyState extends Combatant {
@@ -308,7 +314,7 @@ export interface RunStats {
   roomsCleared: number;
 }
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

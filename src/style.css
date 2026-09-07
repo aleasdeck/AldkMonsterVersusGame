@@ -1273,3 +1273,28 @@ p {
   color: var(--dim);
   margin-top: 6px;
 }
+
+/* ─── Карточки-выбор: подсветка на наведении ─────────────────────────── */
+
+.card.pickable {
+  cursor: pointer;
+  transition: transform 90ms, border-color 90ms, box-shadow 90ms;
+}
+.card.pickable:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 0 5px 0 #000, 0 0 18px #ffd16644;
+}
+.card.pickable:active {
+  transform: translateY(-1px);
+}
+.event-loot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0 0;
+  border-top: 1px dotted var(--border);
+}
+.event-card .card-foot {
+  margin-top: auto;
+}

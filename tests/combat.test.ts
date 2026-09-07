@@ -58,6 +58,27 @@ describe('базовые действия', () => {
     expect(state.hero.sta).toBe(2);
   });
 
+  it('каждая следующая атака в ходу слабее', () => {
+    const { state, rng } = mkBattle('warrior', ['bear']);
+    const bear = first(state);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    // 5, floor(5 × 0.75) = 3, floor(5 × 0.5625) = 2
+    expect(bear.hp).toBe(35 - 5 - 3 - 2);
+    // на новом ходу усталость сбрасывается
+    pass(state, rng);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 5 - 3 - 2 - 5);
+  });
+
+  it('берсерк выдыхается медленнее остальных', () => {
+    const w = mkBattle('warrior', ['bear']);
+    const b = mkBattle('berserk', ['bear']);
+    expect(w.state.hero.stats.fatigue).toBe(0.75);
+    expect(b.state.hero.stats.fatigue).toBe(0.88);
+  });
+
   it('защита даёт блок = DEF героя + DEF брони, блок съедает урон врага', () => {
     const { state, rng } = mkBattle('warrior', ['wolf']);
     performAction(state, { type: 'defend' }, rng);
@@ -99,8 +120,7 @@ describe('базовые действия', () => {
   it('убийство всех врагов — победа', () => {
     const { state, rng } = mkBattle('berserk', ['wolf']);
     const uid = first(state).uid;
-    performAction(state, { type: 'attack', target: uid }, rng);
-    performAction(state, { type: 'attack', target: uid }, rng);
+    first(state).hp = 4;
     performAction(state, { type: 'attack', target: uid }, rng);
     expect(state.enemies.length).toBe(0);
     expect(state.phase).toBe('won');
@@ -377,7 +397,8 @@ describe('мана и артефакты', () => {
   it('вихрь бьёт всех', () => {
     const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], { extra: [{ id: 'whirlwind', tier: 1 }] });
     performAction(state, { type: 'artifact', artifactId: 'whirlwind' }, rng);
-    expect(state.enemies.every((e) => e.hp === 7)).toBe(true);
+    // вихрь бьёт вполсилы: floor(5 × 0.6) = 3
+    expect(state.enemies.every((e) => e.hp === 9)).toBe(true);
   });
 
   it('у плута врождённый крит складывается с талисманом', () => {

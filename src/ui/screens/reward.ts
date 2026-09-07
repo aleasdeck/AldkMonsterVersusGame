@@ -3,7 +3,7 @@ import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
 import { findSameArtifact, gearOf, socketRefs } from '../../engine/equipment';
 import { currentLocation } from '../../engine/run';
-import { artifactCard, gearCard, heroPanel, pendingModal } from '../components';
+import { artifactCard, gearCard, heroPanel, pendingModal, pickable } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import type { ArtTier } from '../../engine/types';
 import type { App } from '../app';
@@ -24,13 +24,13 @@ export function rewardScreen(app: App): HTMLElement {
           note = `Улучшит стоящий до тира ${nextTier}: ${artifactDef(item.artifact.id).describe(nextTier)}`;
         }
       } else note = free ? 'Встанет в свободный слот' : 'Свободных слотов нет — придётся заменить';
-      return artifactCard(
-        item.artifact,
-        h('div', null, h('div', { class: 'note' }, note), button('Взять', () => app.takeReward(i), { class: 'primary' })),
+      return pickable(
+        artifactCard(item.artifact, h('div', null, h('div', { class: 'note' }, note), button('Взять', () => app.takeReward(i), { class: 'primary' }))),
+        () => app.takeReward(i),
       );
     }
     const cur = gearOf(run.hero, item.gear.kind);
-    return gearCard(item.gear, cur, button('Надеть', () => app.takeReward(i), { class: 'primary' }));
+    return pickable(gearCard(item.gear, cur, button('Надеть', () => app.takeReward(i), { class: 'primary' })), () => app.takeReward(i));
   });
 
   return h(

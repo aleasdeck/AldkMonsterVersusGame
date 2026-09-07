@@ -14,6 +14,8 @@ function applyMods(s: DerivedStats, m: StatMods): void {
   }
 }
 
+export const DEFAULT_FATIGUE = 0.75;
+
 export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInstance): DerivedStats {
   const s: DerivedStats = {
     maxHp: def.hp + armor.hp,
@@ -30,6 +32,7 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     crit: def.crit ?? 0,
     spellPower: 0,
     firstTurnSta: 0,
+    fatigue: def.fatigue ?? DEFAULT_FATIGUE,
   };
   applyMods(s, affixMods(weapon));
   applyMods(s, affixMods(armor));

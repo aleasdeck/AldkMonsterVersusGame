@@ -3,7 +3,7 @@ import { HERO_LIST } from '../../data/heroes';
 import { makeStartingGear } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
-import { artifactChip, statsGrid } from '../components';
+import { artifactChip, pickable, statsGrid } from '../components';
 import { spriteImg } from '../sprites';
 import type { App } from '../app';
 
@@ -20,7 +20,8 @@ export function heroSelectScreen(app: App): HTMLElement {
   const cards = HERO_LIST.map((def) => {
     const gear = makeStartingGear(def);
     const s = computeStats(def, gear.weapon, gear.armor);
-    return h(
+    return pickable(
+      h(
       'div',
       { class: 'card hero-card' },
       h('div', { class: 'hero-card-top' }, spriteImg(def.sprite, def.id, 64), h('div', { class: 'card-name' }, def.name)),
@@ -30,6 +31,8 @@ export function heroSelectScreen(app: App): HTMLElement {
       h('div', { class: 'card-sub' }, `${def.weapon.name} · ${def.armor.name}`),
       h('div', { class: 'slots' }, ...def.artifacts.map((id) => artifactChip({ id, tier: 1 }))),
       button('Выбрать', () => start(def.id), { class: 'primary' }),
+      ),
+      () => start(def.id),
     );
   });
 

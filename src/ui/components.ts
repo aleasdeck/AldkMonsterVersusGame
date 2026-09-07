@@ -62,6 +62,21 @@ export function collectibleCard(c: Collectible): HTMLElement {
   );
 }
 
+/**
+ * Карточка-выбор: подсветка на наведении и клик по всей площади.
+ * Клик по кнопке внутри не дублируется — он обрабатывается своим обработчиком.
+ */
+export function pickable(el: HTMLElement, onclick?: () => void): HTMLElement {
+  el.classList.add('pickable');
+  if (onclick) {
+    el.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('button')) return;
+      onclick();
+    });
+  }
+  return el;
+}
+
 export function tierBadge(tier: GearTier): HTMLElement {
   const info = GEAR_TIERS[tier];
   return h('span', { class: 'tier', style: `color:${info.color};border-color:${info.color}` }, `${info.name} · ${tier}`);
@@ -157,6 +172,7 @@ export function statsGrid(s: DerivedStats): HTMLElement {
     row('DEF', `${s.def}`, 'Блок за «Защититься»'),
     row('STA', `${s.sta}${s.firstTurnSta ? ` (+${s.firstTurnSta})` : ''}`, 'Очки действий за ход'),
     row('MP', `${s.maxMp}${s.mpRegen ? ` (+${s.mpRegen})` : ''}`, 'Мана и реген за ход'),
+    row('Устал.', `−${Math.round((1 - s.fatigue) * 100)}%`, 'На столько слабее каждая следующая атака в этом ходу'),
     s.crit ? row('Крит', `${Math.round(s.crit * 100)} %`, 'Шанс двойного урона атак') : null,
     s.spellPower ? row('Закл.', `+${s.spellPower}`, 'Бонус к урону заклинаний') : null,
     s.thorns ? row('Шипы', `${s.thorns}`, 'Урон атакующему') : null,

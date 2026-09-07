@@ -1,6 +1,6 @@
 import type { ArtTier, ArtifactInstance, EventOption, GearInstance, GearKind, GearTier, HeroPersistent, LootItem, RewardScreen } from './types';
 import { chance, pick, type Rng } from './rng';
-import { ARTIFACT_IDS, artifactDef } from '../data/artifacts';
+import { ARTIFACT_IDS } from '../data/artifacts';
 import { makeGear } from '../data/gear';
 import type { LocationDef } from '../data/locations';
 import { isMaxed } from './equipment';
@@ -82,10 +82,10 @@ export function rollEvent(rng: Rng, hero: HeroPersistent, loc: LocationDef): Eve
     opts.push({
       id: 'altar',
       title: 'Алтарь',
-      desc: `Потерять 10 % максимального HP и получить артефакт: ${artifactDef(art.id).name} (тир ${art.tier}).`,
+      desc: 'Потерять 10 % максимального HP и забрать артефакт.',
       artifact: art,
     });
   }
-  opts.push({ id: 'chest', title: 'Сундук', desc: `Внутри экипировка: ${gear.name}.`, gear });
+  opts.push({ id: 'chest', title: 'Сундук', desc: 'Экипировка: наденется сразу, старый предмет пропадёт.', gear });
   return opts;
 }

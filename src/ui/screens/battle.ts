@@ -89,7 +89,8 @@ function actionBar(app: App): HTMLElement {
       '1 STA',
       canUseAction(b, atk),
       busy,
-      'Базовая атака: случайный урон из разброса оружия + Сила',
+      `Базовая атака: случайный урон из разброса оружия + Сила.
+Каждая следующая атака в этом ходу бьёт на 25 % слабее (сделано: ${b.hero.attacks})`,
       () => app.battleAction(atk),
     ),
   );
@@ -109,7 +110,7 @@ function actionBar(app: App): HTMLElement {
     let value = ad.describe(inst.tier);
     if (atkEff && atkEff.type === 'attack') {
       const extra = effects.some((e) => e.type === 'status') ? ' + эффект' : '';
-      value = `${rangeText(previewAttack(b, atkEff.bonus))} урона${atkEff.target === 'allEnemies' ? ' всем' : ''}${extra}`;
+      value = `${rangeText(previewAttack(b, atkEff.bonus, atkEff.mult))} урона${atkEff.target === 'allEnemies' ? ' всем' : ''}${extra}`;
     }
     const total = ad.cooldown?.(inst.tier) ?? 0;
     buttons.push(
