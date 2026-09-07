@@ -2,7 +2,7 @@ import { button, h, type Child } from './dom';
 import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, GearTier, RunState, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
-import { ART_TIER_COLORS, GEAR_TIERS, MASTERY_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, gearStatText, weaponPerkText, weaponType } from '../data/gear';
+import { ART_TIER_COLORS, GEAR_TIERS, MASTERY_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, gearStatText, weaponPerkText, weaponType, weaponTypeTitle } from '../data/gear';
 import type { Collectible } from '../data/collection';
 import { heroDef } from '../data/heroes';
 import { heroStats } from '../engine/run';
@@ -131,26 +131,44 @@ export function slotsRow(gear: GearInstance): HTMLElement {
  * Карточка предмета. С героем оружие показывает кубик в его руках (владение) и перки;
  * `current` — что надето сейчас, для сравнения.
  */
-export function gearCard(gear: GearInstance, opts: { def?: HeroDef; current?: GearInstance; footer?: Child } = {}): HTMLElement {
+/** Иконка типа оружия у бейджа тира. С героем окрашена по владению: зелёный мастер, жёлтый знаком, красный чужое. */
+export function weaponTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
+  const type = weaponType(gear);
+  const cls = def ? `mastery-${def.mastery[type]}` : '';
+  return h('span', { class: `wtype-icon ${cls}`.trim(), title: weaponTypeTitle(gear, def) }, WEAPON_TYPE_GLYPHS[type]);
+}
+
+export function gearCard(gear: GearInstance, opts: { def?: HeroDef; current?: GearInstance; footer?: Child; compact?: boolean } = {}): HTMLElement {
   const info = GEAR_TIERS[gear.tier];
-  const { def, current, footer } = opts;
+  const { def, current, footer, compact } = opts;
   const isWeapon = gear.kind === 'weapon';
+  const glyph = h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨');
+  const name = h('span', { class: 'card-name' }, gear.name);
+  const typeIcon = isWeapon ? weaponTypeIcon(gear, def) : null;
+  if (compact) {
+    // Панель героя: тир и тип в строке с названием, перк короткий, слоты внизу — панель обязана влезать в кадр без прокрутки.
+    return h(
+      'div',
+      { class: 'card gear-card compact', style: `border-color:${info.color}` },
+      h('div', { class: 'card-head' }, glyph, name, tierBadge(gear.tier), typeIcon),
+      h('div', { class: 'card-desc' }, gearStatText(gear, def)),
+      isWeapon ? h('div', { class: 'card-perk' }, weaponPerkText(gear)) : null,
+      slotsRow(gear),
+    );
+  }
+  // Число слотов не пишем: его видно по чипам ниже.
   return h(
     'div',
     { class: 'card gear-card', style: `border-color:${info.color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? WEAPON_TYPE_GLYPHS[weaponTypeOf(gear)] : '⛨'), h('span', { class: 'card-name' }, gear.name)),
-    h('div', { class: 'card-sub' }, tierBadge(gear.tier), isWeapon ? h('span', { class: 'wtype' }, WEAPON_TYPE_NAMES[weaponTypeOf(gear)]) : null),
-    h('div', { class: 'card-desc' }, `${gearStatText(gear, def)} · слотов: ${gear.slots.length}`),
+    h('div', { class: 'card-head' }, glyph, name),
+    h('div', { class: 'card-sub' }, tierBadge(gear.tier), typeIcon),
+    h('div', { class: 'card-desc' }, gearStatText(gear, def)),
     isWeapon ? h('div', { class: 'card-perk' }, weaponPerkText(gear)) : null,
     slotsRow(gear),
-    current
-      ? h('div', { class: 'card-compare' }, `Сейчас: ${current.name} — ${gearStatText(current, def)}, слотов: ${current.slots.length}`)
-      : null,
+    current ? h('div', { class: 'card-compare' }, `Сейчас: ${current.name} — ${gearStatText(current, def)}`) : null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
 }
-
-const weaponTypeOf = weaponType;
 
 /** Строка владения героя: «⚔ Мастер · ➶ Знаком · ✦ Чужое». */
 export function masteryLine(def: HeroDef): HTMLElement {
@@ -218,12 +236,12 @@ export function heroPanel(run: RunState): HTMLElement {
       'div',
       { class: 'hero-head' },
       spriteImg(def.sprite, def.id, 64),
-      h('div', null, h('div', { class: 'name' }, def.name, goldBadge(run.gold)), bar('hp', run.hero.hp, s.maxHp, 'HP')),
+      h('div', null, h('div', { class: 'name-row' }, h('div', { class: 'name' }, def.name), goldBadge(run.gold)), bar('hp', run.hero.hp, s.maxHp, 'HP')),
     ),
     statsGrid(s),
     masteryLine(def),
-    gearCard(run.hero.weapon, { def }),
-    gearCard(run.hero.armor),
+    gearCard(run.hero.weapon, { def, compact: true }),
+    gearCard(run.hero.armor, { compact: true }),
   );
 }
 
