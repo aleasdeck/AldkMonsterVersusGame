@@ -231,10 +231,23 @@ p {
 }
 /* Иконка типа оружия у бейджа тира; цвет — владение героя (классы mastery-*). */
 .wtype-icon {
-  font-size: 18px;
+  font-size: 15px;
   line-height: 1;
   color: var(--dim);
   cursor: help;
+}
+.tier .wtype-icon {
+  font-size: 14px;
+}
+/* Цвет владения должен перебивать и серый по умолчанию, и цвет тира на бейдже. */
+.wtype-icon.mastery-master {
+  color: #8ce99a;
+}
+.wtype-icon.mastery-trained {
+  color: #ffd166;
+}
+.wtype-icon.mastery-foreign {
+  color: #ff8787;
 }
 .card-perk {
   font-size: 15px;

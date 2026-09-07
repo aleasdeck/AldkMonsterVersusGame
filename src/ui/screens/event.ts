@@ -3,7 +3,6 @@ import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
 import { gearStatText, weaponPerkText } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
-import { gearOf } from '../../engine/equipment';
 import { currentLocation } from '../../engine/run';
 import { artifactChip, heroPanel, pendingModal, pickable, tierBadge, weaponTypeIcon } from '../components';
 import { backgroundStyle } from '../backgrounds';
@@ -27,16 +26,14 @@ function contents(app: App, o: EventOption): HTMLElement | null {
   }
   if (o.id === 'chest') {
     const def = heroDef(run.hero.defId);
-    const cur = gearOf(run.hero, o.gear.kind);
     return h(
       'div',
       { class: 'event-loot' },
-      h('div', { class: 'card-sub' }, tierBadge(o.gear.tier), o.gear.kind === 'weapon' ? weaponTypeIcon(o.gear, def) : null),
+      h('div', { class: 'card-sub' }, tierBadge(o.gear.tier, o.gear.kind === 'weapon' ? weaponTypeIcon(o.gear, def) : null)),
       h('div', { class: 'card-desc' }, o.gear.name),
       h('div', { class: 'note' }, gearStatText(o.gear, def)),
       o.gear.kind === 'weapon' ? h('div', { class: 'card-perk' }, weaponPerkText(o.gear)) : null,
       h('div', { class: 'slots' }, ...o.gear.slots.map(() => artifactChip(null))),
-      h('div', { class: 'card-compare' }, `Сейчас: ${cur.name} — ${gearStatText(cur, def)}`),
     );
   }
   return null;
@@ -68,7 +65,12 @@ export function eventScreen(app: App): HTMLElement {
       'div',
       { class: 'body' },
       heroPanel(run),
-      h('div', { class: 'main', style: backgroundStyle(loc.id, 0.78) }, h('h2', null, 'Три двери'), h('p', { class: 'dim' }, 'Открыть можно только одну.'), h('div', { class: 'cards' }, ...cards)),
+      h(
+        'div',
+        { class: 'main', style: backgroundStyle(loc.id, 0.78) },
+        h('div', { class: 'title-row' }, h('h2', null, 'Три двери'), h('p', { class: 'dim' }, 'Открыть можно только одну.')),
+        h('div', { class: 'cards' }, ...cards),
+      ),
     ),
     pendingModal(app),
   );
