@@ -18,7 +18,7 @@ import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
-import { artifactDef } from '../data/artifacts';
+import { artifactCost, artifactDef } from '../data/artifacts';
 import { computeStats, socketedArtifacts } from './stats';
 
 export const STATUS_NAMES: Record<StatusId, string> = {
@@ -32,6 +32,8 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   thorns: 'Шипы',
   regen: 'Регенерация',
   invuln: 'Неуязвимость',
+  poison: 'Яд',
+  stealth: 'Скрытность',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -45,6 +47,8 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   thorns: 'Атакующий получает N урона',
   regen: '+N HP в начале хода',
   invuln: 'Не получает урона',
+  poison: 'N урона в начале хода, игнорирует блок',
+  stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит, снимает скрытность',
 };
 
 // ─── Статусы ───────────────────────────────────────────────────────────────
@@ -74,7 +78,7 @@ function removeStatus(c: Combatant, id: StatusId): void {
   c.statuses = c.statuses.filter((s) => s.id !== id);
 }
 
-const STACKING: StatusId[] = ['strength', 'thorns', 'regen', 'bleed', 'burn', 'dodge'];
+const STACKING: StatusId[] = ['strength', 'thorns', 'regen', 'bleed', 'burn', 'poison', 'dodge'];
 
 function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: StatusId, value: number, turns: number): void {
   const ex = getStatus(c, id);
@@ -168,6 +172,11 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
   const h = state.hero;
   let rest = Math.max(0, amount);
   if (kind === 'hit') {
+    if (getStatus(h, 'stealth')) {
+      state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
+      log(state, 'Враг не видит героя');
+      return 0;
+    }
     if (getStatus(h, 'invuln')) {
       state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
       return 0;
@@ -322,6 +331,13 @@ function cleanupDead(state: BattleState, rng: Rng): void {
 
 // ─── Герой ─────────────────────────────────────────────────────────────────
 
+/** Любой урон от героя выдаёт его: скрытность спадает после удара или заклинания. */
+function breakStealth(state: BattleState): void {
+  if (!getStatus(state.hero, 'stealth')) return;
+  removeStatus(state.hero, 'stealth');
+  log(state, 'Герой выходит из тени');
+}
+
 /** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя. */
 export function fatigueMult(state: BattleState): number {
   return state.hero.stats.fatigue ** state.hero.attacks;
@@ -335,8 +351,10 @@ function firstHitBonus(state: BattleState): number {
 function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false): { dmg: number; crit: boolean } {
   const h = state.hero;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
-  let dmg = Math.floor((roll + h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state)) * mult * fatigueMult(state));
-  const crit = sureCrit || (h.stats.crit > 0 && chance(rng, h.stats.crit));
+  const stealthed = !!getStatus(h, 'stealth');
+  const flat = h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0);
+  let dmg = Math.floor((roll + flat) * mult * fatigueMult(state));
+  const crit = sureCrit || stealthed || (h.stats.crit > 0 && chance(rng, h.stats.crit));
   if (crit) dmg *= h.stats.critMult;
   if (getStatus(h, 'weak')) dmg = Math.floor(dmg * 0.75);
   return { dmg: Math.max(0, dmg), crit };
@@ -384,7 +402,7 @@ export interface DamageRange {
 /** Предпросмотр разброса урона атаки без крита — для интерфейса. */
 export function previewAttack(state: BattleState, bonus = 0, mult = 1): DamageRange {
   const h = state.hero;
-  const flat = h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state);
+  const flat = h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state) + (getStatus(h, 'stealth') ? h.stats.backstab : 0);
   const scale = mult * fatigueMult(state);
   let min = Math.floor((h.stats.dmgMin + flat) * scale);
   let max = Math.floor((h.stats.dmgMax + flat) * scale);
@@ -418,8 +436,9 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if (!inst) return 'Артефакт не вставлен';
       const cd = h.cooldowns[def.id] ?? 0;
       if (cd > 0) return `Перезарядка: ${cd}`;
-      if ((def.cost?.sta ?? 0) > h.sta) return 'Нет стамины';
-      if ((def.cost?.mp ?? 0) > h.mp) return 'Нет маны';
+      const cost = artifactCost(def, inst.tier);
+      if (cost.sta === 'all' ? h.sta < Math.max(1, h.maxSta) : (cost.sta ?? 0) > h.sta) return cost.sta === 'all' ? 'Нужна вся стамина' : 'Нет стамины';
+      if ((cost.mp ?? 0) > h.mp) return 'Нет маны';
       if (def.target === 'enemy' && !findEnemy(state, action.target ?? -1)) return 'Нет цели';
       if (state.allies.length >= MAX_ALLIES && def.effects?.(inst.tier).some((e) => e.type === 'summon')) return 'Рядом нет места';
       for (const eff of def.effects?.(inst.tier) ?? []) {
@@ -494,6 +513,7 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     h.attacks += 1;
     log(state, `Герой бьёт ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
     if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal);
+    breakStealth(state);
   } else if (action.type === 'defend') {
     h.sta -= 1;
     h.defended = true;
@@ -504,14 +524,16 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   } else {
     const def = artifactDef(action.artifactId);
     const inst = h.artifacts.find((a) => a.id === def.id)!;
-    h.sta -= def.cost?.sta ?? 0;
-    h.mp -= def.cost?.mp ?? 0;
+    const cost = artifactCost(def, inst.tier);
+    h.sta = cost.sta === 'all' ? 0 : h.sta - (cost.sta ?? 0);
+    h.mp -= cost.mp ?? 0;
     const cd = def.cooldown?.(inst.tier) ?? 0;
     if (cd > 0) h.cooldowns[def.id] = cd;
     log(state, `Герой: ${def.name}`);
     const effects = def.effects?.(inst.tier) ?? [];
     for (const eff of effects) applyEffect(state, eff, action.target, rng);
     if (effects.some((e) => e.type === 'attack')) h.attacks += 1;
+    if (effects.some((e) => e.type === 'attack' || e.type === 'spell')) breakStealth(state);
   }
   cleanupDead(state, rng);
 }
@@ -533,7 +555,7 @@ function startPlayerTurn(state: BattleState): void {
   log(state, `— Ход ${state.turn} —`);
   const regen = h.stats.regen + statusValue(h, 'regen');
   if (regen > 0) healHero(state, regen);
-  const dot = statusValue(h, 'bleed') + statusValue(h, 'burn');
+  const dot = statusValue(h, 'bleed') + statusValue(h, 'burn') + statusValue(h, 'poison');
   if (dot > 0) {
     log(state, `Герой теряет ${dot} HP от ран`);
     damageHero(state, dot, 'dot');
@@ -668,10 +690,18 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       break;
     }
     case 'debuff':
+      if (getStatus(h, 'stealth')) {
+        log(state, `${e.name} не видит героя`);
+        break;
+      }
       addStatus(state, h, 'hero', eff.status, isDot(eff.status) ? scaled(e.dmgMult, eff.value) : eff.value, eff.turns);
       log(state, `На героя наложено: ${STATUS_NAMES[eff.status]}`);
       break;
     case 'drainMp': {
+      if (getStatus(h, 'stealth')) {
+        log(state, `${e.name} не видит героя`);
+        break;
+      }
       const drained = Math.min(h.mp, eff.amount);
       h.mp -= drained;
       log(state, `Герой теряет ${drained} маны`);
@@ -709,7 +739,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
 function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   const def = enemyDef(e.defId);
   e.block = 0;
-  const dot = statusValue(e, 'bleed') + statusValue(e, 'burn');
+  const dot = statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison');
   if (dot > 0) {
     log(state, `${e.name} теряет ${dot} HP от ран`);
     damageEnemy(state, e, dot, 'dot');
@@ -801,6 +831,8 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
   for (const id of enemyIds) spawnEnemy(state, id, rng, false);
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
   if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
+  // Тень покрова: герой входит в бой невидимым.
+  if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
   startPlayerTurn(state);
   return state;
 }

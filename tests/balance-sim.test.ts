@@ -76,7 +76,9 @@ function playBattle(run: RunState): void {
       lastTurn = b.turn;
     }
     const target = pickTarget(b);
-    const incoming = incomingDamage(b);
+    // Скрытность переживёт этот ход врагов — сидим в тени: враги промахнутся, атаковать рано (удар снимет скрытность).
+    const hidden = (getStatus(b.hero, 'stealth')?.turns ?? 0) > 1;
+    const incoming = hidden ? 0 : incomingDamage(b);
     const ok = (id: string) => canUseAction(b, { type: 'artifact', artifactId: id, target }) === null && !used.has(id);
     const has = (id: string) => b.hero.artifacts.some((a) => a.id === id);
 
@@ -95,6 +97,12 @@ function playBattle(run: RunState): void {
       useArt(run, 'mana_shield');
       continue;
     }
+    // Дымовая шашка — как уклонение: уйти в тень, когда бьют ощутимо и герой ещё не скрыт.
+    if (has('smoke_bomb') && ok('smoke_bomb') && !getStatus(b.hero, 'stealth') && incoming >= 6) {
+      used.add('smoke_bomb');
+      useArt(run, 'smoke_bomb');
+      continue;
+    }
     if (has('dodge') && ok('dodge') && incoming >= 6) {
       used.add('dodge');
       useArt(run, 'dodge');
@@ -111,17 +119,21 @@ function playBattle(run: RunState): void {
       useArt(run, 'rage');
       continue;
     }
-    const skip = new Set(['heal', 'second_wind', 'mana_shield', 'dodge', 'rage']);
+    const skip = new Set(['heal', 'second_wind', 'mana_shield', 'dodge', 'rage', 'smoke_bomb']);
     const usable = b.hero.artifacts.find((a) => artifactDef(a.id).kind === 'active' && !skip.has(a.id) && ok(a.id));
     if (usable) {
       used.add(usable.id);
       // Кровотечение — по самому жирному врагу, остальное — по слабейшему
       const fat = b.enemies.reduce((m, e) => (e.hp > m.hp ? e : m), b.enemies[0]);
-      const t = usable.id === 'bleed_cut' && fat ? fat.uid : target;
+      const t = (usable.id === 'bleed_cut' || usable.id === 'poison_vial') && fat ? fat.uid : target;
       useArt(run, usable.id, t);
       continue;
     }
-    if (target !== undefined && canUseAction(b, { type: 'attack', target }) === null) battleAction(run, { type: 'attack', target });
+    if (hidden && has('poison_vial') && canUseAction(b, { type: 'artifact', artifactId: 'poison_vial', target }) === null) {
+      const fat = b.enemies.reduce((m, e) => (e.hp > m.hp ? e : m), b.enemies[0]);
+      useArt(run, 'poison_vial', fat?.uid ?? target);
+    } else if (hidden) battleEndTurn(run);
+    else if (target !== undefined && canUseAction(b, { type: 'attack', target }) === null) battleAction(run, { type: 'attack', target });
     else battleEndTurn(run);
   }
   finishBattle(run);

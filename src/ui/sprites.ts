@@ -87,6 +87,15 @@ const HEADS: Record<string, string[]> = {
     '....osssssso....',
     '.....oooooo..w..',
   ],
+  mask: [
+    '................',
+    '.....oooooo.....',
+    '....ohhhhhho....',
+    '....ohhhhhho....',
+    '....ohesseho....',
+    '....ohhhhhho....',
+    '.....oooooo..w..',
+  ],
   crown: [
     '....w.w..w.w....',
     '....wwwwwwww....',

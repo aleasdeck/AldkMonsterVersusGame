@@ -126,6 +126,26 @@ const list: HeroDef[] = [
       palette: { ...base, s: '#f1c27d', h: '#2d6a4f', b: '#588157', l: '#5c4033', w: '#e9c46a' },
     },
   },
+  {
+    id: 'assassin',
+    name: 'Ассасин',
+    role: 'Входит в бой в тени: враги его не видят, а любая атака из скрытности — удар в спину, всегда крит. Дымовая шашка возвращает в тень, яд не выдаёт.',
+    hp: 34,
+    def: 4,
+    mp: 3,
+    mpRegen: 1,
+    sta: 3,
+    mastery: { melee: 'master', ranged: 'trained', magic: 'foreign' },
+    armorSkill: { heavy: false, medium: false, light: true },
+    weapon: { base: 'stiletto', name: 'Стилет', dmgMin: 4, dmgMax: 6 },
+    armor: { base: 'shroud', name: 'Тёмный покров', def: 0, hp: 0 },
+    artifacts: ['smoke_bomb', 'poison_vial'],
+    sprite: {
+      type: 'humanoid',
+      head: 'mask',
+      palette: { ...base, s: '#e8b88a', h: '#1f1f2e', b: '#2b2d42', l: '#1b1b2a', w: '#8d99ae' },
+    },
+  },
 ];
 
 export const HEROES: Record<string, HeroDef> = Object.fromEntries(list.map((h) => [h.id, h]));

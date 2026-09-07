@@ -613,3 +613,48 @@ describe('перки брони', () => {
     expect(state.hero.sta).toBe(state.hero.maxSta);
   });
 });
+
+describe('ассасин: скрытность', () => {
+  it('входит в бой в тени: враг промахивается, удар из тени — крит с бонусом стилета и снимает скрытность', () => {
+    const { state, rng } = mkBattle('assassin', ['bear']);
+    expect(getStatus(state.hero, 'stealth')?.turns).toBe(2);
+    const hp = state.hero.hp;
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hp);
+    expect(getStatus(state.hero, 'stealth')?.turns).toBe(1);
+    const bear = first(state);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    // стилет 5, Удар в спину +3, крит ×2
+    expect(bear.hp).toBe(35 - 16);
+    expect(getStatus(state.hero, 'stealth')).toBeUndefined();
+  });
+
+  it('дымовая шашка съедает всю стамину на 1 тире и стоит 1 STA на 3 тире', () => {
+    const t1 = mkBattle('rogue', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
+    performAction(t1.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t1.rng);
+    expect(t1.state.hero.sta).toBe(0);
+    expect(getStatus(t1.state.hero, 'stealth')?.turns).toBe(2);
+    const t3 = mkBattle('rogue', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 3 }] });
+    performAction(t3.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t3.rng);
+    expect(t3.state.hero.sta).toBe(2);
+    expect(getStatus(t3.state.hero, 'stealth')?.turns).toBe(3);
+  });
+
+  it('яд тикает в начале хода врага и бросок не выдаёт героя', () => {
+    const { state, rng } = mkBattle('assassin', ['bear']);
+    const bear = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'poison_vial', target: bear.uid }, rng);
+    expect(getStatus(bear, 'poison')).toMatchObject({ value: 2, turns: 4 });
+    expect(getStatus(state.hero, 'stealth')).toBeDefined();
+    const hp = state.hero.hp;
+    pass(state, rng);
+    expect(bear.hp).toBe(35 - 2);
+    expect(state.hero.hp).toBe(hp);
+  });
+
+  it('шашка первого тира требует полной стамины', () => {
+    const { state, rng } = mkBattle('rogue', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'smoke_bomb' })).toMatch(/вся стамина/);
+  });
+});

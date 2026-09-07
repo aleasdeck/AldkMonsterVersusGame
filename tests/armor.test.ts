@@ -23,14 +23,14 @@ function mkBattle(heroId: string, a: GearInstance, enemies: string[]) {
 }
 
 describe('типы брони и умение носить', () => {
-  it('у каждой выпадающей базы брони есть тип и перк, типов три, по две базы на тип', () => {
+  it('у каждой выпадающей базы брони есть тип и перк, типов три: две тяжёлых, две средних, три лёгких', () => {
     const count: Record<ArmorType, number> = { heavy: 0, medium: 0, light: 0 };
     for (const b of dropBases('armor')) {
       expect(b.armorType).toBeDefined();
       expect(b.perk).toBeDefined();
       count[b.armorType!]++;
     }
-    expect(count).toEqual({ heavy: 2, medium: 2, light: 2 });
+    expect(count).toEqual({ heavy: 2, medium: 2, light: 3 });
     expect(armorType(armor('plate'))).toBe('heavy');
     expect(armorType(armor('shell'))).toBe('medium');
     expect(armorType(armor('cloak'))).toBe('light');

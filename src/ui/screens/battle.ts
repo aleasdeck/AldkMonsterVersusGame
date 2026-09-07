@@ -3,7 +3,7 @@ import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
-import { canUseAction, computeIntent, previewAttack, rangeText } from '../../engine/combat';
+import { canUseAction, computeIntent, getStatus, previewAttack, rangeText } from '../../engine/combat';
 import { goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, Combatant, EnemyState, PlayerAction } from '../../engine/types';
@@ -94,11 +94,14 @@ function actionBar(app: App): HTMLElement {
   const busy = app.busy || b.phase !== 'player';
   const buttons: HTMLElement[] = [];
 
+  // Из скрытности любая атака — удар в спину: гарантированный крит.
+  const stealthed = !!getStatus(b.hero, 'stealth');
+  const critX = (r: { min: number; max: number }) => ({ min: r.min * b.hero.stats.critMult, max: r.max * b.hero.stats.critMult });
   const atk: PlayerAction = { type: 'attack', target };
   buttons.push(
     actionButton(
-      '⚔ Ударить',
-      `${rangeText(previewAttack(b))} урона`,
+      stealthed ? '⚔ Удар в спину' : '⚔ Ударить',
+      `${rangeText(stealthed ? critX(previewAttack(b)) : previewAttack(b))} урона${stealthed ? ' (крит)' : ''}`,
       '1 STA',
       canUseAction(b, atk),
       busy,
@@ -124,15 +127,15 @@ function actionBar(app: App): HTMLElement {
     if (atkEff && atkEff.type === 'attack') {
       const extra = effects.some((e) => e.type === 'status') ? ' + эффект' : '';
       const r = previewAttack(b, atkEff.bonus, atkEff.mult);
-      const range = atkEff.sureCrit ? { min: r.min * 2, max: r.max * 2 } : r;
-      value = `${rangeText(range)} урона${atkEff.target === 'allEnemies' ? ' всем' : ''}${atkEff.sureCrit ? ' (крит)' : ''}${extra}`;
+      const crit = atkEff.sureCrit || stealthed;
+      value = `${rangeText(crit ? critX(r) : r)} урона${atkEff.target === 'allEnemies' ? ' всем' : ''}${crit ? ' (крит)' : ''}${extra}`;
     }
     const total = ad.cooldown?.(inst.tier) ?? 0;
     buttons.push(
       actionButton(
         `${ad.glyph} ${ad.name}`,
         value,
-        artifactCostText(ad),
+        artifactCostText(ad, inst.tier),
         canUseAction(b, action),
         busy,
         `${ad.name}, тир ${inst.tier}\n${ad.describe(inst.tier)}${total ? `\nПерезарядка: ${total} хода(ов)` : ''}`,

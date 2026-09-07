@@ -998,6 +998,14 @@ p {
   border-color: #c0c0c0;
   color: #c0c0c0;
 }
+.status-poison {
+  border-color: #7ddc5a;
+  color: #7ddc5a;
+}
+.status-stealth {
+  border-color: #9aa6c8;
+  color: #9aa6c8;
+}
 .status-regen {
   border-color: var(--good);
   color: var(--good);

@@ -27,7 +27,9 @@ export type StatusId =
   | 'dodge' // следующие value атак не наносят урона
   | 'thorns' // атакующий получает value урона
   | 'regen' // +value HP в начале хода
-  | 'invuln'; // не получает урона, turns ходов
+  | 'invuln' // не получает урона, turns ходов
+  | 'poison' // value урона в начале хода, turns ходов; яд ассасина
+  | 'stealth'; // враги не видят героя; любая атака — удар в спину (крит) и снимает статус (только герой)
 
 export interface Status {
   id: StatusId;
@@ -87,6 +89,10 @@ export interface DerivedStats {
   blockOnSpell: number;
   /** Уклонений в начале боя: первые N атак врага промахиваются. */
   dodgeStart: number;
+  /** Скрытности в начале боя, ходов (покров). */
+  stealthStart: number;
+  /** Бонус урона удара из скрытности (стилет). */
+  backstab: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -107,13 +113,19 @@ export type Effect =
   /** Герой ранит себя: мимо блока и защиты. Нельзя применить, если HP не больше amount. */
   | { type: 'selfDamage'; amount: number };
 
+export interface ArtifactCost {
+  sta?: number | 'all';
+  mp?: number;
+}
+
 export interface ArtifactDef {
   id: string;
   name: string;
   glyph: string;
   kind: 'passive' | 'active';
   school?: 'physical' | 'magic';
-  cost?: { sta?: number; mp?: number };
+  /** Цена: число или вся стамина ('all' — нужна полная, уходит целиком); может зависеть от тира. */
+  cost?: ArtifactCost | ((tier: ArtTier) => ArtifactCost);
   cooldown?: (tier: ArtTier) => number;
   target?: TargetKind;
   effects?: (tier: ArtTier) => Effect[];
@@ -155,7 +167,7 @@ export interface GearInstance {
 
 // ─── Спрайты ───────────────────────────────────────────────────────────────
 
-export type HeadStyle = 'helmet' | 'hat' | 'hood' | 'plume' | 'horns' | 'bare' | 'skull' | 'crown' | 'cap';
+export type HeadStyle = 'helmet' | 'hat' | 'hood' | 'plume' | 'horns' | 'bare' | 'skull' | 'crown' | 'cap' | 'mask';
 
 export type SpriteSpec =
   | { type: 'humanoid'; head: HeadStyle; palette: Record<string, string> }

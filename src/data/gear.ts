@@ -170,6 +170,14 @@ export const WEAPON_BASES: Base[] = [
     perk: { name: 'Точный', mods: () => ({ crit: 0.1 }), text: () => '+10 % шанс крита' },
   },
   {
+    id: 'stiletto',
+    name: 'стилет',
+    g: 0,
+    spread: 'narrow',
+    type: 'melee',
+    perk: { name: 'Удар в спину', mods: (t) => ({ backstab: byTier([3, 3, 4, 5, 6])(t) }), text: (t) => `удар из скрытности +${byTier([3, 3, 4, 5, 6])(t)} урона` },
+  },
+  {
     id: 'spear',
     name: 'копьё',
     g: 2,
@@ -320,6 +328,17 @@ export const ARMOR_BASES: Base[] = [
       name: 'Скрытность',
       mods: (t) => ({ dodgeStart: byTier([1, 1, 1, 2, 2])(t) }),
       text: (t) => (byTier([1, 1, 1, 2, 2])(t) === 1 ? 'первая атака врага в бою промахивается' : `первые ${byTier([1, 1, 1, 2, 2])(t)} атаки врага в бою промахиваются`),
+    },
+  },
+  {
+    id: 'shroud',
+    name: 'покров',
+    g: 0,
+    armorType: 'light',
+    perk: {
+      name: 'Тень',
+      mods: (t) => ({ stealthStart: byTier([2, 2, 2, 3, 3])(t) }),
+      text: (t) => `бой начинается в скрытности на ${byTier([2, 2, 2, 3, 3])(t)} хода`,
     },
   },
 ];
