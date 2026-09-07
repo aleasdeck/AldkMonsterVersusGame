@@ -375,7 +375,7 @@ export class App {
         case 'enemyAction':
           text = ev.name;
           cls = 'f-action';
-          wrap.closest('.enemy')?.classList.add('acting');
+          wrap.closest('.enemy, .ally')?.classList.add('acting');
           break;
         case 'stunned':
           text = 'оглушён';

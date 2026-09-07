@@ -5,6 +5,8 @@ export type ArtTier = 1 | 2 | 3;
 export type LocationId = 'forest' | 'crypt' | 'caves' | 'swamp' | 'hive' | 'ship';
 
 export const MAX_ENEMIES = 3;
+/** Союзников рядом с героем. */
+export const MAX_ALLIES = 2;
 
 // ─── Статусы ───────────────────────────────────────────────────────────────
 
@@ -62,7 +64,9 @@ export type Effect =
   | { type: 'block'; amount: number }
   | { type: 'heal'; amount: number }
   | { type: 'status'; target: TargetKind; status: StatusId; value: number; turns: number }
-  | { type: 'gainSta'; amount: number };
+  | { type: 'gainSta'; amount: number }
+  /** Призыв союзника по описанию врага; hpBonus — прибавка к его HP. */
+  | { type: 'summon'; enemyId: string; hpBonus: number };
 
 export interface ArtifactDef {
   id: string;
@@ -237,6 +241,14 @@ export interface EnemyState extends Combatant {
   dmgMult: number;
 }
 
+/** Союзник героя: ходит по правилам своего врага-прототипа, бьёт сам, враги атакуют его первым. */
+export interface AllyState extends Combatant {
+  uid: number;
+  defId: string;
+  name: string;
+  cycleIdx: number;
+}
+
 export type EventTarget = 'hero' | number;
 
 export type BattleEvent =
@@ -255,8 +267,11 @@ export interface BattleState {
   enemies: EnemyState[];
   /** Акт забега (0..2) для масштабирования врагов; null — без масштабирования. */
   act: number | null;
+  allies: AllyState[];
   turn: number;
   phase: 'player' | 'enemy' | 'won' | 'lost';
+  /** Союзники ходят первыми после хода игрока, затем враги. */
+  allyQueue: number[];
   enemyQueue: number[];
   events: BattleEvent[];
   log: string[];

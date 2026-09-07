@@ -1,5 +1,6 @@
 import type {
   AiCtx,
+  AllyState,
   BattleState,
   Combatant,
   Effect,
@@ -13,7 +14,7 @@ import type {
   Status,
   StatusId,
 } from './types';
-import { MAX_ENEMIES } from './types';
+import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
@@ -114,7 +115,7 @@ function aiCtx(state: BattleState, e: EnemyState): AiCtx {
 
 type DamageKind = 'hit' | 'spell' | 'dot' | 'thorns';
 
-function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, crit = false): number {
+function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, crit = false, attacker?: AllyState): number {
   if (getStatus(e, 'invuln')) {
     state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
     log(state, `${e.name} неуязвим`);
@@ -141,7 +142,10 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   state.events.push({ type: 'damage', target: e.uid, amount: rest, kind: rest === 0 ? 'blocked' : crit ? 'crit' : kind });
   if (kind === 'hit') {
     const th = statusValue(e, 'thorns');
-    if (th > 0) {
+    if (th > 0 && attacker) {
+      log(state, `Шипы ${e.name}: ${th} урона ${attacker.name}`);
+      damageAlly(state, attacker, th, true);
+    } else if (th > 0) {
       log(state, `Шипы ${e.name}: ${th} урона герою`);
       damageHero(state, th, 'thorns');
     }
@@ -195,6 +199,82 @@ function healHero(state: BattleState, amount: number): void {
   if (healed <= 0) return;
   h.hp += healed;
   state.events.push({ type: 'heal', target: 'hero', amount: healed });
+}
+
+// ─── Союзники ──────────────────────────────────────────────────────────────
+
+function spawnAlly(state: BattleState, defId: string, hpBonus: number): AllyState {
+  const def = enemyDef(defId);
+  const a: AllyState = { uid: state.nextUid++, defId, name: def.name, hp: def.hp + hpBonus, maxHp: def.hp + hpBonus, block: 0, statuses: [], cycleIdx: 0 };
+  state.allies.push(a);
+  state.events.push({ type: 'summon', target: a.uid });
+  log(state, `Рядом с героем появляется ${a.name}`);
+  return a;
+}
+
+function damageAlly(state: BattleState, a: AllyState, amount: number, pierce = false): number {
+  let rest = Math.max(0, amount);
+  if (!pierce) {
+    const b = Math.min(a.block, rest);
+    a.block -= b;
+    rest -= b;
+  }
+  a.hp -= rest;
+  state.events.push({ type: 'damage', target: a.uid, amount: rest, kind: rest === 0 ? 'blocked' : 'hit' });
+  if (a.hp <= 0) {
+    state.events.push({ type: 'death', target: a.uid });
+    log(state, `${a.name} пал`);
+    state.allies = state.allies.filter((x) => x !== a);
+    state.allyQueue = state.allyQueue.filter((uid) => uid !== a.uid);
+  }
+  return rest;
+}
+
+/** Ход союзника: действия по циклу его прототипа. Атаки — по самому раненому врагу, баффы — по своим. */
+function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
+  const def = enemyDef(a.defId);
+  a.block = 0;
+  const order = def.ai.type === 'cycle' ? def.ai.order : def.actions.map((x) => x.id);
+  const action = enemyAction(def, order[a.cycleIdx % order.length]);
+  a.cycleIdx = (a.cycleIdx + 1) % order.length;
+  state.events.push({ type: 'enemyAction', target: a.uid, name: action.name });
+  log(state, `${a.name}: ${action.name}`);
+  for (const eff of action.effects) {
+    switch (eff.type) {
+      case 'attack': {
+        let dmg = eff.amount + statusValue(a, 'strength');
+        if (getStatus(a, 'weak')) dmg = Math.floor(dmg * 0.75);
+        for (let i = 0; i < (eff.hits ?? 1); i++) {
+          const target = state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
+          if (!target) break;
+          log(state, `${a.name} атакует ${target.name}: ${dmg}`);
+          damageEnemy(state, target, dmg, 'hit', false, a);
+        }
+        break;
+      }
+      case 'buffStr': {
+        const targets = eff.target === 'self' ? [a] : eff.target === 'allies' ? state.allies : state.allies.filter((x) => x.defId === a.defId);
+        for (const t of targets) addStatus(state, t, t.uid, 'strength', eff.amount, -1);
+        break;
+      }
+      case 'block':
+        a.block += eff.amount;
+        state.events.push({ type: 'block', target: a.uid, amount: eff.amount });
+        break;
+      case 'heal': {
+        const healed = Math.min(eff.amount, a.maxHp - a.hp);
+        if (healed > 0) {
+          a.hp += healed;
+          state.events.push({ type: 'heal', target: a.uid, amount: healed });
+        }
+        break;
+      }
+      default:
+        log(state, `${a.name} готовится`);
+    }
+  }
+  tickDurations(a);
+  cleanupDead(state, rng);
 }
 
 function healEnemy(state: BattleState, e: EnemyState, amount: number): void {
@@ -289,6 +369,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if ((def.cost?.sta ?? 0) > h.sta) return 'Нет стамины';
       if ((def.cost?.mp ?? 0) > h.mp) return 'Нет маны';
       if (def.target === 'enemy' && !findEnemy(state, action.target ?? -1)) return 'Нет цели';
+      if (state.allies.length >= MAX_ALLIES && def.effects?.(inst.tier).some((e) => e.type === 'summon')) return 'Рядом нет места';
       return null;
     }
   }
@@ -332,6 +413,9 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       break;
     case 'gainSta':
       h.sta += eff.amount;
+      break;
+    case 'summon':
+      if (state.allies.length < MAX_ALLIES) spawnAlly(state, eff.enemyId, eff.hpBonus);
       break;
   }
 }
@@ -396,6 +480,7 @@ export function endTurn(state: BattleState): void {
   if (state.phase !== 'player') return;
   tickDurations(state.hero);
   state.phase = 'enemy';
+  state.allyQueue = state.allies.map((a) => a.uid);
   state.enemyQueue = state.enemies.map((e) => e.uid);
 }
 
@@ -485,6 +570,13 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       const hits = eff.hits ?? 1;
       for (let i = 0; i < hits; i++) {
         if (state.phase === 'lost') break;
+        const ally = state.allies[0];
+        if (ally) {
+          const dealt = damageAlly(state, ally, dmg, eff.pierce);
+          log(state, `${e.name} атакует ${ally.name}: ${dmg} (${dealt} по HP)`);
+          if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
+          continue;
+        }
         const dealt = damageHero(state, dmg, 'hit', e, eff.pierce);
         log(state, `${e.name} атакует: ${dmg} (${dealt} по HP${eff.pierce ? ', сквозь блок' : ''})`);
         if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
@@ -587,6 +679,13 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
 /** Выполнить действие одного врага из очереди. Пустая очередь — начало хода игрока. */
 export function enemyStep(state: BattleState, rng: Rng): void {
   if (state.phase !== 'enemy') return;
+  while (state.allyQueue.length > 0) {
+    const uid = state.allyQueue.shift()!;
+    const a = state.allies.find((x) => x.uid === uid);
+    if (!a) continue;
+    actAlly(state, a, rng);
+    return;
+  }
   while (state.enemyQueue.length > 0) {
     const uid = state.enemyQueue.shift()!;
     const e = findEnemy(state, uid);
@@ -625,8 +724,10 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     },
     enemies: [],
     act,
+    allies: [],
     turn: 0,
     phase: 'enemy',
+    allyQueue: [],
     enemyQueue: [],
     events: [],
     log: [],

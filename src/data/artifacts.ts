@@ -1,4 +1,5 @@
 import type { ArtTier, ArtifactDef } from '../engine/types';
+import { enemyDef } from './enemies';
 
 const t = (a: number, b: number, c: number) => (tier: ArtTier) => [a, b, c][tier - 1];
 
@@ -289,6 +290,19 @@ const list: ArtifactDef[] = [
     target: 'self',
     effects: () => [{ type: 'status', target: 'self', status: 'dodge', value: 1, turns: -1 }],
     describe: (tier) => `Следующая атака по герою не наносит урона. КД ${t(3, 2, 1)(tier)}`,
+  },
+  {
+    id: 'wolf_whistle',
+    name: 'Волчий свисток',
+    glyph: 'ᛟ',
+    kind: 'active',
+    school: 'magic',
+    cost: { mp: 3 },
+    cooldown: () => 3,
+    target: 'self',
+    effects: (tier) => [{ type: 'summon', enemyId: 'wolf', hpBonus: t(0, 4, 8)(tier) }],
+    describe: (tier) =>
+      `Призывает волка (${enemyDef('wolf').hp + t(0, 4, 8)(tier)} HP) рядом с героем. Кусает сам после вашего хода, враги бьют его первым. КД 3`,
   },
 ];
 

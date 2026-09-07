@@ -556,6 +556,31 @@ p {
 .hero-zone .bar {
   width: 200px;
 }
+/* Союзники — рядом с героем, слева от врагов. */
+.ally-zone {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  padding-bottom: 8px;
+}
+.ally {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  min-width: 110px;
+}
+.ally .bar {
+  width: 100px;
+}
+.ally .name {
+  font-size: 17px;
+  color: var(--text);
+}
+.ally.acting .sprite-wrap {
+  animation: lunge-right 400ms ease-out;
+}
 .enemy-zone {
   flex: 1;
   display: flex;
@@ -937,6 +962,15 @@ p {
   }
   50% {
     transform: translateY(-4px);
+  }
+}
+@keyframes lunge-right {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  40% {
+    transform: translateX(18px);
   }
 }
 @keyframes lunge {
