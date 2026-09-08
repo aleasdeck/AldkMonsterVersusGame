@@ -278,7 +278,8 @@ export function battleScreen(app: App): HTMLElement {
   const finishLabel = won ? 'Забрать награду' : 'К итогам';
   const busy = app.busy || b.phase !== 'player';
 
-  const mid = h('div', { class: 'c-battle' }, h('div', { class: 'readout' }, ...defaultReadout(app)), tiles(app));
+  const top = h('div', { class: 'readout' }, ...defaultReadout(app));
+  const mid = h('div', { class: 'c-battle' }, tiles(app));
 
   const right = over
     ? button(finishLabel, () => app.finishBattle(), { class: 'primary end-turn' })
@@ -304,5 +305,5 @@ export function battleScreen(app: App): HTMLElement {
         )
       : null;
 
-  return runFrame(app, { cls: 'battle', center: field, mid, right, log: true, overlays: [result] });
+  return runFrame(app, { cls: 'battle', center: field, top, mid, right, log: true, overlays: [result] });
 }

@@ -1,8 +1,8 @@
-import { h, type Child } from './dom';
+import { h } from './dom';
 import type { ArtTier, ArtifactInstance, DerivedStats, GearInstance, HeroDef } from '../engine/types';
 import { artifactCostText, artifactDef } from '../data/artifacts';
-import { ART_TIER_COLORS, GEAR_TIERS, gearPerkText, weaponDice } from '../data/gear';
-import { artifactChip, gearTypeIcon, perkLine, tierBadge } from './components';
+import { ART_TIER_COLORS, GEAR_TIERS, gearPerkText } from '../data/gear';
+import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, tierTip } from './components';
 import { markKeywords } from './keywords';
 
 /**
@@ -81,38 +81,18 @@ export interface GearTileOpts {
 export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, opts: GearTileOpts = {}): HTMLElement {
   const info = GEAR_TIERS[gear.tier];
   const isWeapon = gear.kind === 'weapon';
-  let dice: Child;
-  if (isWeapon) {
-    const d = weaponDice(def, gear);
-    const own = d.min !== gear.dmgMin || d.max !== gear.dmgMax;
-    dice = h('span', { class: 'gt-dice', tip: own ? `Кубик ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: владение типом оружия` : 'Кубик оружия' }, own ? `${gear.dmgMin}–${gear.dmgMax} → ` : '', h('b', null, `${d.min}–${d.max}`));
-  } else {
-    dice = h('span', { class: 'gt-dice' }, [gear.def ? `DEF ${gear.def}` : '', gear.hp ? `+${gear.hp} HP` : ''].filter(Boolean).join(' · ') || 'без бонусов');
-  }
-  const affix = gear.affix ? h('span', { class: 'gt-affix', tip: 'Случайный бонус предмета' }, `✦ +${gear.affix.stat === 'crit' ? `${Math.round(gear.affix.value * 100)} %` : gear.affix.value} ${AFFIX_NAMES[gear.affix.stat] ?? gear.affix.stat}`) : null;
+  // Статы той же строкой, что и в карточке награды: «Урон 4–6, ✦ +1 Сила» / «+2 DEF, +4 HP».
+  const st = gearStatInfo(gear, def);
+  const stats = h('span', st.tip ? { class: 'gt-dice', tip: st.tip } : { class: 'gt-dice' }, st.text);
   const perk = perkLine(gear, def) ?? (gearPerkText(gear) ? null : h('div', { class: 'card-perk dim' }, 'без перка'));
-  // Пустой узел дельт: наведение на товар (diff.ts) заполняет его и подсвечивает плитку классом hot.
   return h(
     'div',
     { class: `gear-tile ${isWeapon ? 'weapon' : 'armor'}`, style: `border-color:${info.color}` },
-    h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name' }, gear.name), tierBadge(gear.tier, gearTypeIcon(gear, def)), dice, affix),
+    h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), stats),
     perk,
-    opts.expanded ? null : h('div', { class: 'gt-diff' }),
     opts.expanded
       ? h('div', { class: 'art-list' }, ...gear.slots.map((a) => (a ? artifactRow(a, s) : h('div', { class: 'art-row empty' }, artifactChip(null), h('span', { class: 'dim' }, 'свободный сокет')))))
       : h('div', { class: 'gt-sockets' }, ...gear.slots.map((a) => socketCell(a, s))),
   );
 }
 
-const AFFIX_NAMES: Partial<Record<keyof DerivedStats, string>> = {
-  str: 'Сила',
-  crit: 'крит',
-  lifesteal: 'вампиризм',
-  spellPower: 'к заклинаниям',
-  maxHp: 'HP',
-  def: 'DEF',
-  maxMp: 'MP',
-  mpRegen: 'реген MP',
-  regen: 'реген',
-  thorns: 'шипы',
-};

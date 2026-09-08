@@ -86,7 +86,9 @@ export function hubGear(app: App): HTMLElement {
 }
 
 export interface ConsoleParts {
-  /** Центр консоли: ридаут и плитки в бою, экипировка на хабах. */
+  /** Строка над всей правой частью консоли (шире плиток: и над «Концом хода», и над кнопкой лога) — ридаут в бою. */
+  top?: HTMLElement | null;
+  /** Центр консоли: плитки в бою, экипировка на хабах. */
   mid: HTMLElement;
   /** Правый блок 110 px — «Конец хода» в бою. */
   right?: HTMLElement | null;
@@ -94,7 +96,10 @@ export interface ConsoleParts {
   log?: boolean;
 }
 
-/** Консоль 180 px: блок героя 205 | центр | правый блок 110 | кнопка лога 40. */
+/**
+ * Консоль 180 px: блок героя 205 | [строка top во всю ширину; под ней центр | правый блок 110 | кнопка лога 40].
+ * «Конец хода» и лог не тянутся на всю высоту: ридаут над ними получает всю ширину правой части.
+ */
 export function consoleBar(app: App, parts: ConsoleParts): HTMLElement {
   const logBtn = parts.log
     ? button(app.logOpen ? '✕ Закрыть' : 'Лог боя', () => app.toggleLog(), {
@@ -102,5 +107,6 @@ export function consoleBar(app: App, parts: ConsoleParts): HTMLElement {
         tip: app.logOpen ? 'Скрыть лог (L)' : 'Показать лог боя (L)',
       })
     : null;
-  return h('div', { class: 'console' }, heroBlock(app), h('div', { class: 'c-mid' }, parts.mid), parts.right ? h('div', { class: 'c-right' }, parts.right) : null, logBtn);
+  const row = h('div', { class: 'c-row' }, h('div', { class: 'c-mid' }, parts.mid), parts.right ? h('div', { class: 'c-right' }, parts.right) : null, logBtn);
+  return h('div', { class: 'console' }, heroBlock(app), h('div', { class: 'c-body' }, parts.top ?? null, row));
 }

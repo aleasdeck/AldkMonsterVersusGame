@@ -17,6 +17,7 @@ import {
   gearStatText,
   hasPerk,
   masteryTitle,
+  weaponDice,
   weaponType,
   weaponTypeTitle,
 } from '../data/gear';
@@ -94,10 +95,9 @@ export function pickable(el: HTMLElement, onclick?: () => void): HTMLElement {
   return el;
 }
 
-/** Бейдж тира: «Редкий», у оружия с иконкой типа внутри — «Редкий · ⚔» (цвет иконки — владение героя). */
-export function tierBadge(tier: GearTier, typeIcon?: HTMLElement | null): HTMLElement {
-  const info = GEAR_TIERS[tier];
-  return h('span', { class: 'tier', style: `color:${info.color};border-color:${info.color}`, tip: `${info.name} предмет, тир ${tier}` }, info.name, typeIcon ? ' · ' : null, typeIcon);
+/** Подсказка к имени экипировки: тир словами. Бейджа тира нет — его показывает цвет рамки. */
+export function tierTip(tier: GearTier): string {
+  return `${GEAR_TIERS[tier].name} предмет, тир ${tier}`;
 }
 
 export function artifactTitle(inst: ArtifactInstance): string {
@@ -126,7 +126,8 @@ export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: ()
   );
 }
 
-export function artifactCard(inst: ArtifactInstance, footer?: Child): HTMLElement {
+/** note — строка перед подвалом: заметка об апгрейде или дельты (diff.ts). footer — кнопка, встаёт справа внизу. */
+export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Child): HTMLElement {
   const def = artifactDef(inst.id);
   const color = ART_TIER_COLORS[inst.tier];
   return h(
@@ -137,6 +138,7 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child): HTMLElemen
     h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}`),
     h('div', { class: 'card-desc' }, ...markKeywords(def.describe(inst.tier))),
     def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
+    note ?? null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
 }
@@ -196,7 +198,7 @@ export function gearTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   return gear.kind === 'weapon' ? weaponTypeIcon(gear, def) : armorTypeIcon(gear, def);
 }
 
-/** Строка перка базы. Броня, которую герой не умеет носить, — перк зачёркнут, причина в подсказке. */
+/** Строка перка базы: название своим цветом, описание после двоеточия. Броня, которую герой не умеет носить, — перк зачёркнут, причина в подсказке. */
 export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null {
   const perk = gearPerkText(gear);
   if (!perk) return null;
@@ -207,13 +209,34 @@ export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null 
       h('s', null, perk),
     );
   }
+  const sep = perk.indexOf(':');
+  const name = sep > 0 ? perk.slice(0, sep) : perk;
+  const text = sep > 0 ? perk.slice(sep + 1) : '';
   // Полный текст в подсказке: в узких карточках торговца строка перка обрезается.
-  return h('div', { class: 'card-perk', tip: perk }, ...markKeywords(perk));
+  return h('div', { class: 'card-perk', tip: perk }, h('span', { class: 'perk-name' }, name), text ? ':' : null, ...markKeywords(text));
 }
 
 /**
- * Карточка экипировки в награде и у торговца: тир и тип в шапке, кубик в руках героя, дельты к надетому
- * (deltas — строки из diff.ts), перк, сокеты чипами. Число сокетов не пишем: его видно по чипам.
+ * Статы экипировки одной строкой — одинаково в карточке награды и в плитке консоли: «Урон 4–6, ✦ +1 Сила»,
+ * «+2 DEF, +4 HP, ✦ +1 шипы». У оружия — кубик в руках героя (владение уже учтено), без «2–6 → 1–4»:
+ * исходный кубик и причина — в подсказке. Без героя (коллекция) — как есть.
+ */
+export function gearStatInfo(gear: GearInstance, def?: HeroDef): { text: string; tip?: string } {
+  if (gear.kind !== 'weapon' || !def) return { text: gearStatText(gear) };
+  const d = weaponDice(def, gear);
+  const own = d.min !== gear.dmgMin || d.max !== gear.dmgMax;
+  const text = gearStatText({ ...gear, dmgMin: d.min, dmgMax: d.max });
+  return own ? { text, tip: `Кубик оружия ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: владение типом оружия` } : { text };
+}
+
+function gearStatLine(gear: GearInstance, def?: HeroDef): HTMLElement {
+  const { text, tip } = gearStatInfo(gear, def);
+  return h('div', tip ? { class: 'card-desc', tip } : { class: 'card-desc' }, text);
+}
+
+/**
+ * Карточка экипировки в награде и у торговца: в шапке имя (тир — в подсказке и цветом рамки) и иконка типа, кубик в руках героя, дельты к надетому
+ * (deltas — строки из diff.ts), перк, внизу сокеты чипами и справа от них кнопка. Число сокетов не пишем: его видно по чипам.
  */
 export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Child; deltas?: HTMLElement[] } = {}): HTMLElement {
   const info = GEAR_TIERS[gear.tier];
@@ -222,12 +245,11 @@ export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Chi
   return h(
     'div',
     { class: 'card gear-card', style: `border-color:${info.color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'card-name' }, gear.name), tierBadge(gear.tier, gearTypeIcon(gear, def))),
-    h('div', { class: 'card-desc' }, gearStatText(gear, def)),
+    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'card-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def)),
+    gearStatLine(gear, def),
     ...(deltas ?? []),
     perkLine(gear, def),
-    slotsRow(gear),
-    footer ? h('div', { class: 'card-foot' }, footer) : null,
+    h('div', { class: 'card-foot' }, slotsRow(gear), footer),
   );
 }
 
@@ -315,7 +337,7 @@ export function pendingModal(app: App): HTMLElement | null {
     return h(
       'div',
       { class: 'pm-gear', style: `border-color:${info.color}` },
-      h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, kind === 'weapon' ? '⚔' : '⛨'), h('span', { class: 'gt-name' }, gear.name), tierBadge(gear.tier)),
+      h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, kind === 'weapon' ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name)),
       h(
         'div',
         { class: 'gt-sockets' },
