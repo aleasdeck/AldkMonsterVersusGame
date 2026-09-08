@@ -17,9 +17,30 @@ import { ARTIFACT_IDS } from '../data/artifacts';
 import { makeGear } from '../data/gear';
 import { heroDef } from '../data/heroes';
 import type { ActDef } from '../data/locations';
+import { POTION_IDS, potionDef } from '../data/potions';
 import { isMaxed } from './equipment';
+import { computeStats } from './stats';
 
 const ARTIFACT_CHANCE = 0.55;
+
+// ─── Зелья ─────────────────────────────────────────────────────────────────
+
+/** Шанс, что после боя (обычного, элиты или босса) с монстра выпадет зелье — отдельным экраном после награды. */
+export const POTION_DROP_CHANCE = 0.1;
+/** Цена зелья у торговца: расходник, дешевле любого артефакта. */
+export const SHOP_POTION_PRICE = 4;
+
+/** Случайное зелье под героя: зелье маны не выпадает тому, у кого маны нет. */
+export function rollPotion(rng: Rng, hero: HeroPersistent): string {
+  const hasMp = computeStats(heroDef(hero.defId), hero.weapon, hero.armor).maxMp > 0;
+  const ids = POTION_IDS.filter((id) => hasMp || !potionDef(id).needsMp);
+  return pick(rng, ids);
+}
+
+/** Экран «с монстра выпало зелье»: одна карточка, взять или пропустить, переброса нет. */
+export function potionRewardScreen(potion: string): RewardScreen {
+  return { title: 'С монстра выпало зелье', source: 'potion', options: [{ kind: 'potion', potion }], rerolled: true };
+}
 
 // ─── Золото ────────────────────────────────────────────────────────────────
 
@@ -49,11 +70,12 @@ export function artifactPrice(art: ArtifactInstance): number {
   return SHOP_ART_PRICE[art.tier];
 }
 
-/** Товары магазина из пула текущего акта: экипировка под героя, артефакт из ещё не максимальных. */
+/** Товары магазина из пула текущего акта: экипировка под героя, артефакт из ещё не максимальных, одно зелье. */
 export function rollShop(rng: Rng, hero: HeroPersistent, act: ActDef): ShopState {
   return {
     gear: rollGear(rng, hero, act.gearTiers),
     artifact: rollArtifact(rng, hero, act.artTiers, []),
+    potion: rollPotion(rng, hero),
     healed: false,
     rerolled: false,
   };
@@ -135,6 +157,8 @@ export function rollRewardOptions(rng: Rng, hero: HeroPersistent, act: ActDef, s
       return rollBossGear(rng, hero, act);
     case 'bossArt':
       return rollBossArts(rng, hero, act);
+    case 'potion':
+      return [{ kind: 'potion', potion: rollPotion(rng, hero) }];
   }
 }
 

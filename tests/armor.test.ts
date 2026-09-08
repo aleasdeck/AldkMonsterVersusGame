@@ -15,7 +15,7 @@ function armor(base: string, tier: GearTier = 1): GearInstance {
 function mkBattle(heroId: string, a: GearInstance, enemies: string[]) {
   const def = heroDef(heroId);
   const gear = makeStartingGear(def);
-  const hero: HeroPersistent = { defId: heroId, hp: 999, weapon: gear.weapon, armor: a };
+  const hero: HeroPersistent = { defId: heroId, hp: 999, weapon: gear.weapon, armor: a, potion: null };
   const rng = createRng(1);
   const state = createBattle(def, hero, enemies, rng);
   state.hero.stats.crit = 0;
@@ -87,7 +87,7 @@ describe('типы брони и умение носить', () => {
   it('латы на Маге не усиливают «Защититься»', () => {
     const { state, rng } = mkBattle('mage', armor('plate', 3), ['wolf']);
     performAction(state, { type: 'defend' }, rng);
-    expect(state.hero.block).toBe(state.hero.stats.def);
+    expect(state.hero.block).toBe(Math.ceil(state.hero.stats.def * 0.8));
   });
 
   it('броня выпадает с учётом умения: Магу чаще лёгкая, но и тяжёлая встречается', () => {

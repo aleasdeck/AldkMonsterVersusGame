@@ -2,15 +2,16 @@ import type { GearKind, GearTier } from '../engine/types';
 import type { Rng } from '../engine/rng';
 import { pick } from '../engine/rng';
 import { ARTIFACT_IDS, artifactCostText, artifactDef } from './artifacts';
+import { POTION_IDS, potionDef } from './potions';
 import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, GEAR_TIERS, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseDamage, baseTitle, dropBases, gearBases, weaponTypeText } from './gear';
 import { HERO_LIST } from './heroes';
 
 /**
- * Каталог всего, что встречается в приключениях: артефакты и базы экипировки.
+ * Каталог всего, что встречается в приключениях: артефакты, базы экипировки и зелья.
  * Коллекция — альбом находок, на сам забег она не влияет.
  */
 
-export type CollectibleKind = 'artifact' | 'weapon' | 'armor';
+export type CollectibleKind = 'artifact' | 'weapon' | 'armor' | 'potion';
 
 export interface Collectible {
   /** Уникальный id вида «art:fireball» или «weapon:sword». */
@@ -29,13 +30,28 @@ const KIND_COLORS: Record<CollectibleKind, string> = {
   artifact: '#c77dff',
   weapon: '#ffb703',
   armor: '#8ecae6',
+  potion: '#6fd97a',
 };
 
 const KIND_NAMES: Record<CollectibleKind, string> = {
   artifact: 'Артефакт',
   weapon: 'Оружие',
   armor: 'Броня',
+  potion: 'Зелье',
 };
+
+function potionEntry(id: string): Collectible {
+  const def = potionDef(id);
+  return {
+    id: `potion:${id}`,
+    kind: 'potion',
+    name: def.name,
+    glyph: def.glyph,
+    color: KIND_COLORS.potion,
+    sub: `${KIND_NAMES.potion} · расходник`,
+    desc: `${def.describe}\nПьётся в бою бесплатно и пропадает, слот один. Падает с монстров и продаётся у торговца.`,
+  };
+}
 
 function artifactEntry(id: string): Collectible {
   const def = artifactDef(id);
@@ -87,6 +103,7 @@ export const COLLECTIBLES: Collectible[] = [
   ...ARTIFACT_IDS.map(artifactEntry),
   ...dropBases('weapon').map((b) => gearEntry('weapon', b.id)),
   ...dropBases('armor').map((b) => gearEntry('armor', b.id)),
+  ...POTION_IDS.map(potionEntry),
 ];
 
 export const COLLECTIBLE_IDS: string[] = COLLECTIBLES.map((c) => c.id);

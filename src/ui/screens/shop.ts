@@ -1,9 +1,9 @@
 import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
-import { REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, artifactPrice, gearPrice } from '../../engine/loot';
-import { canShopBuyArtifact, canShopBuyGear, canShopHeal, canShopReroll, currentLocation, heroStats, shopHealAmount } from '../../engine/run';
-import { artifactCard, coin, gearCard, heroPanel, pendingModal } from '../components';
+import { REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, gearPrice } from '../../engine/loot';
+import { canShopBuyArtifact, canShopBuyGear, canShopBuyPotion, canShopHeal, canShopReroll, currentLocation, heroStats, shopHealAmount } from '../../engine/run';
+import { artifactCard, coin, gearCard, heroPanel, pendingModal, potionCard, potionReplaceNote } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import type { App } from '../app';
 
@@ -18,7 +18,7 @@ function soldCard(what: string): HTMLElement {
 }
 
 /**
- * Торговец после элиты: лекарь, одна экипировка, один артефакт. Покупка — только кнопкой, клик по карточке
+ * Торговец после элиты: лекарь, одна экипировка, один артефакт, одно зелье. Покупка — только кнопкой, клик по карточке
  * ничего не тратит. Переброс обновляет непроданные товары, один раз за визит.
  */
 export function shopScreen(app: App): HTMLElement {
@@ -45,7 +45,10 @@ export function shopScreen(app: App): HTMLElement {
   const artErr = canShopBuyArtifact(run);
   const artEl = shop.artifact
     ? artifactCard(shop.artifact, buyButton(artifactPrice(shop.artifact), artErr, () => app.shopBuyArtifact()))
-    : h('div', { class: 'card shop-card sold' }, h('div', { class: 'glyph big' }, '✓'), h('div', { class: 'card-name' }, 'Артефакт'), h('div', { class: 'card-desc' }, 'Куплено'));
+    : soldCard('Артефакт');
+
+  const potionErr = canShopBuyPotion(run);
+  const potionEl = shop.potion ? potionCard(shop.potion, buyButton(SHOP_POTION_PRICE, potionErr, () => app.shopBuyPotion()), potionReplaceNote(run)) : soldCard('Зелье');
 
   const rerollErr = canShopReroll(run);
   return h(
@@ -60,7 +63,7 @@ export function shopScreen(app: App): HTMLElement {
         'div',
         { class: 'main', style: backgroundStyle(loc.id, 0.78) },
         h('div', { class: 'title-row' }, h('h2', null, 'Торговец'), h('p', { class: 'dim' }, 'Купить можно всё, на что хватит золота.')),
-        h('div', { class: 'cards' }, healCard, gearEl, artEl),
+        h('div', { class: 'cards' }, healCard, gearEl, artEl, potionEl),
         h(
           'div',
           { class: 'row' },

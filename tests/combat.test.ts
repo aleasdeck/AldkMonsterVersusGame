@@ -12,11 +12,12 @@ import {
   enemyStep,
   getStatus,
   performAction,
+  previewAttack,
   resolveEnemyTurn,
 } from '../src/engine/combat';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
 
-function mkHero(heroId: string, extra: ArtifactInstance[] = []): HeroPersistent {
+function mkHero(heroId: string, extra: ArtifactInstance[] = [], potion: string | null = null): HeroPersistent {
   const def = heroDef(heroId);
   const gear = makeStartingGear(def);
   // Фиксируем урон оружия на среднем значении, чтобы ожидания в тестах были точными.
@@ -25,12 +26,12 @@ function mkHero(heroId: string, extra: ArtifactInstance[] = []): HeroPersistent 
   gear.weapon.dmgMax = mid;
   // Дополнительные артефакты — в расширенные слоты оружия.
   for (const a of extra) gear.weapon.slots.push(a);
-  return { defId: heroId, hp: 999, weapon: gear.weapon, armor: gear.armor };
+  return { defId: heroId, hp: 999, weapon: gear.weapon, armor: gear.armor, potion };
 }
 
-function mkBattle(heroId: string, enemies: string[], opts: { extra?: ArtifactInstance[]; seed?: number } = {}) {
+function mkBattle(heroId: string, enemies: string[], opts: { extra?: ArtifactInstance[]; seed?: number; potion?: string } = {}) {
   const rng = createRng(opts.seed ?? 1);
-  const hero = mkHero(heroId, opts.extra);
+  const hero = mkHero(heroId, opts.extra, opts.potion ?? null);
   const state = createBattle(heroDef(heroId), hero, enemies, rng);
   // криты выключаем, чтобы урон был детерминирован
   state.hero.stats.crit = 0;
@@ -78,11 +79,11 @@ describe('базовые действия', () => {
     expect(b.state.hero.stats.fatigue).toBeCloseTo(0.9);
   });
 
-  it('защита даёт блок = DEF героя + DEF брони, блок съедает урон врага', () => {
+  it('защита даёт 80 % от DEF героя + DEF брони, округление вверх; блок съедает урон врага', () => {
     const { state, rng } = mkBattle('warrior', ['wolf']);
     performAction(state, { type: 'defend' }, rng);
-    // 6 героя + 1 кольчуга + 1 Парирование меча
-    expect(state.hero.block).toBe(8);
+    // (6 героя + 1 кольчуга + 1 Парирование меча) × 0,8 = 6,4 → 7
+    expect(state.hero.block).toBe(7);
     const hpBefore = state.hero.hp;
     pass(state, rng);
     expect(state.hero.hp).toBe(hpBefore);
@@ -401,8 +402,8 @@ describe('мана и артефакты', () => {
   it('вихрь бьёт всех', () => {
     const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], { extra: [{ id: 'whirlwind', tier: 1 }] });
     performAction(state, { type: 'artifact', artifactId: 'whirlwind' }, rng);
-    // вихрь бьёт вполсилы: floor(5 × 0.6) = 3
-    expect(state.enemies.every((e) => e.hp === 9)).toBe(true);
+    // вихрь бьёт вполсилы: floor(5 × 0.5) = 2
+    expect(state.enemies.every((e) => e.hp === 10)).toBe(true);
   });
 
 });
@@ -571,13 +572,13 @@ describe('перки брони', () => {
   it('латы: «Защититься» даёт блок сверх DEF', () => {
     const { state, rng } = mkArmorBattle('warrior', 'plate', ['wolf'], 3);
     performAction(state, { type: 'defend' }, rng);
-    expect(state.hero.block).toBe(state.hero.stats.def + 2);
+    expect(state.hero.block).toBe(Math.ceil((state.hero.stats.def + 2) * 0.8));
   });
 
   it('панцирь: часть блока переживает начало хода', () => {
     const { state, rng } = mkArmorBattle('warrior', 'shell', ['wolf']);
     performAction(state, { type: 'defend' }, rng);
-    // 8 блока − укус 5 = 3, из них до 2 остаются на следующий ход
+    // 7 блока − укус 5 = 2, до 2 остаются на следующий ход
     pass(state, rng);
     expect(state.hero.block).toBe(2);
   });
@@ -649,5 +650,72 @@ describe('ассасин: скрытность', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'smoke_bomb' })).toMatch(/вся стамина/);
+  });
+});
+
+describe('зелья', () => {
+  it('без зелья кнопка недоступна, с зельем — бесплатна: стамина не тратится, слот пустеет', () => {
+    const empty = mkBattle('warrior', ['rat']);
+    expect(canUseAction(empty.state, { type: 'potion' })).toMatch(/Нет зелья/);
+
+    const { state, rng } = mkBattle('warrior', ['rat'], { potion: 'heal_potion' });
+    state.hero.hp = 10;
+    const sta = state.hero.sta;
+    expect(canUseAction(state, { type: 'potion' })).toBeNull();
+    performAction(state, { type: 'potion' }, rng);
+    expect(state.hero.hp).toBe(25);
+    expect(state.hero.sta).toBe(sta);
+    expect(state.hero.attacks).toBe(0);
+    expect(state.hero.potion).toBeNull();
+    expect(canUseAction(state, { type: 'potion' })).toMatch(/Нет зелья/);
+    expect(() => performAction(state, { type: 'potion' }, rng)).toThrow();
+  });
+
+  it('лечение не сверх максимума, мана не сверх максимума, бодрость даёт стамину', () => {
+    const heal = mkBattle('warrior', ['rat'], { potion: 'heal_potion' });
+    heal.state.hero.hp = heal.state.hero.maxHp - 3;
+    performAction(heal.state, { type: 'potion' }, heal.rng);
+    expect(heal.state.hero.hp).toBe(heal.state.hero.maxHp);
+
+    const mana = mkBattle('mage', ['rat'], { potion: 'mana_potion' });
+    mana.state.hero.mp = 2;
+    performAction(mana.state, { type: 'potion' }, mana.rng);
+    expect(mana.state.hero.mp).toBe(Math.min(mana.state.hero.maxMp, 8));
+
+    const sta = mkBattle('warrior', ['rat'], { potion: 'stamina_potion' });
+    const before = sta.state.hero.sta;
+    performAction(sta.state, { type: 'potion' }, sta.rng);
+    expect(sta.state.hero.sta).toBe(before + 2);
+  });
+
+  it('склянка бьёт всех врагов заклинанием и выводит из скрытности, противоядие снимает раны', () => {
+    const { state, rng } = mkBattle('assassin', ['rat', 'rat'], { potion: 'fire_flask' });
+    state.hero.stats.spellPower = 0;
+    const hp = state.enemies.map((e) => e.hp);
+    expect(getStatus(state.hero, 'stealth')).toBeTruthy();
+    performAction(state, { type: 'potion' }, rng);
+    for (const [i, e] of state.enemies.entries()) expect(e.hp).toBe(Math.max(0, hp[i] - 8));
+    expect(getStatus(state.hero, 'stealth')).toBeUndefined();
+
+    const cure = mkBattle('warrior', ['rat'], { potion: 'antidote' });
+    cure.state.hero.statuses.push({ id: 'bleed', value: 3, turns: 2 }, { id: 'weak', value: 1, turns: 2 }, { id: 'strength', value: 2, turns: -1 });
+    performAction(cure.state, { type: 'potion' }, cure.rng);
+    expect(getStatus(cure.state.hero, 'bleed')).toBeUndefined();
+    expect(getStatus(cure.state.hero, 'weak')).toBeUndefined();
+    expect(getStatus(cure.state.hero, 'strength')?.value).toBe(2);
+  });
+
+  it('зелье силы держится до конца боя, каменная кожа даёт блок', () => {
+    const str = mkBattle('warrior', ['rat'], { potion: 'strength_potion' });
+    str.state.hero.stats.dmgMin = 5;
+    str.state.hero.stats.dmgMax = 5;
+    str.state.hero.stats.str = 0;
+    performAction(str.state, { type: 'potion' }, str.rng);
+    expect(getStatus(str.state.hero, 'strength')).toEqual({ id: 'strength', value: 3, turns: -1 });
+    expect(previewAttack(str.state)).toEqual({ min: 8, max: 8 });
+
+    const skin = mkBattle('warrior', ['rat'], { potion: 'stone_skin' });
+    performAction(skin.state, { type: 'potion' }, skin.rng);
+    expect(skin.state.hero.block).toBe(10);
   });
 });

@@ -2,8 +2,9 @@ import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
+import { potionDef } from '../../data/potions';
 import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
-import { canUseAction, computeIntent, getStatus, previewAttack, rangeText } from '../../engine/combat';
+import { canUseAction, computeIntent, defendBlock, getStatus, previewAttack, rangeText } from '../../engine/combat';
 import { goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, Combatant, EnemyState, PlayerAction } from '../../engine/types';
@@ -112,7 +113,7 @@ function actionBar(app: App): HTMLElement {
   );
   const def: PlayerAction = { type: 'defend' };
   buttons.push(
-    actionButton('⛨ Защититься', `+${b.hero.stats.def + b.hero.stats.defendBonus} блока`, '1 STA', canUseAction(b, def), busy, 'Блок до начала следующего хода', () =>
+    actionButton('⛨ Защититься', `+${defendBlock(b.hero.stats)} блока`, '1 STA', canUseAction(b, def), busy, 'Блок до начала следующего хода: 80 % от Защиты, округление вверх', () =>
       app.battleAction(def),
     ),
   );
@@ -144,11 +145,26 @@ function actionBar(app: App): HTMLElement {
       ),
     );
   }
+  // Зелье — отдельно от сетки приёмов, над «Концом хода»: слот один и он не часть билда. Пустой слот занимает место, чтобы кнопки не прыгали.
+  let potionBtn: HTMLElement;
+  if (b.hero.potion) {
+    const pd = potionDef(b.hero.potion);
+    const act: PlayerAction = { type: 'potion', target };
+    potionBtn = actionButton(`${pd.glyph} ${pd.name}`, pd.describe, 'бесплатно', canUseAction(b, act), busy, `${pd.name}\n${pd.describe}\nНе тратит стамину, слот после этого пуст`, () => app.battleAction(act));
+    potionBtn.classList.add('potion');
+  } else {
+    potionBtn = h(
+      'button',
+      { class: 'btn action off potion', disabled: true, title: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' },
+      h('div', { class: 'action-label' }, '⚗ Зелье'),
+      h('div', { class: 'action-value' }, 'Слот пуст'),
+    );
+  }
   return h(
     'div',
     { class: 'actions' },
     h('div', { class: 'action-list' }, ...buttons),
-    button('Конец хода ▶', () => app.endTurn(), { class: 'primary end-turn', disabled: busy }),
+    h('div', { class: 'side' }, potionBtn, button('Конец хода ▶', () => app.endTurn(), { class: 'primary end-turn', disabled: busy })),
   );
 }
 

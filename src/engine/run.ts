@@ -1,6 +1,6 @@
 import type { DerivedStats, GearKind, LootItem, PlayerAction, RoomKind, RunState } from './types';
 import { SAVE_VERSION } from './types';
-import { createRng, pick } from './rng';
+import { chance, createRng, pick } from './rng';
 import { heroDef } from '../data/heroes';
 import { makeStartingGear } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, ROOMS_PER_LOCATION, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
@@ -8,17 +8,21 @@ import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
 import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact } from './equipment';
 import {
+  POTION_DROP_CHANCE,
   REROLL_COST,
   SHOP_HEAL_COST,
   SHOP_HEAL_PCT,
+  SHOP_POTION_PRICE,
   START_GOLD,
   artifactPrice,
   gearPrice,
   goldReward,
+  potionRewardScreen,
   rollArtifact,
   rollBossRewards,
   rollEvent,
   rollGear,
+  rollPotion,
   rollRewardOptions,
   rollRewards,
   rollShop,
@@ -38,7 +42,7 @@ export function newRun(heroId: string, seed: number = randomSeed(), now: number 
     version: SAVE_VERSION,
     seed,
     rng,
-    hero: { defId: heroId, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor },
+    hero: { defId: heroId, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
     gold: START_GOLD,
     locations: pickRunLocations(rng),
     locationIndex: 0,
@@ -164,6 +168,8 @@ export function finishBattle(run: RunState): void {
     return;
   }
   run.hero.hp = b.hero.hp;
+  // Выпитое в бою зелье не возвращается; невыпитое остаётся в слоте.
+  run.hero.potion = b.hero.potion;
   run.stats.roomsCleared += 1;
   const kind = currentRoomKind(run);
   const act = currentAct(run);
@@ -174,6 +180,9 @@ export function finishBattle(run: RunState): void {
     const source = kind === 'elite' ? 'elite' : 'fight';
     run.rewards = [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', source, options: rollRewards(run.rng, run.hero, act, source), rerolled: false }];
   }
+  // С любого монстра может выпасть зелье — отдельным экраном после награды. После финального босса некуда: забег окончен.
+  const finalBoss = kind === 'boss' && !act.bossGearTier;
+  if (!finalBoss && chance(run.rng, POTION_DROP_CHANCE)) run.rewards.push(potionRewardScreen(rollPotion(run.rng, run.hero)));
   if (run.rewards.length === 0) {
     advanceRoom(run);
     return;
@@ -221,6 +230,12 @@ export function takeReward(run: RunState, index: number): void {
     return;
   }
   run.rewards.shift();
+  if (item.kind === 'potion') {
+    // Слот один: новое зелье вытесняет старое.
+    run.hero.potion = item.potion;
+    afterReward(run);
+    return;
+  }
   giveGear(run, item);
   if (!run.pending) afterReward(run);
 }
@@ -236,6 +251,7 @@ export function canReroll(run: RunState): string | null {
   if (run.phase !== 'reward' || run.pending) return 'Сейчас нельзя';
   const screen = run.rewards[0];
   if (!screen) return 'Нет награды';
+  if (screen.source === 'potion') return 'Зелье не перебросить';
   if (screen.rerolled) return 'Переброс уже использован';
   if (run.gold < REROLL_COST) return `Нужно ${REROLL_COST} золота`;
   return null;
@@ -358,12 +374,19 @@ export function canShopBuyArtifact(run: RunState): string | null {
   return needGold(run, artifactPrice(art));
 }
 
+export function canShopBuyPotion(run: RunState): string | null {
+  const err = shopOpen(run);
+  if (err) return err;
+  if (!run.shop!.potion) return 'Продано';
+  return needGold(run, SHOP_POTION_PRICE);
+}
+
 export function canShopReroll(run: RunState): string | null {
   const err = shopOpen(run);
   if (err) return err;
   const shop = run.shop!;
   if (shop.rerolled) return 'Переброс уже использован';
-  if (!shop.gear && !shop.artifact) return 'Нечего перебрасывать';
+  if (!shop.gear && !shop.artifact && !shop.potion) return 'Нечего перебрасывать';
   return needGold(run, REROLL_COST);
 }
 
@@ -395,6 +418,15 @@ export function shopBuyArtifact(run: RunState): boolean {
   return true;
 }
 
+/** Купить зелье: ложится в слот, стоявшее там пропадает. */
+export function shopBuyPotion(run: RunState): boolean {
+  if (canShopBuyPotion(run)) return false;
+  run.gold -= SHOP_POTION_PRICE;
+  run.hero.potion = run.shop!.potion;
+  run.shop!.potion = null;
+  return true;
+}
+
 /** Перебросить непроданные товары за золото. Один раз за визит. */
 export function shopReroll(run: RunState): boolean {
   if (canShopReroll(run)) return false;
@@ -404,6 +436,7 @@ export function shopReroll(run: RunState): boolean {
   shop.rerolled = true;
   if (shop.gear) shop.gear = rollGear(run.rng, run.hero, act.gearTiers);
   if (shop.artifact) shop.artifact = rollArtifact(run.rng, run.hero, act.artTiers, []);
+  if (shop.potion) shop.potion = rollPotion(run.rng, run.hero);
   return true;
 }
 

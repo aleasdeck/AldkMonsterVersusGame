@@ -21,7 +21,7 @@ function mkBattle(heroId: string, enemies: string[], w?: GearInstance, seed = 1)
     gear.weapon.dmgMin = mid;
     gear.weapon.dmgMax = mid;
   }
-  const hero: HeroPersistent = { defId: heroId, hp: 999, weapon: w ?? gear.weapon, armor: gear.armor };
+  const hero: HeroPersistent = { defId: heroId, hp: 999, weapon: w ?? gear.weapon, armor: gear.armor, potion: null };
   const rng = createRng(seed);
   const state = createBattle(def, hero, enemies, rng);
   state.hero.stats.crit = 0;
