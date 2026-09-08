@@ -3,7 +3,7 @@ import { createRng } from '../src/engine/rng';
 import { heroDef } from '../src/data/heroes';
 import { WEAPON_BASES, baseOf, makeGear, makeStartingGear, weaponDice, weaponType } from '../src/data/gear';
 import { canUseAction, createBattle, endTurn, getStatus, performAction, previewAttack, resolveEnemyTurn } from '../src/engine/combat';
-import { computeStats } from '../src/engine/stats';
+import { computeStats, previewGearSwap } from '../src/engine/stats';
 import { REROLL_COST, START_GOLD, goldReward } from '../src/engine/loot';
 import { battleAction, battleEndTurn, battleEnemyStep, canReroll, enterRoom, finishBattle, newRun, rerollReward } from '../src/engine/run';
 import type { GearInstance, GearTier, HeroPersistent, RunState, WeaponType } from '../src/engine/types';
@@ -274,3 +274,40 @@ describe('золото и переброс', () => {
     expect(goldReward('event')).toBe(0);
   });
 });
+
+describe('предпросмотр смены экипировки', () => {
+  it('оружие: урон, сокеты, перк и переезд артефактов считаются на копии героя', () => {
+    const run = newRun('warrior', 1);
+    const def = heroDef('warrior');
+    const hammer: GearInstance = { kind: 'weapon', tier: 4, base: 'mace', name: 'Рунная булава', dmgMin: 7, dmgMax: 12, def: 0, hp: 0, affix: null, slots: [null, null, null] };
+    const p = previewGearSwap(def, run.hero, hammer);
+    expect(p.after.dmgMax).toBeGreaterThan(p.before.dmgMax);
+    expect(p.slotsBefore).toBe(1);
+    expect(p.slotsAfter).toBe(3);
+    expect(p.perkBefore).toContain('Парирование');
+    expect(p.perkAfter).toBe(weaponsPerk('mace', 4));
+    expect(p.moved.map((a) => a.id)).toEqual(['heavy_strike']);
+    expect(p.overflow).toEqual([]);
+    // Сам герой не изменился.
+    expect(run.hero.weapon.base).toBe('sword');
+    expect(run.hero.weapon.slots[0]?.id).toBe('heavy_strike');
+  });
+
+  it('броня: DEF и HP растут, лишние артефакты попадают в overflow, перк неносимой брони пустой', () => {
+    const run = newRun('mage', 1);
+    const def = heroDef('mage');
+    run.hero.armor.slots = [{ id: 'troll_heart', tier: 1 }];
+    run.hero.armor.slots.push({ id: 'luck_talisman', tier: 1 });
+    const plate: GearInstance = { kind: 'armor', tier: 3, base: 'plate', name: 'Латы', dmgMin: 0, dmgMax: 0, def: 3, hp: 7, affix: null, slots: [null] };
+    const p = previewGearSwap(def, run.hero, plate);
+    expect(p.after.def - p.before.def).toBe(3 - run.hero.armor.def);
+    expect(p.moved.length).toBe(1);
+    expect(p.overflow.length).toBe(1);
+    // Маг не умеет носить тяжёлую броню: перк лат не работает.
+    expect(p.perkAfter).toBe('');
+  });
+});
+
+function weaponsPerk(base: string, tier: GearTier): string {
+  return `${baseOf('weapon', base).perk!.name}: ${baseOf('weapon', base).perk!.text(tier)}`;
+}

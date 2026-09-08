@@ -22,7 +22,7 @@ function heroTile(app: App, def: HeroDef): HTMLElement {
     'div',
     {
       class: `hero-tile ${selected ? 'selected' : ''}`,
-      title: def.role,
+      tip: def.role,
       onclick: () => app.selectHero(def.id),
       ondblclick: () => app.newRun(def.id, parseSeed(app.seedText)),
     },

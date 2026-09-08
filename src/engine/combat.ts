@@ -424,6 +424,20 @@ export function previewAttack(state: BattleState, bonus = 0, mult = 1): DamageRa
   return { min: Math.max(0, min), max: Math.max(0, max) };
 }
 
+/**
+ * Сколько HP останется у цели после урона из диапазона — для предпросмотра на полоске врага.
+ * Удар гасится блоком, если оружие не пробивает его (pierceBlock); заклинание — всегда. Неуязвимость и уклонение
+ * (для удара) съедают урон целиком. min — после максимального урона, max — после минимального.
+ */
+export function previewOnTarget(state: BattleState, e: EnemyState, range: DamageRange, kind: 'hit' | 'spell' = 'hit'): DamageRange {
+  const untouched = { min: e.hp, max: e.hp };
+  if (getStatus(e, 'invuln')) return untouched;
+  if (kind === 'hit' && getStatus(e, 'dodge')) return untouched;
+  const block = kind === 'spell' || state.hero.stats.pierceBlock <= 0 ? e.block : 0;
+  const after = (dmg: number) => Math.max(0, e.hp - Math.max(0, dmg - block));
+  return { min: after(range.max), max: after(range.min) };
+}
+
 export function rangeText(r: DamageRange): string {
   return r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`;
 }
@@ -980,5 +994,64 @@ export function computeIntent(e: EnemyState): IntentInfo {
     name: a.name,
     text: parts.length ? `${a.name}: ${parts.join(', ')}` : a.name,
     stunned: !!getStatus(e, 'stun'),
+  };
+}
+
+export interface AllyIntentInfo extends IntentInfo {
+  /** Кого ударит: самый раненый враг на момент расчёта; null — приём без цели. */
+  target: string | null;
+}
+
+/**
+ * Что союзник сделает после хода героя. Цикл детерминирован: cycleIdx и порядок действий прототипа
+ * уже в состоянии. Числа без масштаба акта — союзник бьёт «родными» числами прототипа плюс Сила.
+ */
+export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentInfo {
+  const def = enemyDef(a.defId);
+  const order = def.ai.type === 'cycle' ? def.ai.order : def.actions.map((x) => x.id);
+  const action = enemyAction(def, order[a.cycleIdx % order.length]);
+  const parts: string[] = [];
+  const kinds: IntentKind[] = [];
+  let label = '';
+  let target: string | null = null;
+  for (const eff of action.effects) {
+    switch (eff.type) {
+      case 'attack': {
+        let dmg = eff.amount + statusValue(a, 'strength');
+        if (getStatus(a, 'weak')) dmg = Math.floor(dmg * 0.75);
+        const hits = eff.hits ?? 1;
+        label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
+        const victim = state.enemies.reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
+        target = victim?.name ?? null;
+        parts.push(`Атака ${label}${victim ? ` по ${victim.name}` : ''}`);
+        kinds.push('attack');
+        break;
+      }
+      case 'block':
+        if (!label) label = `${eff.amount}`;
+        parts.push(`Блок ${eff.amount}`);
+        kinds.push('defend');
+        break;
+      case 'buffStr':
+        parts.push(`+${eff.amount} к урону (${eff.target === 'self' ? 'себе' : 'союзникам'})`);
+        kinds.push('buff');
+        break;
+      case 'heal':
+        parts.push(`Лечит ${eff.amount}`);
+        kinds.push('heal');
+        break;
+      default:
+        kinds.push('special');
+    }
+  }
+  const kind = INTENT_PRIORITY.find((k) => kinds.includes(k)) ?? 'special';
+  return {
+    kind,
+    icon: INTENT_ICON[kind],
+    label: kind === 'attack' || kind === 'defend' ? label : '',
+    name: action.name,
+    text: parts.length ? `${action.name}: ${parts.join(', ')}` : action.name,
+    stunned: false,
+    target,
   };
 }

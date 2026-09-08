@@ -114,5 +114,11 @@ if (heroParam) {
   else if (screen === 'spin') app.openChest();
 }
 
+// &sheet=1 — открыть оверлей «Персонаж», &pause=1 — паузу (на любом экране забега)
+if (app.run && app.screen === 'run') {
+  if (params.get('sheet')) app.toggleSheet();
+  else if (params.get('pause')) app.togglePause();
+}
+
 // Для отладки из консоли: mv.run, mv.render()
 (window as unknown as { mv: App }).mv = app;

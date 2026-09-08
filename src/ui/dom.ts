@@ -11,6 +11,9 @@ export function h(tag: string, attrs: Attrs = null, ...children: Child[]): HTMLE
       if (key === 'class') el.className = String(value);
       else if (key === 'style') el.setAttribute('style', String(value));
       else if (key === 'html') el.innerHTML = String(value);
+      // Свои подсказки (tooltip.ts): tip → data-tip, tipTitle → data-tip-title. Нативный title не используется.
+      else if (key === 'tip') el.setAttribute('data-tip', String(value));
+      else if (key === 'tipTitle') el.setAttribute('data-tip-title', String(value));
       else if (key.startsWith('on') && typeof value === 'function') {
         el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
       } else if (key === 'disabled') {
@@ -31,7 +34,7 @@ export function append(el: HTMLElement, children: Child[]): void {
   }
 }
 
-export function button(label: Child, onclick: () => void, opts: { class?: string; disabled?: boolean; title?: string } = {}): HTMLElement {
+export function button(label: Child, onclick: () => void, opts: { class?: string; disabled?: boolean; tip?: string } = {}): HTMLElement {
   return h(
     'button',
     {
@@ -40,7 +43,7 @@ export function button(label: Child, onclick: () => void, opts: { class?: string
         if (!opts.disabled) onclick();
       },
       disabled: opts.disabled,
-      title: opts.title,
+      tip: opts.tip,
     },
     label,
   );

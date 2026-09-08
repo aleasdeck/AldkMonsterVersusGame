@@ -6,6 +6,7 @@ import { ENEMY_LIST } from '../src/data/enemies';
 import { LOCATIONS } from '../src/data/locations';
 import {
   canUseAction,
+  computeAllyIntent,
   computeIntent,
   createBattle,
   endTurn,
@@ -13,6 +14,7 @@ import {
   getStatus,
   performAction,
   previewAttack,
+  previewOnTarget,
   resolveEnemyTurn,
 } from '../src/engine/combat';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
@@ -164,6 +166,23 @@ describe('намерения', () => {
     const m = state.enemies[1];
     m.intent = 'windup';
     expect(computeIntent(m)).toMatchObject({ kind: 'special', label: '', text: 'Замах' });
+  });
+
+  it('предпросмотр остатка HP цели: блок гасит удар, но не пробивающий и не заклинание', () => {
+    const { state } = mkBattle('warrior', ['wolf']);
+    const wolf = first(state);
+    wolf.block = 3;
+    expect(wolf.hp).toBe(12);
+    // Удар 4–6 сквозь блок 3: снимет 1–3, останется 9–11.
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 })).toEqual({ min: 9, max: 11 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'spell')).toEqual({ min: 9, max: 11 });
+    state.hero.stats.pierceBlock = 1;
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 })).toEqual({ min: 6, max: 8 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'spell')).toEqual({ min: 9, max: 11 });
+    // Урон больше HP — остаток не уходит в минус.
+    expect(previewOnTarget(state, wolf, { min: 20, max: 30 })).toEqual({ min: 0, max: 0 });
+    wolf.statuses.push({ id: 'invuln', value: 1, turns: 1 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 })).toEqual({ min: 12, max: 12 });
   });
 });
 
@@ -529,6 +548,16 @@ describe('призыв волка', () => {
     expect(state.hero.hp).toBe(heroHp);
     pass(state, rng);
     expect(state.hero.hp).toBeLessThan(heroHp);
+  });
+
+  it('намерение волка: укус по самому раненому, после двух укусов — вой', () => {
+    const { state, rng } = mkBattle('mage', ['wolf', 'rat'], { extra: [{ id: 'wolf_whistle', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    const ally = state.allies[0];
+    expect(computeAllyIntent(state, ally)).toMatchObject({ kind: 'attack', label: '5', name: 'Укус', target: 'Крыса' });
+    pass(state, rng, 2);
+    // Цикл волка: укус, укус, вой — третий ход без цели.
+    expect(computeAllyIntent(state, ally)).toMatchObject({ kind: 'buff', label: '', name: 'Вой', target: null });
   });
 
   it('рядом помещаются два волка, третьему нет места', () => {

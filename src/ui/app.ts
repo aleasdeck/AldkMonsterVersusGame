@@ -17,6 +17,11 @@ import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
 import { SPIN_MS, buildStrip, chestScreen, type ChestState } from './screens/chest';
+import { hideTooltip, installTooltips } from './tooltip';
+import { formatClock } from './topbar';
+import { heroSheet } from './screens/heroSheet';
+import { pauseMenu } from './screens/pause';
+import { installHotkeys } from './hotkeys';
 
 const ENEMY_STEP_MS = 600;
 const FLOAT_MS = 900;
@@ -29,8 +34,12 @@ export class App {
   target: number | null = null;
   /** Идёт ход врагов — кнопки заблокированы. */
   busy = false;
-  /** Лог боя раскрыт на всю нижнюю панель вместо действий. Сбрасывается по концу боя. */
+  /** Лог боя раскрыт вместо плиток приёмов. Сбрасывается по концу боя. */
   logOpen = false;
+  /** Открыт оверлей «Персонаж». Живёт только в App, не сохраняется. */
+  sheetOpen = false;
+  /** Открыта пауза. */
+  pauseOpen = false;
   profile: Profile;
   /** Состояние крутки сундука; null — сундук ещё не открыт. */
   chest: ChestState | null = null;
@@ -39,12 +48,16 @@ export class App {
   /** Текст поля «Сид» на экране выбора — переживает перерисовку при клике по плитке. */
   seedText = '';
   private stepTimer: number | null = null;
+  /** Тикает раз в секунду и пишет время забега в топбар напрямую, без перерисовки. */
+  private clockTimer: number | null = null;
   private spinTimer: number | null = null;
   private resultRecorded = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.profile = loadProfile();
+    installTooltips(root);
+    installHotkeys(this);
   }
 
   start(): void {
@@ -97,7 +110,70 @@ export class App {
           el = endScreen(this);
       }
     }
+    // Оверлеи рисуются той же перерисовкой из состояния App: ход врагов по таймеру их не снесёт,
+    // а клики по полю и плиткам под ними не проходят.
+    if (this.screen === 'run' && this.run && !R.isRunOver(this.run)) {
+      if (this.sheetOpen) el.appendChild(heroSheet(this));
+      else if (this.pauseOpen) el.appendChild(pauseMenu(this));
+    }
+    hideTooltip();
     this.root.replaceChildren(el);
+    this.syncClock();
+  }
+
+  // ─── Таймер забега ───────────────────────────────────────────────────────
+
+  /** Сколько идёт забег, мс. Законченный — до момента конца. */
+  runElapsed(): number {
+    const s = this.run?.stats;
+    if (!s?.startedAt) return 0;
+    return (s.finishedAt || Date.now()) - s.startedAt;
+  }
+
+  /** Таймер живёт только на экранах забега; в меню и на итогах останавливается. */
+  private syncClock(): void {
+    const active = this.screen === 'run' && !!this.run && !R.isRunOver(this.run);
+    if (active && this.clockTimer === null) {
+      this.clockTimer = window.setInterval(() => {
+        const el = this.root.querySelector('.run-clock');
+        if (el) el.textContent = `⏱ ${formatClock(this.runElapsed())}`;
+      }, 1000);
+    } else if (!active && this.clockTimer !== null) {
+      window.clearInterval(this.clockTimer);
+      this.clockTimer = null;
+    }
+  }
+
+  // ─── Оверлеи ─────────────────────────────────────────────────────────────
+
+  toggleSheet(): void {
+    this.sheetOpen = !this.sheetOpen;
+    this.pauseOpen = false;
+    this.render();
+  }
+
+  togglePause(): void {
+    this.pauseOpen = !this.pauseOpen;
+    this.sheetOpen = false;
+    this.render();
+  }
+
+  /** Из паузы — к логу боя: пауза закрывается, лог раскрывается. */
+  toggleLogFromPause(): void {
+    this.pauseOpen = false;
+    this.toggleLog();
+  }
+
+  /** Esc: закрыть верхний слой, а если слоёв нет — открыть паузу. */
+  escape(): void {
+    if (this.sheetOpen) this.toggleSheet();
+    else if (this.pauseOpen) this.togglePause();
+    else if (this.logOpen && this.run?.phase === 'battle') this.toggleLog();
+    else this.togglePause();
+  }
+
+  private overlayOpen(): boolean {
+    return this.sheetOpen || this.pauseOpen;
   }
 
   private commit(): void {
@@ -126,6 +202,8 @@ export class App {
     this.stopStepping();
     this.stopSpin();
     this.chest = null;
+    this.sheetOpen = false;
+    this.pauseOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
     this.screen = 'menu';
     this.render();
@@ -213,6 +291,8 @@ export class App {
     if (!this.run) return;
     if (!window.confirm('Бросить текущий забег? Прогресс пропадёт.')) return;
     this.stopStepping();
+    this.sheetOpen = false;
+    this.pauseOpen = false;
     clearRun();
     this.run = null;
     this.showMenu();
@@ -269,6 +349,11 @@ export class App {
     const run = this.run;
     if (!run?.battle) {
       this.busy = false;
+      return;
+    }
+    // Под оверлеем ход врагов стоит: ждём, пока игрок закроет персонажа или паузу.
+    if (this.overlayOpen()) {
+      this.scheduleStep();
       return;
     }
     R.battleEnemyStep(run);
