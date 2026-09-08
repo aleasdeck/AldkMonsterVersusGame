@@ -17,6 +17,7 @@ import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
 import { SPIN_MS, buildStrip, chestScreen, type ChestState } from './screens/chest';
+import { hideTooltip, installTooltips } from './tooltip';
 
 const ENEMY_STEP_MS = 600;
 const FLOAT_MS = 900;
@@ -45,6 +46,7 @@ export class App {
   constructor(root: HTMLElement) {
     this.root = root;
     this.profile = loadProfile();
+    installTooltips(root);
   }
 
   start(): void {
@@ -97,6 +99,7 @@ export class App {
           el = endScreen(this);
       }
     }
+    hideTooltip();
     this.root.replaceChildren(el);
   }
 

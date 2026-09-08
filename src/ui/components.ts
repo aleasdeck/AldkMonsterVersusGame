@@ -27,13 +27,14 @@ import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
 import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
 import { STATUS_HINTS, STATUS_NAMES, defendBlock } from '../engine/combat';
 import { spriteImg } from './sprites';
+import { markKeywords } from './keywords';
 import type { App } from './app';
 
-export function bar(cls: string, cur: number, max: number, label = '', title = ''): HTMLElement {
+export function bar(cls: string, cur: number, max: number, label = '', tip = ''): HTMLElement {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
   return h(
     'div',
-    title ? { class: `bar bar-${cls}`, title } : { class: `bar bar-${cls}` },
+    tip ? { class: `bar bar-${cls}`, tip } : { class: `bar bar-${cls}` },
     h('div', { class: 'bar-fill', style: `width:${pct}%` }),
     h('span', { class: 'bar-text' }, `${label ? label + ' ' : ''}${cur}/${max}`),
   );
@@ -50,7 +51,7 @@ export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElemen
   const label = kind === 'sta' ? 'STA' : 'MP';
   return h(
     'div',
-    { class: `bar bar-${kind}`, title: `${kind === 'sta' ? 'Стамина' : 'Мана'} ${cur}/${max}` },
+    { class: `bar bar-${kind}`, tip: `${kind === 'sta' ? 'Стамина' : 'Мана'} ${cur}/${max}` },
     h('div', { class: 'segs' }, ...segs),
     h('span', { class: 'bar-text' }, `${label} ${cur}/${max}`),
   );
@@ -59,11 +60,11 @@ export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElemen
 /** Плитка предмета каталога: в сетке коллекции и в ленте сундука. */
 export function collectibleTile(c: Collectible, locked = false): HTMLElement {
   if (locked) {
-    return h('div', { class: 'coll-tile locked', title: 'Ещё не найдено' }, h('span', { class: 'coll-glyph' }, '?'), h('span', { class: 'coll-name' }, '???'));
+    return h('div', { class: 'coll-tile locked', tip: 'Ещё не найдено' }, h('span', { class: 'coll-glyph' }, '?'), h('span', { class: 'coll-name' }, '???'));
   }
   return h(
     'div',
-    { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, title: `${c.name}\n${c.sub}\n${c.desc}` },
+    { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, tip: `${c.name}\n${c.sub}\n${c.desc}` },
     h('span', { class: 'coll-glyph', style: `color:${c.color}` }, c.glyph),
     h('span', { class: 'coll-name' }, c.name),
   );
@@ -98,7 +99,7 @@ export function pickable(el: HTMLElement, onclick?: () => void): HTMLElement {
 /** Бейдж тира: «Редкий», у оружия с иконкой типа внутри — «Редкий · ⚔» (цвет иконки — владение героя). */
 export function tierBadge(tier: GearTier, typeIcon?: HTMLElement | null): HTMLElement {
   const info = GEAR_TIERS[tier];
-  return h('span', { class: 'tier', style: `color:${info.color};border-color:${info.color}`, title: `${info.name} предмет, тир ${tier}` }, info.name, typeIcon ? ' · ' : null, typeIcon);
+  return h('span', { class: 'tier', style: `color:${info.color};border-color:${info.color}`, tip: `${info.name} предмет, тир ${tier}` }, info.name, typeIcon ? ' · ' : null, typeIcon);
 }
 
 export function artifactTitle(inst: ArtifactInstance): string {
@@ -111,7 +112,7 @@ export function artifactTitle(inst: ArtifactInstance): string {
 }
 
 export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: () => void; selected?: boolean } = {}): HTMLElement {
-  if (!inst) return h('div', { class: 'chip chip-empty', title: 'Пустой слот' }, '·');
+  if (!inst) return h('div', { class: 'chip chip-empty', tip: 'Пустой слот' }, '·');
   const def = artifactDef(inst.id);
   const color = ART_TIER_COLORS[inst.tier];
   return h(
@@ -119,7 +120,7 @@ export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: ()
     {
       class: `chip ${def.kind} ${opts.selected ? 'selected' : ''} ${opts.onclick ? 'clickable' : ''}`,
       style: `border-color:${color}`,
-      title: artifactTitle(inst),
+      tip: artifactTitle(inst),
       onclick: opts.onclick,
     },
     h('span', { class: 'chip-glyph' }, def.glyph),
@@ -136,7 +137,7 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child): HTMLElemen
     h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, def.glyph), h('span', { class: 'card-name' }, def.name)),
     // Тир не пишем: его показывает цвет рамки и подписи.
     h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}`),
-    h('div', { class: 'card-desc' }, def.describe(inst.tier)),
+    h('div', { class: 'card-desc' }, ...markKeywords(def.describe(inst.tier))),
     def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
@@ -157,8 +158,8 @@ export function potionTitle(id: string): string {
 
 /** Чип зелья — как чип артефакта, но без тира. Пустой слот — прочерк. */
 export function potionChip(id: string | null): HTMLElement {
-  if (!id) return h('div', { class: 'chip chip-empty', title: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' }, '·');
-  return h('div', { class: 'chip potion', style: `border-color:${POTION_COLOR}`, title: potionTitle(id) }, h('span', { class: 'chip-glyph' }, potionDef(id).glyph));
+  if (!id) return h('div', { class: 'chip chip-empty', tip: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' }, '·');
+  return h('div', { class: 'chip potion', style: `border-color:${POTION_COLOR}`, tip: potionTitle(id) }, h('span', { class: 'chip-glyph' }, potionDef(id).glyph));
 }
 
 /** Строка зелья в панели героя: подпись, чип и название в одну строку, чтобы панель осталась без прокрутки. */
@@ -166,7 +167,7 @@ export function potionRow(id: string | null): HTMLElement {
   const def = id ? potionDef(id) : null;
   return h(
     'div',
-    { class: 'potion-row', title: id ? potionTitle(id) : 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' },
+    { class: 'potion-row', tip: id ? potionTitle(id) : 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' },
     h('span', { class: 'lbl' }, 'Зелье:'),
     potionChip(id),
     h('span', { class: def ? 'potion-name' : 'dim' }, def ? def.name : 'пусто'),
@@ -185,7 +186,7 @@ export function potionCard(id: string, footer?: Child, note?: string | null): HT
     { class: 'card potion-card', style: `border-color:${POTION_COLOR}` },
     h('div', { class: 'card-head' }, h('span', { class: 'glyph', style: `color:${POTION_COLOR}` }, def.glyph), h('span', { class: 'card-name' }, def.name)),
     h('div', { class: 'card-sub', style: `color:${POTION_COLOR}` }, 'Зелье · расходник'),
-    h('div', { class: 'card-desc' }, def.describe),
+    h('div', { class: 'card-desc' }, ...markKeywords(def.describe)),
     h('div', { class: 'card-cost' }, 'Пьётся в бою бесплатно'),
     note ? h('div', { class: 'note' }, note) : null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
@@ -196,13 +197,13 @@ export function potionCard(id: string, footer?: Child, note?: string | null): HT
 export function weaponTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   const type = weaponType(gear);
   const cls = def ? `mastery-${def.mastery[type]}` : '';
-  return h('span', { class: `wtype-icon ${cls}`.trim(), title: weaponTypeTitle(gear, def) }, WEAPON_TYPE_GLYPHS[type]);
+  return h('span', { class: `wtype-icon ${cls}`.trim(), tip: weaponTypeTitle(gear, def) }, WEAPON_TYPE_GLYPHS[type]);
 }
 
 /** Иконка типа брони у бейджа тира. С героем окрашена по умению носить: зелёный умеет, красный не умеет. Без перка — серая. */
 export function armorTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   const cls = def && hasPerk(gear) ? (canWearArmor(def, gear) ? 'skill-yes' : 'skill-no') : '';
-  return h('span', { class: `wtype-icon ${cls}`.trim(), title: armorTypeTitle(gear, def) }, ARMOR_TYPE_GLYPHS[armorType(gear)]);
+  return h('span', { class: `wtype-icon ${cls}`.trim(), tip: armorTypeTitle(gear, def) }, ARMOR_TYPE_GLYPHS[armorType(gear)]);
 }
 
 export function gearTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
@@ -216,11 +217,11 @@ export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null 
   if (gear.kind === 'armor' && def && !canWearArmor(def, gear)) {
     return h(
       'div',
-      { class: 'card-perk off', title: `${def.name} не умеет носить ${ARMOR_TYPE_NAMES[armorType(gear)].toLowerCase()} броню: перк не работает` },
+      { class: 'card-perk off', tip: `${def.name} не умеет носить ${ARMOR_TYPE_NAMES[armorType(gear)].toLowerCase()} броню: перк не работает` },
       h('s', null, perk),
     );
   }
-  return h('div', { class: 'card-perk' }, perk);
+  return h('div', { class: 'card-perk' }, ...markKeywords(perk));
 }
 
 export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Child; compact?: boolean } = {}): HTMLElement {
@@ -266,10 +267,10 @@ export function skillLine(def: HeroDef): HTMLElement {
   return h(
     'div',
     { class: 'mastery' },
-    h('span', { class: 'lbl', title: 'Владение оружием: зелёный мастер, жёлтый знаком, красный чужое. Наведи на иконку' }, 'Оружие:'),
-    ...weapons.map((t) => h('span', { class: `mastery-${def.mastery[t]}`, title: masteryTitle(t, def.mastery[t]) }, WEAPON_TYPE_GLYPHS[t])),
-    h('span', { class: 'lbl', title: 'Умение носить броню: зелёный перк работает, красный нет. Наведи на иконку' }, 'Броня:'),
-    ...armors.map((t) => h('span', { class: def.armorSkill[t] ? 'skill-yes' : 'skill-no', title: armorSkillTitle(t, def.armorSkill[t]) }, ARMOR_TYPE_GLYPHS[t])),
+    h('span', { class: 'lbl', tip: 'Владение оружием: зелёный мастер, жёлтый знаком, красный чужое. Наведи на иконку' }, 'Оружие:'),
+    ...weapons.map((t) => h('span', { class: `mastery-${def.mastery[t]}`, tip: masteryTitle(t, def.mastery[t]) }, WEAPON_TYPE_GLYPHS[t])),
+    h('span', { class: 'lbl', tip: 'Умение носить броню: зелёный перк работает, красный нет. Наведи на иконку' }, 'Броня:'),
+    ...armors.map((t) => h('span', { class: def.armorSkill[t] ? 'skill-yes' : 'skill-no', tip: armorSkillTitle(t, def.armorSkill[t]) }, ARMOR_TYPE_GLYPHS[t])),
   );
 }
 
@@ -279,7 +280,7 @@ export function coin(): HTMLElement {
 }
 
 export function goldBadge(gold: number): HTMLElement {
-  return h('span', { class: 'gold', title: 'Золото: капает за бои, тратится на переброс награды' }, `◉ ${gold}`);
+  return h('span', { class: 'gold', tip: 'Золото: капает за бои, тратится на переброс награды' }, `◉ ${gold}`);
 }
 
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
@@ -294,7 +295,7 @@ export function statusIcons(c: Combatant): HTMLElement {
       const title = `${STATUS_NAMES[s.id]}${showValue ? ` ${s.value}` : ''}${s.turns > 0 ? `, ходов: ${s.turns}` : ''}\n${STATUS_HINTS[s.id]}`;
       return h(
         'span',
-        { class: `status status-${s.id}`, title },
+        { class: `status status-${s.id}`, tip: title },
         statusIcon(s.id, 18),
         showValue ? h('span', { class: 'status-val' }, `${s.value}`) : null,
         s.turns > 0 ? h('span', { class: 'status-turns' }, `${s.turns}`) : null,
@@ -304,7 +305,7 @@ export function statusIcons(c: Combatant): HTMLElement {
 }
 
 export function statsGrid(s: DerivedStats): HTMLElement {
-  const row = (k: string, v: string, title: string) => h('div', { class: 'stat', title }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
+  const row = (k: string, v: string, tip: string) => h('div', { class: 'stat', tip }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
   return h(
     'div',
     { class: 'stats-grid' },

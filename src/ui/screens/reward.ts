@@ -58,7 +58,7 @@ export function rewardScreen(app: App): HTMLElement {
           button('Пропустить', () => app.skipReward()),
           button(h('span', null, `Перебросить за ${REROLL_COST} `, coin()), () => app.rerollReward(), {
             disabled: !!rerollErr,
-            title: rerollErr ?? 'Заменить все варианты на новые. Один раз на награду.',
+            tip: rerollErr ?? 'Заменить все варианты на новые. Один раз на награду.',
           }),
         ),
       ),

@@ -9,7 +9,7 @@ import type { App } from '../app';
 
 /** Кнопка покупки: «Купить 5 ◉» без «за» — в четырёх узких колонках каждое слово на счету; причина недоступности — в подсказке. */
 function buyButton(cost: number, err: string | null, onclick: () => void): HTMLElement {
-  return button(h('span', null, `Купить ${cost} `, coin()), onclick, { class: 'primary', disabled: !!err, title: err ?? undefined });
+  return button(h('span', null, `Купить ${cost} `, coin()), onclick, { class: 'primary', disabled: !!err, tip: err ?? undefined });
 }
 
 /** Карточка проданного товара: место остаётся, чтобы ряд не прыгал. */
@@ -70,7 +70,7 @@ export function shopScreen(app: App): HTMLElement {
           button('Уйти', () => app.leaveShop(), { class: 'primary', disabled: !!run.pending }),
           button(h('span', null, `Перебросить за ${REROLL_COST} `, coin()), () => app.shopReroll(), {
             disabled: !!rerollErr,
-            title: rerollErr ?? 'Заменить непроданные товары на новые. Один раз за визит.',
+            tip: rerollErr ?? 'Заменить непроданные товары на новые. Один раз за визит.',
           }),
         ),
       ),

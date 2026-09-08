@@ -24,9 +24,11 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: 'VT323', 'Courier New', monospace;
-  font-size: 20px;
-  line-height: 1.15;
+  /* Handjet — пиксельный шрифт с кириллицей; VT323 остаётся запасным для латиницы и цифр. Handjet мельче, поэтому база 23px вместо 20. */
+  font-family: 'Handjet', 'VT323', 'Courier New', monospace;
+  font-weight: 500;
+  font-size: 23px;
+  line-height: 1.1;
   overflow: hidden;
   user-select: none;
 }
@@ -74,12 +76,19 @@ h3 {
   font-weight: normal;
   letter-spacing: 1px;
 }
+/* Заголовки экранов — Tiny5: строки короткие, пиксельный кегль читается. */
+h1,
+h2,
+.title-sm {
+  font-family: 'Tiny5', 'Handjet', 'VT323', monospace;
+  font-weight: normal;
+}
 h1 {
-  font-size: 44px;
+  font-size: 40px;
   color: var(--accent);
 }
 h2 {
-  font-size: 30px;
+  font-size: 26px;
   color: var(--accent);
 }
 p {
@@ -149,7 +158,7 @@ p {
   border-bottom: 3px solid var(--border);
 }
 .title-sm {
-  font-size: 24px;
+  font-size: 20px;
   color: var(--accent);
 }
 
@@ -331,7 +340,7 @@ p {
   position: absolute;
   inset: 0;
   text-align: center;
-  font-size: 15px;
+  font-size: 17px;
   line-height: 14px;
   /* Обводка вокруг глифов: подпись читается и на светлой заливке, и на тёмном фоне. */
   color: #fff;
@@ -1304,6 +1313,34 @@ p {
   40% {
     transform: translateX(-18px);
   }
+}
+
+/* ─── Подсказки и ключевые слова ────────────────────────────────────── */
+
+/* Один слой на кадр (tooltip.ts): позиция считается в кадровых пикселях, масштаб кадра действует сам. */
+.tip-layer {
+  position: absolute;
+  z-index: 60;
+  max-width: 340px;
+  padding: 6px 10px;
+  background: #0c0c16;
+  border: 3px solid var(--border);
+  box-shadow: 4px 4px 0 #000;
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--text);
+  white-space: pre-line;
+  pointer-events: none;
+}
+.tip-title {
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+/* Ключевое слово в описании: подсвечено, со своей подсказкой при наведении. */
+.kw {
+  color: #b8c0ff;
+  border-bottom: 1px dotted #b8c0ff88;
+  cursor: help;
 }
 
 /* ─── Оверлеи ───────────────────────────────────────────────────────── */

@@ -33,7 +33,7 @@ export function mapScreen(app: App): HTMLElement {
     rooms.push(
       h(
         'div',
-        { class: `room ${state} room-${k}`, title: ROOM_DESC[k] },
+        { class: `room ${state} room-${k}`, tip: ROOM_DESC[k] },
         h('div', { class: 'room-icon' }, ROOM_ICONS[k]),
         h('div', { class: 'room-name' }, ROOM_NAMES[k]),
       ),

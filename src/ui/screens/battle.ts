@@ -34,7 +34,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     },
     h(
       'div',
-      { class: `intent intent-${intent.kind} ${intent.stunned ? 'stunned' : ''}`, title: intent.text },
+      { class: `intent intent-${intent.kind} ${intent.stunned ? 'stunned' : ''}`, tip: intent.text },
       h('div', { class: 'intent-main' }, ...(intent.stunned ? [statusIcon('stun', 20), ' оглушён'] : [`${intent.icon} ${intent.label}`.trim()])),
       h('div', { class: 'intent-name' }, intent.name),
     ),
@@ -78,7 +78,7 @@ function actionButton(
     {
       class: `btn action ${err || busy ? 'off' : ''} ${cooldown ? 'cooling' : ''}`,
       disabled: !!err || busy,
-      title: err ? `${title}\n— ${err}` : title,
+      tip: err ? `${title}\n— ${err}` : title,
       onclick,
     },
     cooldown ? h('div', { class: 'cd-fill', style: `height:${pct}%` }) : null,
@@ -155,7 +155,7 @@ function actionBar(app: App): HTMLElement {
   } else {
     potionBtn = h(
       'button',
-      { class: 'btn action off potion', disabled: true, title: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' },
+      { class: 'btn action off potion', disabled: true, tip: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' },
       h('div', { class: 'action-label' }, '⚗ Зелье'),
       h('div', { class: 'action-value' }, 'Слот пуст'),
     );
@@ -204,7 +204,7 @@ export function battleScreen(app: App): HTMLElement {
   // Лог спрятан за узкой кнопкой справа: раскрытый занимает всю нижнюю панель вместо действий и кнопки конца хода.
   const logToggle = button(app.logOpen ? '✕ Закрыть' : 'Лог боя', () => app.toggleLog(), {
     class: `log-toggle ${app.logOpen ? 'open' : ''}`,
-    title: app.logOpen ? (over ? 'Вернуть итог боя' : 'Вернуть действия') : 'Показать лог боя',
+    tip: app.logOpen ? (over ? 'Вернуть итог боя' : 'Вернуть действия') : 'Показать лог боя',
   });
   let bottom: HTMLElement;
   if (app.logOpen) {
@@ -234,7 +234,7 @@ export function battleScreen(app: App): HTMLElement {
             'div',
             { class: 'row' },
             button(finishLabel, () => app.finishBattle(), { class: 'primary big' }),
-            button('Лог боя', () => app.toggleLog(), { title: 'Перечитать ход боя, плашка итога вернётся по «Закрыть»' }),
+            button('Лог боя', () => app.toggleLog(), { tip: 'Перечитать ход боя, плашка итога вернётся по «Закрыть»' }),
           ),
         ),
       ),

@@ -45,11 +45,11 @@ export function campScreen(app: App): HTMLElement {
             const title = `${def.name}, тир ${art.tier} → ${nextTier}\nСейчас: ${def.describe(art.tier)}\nСтанет: ${def.describe(nextTier)}`;
             return h(
               'div',
-              { class: 'forge-row', title },
+              { class: 'forge-row', tip: title },
               artifactChip(s.art),
               h('span', { class: 'forge-name' }, def.name),
               h('span', { class: 'forge-tier' }, `${art.tier} → ${nextTier}`),
-              button('Улучшить', () => app.campForge(s.kind, s.index), { class: 'small', title }),
+              button('Улучшить', () => app.campForge(s.kind, s.index), { class: 'small', tip: title }),
             );
           }),
         ),
