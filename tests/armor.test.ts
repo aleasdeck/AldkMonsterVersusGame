@@ -23,14 +23,14 @@ function mkBattle(heroId: string, a: GearInstance, enemies: string[]) {
 }
 
 describe('типы брони и умение носить', () => {
-  it('у каждой выпадающей базы брони есть тип и перк, типов три, по две базы на тип', () => {
+  it('у каждой выпадающей базы брони есть тип и перк, типов три: две тяжёлых, две средних, три лёгких', () => {
     const count: Record<ArmorType, number> = { heavy: 0, medium: 0, light: 0 };
     for (const b of dropBases('armor')) {
       expect(b.armorType).toBeDefined();
       expect(b.perk).toBeDefined();
       count[b.armorType!]++;
     }
-    expect(count).toEqual({ heavy: 2, medium: 2, light: 2 });
+    expect(count).toEqual({ heavy: 2, medium: 2, light: 3 });
     expect(armorType(armor('plate'))).toBe('heavy');
     expect(armorType(armor('shell'))).toBe('medium');
     expect(armorType(armor('cloak'))).toBe('light');
@@ -77,11 +77,11 @@ describe('типы брони и умение носить', () => {
     expect(s.maxHp).toBe(mage.hp + 5 + 8);
   });
 
-  it('плащ на Воине не даёт уклонения, на Плуте — даёт', () => {
+  it('плащ на Воине не даёт уклонения, на Лучнике — даёт', () => {
     const warrior = mkBattle('warrior', armor('cloak'), ['wolf']);
     expect(getStatus(warrior.state.hero, 'dodge')).toBeUndefined();
-    const rogue = mkBattle('rogue', armor('cloak'), ['wolf']);
-    expect(getStatus(rogue.state.hero, 'dodge')?.value).toBe(1);
+    const archer = mkBattle('archer', armor('cloak'), ['wolf']);
+    expect(getStatus(archer.state.hero, 'dodge')?.value).toBe(1);
   });
 
   it('латы на Маге не усиливают «Защититься»', () => {

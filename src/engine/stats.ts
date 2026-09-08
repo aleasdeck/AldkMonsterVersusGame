@@ -53,6 +53,8 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     blockKeep: 0,
     blockOnSpell: 0,
     dodgeStart: 0,
+    stealthStart: 0,
+    backstab: 0,
   };
   applyMods(s, weaponPerkMods(weapon));
   applyMods(s, armorPerkMods(armor, def));

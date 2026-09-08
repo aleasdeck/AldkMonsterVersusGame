@@ -1,4 +1,4 @@
-import type { ArtTier, ArtifactDef } from '../engine/types';
+import type { ArtTier, ArtifactCost, ArtifactDef } from '../engine/types';
 import { enemyDef } from './enemies';
 
 const t = (a: number, b: number, c: number) => (tier: ArtTier) => [a, b, c][tier - 1];
@@ -219,6 +219,31 @@ const list: ArtifactDef[] = [
     ],
     describe: (tier) => `Атака +${t(0, 1, 2)(tier)} и Слабость на ${t(1, 2, 3)(tier)} ход(а). КД 2`,
   },
+  {
+    id: 'smoke_bomb',
+    name: 'Дымовая шашка',
+    glyph: '☁',
+    kind: 'active',
+    school: 'physical',
+    // Тир 1 съедает всю стамину: шашка — весь ход. Прокачка делает её приёмом среди других.
+    cost: (tier) => ({ sta: (['all', 2, 1] as const)[tier - 1] }),
+    cooldown: () => 3,
+    target: 'self',
+    effects: (tier) => [{ type: 'status', target: 'self', status: 'stealth', value: 1, turns: t(2, 2, 3)(tier) }],
+    describe: (tier) =>
+      `Скрытность на ${t(2, 2, 3)(tier)} ход(а): враги не видят героя, следующая атака — удар в спину. Цена: ${['вся стамина', '2 STA', '1 STA'][tier - 1]}. КД 3`,
+  },
+  {
+    id: 'poison_vial',
+    name: 'Флакон яда',
+    glyph: '⚗',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 1 },
+    target: 'enemy',
+    effects: (tier) => [{ type: 'status', target: 'enemy', status: 'poison', value: t(2, 3, 4)(tier), turns: 4 }],
+    describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода (стакается). Бросок не снимает скрытность`,
+  },
 
   // ─── Активные магические (MP) ────────────────────────────────────────────
   {
@@ -332,11 +357,18 @@ export function artifactDef(id: string): ArtifactDef {
   return def;
 }
 
-export function artifactCostText(def: ArtifactDef): string {
+/** Цена приёма на тире: у большинства артефактов одна на все тиры. */
+export function artifactCost(def: ArtifactDef, tier: ArtTier): ArtifactCost {
+  return (typeof def.cost === 'function' ? def.cost(tier) : def.cost) ?? {};
+}
+
+export function artifactCostText(def: ArtifactDef, tier: ArtTier = 1): string {
   if (def.kind !== 'active') return '';
+  const c = artifactCost(def, tier);
   const parts: string[] = [];
-  if (def.cost?.sta) parts.push(`${def.cost.sta} STA`);
-  if (def.cost?.mp) parts.push(`${def.cost.mp} MP`);
+  if (c.sta === 'all') parts.push('вся STA');
+  else if (c.sta) parts.push(`${c.sta} STA`);
+  if (c.mp) parts.push(`${c.mp} MP`);
   if (parts.length === 0) parts.push('0 STA');
   return parts.join(', ');
 }

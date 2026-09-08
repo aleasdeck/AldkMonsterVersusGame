@@ -268,8 +268,8 @@ describe('забег', () => {
 
   it('один и тот же сид даёт один и тот же забег', () => {
     // Время старта фиксируем: иначе startedAt в статистике разъезжается на миллисекунду и тест мигает.
-    const a = newRun('rogue', 777, 1000);
-    const b = newRun('rogue', 777, 1000);
+    const a = newRun('archer', 777, 1000);
+    const b = newRun('archer', 777, 1000);
     playRun(a);
     playRun(b);
     expect(a.phase).toBe(b.phase);
@@ -476,7 +476,7 @@ describe('забег', () => {
 
   it('лут привязан к акту: босс второго акта даёт 4 тир в любой локации', () => {
     for (const first of ['swamp', 'ship'] as const) {
-      const run = newRun('rogue', 21);
+      const run = newRun('archer', 21);
       run.locations = [first, 'hive', 'crypt'];
       run.locationIndex = 1;
       run.roomIndex = ROOMS_PER_LOCATION - 1;

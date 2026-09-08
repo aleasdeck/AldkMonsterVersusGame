@@ -103,7 +103,7 @@ export function tierBadge(tier: GearTier, typeIcon?: HTMLElement | null): HTMLEl
 export function artifactTitle(inst: ArtifactInstance): string {
   const def = artifactDef(inst.id);
   const lines = [`${def.name} (тир ${inst.tier})`, def.describe(inst.tier)];
-  if (def.kind === 'active') lines.push(`Цена: ${artifactCostText(def)}`);
+  if (def.kind === 'active') lines.push(`Цена: ${artifactCostText(def, inst.tier)}`);
   else lines.push('Пассивный');
   if (inst.tier < 3) lines.push(`Следующий тир: ${def.describe((inst.tier + 1) as ArtTier)}`);
   return lines.join('\n');
@@ -136,7 +136,7 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child): HTMLElemen
     // Тир не пишем: его показывает цвет рамки и подписи.
     h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}`),
     h('div', { class: 'card-desc' }, def.describe(inst.tier)),
-    def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def)}`) : null,
+    def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
 }
@@ -237,7 +237,7 @@ export function goldBadge(gold: number): HTMLElement {
 }
 
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
-const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'thorns', 'regen', 'dodge'];
+const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge'];
 
 export function statusIcons(c: Combatant): HTMLElement {
   return h(

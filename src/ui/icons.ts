@@ -103,6 +103,26 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '...##...',
     '........',
   ],
+  poison: [
+    '...##...',
+    '...##...',
+    '..####..',
+    '.##..##.',
+    '.#.##.#.',
+    '.##..##.',
+    '..####..',
+    '........',
+  ],
+  stealth: [
+    '........',
+    '..####..',
+    '.#....#.',
+    '#..##..#',
+    '#..##..#',
+    '.#....#.',
+    '..####..',
+    '........',
+  ],
 };
 
 export const STATUS_COLORS: Record<StatusId, string> = {
@@ -116,6 +136,8 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   thorns: '#c0c0c0',
   regen: '#80ed99',
   invuln: '#ffd166',
+  poison: '#7ddc5a',
+  stealth: '#9aa6c8',
 };
 
 const OUTLINE = '#0b0b12';
