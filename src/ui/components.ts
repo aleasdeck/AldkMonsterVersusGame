@@ -209,7 +209,7 @@ export function gearTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   return gear.kind === 'weapon' ? weaponTypeIcon(gear, def) : armorTypeIcon(gear, def);
 }
 
-/** Строка перка базы. Броня, которую герой не умеет носить, — перк зачёркнут и подписан. */
+/** Строка перка базы. Броня, которую герой не умеет носить, — перк зачёркнут, причина в подсказке. */
 export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null {
   const perk = gearPerkText(gear);
   if (!perk) return null;
@@ -218,7 +218,6 @@ export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null 
       'div',
       { class: 'card-perk off', title: `${def.name} не умеет носить ${ARMOR_TYPE_NAMES[armorType(gear)].toLowerCase()} броню: перк не работает` },
       h('s', null, perk),
-      ' — не работает',
     );
   }
   return h('div', { class: 'card-perk' }, perk);
