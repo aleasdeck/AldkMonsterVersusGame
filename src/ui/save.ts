@@ -1,5 +1,6 @@
 import type { RunState } from '../engine/types';
 import { SAVE_VERSION } from '../engine/types';
+import { HEROES } from '../data/heroes';
 
 const RUN_KEY = 'mv_run_v1';
 const PROFILE_KEY = 'mv_profile_v1';
@@ -68,6 +69,8 @@ export function loadRun(): RunState | null {
     if (!raw) return null;
     const run = JSON.parse(raw) as RunState;
     if (run.version !== SAVE_VERSION) return null;
+    // Героя убрали из игры — такой забег не продолжить.
+    if (!HEROES[run.hero.defId]) return null;
     return run;
   } catch {
     return null;

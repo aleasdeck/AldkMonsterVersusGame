@@ -14,7 +14,6 @@ import {
   performAction,
   resolveEnemyTurn,
 } from '../src/engine/combat';
-import { computeStats } from '../src/engine/stats';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
 
 function mkHero(heroId: string, extra: ArtifactInstance[] = []): HeroPersistent {
@@ -169,7 +168,7 @@ describe('намерения', () => {
 
 describe('статусы', () => {
   it('кровотечение тикает 3 хода, стакается и игнорирует блок', () => {
-    const { state, rng } = mkBattle('rogue', ['boar']);
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'bleed_cut', tier: 1 }] });
     const boar = first(state);
     boar.hp = 50;
     boar.maxHp = 50;
@@ -406,12 +405,6 @@ describe('мана и артефакты', () => {
     expect(state.enemies.every((e) => e.hp === 9)).toBe(true);
   });
 
-  it('у плута врождённый крит складывается с талисманом', () => {
-    const hero = mkHero('rogue');
-    const s = computeStats(heroDef('rogue'), hero.weapon, hero.armor);
-    // 10 % врождённых + 15 % талисман + 10 % Точный кинжал
-    expect(s.crit).toBeCloseTo(0.35);
-  });
 });
 
 describe('боссы', () => {
@@ -596,7 +589,7 @@ describe('перки брони', () => {
   });
 
   it('плащ: первая атака врага в бою промахивается', () => {
-    const { state, rng } = mkArmorBattle('rogue', 'cloak', ['wolf']);
+    const { state, rng } = mkArmorBattle('archer', 'cloak', ['wolf']);
     expect(getStatus(state.hero, 'dodge')?.value).toBe(1);
     const hp = state.hero.hp;
     pass(state, rng);
@@ -607,7 +600,7 @@ describe('перки брони', () => {
   });
 
   it('доспех: лишняя стамина только в первый ход', () => {
-    const { state, rng } = mkArmorBattle('rogue', 'harness', ['boar']);
+    const { state, rng } = mkArmorBattle('archer', 'harness', ['boar']);
     expect(state.hero.sta).toBe(state.hero.maxSta + 1);
     pass(state, rng);
     expect(state.hero.sta).toBe(state.hero.maxSta);
@@ -630,11 +623,11 @@ describe('ассасин: скрытность', () => {
   });
 
   it('дымовая шашка съедает всю стамину на 1 тире и стоит 1 STA на 3 тире', () => {
-    const t1 = mkBattle('rogue', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
+    const t1 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
     performAction(t1.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t1.rng);
     expect(t1.state.hero.sta).toBe(0);
     expect(getStatus(t1.state.hero, 'stealth')?.turns).toBe(2);
-    const t3 = mkBattle('rogue', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 3 }] });
+    const t3 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 3 }] });
     performAction(t3.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t3.rng);
     expect(t3.state.hero.sta).toBe(2);
     expect(getStatus(t3.state.hero, 'stealth')?.turns).toBe(3);
@@ -653,7 +646,7 @@ describe('ассасин: скрытность', () => {
   });
 
   it('шашка первого тира требует полной стамины', () => {
-    const { state, rng } = mkBattle('rogue', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'smoke_bomb' })).toMatch(/вся стамина/);
   });

@@ -77,11 +77,11 @@ describe('типы брони и умение носить', () => {
     expect(s.maxHp).toBe(mage.hp + 5 + 8);
   });
 
-  it('плащ на Воине не даёт уклонения, на Плуте — даёт', () => {
+  it('плащ на Воине не даёт уклонения, на Лучнике — даёт', () => {
     const warrior = mkBattle('warrior', armor('cloak'), ['wolf']);
     expect(getStatus(warrior.state.hero, 'dodge')).toBeUndefined();
-    const rogue = mkBattle('rogue', armor('cloak'), ['wolf']);
-    expect(getStatus(rogue.state.hero, 'dodge')?.value).toBe(1);
+    const archer = mkBattle('archer', armor('cloak'), ['wolf']);
+    expect(getStatus(archer.state.hero, 'dodge')?.value).toBe(1);
   });
 
   it('латы на Маге не усиливают «Защититься»', () => {

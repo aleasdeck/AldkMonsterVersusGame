@@ -20,7 +20,7 @@ function favouriteHero(p: Profile): string {
 function statsPanel(p: Profile): HTMLElement {
   const row = (k: string, v: string) => h('div', { class: 'stat' }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
   const winRate = p.runs ? ` (${Math.round((p.victories / p.runs) * 100)} %)` : '';
-  const furthest = p.furthest ? `${p.furthest}/${FIGHTS_PER_RUN} боёв${p.furthestHero ? ` · ${heroDef(p.furthestHero).name}` : ''}` : '—';
+  const furthest = p.furthest ? `${p.furthest}/${FIGHTS_PER_RUN} боёв${HEROES[p.furthestHero] ? ` · ${heroDef(p.furthestHero).name}` : ''}` : '—';
   return h(
     'div',
     { class: 'menu-stats' },
