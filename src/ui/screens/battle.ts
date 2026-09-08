@@ -2,10 +2,11 @@ import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { canUseAction, computeIntent, defendBlock, getStatus, previewAttack, rangeText, type DamageRange } from '../../engine/combat';
+import { canUseAction, computeAllyIntent, computeIntent, defendBlock, getStatus, previewAttack, rangeText, type DamageRange } from '../../engine/combat';
 import { goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
-import type { AllyState, ArtTier, ArtifactDef, Combatant, Effect, EnemyState, PlayerAction } from '../../engine/types';
+import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction } from '../../engine/types';
+import { MAX_ALLIES } from '../../engine/types';
 import { bar, coin, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
 import { statusIcon } from '../icons';
@@ -19,11 +20,13 @@ function badges(c: Combatant, withBlock: boolean): HTMLElement {
   return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, statusIcons(c));
 }
 
-/** Пилюля намерения: иконка и число, цвет по типу; название приёма и расшифровка — в подсказке. */
-function intentPill(e: EnemyState): HTMLElement {
+/** Пилюля намерения: иконка и число, цвет по типу; название приёма, расшифровка и цель — в подсказке. */
+function intentPill(b: BattleState, e: EnemyState): HTMLElement {
   const intent = computeIntent(e);
   if (intent.stunned) return h('div', { class: 'pill intent-stunned', tip: 'Пропустит следующий ход', tipTitle: 'Оглушён' }, statusIcon('stun', 18), 'оглушён');
-  return h('div', { class: `pill intent-${intent.kind}`, tip: intent.text, tipTitle: intent.name }, h('span', { class: 'pill-icon' }, intent.icon), intent.label ? h('span', { class: 'pill-label' }, intent.label) : null);
+  // Враги бьют первого союзника раньше героя.
+  const victim = intent.kind === 'attack' ? `\nЦель: ${b.allies[0]?.name ?? 'герой'}` : '';
+  return h('div', { class: `pill intent-${intent.kind}`, tip: `${intent.text}${victim}`, tipTitle: intent.name }, h('span', { class: 'pill-icon' }, intent.icon), intent.label ? h('span', { class: 'pill-label' }, intent.label) : null);
 }
 
 function enemyView(app: App, e: EnemyState): HTMLElement {
@@ -38,7 +41,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
       'data-uid': e.uid,
       onclick: () => app.selectTarget(e.uid),
     },
-    intentPill(e),
+    intentPill(app.run!.battle!, e),
     badges(e, false),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
     h('div', { class: 'name' }, e.name),
@@ -46,16 +49,28 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
   );
 }
 
-function allyView(a: AllyState): HTMLElement {
+/**
+ * Союзник: зелёная пилюля намерения в той же форме, что у врага («⚔ 5 → К»), метка «под ударом»
+ * у того, кого враги бьют первым, спрайт меньше вражеского.
+ */
+function allyView(b: BattleState, a: AllyState, underFire: boolean): HTMLElement {
   const def = enemyDef(a.defId);
+  const intent = computeAllyIntent(b, a);
+  const tail = intent.target ? ` → ${intent.target[0]}` : '';
   return h(
     'div',
     { class: 'ally', 'data-uid': a.uid },
-    badges(a, true),
+    h('div', { class: 'pill pill-ally', tip: `${intent.text}\nХодит сам после вашего хода`, tipTitle: `${a.name}: ${intent.name}` }, h('span', { class: 'pill-icon' }, intent.icon), `${intent.label}${tail}`.trim()),
+    h('div', { class: 'badges' }, underFire ? h('span', { class: 'under-fire', tip: 'Враги атакуют этого союзника раньше героя' }, '◀ под ударом') : null, a.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${a.block}`) : null, statusIcons(a)),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, spriteSize(def.sprite) * 4)),
     h('div', { class: 'name' }, a.name),
     bar('hp', a.hp, a.maxHp),
   );
+}
+
+/** Пунктирный силуэт свободного места рядом с героем — пока есть призывающий артефакт и союзников меньше двух. */
+function summonGhost(): HTMLElement {
+  return h('div', { class: 'ally ghost', tip: 'Свободное место для союзника: призыв поставит его сюда' }, h('div', { class: 'ghost-box' }, '☍'), h('div', { class: 'name dim' }, 'место'));
 }
 
 // ─── Плитки приёмов ─────────────────────────────────────────────────────────
@@ -198,12 +213,14 @@ function tiles(app: App): HTMLElement {
       kind = 'spell';
     }
     const total = ad.cooldown?.(inst.tier) ?? 0;
+    const err = canUseAction(b, action);
     specs.push({
       glyph: ad.glyph,
       name: ad.name,
-      value: effectValue(effects, range),
+      // При двух союзниках плитка призыва пишет причину прямо на себе, а не просто темнеет.
+      value: err === 'Рядом нет места' ? [h('small', null, 'нет места')] : effectValue(effects, range),
       cost: costBadge(ad, inst.tier),
-      err: canUseAction(b, action),
+      err,
       cooldown: cd > 0 ? { left: cd, total: Math.max(total, cd) } : undefined,
       onclick: () => app.battleAction(action),
       preview: () => ({
@@ -227,18 +244,24 @@ export function battleScreen(app: App): HTMLElement {
   const def = heroDef(run.hero.defId);
   const loc = currentLocation(run);
 
-  // Полоски героя живут в консоли; над героем в поле — только блок и статусы.
+  // Полоски героя живут в консоли; над героем в поле — только блок и статусы. С союзниками герой ужимается до 104 px.
+  const hasAllies = b.allies.length > 0;
   const heroZone = h(
     'div',
-    { class: 'hero-zone' },
+    { class: `hero-zone ${hasAllies ? 'narrow' : ''}` },
     badges(b.hero, true),
-    h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, 128, 'bob')),
+    h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, hasAllies ? 104 : 128, 'bob')),
     h('div', { class: 'name' }, def.name),
   );
 
-  const allyZone = h('div', { class: 'ally-zone' }, ...b.allies.map(allyView));
+  const canSummon = b.hero.artifacts.some((inst) => artifactDef(inst.id).effects?.(inst.tier).some((e) => e.type === 'summon'));
+  const enemiesAttack = b.enemies.some((e) => computeIntent(e).kind === 'attack');
+  const ghosts = canSummon && b.phase !== 'won' && b.phase !== 'lost' ? Array.from({ length: MAX_ALLIES - b.allies.length }, summonGhost) : [];
+  const allyZone = h('div', { class: 'ally-zone' }, ...b.allies.map((a, i) => allyView(b, a, i === 0 && enemiesAttack)), ...ghosts);
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));
-  const field = h('div', { class: 'field', style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, allyZone, enemyZone);
+  // Худший случай — шесть бойцов: врагам оставляем по 140 px.
+  const crowded = b.allies.length + b.enemies.length >= 5;
+  const field = h('div', { class: `field ${crowded ? 'crowded' : ''}`, style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, allyZone, enemyZone);
 
   // Лог — выдвижная панель поверх поля, плитки при этом остаются на месте.
   if (app.logOpen) {

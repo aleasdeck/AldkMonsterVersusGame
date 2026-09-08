@@ -6,6 +6,7 @@ import { ENEMY_LIST } from '../src/data/enemies';
 import { LOCATIONS } from '../src/data/locations';
 import {
   canUseAction,
+  computeAllyIntent,
   computeIntent,
   createBattle,
   endTurn,
@@ -547,6 +548,16 @@ describe('призыв волка', () => {
     expect(state.hero.hp).toBe(heroHp);
     pass(state, rng);
     expect(state.hero.hp).toBeLessThan(heroHp);
+  });
+
+  it('намерение волка: укус по самому раненому, после двух укусов — вой', () => {
+    const { state, rng } = mkBattle('mage', ['wolf', 'rat'], { extra: [{ id: 'wolf_whistle', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    const ally = state.allies[0];
+    expect(computeAllyIntent(state, ally)).toMatchObject({ kind: 'attack', label: '5', name: 'Укус', target: 'Крыса' });
+    pass(state, rng, 2);
+    // Цикл волка: укус, укус, вой — третий ход без цели.
+    expect(computeAllyIntent(state, ally)).toMatchObject({ kind: 'buff', label: '', name: 'Вой', target: null });
   });
 
   it('рядом помещаются два волка, третьему нет места', () => {

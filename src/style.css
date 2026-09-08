@@ -1008,27 +1008,69 @@ p {
   gap: 4px;
   padding-bottom: 10px;
 }
-/* Союзники — рядом с героем, слева от врагов. */
+/* С союзниками герой ужимается: 170 px вместо 220. */
+.hero-zone.narrow {
+  width: 170px;
+}
+/* Союзники — рядом с героем, слева от врагов: по 100 px, чтобы шесть бойцов влезли в 920 px поля. */
 .ally-zone {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   align-items: flex-end;
-  padding-bottom: 8px;
+  padding-bottom: 10px;
 }
 .ally {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
-  padding: 6px 4px;
-  min-width: 110px;
-}
-.ally .bar {
+  padding: 4px 2px;
   width: 100px;
 }
+.ally .bar {
+  width: 92px;
+}
 .ally .name {
-  font-size: 17px;
+  font-size: 16px;
   color: var(--text);
+}
+.pill-ally {
+  border-color: var(--good);
+  color: var(--good);
+  font-size: 18px;
+  padding: 1px 7px;
+}
+.pill-ally .pill-icon {
+  font-size: 17px;
+}
+.under-fire {
+  font-size: 12px;
+  color: var(--bad);
+  line-height: 1;
+  cursor: help;
+}
+/* Пунктирный силуэт свободного места под призыв. */
+.ally.ghost {
+  cursor: help;
+  padding-bottom: 22px;
+}
+.ghost-box {
+  width: 64px;
+  height: 64px;
+  border: 3px dashed #3a3a5a;
+  color: #444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+}
+.field.crowded .enemy {
+  min-width: 140px;
+  padding: 6px 4px;
+}
+.field.crowded .enemy .bar {
+  width: 120px;
 }
 .ally.acting .sprite-wrap {
   animation: lunge-right 400ms ease-out;
