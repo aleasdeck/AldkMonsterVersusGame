@@ -53,6 +53,9 @@ if (heroParam) {
   const run = app.run!;
   // &art=id1,id2 — досыпать артефакты в оружие (для отладки интерфейса)
   for (const id of (params.get('art') ?? '').split(',').filter(Boolean)) run.hero.weapon.slots.push({ id, tier: 1 });
+  // &potion=heal_potion — положить зелье в слот
+  const potionParam = params.get('potion');
+  if (potionParam) run.hero.potion = potionParam;
   // &locs=swamp,hive,ship — задать локации забега по порядку
   const locs = (params.get('locs') ?? '').split(',').filter((id): id is LocationId => id in LOCATION_BY_ID);
   if (locs.length) run.locations = locs.concat(run.locations.filter((id) => !locs.includes(id))).slice(0, 3);
@@ -81,7 +84,7 @@ if (heroParam) {
     app.enterRoom();
     for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid });
     app.finishBattle();
-    app.skipReward();
+    while (run.phase === 'reward') app.skipReward();
     app.enterRoom();
   } else if (phase === 'event') {
     run.roomIndex = 2;

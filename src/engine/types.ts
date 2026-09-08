@@ -111,7 +111,10 @@ export type Effect =
   /** Призыв союзника по описанию врага; hpBonus — прибавка к его HP. */
   | { type: 'summon'; enemyId: string; hpBonus: number }
   /** Герой ранит себя: мимо блока и защиты. Нельзя применить, если HP не больше amount. */
-  | { type: 'selfDamage'; amount: number };
+  | { type: 'selfDamage'; amount: number }
+  | { type: 'gainMp'; amount: number }
+  /** Снять с героя раны и проклятия: кровотечение, горение, яд, слабость, изнурение. */
+  | { type: 'cleanse' };
 
 export interface ArtifactCost {
   sta?: number | 'all';
@@ -136,6 +139,19 @@ export interface ArtifactDef {
 export interface ArtifactInstance {
   id: string;
   tier: ArtTier;
+}
+
+// ─── Зелья ─────────────────────────────────────────────────────────────────
+
+/** Зелье: расходник без тира, один слот у героя, применяется в бою бесплатно и пропадает. */
+export interface PotionDef {
+  id: string;
+  name: string;
+  glyph: string;
+  effects: Effect[];
+  describe: string;
+  /** Бесполезно герою без маны — не выпадает ему. */
+  needsMp?: boolean;
 }
 
 // ─── Экипировка ────────────────────────────────────────────────────────────
@@ -276,6 +292,8 @@ export interface HeroBattle extends Combatant {
   stats: DerivedStats;
   /** Снимок вставленных артефактов на момент начала боя. */
   artifacts: ArtifactInstance[];
+  /** Зелье в слоте на этот бой; выпито — null. Переносится обратно в забег после победы. */
+  potion: string | null;
   /** «Защититься» уже использовано в этом ходу. */
   defended: boolean;
   /** Сколько атакующих действий сделано в этом ходу — каждое следующее слабее. */
@@ -339,7 +357,9 @@ export interface BattleState {
 export type PlayerAction =
   | { type: 'attack'; target: number }
   | { type: 'defend' }
-  | { type: 'artifact'; artifactId: string; target?: number };
+  | { type: 'artifact'; artifactId: string; target?: number }
+  /** Выпить зелье из слота: не стоит стамины, слот пустеет. */
+  | { type: 'potion'; target?: number };
 
 // ─── Забег ─────────────────────────────────────────────────────────────────
 
@@ -354,29 +374,36 @@ export interface LootGear {
   kind: 'gear';
   gear: GearInstance;
 }
-export type LootItem = LootArtifact | LootGear;
+export interface LootPotion {
+  kind: 'potion';
+  potion: string;
+}
+export type LootItem = LootArtifact | LootGear | LootPotion;
 
 export interface HeroPersistent {
   defId: string;
   hp: number;
   weapon: GearInstance;
   armor: GearInstance;
+  /** Единственный слот под зелье; null — пусто. */
+  potion: string | null;
 }
 
 export type RunPhase = 'map' | 'battle' | 'reward' | 'shop' | 'event' | 'camp' | 'victory' | 'defeat';
 
-/** Торговец, остановка между элитой и боссом: лекарь, одна случайная экипировка, один случайный артефакт, переброс товаров один раз. */
+/** Торговец, остановка между элитой и боссом: лекарь, одна случайная экипировка, один случайный артефакт, одно зелье, переброс товаров один раз. */
 export interface ShopState {
   /** Товар куплен или не завёзли — null. */
   gear: GearInstance | null;
   artifact: ArtifactInstance | null;
+  potion: string | null;
   /** Лечение уже куплено — один раз за визит. */
   healed: boolean;
   rerolled: boolean;
 }
 
-/** Откуда награда — по нему же перебрасываются варианты. */
-export type RewardSource = 'fight' | 'elite' | 'bossGear' | 'bossArt';
+/** Откуда награда — по нему же перебрасываются варианты. Зелье выпало с монстра — его не перебросить. */
+export type RewardSource = 'fight' | 'elite' | 'bossGear' | 'bossArt' | 'potion';
 
 export interface RewardScreen {
   title: string;
@@ -412,7 +439,7 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

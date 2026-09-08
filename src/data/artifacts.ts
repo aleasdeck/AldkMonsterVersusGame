@@ -122,8 +122,9 @@ const list: ArtifactDef[] = [
     school: 'physical',
     cost: { sta: 2 },
     target: 'allEnemies',
-    effects: (tier) => [{ type: 'attack', bonus: t(0, 2, 4)(tier), target: 'allEnemies', mult: 0.6 }],
-    describe: (tier) => `60 % урона атаки +${t(0, 2, 4)(tier)} по всем врагам`,
+    // 50 % вместо 60 %: у Берсерка с Яростью вихрь два-три раза за ход сносил всю встречу.
+    effects: (tier) => [{ type: 'attack', bonus: t(0, 2, 4)(tier), target: 'allEnemies', mult: 0.5 }],
+    describe: (tier) => `50 % урона атаки +${t(0, 2, 4)(tier)} по всем врагам`,
   },
   {
     id: 'stun_strike',

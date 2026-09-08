@@ -364,6 +364,11 @@ export class App {
     if (R.shopBuyArtifact(this.run)) this.afterPhaseChange();
   }
 
+  shopBuyPotion(): void {
+    if (!this.run) return;
+    if (R.shopBuyPotion(this.run)) this.commit();
+  }
+
   shopReroll(): void {
     if (!this.run) return;
     if (R.shopReroll(this.run)) this.commit();

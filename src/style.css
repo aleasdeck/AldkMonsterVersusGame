@@ -401,6 +401,27 @@ p {
   gap: 6px;
   flex-wrap: wrap;
 }
+/* Зелье: зелёный чип без точек тира; в панели героя — одна строка «Зелье: [чип] Название». */
+.chip.potion .chip-glyph {
+  color: #6fd97a;
+}
+.potion-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+}
+.potion-row .lbl {
+  color: var(--dim);
+}
+.potion-row .chip {
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+}
+.potion-row .potion-name {
+  color: #6fd97a;
+}
 
 .card {
   background: var(--panel-2);
@@ -503,6 +524,21 @@ p {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
+}
+/* Торговец: четыре товара в ряд равными колонками, кнопка покупки во всю ширину карточки. */
+.shop .cards {
+  flex-wrap: nowrap;
+}
+.shop .cards .card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+}
+.shop .card-foot .btn {
+  align-self: stretch;
+  padding-left: 4px;
+  padding-right: 4px;
+  font-size: 16px;
 }
 /* Карточки выбора (награда, событие): три в ряд на 640px, поэтому текст мельче, чем в панели. */
 .reward .main {
@@ -1104,9 +1140,23 @@ p {
   font-size: 14px;
   color: var(--mp);
 }
-.end-turn {
+/* Правый столбец панели действий: кнопка зелья над «Концом хода». */
+.actions .side {
   flex: none;
   width: 128px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.actions .side .btn.action {
+  width: 100%;
+}
+.btn.action.potion .action-label {
+  color: #6fd97a;
+}
+.end-turn {
+  flex: 1;
+  width: 100%;
   align-self: stretch;
   font-size: 22px;
   padding: 0 8px;

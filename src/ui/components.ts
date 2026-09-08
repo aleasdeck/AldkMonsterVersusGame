@@ -2,6 +2,7 @@ import { button, h, type Child } from './dom';
 import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, GearTier, RunState, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
+import { potionDef } from '../data/potions';
 import {
   ARMOR_TYPE_GLYPHS,
   ARMOR_TYPE_NAMES,
@@ -24,7 +25,7 @@ import { heroDef } from '../data/heroes';
 import { heroStats } from '../engine/run';
 import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
 import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
-import { STATUS_HINTS, STATUS_NAMES } from '../engine/combat';
+import { STATUS_HINTS, STATUS_NAMES, defendBlock } from '../engine/combat';
 import { spriteImg } from './sprites';
 import type { App } from './app';
 
@@ -145,6 +146,52 @@ export function slotsRow(gear: GearInstance): HTMLElement {
   return h('div', { class: 'slots' }, ...gear.slots.map((s) => artifactChip(s)));
 }
 
+// ─── Зелья ─────────────────────────────────────────────────────────────────
+
+export const POTION_COLOR = '#6fd97a';
+
+export function potionTitle(id: string): string {
+  const def = potionDef(id);
+  return `${def.name}\n${def.describe}\nПьётся в бою бесплатно и пропадает. Слот один.`;
+}
+
+/** Чип зелья — как чип артефакта, но без тира. Пустой слот — прочерк. */
+export function potionChip(id: string | null): HTMLElement {
+  if (!id) return h('div', { class: 'chip chip-empty', title: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' }, '·');
+  return h('div', { class: 'chip potion', style: `border-color:${POTION_COLOR}`, title: potionTitle(id) }, h('span', { class: 'chip-glyph' }, potionDef(id).glyph));
+}
+
+/** Строка зелья в панели героя: подпись, чип и название в одну строку, чтобы панель осталась без прокрутки. */
+export function potionRow(id: string | null): HTMLElement {
+  const def = id ? potionDef(id) : null;
+  return h(
+    'div',
+    { class: 'potion-row', title: id ? potionTitle(id) : 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' },
+    h('span', { class: 'lbl' }, 'Зелье:'),
+    potionChip(id),
+    h('span', { class: def ? 'potion-name' : 'dim' }, def ? def.name : 'пусто'),
+  );
+}
+
+/** Что вытеснит новое зелье; null — слот пуст. */
+export function potionReplaceNote(run: RunState): string | null {
+  return run.hero.potion ? `Заменит: ${potionDef(run.hero.potion).name}` : null;
+}
+
+export function potionCard(id: string, footer?: Child, note?: string | null): HTMLElement {
+  const def = potionDef(id);
+  return h(
+    'div',
+    { class: 'card potion-card', style: `border-color:${POTION_COLOR}` },
+    h('div', { class: 'card-head' }, h('span', { class: 'glyph', style: `color:${POTION_COLOR}` }, def.glyph), h('span', { class: 'card-name' }, def.name)),
+    h('div', { class: 'card-sub', style: `color:${POTION_COLOR}` }, 'Зелье · расходник'),
+    h('div', { class: 'card-desc' }, def.describe),
+    h('div', { class: 'card-cost' }, 'Пьётся в бою бесплатно'),
+    note ? h('div', { class: 'note' }, note) : null,
+    footer ? h('div', { class: 'card-foot' }, footer) : null,
+  );
+}
+
 /** Иконка типа оружия у бейджа тира. С героем окрашена по владению: зелёный мастер, жёлтый знаком, красный чужое. */
 export function weaponTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   const type = weaponType(gear);
@@ -263,7 +310,7 @@ export function statsGrid(s: DerivedStats): HTMLElement {
     'div',
     { class: 'stats-grid' },
     row('Урон', `${s.dmgMin + s.str}–${s.dmgMax + s.str}`, 'Урон базовой атаки: разброс оружия + Сила'),
-    row('DEF', `${s.def}`, 'Блок за «Защититься»'),
+    row('DEF', `${s.def}`, `Защита. «Защититься» даёт 80 % от неё${s.defendBonus ? ' и бонуса брони' : ''}, округление вверх: +${defendBlock(s)} блока`),
     row('STA', `${s.sta}${s.firstTurnSta ? ` (+${s.firstTurnSta})` : ''}`, 'Очки действий за ход'),
     row('MP', `${s.maxMp}${s.mpRegen ? ` (+${s.mpRegen})` : ''}`, 'Мана и реген за ход'),
     row('Устал.', `−${Math.round((1 - s.fatigue) * 100)}%`, 'На столько слабее каждая следующая атака в этом ходу'),
@@ -290,6 +337,7 @@ export function heroPanel(run: RunState): HTMLElement {
     ),
     statsGrid(s),
     skillLine(def),
+    potionRow(run.hero.potion),
     gearCard(run.hero.weapon, { def, compact: true }),
     gearCard(run.hero.armor, { def, compact: true }),
   );

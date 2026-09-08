@@ -7,6 +7,7 @@ const SECTIONS: { kind: CollectibleKind; title: string }[] = [
   { kind: 'artifact', title: 'Артефакты' },
   { kind: 'weapon', title: 'Оружие' },
   { kind: 'armor', title: 'Броня' },
+  { kind: 'potion', title: 'Зелья' },
 ];
 
 export function collectionScreen(app: App): HTMLElement {

@@ -19,6 +19,7 @@ import { chance, int, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
+import { potionDef } from '../data/potions';
 import { computeStats, socketedArtifacts } from './stats';
 
 export const STATUS_NAMES: Record<StatusId, string> = {
@@ -338,6 +339,16 @@ function breakStealth(state: BattleState): void {
   log(state, 'Герой выходит из тени');
 }
 
+/**
+ * «Защититься» даёт не всю Защиту, а 80 % (округление вверх): при полном DEF одно очко стамины гасило удар целиком,
+ * и ни лечение, ни лут не влияли на исход — бот-симулятор приходил к боссам с 90 % HP.
+ */
+export const DEFEND_MULT = 0.8;
+
+export function defendBlock(stats: { def: number; defendBonus: number }): number {
+  return Math.ceil((stats.def + stats.defendBonus) * DEFEND_MULT);
+}
+
 /** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя. */
 export function fatigueMult(state: BattleState): number {
   return state.hero.stats.fatigue ** state.hero.attacks;
@@ -446,6 +457,12 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       }
       return null;
     }
+    case 'potion': {
+      if (!h.potion) return 'Нет зелья';
+      const def = potionDef(h.potion);
+      if (def.effects.some((e) => (e.type === 'attack' || e.type === 'spell') && e.target === 'enemy') && !findEnemy(state, action.target ?? -1)) return 'Нет цели';
+      return null;
+    }
   }
 }
 
@@ -496,6 +513,16 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'gainSta':
       h.sta += eff.amount;
       break;
+    case 'gainMp':
+      h.mp = Math.min(h.maxMp, h.mp + eff.amount);
+      break;
+    case 'cleanse': {
+      const bad: StatusId[] = ['bleed', 'burn', 'poison', 'weak', 'exhaust'];
+      const had = h.statuses.filter((s) => bad.includes(s.id)).map((s) => STATUS_NAMES[s.id]);
+      for (const id of bad) removeStatus(h, id);
+      log(state, had.length ? `Снято: ${had.join(', ')}` : 'Снимать нечего');
+      break;
+    }
     case 'summon':
       if (state.allies.length < MAX_ALLIES) spawnAlly(state, eff.enemyId, eff.hpBonus);
       break;
@@ -517,10 +544,18 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   } else if (action.type === 'defend') {
     h.sta -= 1;
     h.defended = true;
-    const gain = h.stats.def + h.stats.defendBonus;
+    const gain = defendBlock(h.stats);
     h.block += gain;
     state.events.push({ type: 'block', target: 'hero', amount: gain });
     log(state, `Герой защищается: +${gain} блока`);
+  } else if (action.type === 'potion') {
+    // Зелье бесплатно: не тратит стамину и не считается атакой, слот пустеет сразу.
+    const def = potionDef(h.potion!);
+    h.potion = null;
+    log(state, `Герой пьёт: ${def.name}`);
+    for (const eff of def.effects) applyEffect(state, eff, action.target, rng);
+    if (def.effects.some((e) => e.type === 'attack')) h.attacks += 1;
+    if (def.effects.some((e) => e.type === 'attack' || e.type === 'spell')) breakStealth(state);
   } else {
     const def = artifactDef(action.artifactId);
     const inst = h.artifacts.find((a) => a.id === def.id)!;
@@ -813,6 +848,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       cooldowns: {},
       stats,
       artifacts: socketedArtifacts(hero.weapon, hero.armor),
+      potion: hero.potion,
       defended: false,
       attacks: 0,
     },

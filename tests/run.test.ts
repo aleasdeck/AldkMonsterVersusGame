@@ -11,7 +11,9 @@ import {
   battleEnemyStep,
   campForge,
   campRest,
+  canReroll,
   canShopBuyGear,
+  canShopBuyPotion,
   canShopHeal,
   canShopReroll,
   chooseEvent,
@@ -27,13 +29,15 @@ import {
   pendingPlace,
   shopBuyArtifact,
   shopBuyGear,
+  shopBuyPotion,
   shopHeal,
   shopHealAmount,
   shopReroll,
   skipReward,
   takeReward,
 } from '../src/engine/run';
-import { REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, artifactPrice, gearPrice } from '../src/engine/loot';
+import { POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, gearPrice } from '../src/engine/loot';
+import { POTION_IDS } from '../src/data/potions';
 import { gearOf, socketRefs } from '../src/engine/equipment';
 import type { RunState } from '../src/engine/types';
 
@@ -127,7 +131,8 @@ describe('торговец между элитой и боссом', () => {
     run.roomIndex = ROOM_KINDS.indexOf('elite');
     enterRoom(run);
     winCurrentBattle(run);
-    skipReward(run);
+    // Награда и, если повезло, выпавшее зелье — оба экрана пропускаем.
+    while (run.phase === 'reward') skipReward(run);
     expect(run.phase).toBe('map');
     expect(currentRoomKind(run)).toBe('shop');
     enterRoom(run);
@@ -237,7 +242,120 @@ describe('торговец между элитой и боссом', () => {
     shopBuyGear(empty);
     shopBuyArtifact(empty);
     if (empty.pending) resolvePending(empty);
+    // Зелье ещё на прилавке — перебрасывать есть что.
+    empty.gold = 100;
+    expect(canShopReroll(empty)).toBeNull();
+    shopBuyPotion(empty);
     expect(canShopReroll(empty)).toMatch(/Нечего/);
+  });
+
+  it('зелье у торговца: цена, ложится в слот и вытесняет старое, переброс обновляет', () => {
+    const run = toShop(36);
+    run.gold = 100;
+    const potion = run.shop!.potion!;
+    expect(POTION_IDS).toContain(potion);
+    run.hero.potion = 'antidote';
+    expect(shopBuyPotion(run)).toBe(true);
+    expect(run.gold).toBe(100 - SHOP_POTION_PRICE);
+    expect(run.hero.potion).toBe(potion);
+    expect(run.shop!.potion).toBeNull();
+    expect(canShopBuyPotion(run)).toBe('Продано');
+    expect(shopBuyPotion(run)).toBe(false);
+
+    const poor = toShop(36);
+    poor.gold = SHOP_POTION_PRICE - 1;
+    expect(canShopBuyPotion(poor)).toMatch(/золота/);
+    expect(shopBuyPotion(poor)).toBe(false);
+    expect(poor.hero.potion).toBeNull();
+
+    const re = toShop(36);
+    re.gold = 100;
+    expect(shopReroll(re)).toBe(true);
+    expect(re.shop!.potion).not.toBeNull();
+  });
+
+  it('зелье маны не продаётся герою без маны', () => {
+    for (let seed = 40; seed < 70; seed++) expect(toShop(seed, 'berserk').shop!.potion).not.toBe('mana_potion');
+  });
+});
+
+describe('зелья в забеге', () => {
+  /** Первый сид, на котором с первого монстра выпадает зелье: экран зелья стоит после основной награды. */
+  function toPotionDrop(): RunState {
+    for (let seed = 1; seed < 500; seed++) {
+      const run = newRun('warrior', seed);
+      enterRoom(run);
+      winCurrentBattle(run);
+      if (run.rewards.length === 2 && run.rewards[1].source === 'potion') return run;
+    }
+    throw new Error('no potion drop in 500 seeds');
+  }
+
+  it('зелье с монстра — отдельный экран после награды, без переброса, ложится в слот', () => {
+    const run = toPotionDrop();
+    expect(run.rewards[0].source).toBe('fight');
+    expect(run.rewards[1].options).toHaveLength(1);
+    const potion = run.rewards[1].options[0];
+    expect(potion.kind).toBe('potion');
+    skipReward(run);
+    expect(run.phase).toBe('reward');
+    expect(run.rewards[0].source).toBe('potion');
+    expect(canReroll(run)).toMatch(/Зелье/);
+    takeReward(run, 0);
+    expect(run.hero.potion).toBe(potion.kind === 'potion' ? potion.potion : null);
+    expect(run.phase).toBe('map');
+    expect(run.rewards).toHaveLength(0);
+  });
+
+  it('зелье можно пропустить — слот остаётся прежним', () => {
+    const run = toPotionDrop();
+    run.hero.potion = 'antidote';
+    skipReward(run);
+    skipReward(run);
+    expect(run.hero.potion).toBe('antidote');
+    expect(run.phase).toBe('map');
+  });
+
+  it('шанс дропа около 10 %: на 400 первых боях выпадает от 20 до 70 зелий', () => {
+    let drops = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const run = newRun('mage', seed * 31);
+      enterRoom(run);
+      winCurrentBattle(run);
+      if (run.rewards.some((r) => r.source === 'potion')) drops++;
+    }
+    expect(POTION_DROP_CHANCE).toBe(0.1);
+    expect(drops).toBeGreaterThanOrEqual(20);
+    expect(drops).toBeLessThanOrEqual(70);
+  });
+
+  it('выпитое в бою зелье не возвращается, невыпитое остаётся после победы', () => {
+    const run = newRun('warrior', 5);
+    run.hero.potion = 'stone_skin';
+    enterRoom(run);
+    expect(run.battle!.hero.potion).toBe('stone_skin');
+    battleAction(run, { type: 'potion' });
+    expect(run.battle!.hero.block).toBe(10);
+    winCurrentBattle(run);
+    expect(run.hero.potion).toBeNull();
+
+    const keep = newRun('warrior', 5);
+    keep.hero.potion = 'stone_skin';
+    enterRoom(keep);
+    winCurrentBattle(keep);
+    expect(keep.hero.potion).toBe('stone_skin');
+  });
+
+  it('после финального босса зелье не предлагается — сразу победа', () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      const run = newRun('warrior', seed);
+      run.locationIndex = 2;
+      run.roomIndex = ROOM_KINDS.indexOf('boss');
+      enterRoom(run);
+      winCurrentBattle(run);
+      expect(run.phase).toBe('victory');
+      expect(run.rewards).toHaveLength(0);
+    }
   });
 });
 
@@ -455,15 +573,15 @@ describe('забег', () => {
   });
 
   it('враги масштабируются под акт, а не под родную локацию', () => {
-    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +15 % надбавки акта
+    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +75 % надбавки акта
     expect(enemyScale(1, 2).hp).toBeCloseTo(2.7);
-    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * 1.15);
-    // враг пещер (tier 3) в первом акте — наоборот, тоньше, и без надбавки; боссы растут мягче рядовых
+    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * 1.75);
+    // враг пещер (tier 3) в первом акте — наоборот, тоньше, надбавка первого акта +40 %; боссы растут мягче рядовых
     expect(enemyScale(3, 0).hp).toBeCloseTo(1 / 2.7);
-    expect(enemyScale(3, 0).dmg).toBeCloseTo(1 / 1.95);
+    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * 1.4);
     expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4);
-    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * 1.15);
-    expect(enemyScale(2, 1).dmg).toBeCloseTo(1.15);
+    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * 1.75);
+    expect(enemyScale(2, 1).dmg).toBeCloseTo(1.6);
     const run = newRun('warrior', 3);
     run.locations = ['ship', 'forest', 'swamp'];
     enterRoom(run);
