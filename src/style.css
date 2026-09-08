@@ -992,6 +992,7 @@ p {
   display: flex;
   padding: 10px 20px 0;
   min-height: 0;
+  position: relative;
   image-rendering: pixelated;
 }
 .main {
@@ -1043,11 +1044,12 @@ p {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
-  padding: 6px 10px;
+  padding: 6px 8px;
   border: 3px solid transparent;
   cursor: pointer;
-  min-width: 170px;
+  min-width: 150px;
 }
 .enemy:hover {
   border-color: #55557a;
@@ -1077,7 +1079,8 @@ p {
   gap: 6px;
   flex-wrap: wrap;
   justify-content: center;
-  min-height: 20px;
+  align-items: center;
+  min-height: 22px;
 }
 
 .sprite-wrap {
@@ -1087,22 +1090,20 @@ p {
   animation: bob 1.6s ease-in-out infinite;
 }
 
-.intent {
-  min-width: 90px;
-  text-align: center;
-  padding: 2px 8px;
+/* Пилюля намерения над врагом: иконка и число, цвет по типу приёма. Название и расшифровка — в подсказке. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 9px;
   border: 3px solid var(--border);
   background: #0e0e18;
-  font-size: 22px;
-  line-height: 1;
-}
-.intent-main {
   font-size: 24px;
+  line-height: 1.1;
+  cursor: help;
 }
-.intent-name {
-  font-size: 14px;
-  color: var(--dim);
-  margin-top: 2px;
+.pill-icon {
+  font-size: 22px;
 }
 .intent-attack {
   border-color: var(--bad);
@@ -1132,9 +1133,10 @@ p {
   border-color: var(--accent);
   color: var(--accent);
 }
-.intent.stunned {
+.intent-stunned {
   border-color: #666;
   color: #aaa;
+  font-size: 17px;
 }
 
 .statuses {
@@ -1143,15 +1145,16 @@ p {
   flex-wrap: wrap;
   justify-content: center;
 }
+/* Статус — иконка с числом без рамки, длительность мелкой цифрой. */
 .status {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 15px;
-  padding: 1px 5px 1px 3px;
-  border: 2px solid var(--border);
-  background: #0e0e18;
+  gap: 2px;
+  font-size: 17px;
+  padding: 0 2px;
   color: var(--dim);
+  cursor: help;
+  text-shadow: 1px 1px 0 #000;
 }
 .status-icon {
   display: block;
@@ -1167,12 +1170,6 @@ p {
   content: '⏱';
   font-size: 10px;
   margin-right: 1px;
-}
-.intent-main {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
 }
 .good {
   color: var(--good);
@@ -1223,46 +1220,144 @@ p {
   color: var(--good);
 }
 
-/* Сетка приёмов в центре консоли: до десяти действий в два ряда без прокрутки. */
-.action-list {
+/* ─── Консоль боя: ридаут и плитки ──────────────────────────────────── */
+
+.c-battle {
   flex: 1;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-auto-rows: 74px;
-  gap: 6px;
-  padding: 8px 8px;
-  overflow-y: auto;
-  min-width: 0;
-  align-content: flex-start;
-}
-.btn.action {
-  min-width: 0;
-  height: 74px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  text-align: left;
-  padding: 4px 7px;
-  gap: 1px;
+}
+/* Строка над плитками: описание приёма под курсором и хвост «останется N HP». Меняется наведением без перерисовки. */
+.readout {
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  font-size: 17px;
+  color: var(--dim);
+  border-bottom: 2px solid #26263c;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.readout b {
+  color: var(--accent);
+  font-weight: normal;
+}
+.readout-target {
+  color: var(--text);
+}
+.readout-err {
+  color: var(--bad);
+}
+.tiles {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  align-content: flex-start;
+}
+/* Плитка 78 px: иконка, крупное число, короткое имя, цена ярлыком в углу. */
+.tile {
+  font: inherit;
+  color: var(--text);
+  width: 78px;
+  height: 134px;
+  flex: none;
+  position: relative;
+  overflow: hidden;
+  border: 3px solid var(--border);
+  background: var(--panel-2);
   box-shadow: 2px 2px 0 #000;
+  padding: 6px 2px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
 }
-.btn.action.off {
+.tile:hover {
+  border-color: var(--accent);
+}
+.tile.off {
   opacity: 0.4;
+  cursor: default;
 }
-.btn.action.off.cooling {
+.tile.off.cooling {
   opacity: 0.85;
   border-color: #2a4a5a;
 }
-.btn.action {
-  position: relative;
-  overflow: hidden;
+.tile-glyph {
+  font-size: 30px;
+  line-height: 1;
+  color: var(--accent);
 }
-.btn.action > .action-label,
-.btn.action > .action-value,
-.btn.action > .action-cost {
-  position: relative;
+.tile-value {
+  font-size: 22px;
+  line-height: 1;
+  white-space: nowrap;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.tile-value small {
+  font-size: 13px;
+  color: var(--dim);
+}
+.tile-name {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--dim);
+  max-width: 70px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile-cost {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  color: #000;
   z-index: 1;
+}
+.cost-sta {
+  background: var(--sta);
+}
+.cost-mp {
+  background: var(--mp);
+  color: #fff;
+}
+/* Восемь плиток и больше — два ряда по 62 px: иконка и число в строку, имя ниже. */
+.tiles.rows-2 .tile {
+  height: 62px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  padding: 4px 2px;
+  align-content: center;
+}
+.tiles.rows-2 .tile-glyph {
+  font-size: 22px;
+}
+.tiles.rows-2 .tile-value {
+  font-size: 19px;
+}
+.tiles.rows-2 .tile-name {
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  margin-top: 2px;
+}
+.tiles.rows-2 .cd-num {
+  font-size: 30px;
 }
 .cd-fill {
   position: absolute;
@@ -1274,44 +1369,63 @@ p {
 }
 .cd-num {
   position: absolute;
-  right: 6px;
+  right: 4px;
   bottom: 0;
-  font-size: 44px;
+  font-size: 40px;
   line-height: 1;
   color: var(--mp);
   opacity: 0.85;
   text-shadow: 2px 2px 0 #000;
   pointer-events: none;
 }
-.action-label {
-  font-size: 18px;
+/* Предпросмотр урона: штриховка на полоске цели от остатка до текущего HP. Светлая — максимум, плотная — наверняка. */
+.bar-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(45deg, #ffffff55 0 3px, transparent 3px 6px);
+}
+.bar-ghost.min {
+  background: repeating-linear-gradient(45deg, #ffffffaa 0 3px, #00000055 3px 6px);
+}
+.enemy.preview {
+  border-color: #ffd16688;
+}
+.bar-suffix {
+  color: var(--shield);
+}
+/* Лог — выдвижная панель поверх поля у правого края, плитки остаются на месте. */
+.log-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  background: #0c0c16ee;
+  border-left: 3px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 5;
+}
+.log-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px 4px 12px;
   color: var(--accent);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  width: 100%;
+  border-bottom: 2px solid #26263c;
+  flex: none;
 }
-.action-value {
-  font-size: 14px;
-  color: var(--text);
-  line-height: 1.1;
-  flex: 1;
-  overflow: hidden;
-}
-.action-cost {
-  font-size: 14px;
-  color: var(--mp);
-}
-/* Раскрытый лог: вместо плиток, прокрутка к последним записям. */
 .log {
   flex: 1;
-  min-width: 0;
-  padding: 6px 14px;
+  min-height: 0;
+  padding: 6px 12px;
   font-size: 17px;
   color: var(--dim);
   overflow-y: auto;
 }
-/* Узкая вертикальная кнопка у правого края: открывает лог, в раскрытом — закрывает. */
+/* Узкая вертикальная кнопка у правого края консоли: открывает лог, в раскрытом — закрывает. */
 .log-toggle {
   flex: none;
   width: 40px;
@@ -1320,7 +1434,7 @@ p {
   border-left: 3px solid var(--border);
   box-shadow: none;
   writing-mode: vertical-rl;
-  font-size: 18px;
+  font-size: 19px;
   letter-spacing: 1px;
   color: var(--dim);
 }

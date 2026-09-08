@@ -6,6 +6,7 @@ import { heroStats } from '../engine/run';
 import type { PlayerAction } from '../engine/types';
 import { bar, gearCard, potionChip, potionTitle, segBar } from './components';
 import { spriteImg } from './sprites';
+import { bindPreview } from './preview';
 import type { App } from './app';
 
 /** Строка зелья под полосками: в бою кликабельна, во время хода врагов серая. Пустой слот — пунктирный чип с подписью. */
@@ -20,17 +21,20 @@ function potionLine(app: App): HTMLElement {
   if (b) {
     const act: PlayerAction = { type: 'potion', target: app.currentTarget() };
     const err = app.busy ? 'Ход врагов' : canUseAction(b, act);
-    return h(
+    // Без атрибута disabled: браузер не шлёт наведение выключенной кнопке, а ридаут должен показать причину.
+    const el = h(
       'button',
       {
         class: `potion-line clickable ${err ? 'off' : ''}`,
-        disabled: !!err,
-        tip: `${potionTitle(id)}${err ? `\n— ${err}` : '\nКлик — выпить'}`,
-        onclick: () => app.battleAction(act),
+        'aria-disabled': err ? 'true' : null,
+        onclick: () => {
+          if (!err) app.battleAction(act);
+        },
       },
       potionChip(id),
       h('span', { class: 'potion-name' }, def.name),
     );
+    return bindPreview(app, el, () => ({ title: def.name, parts: ['зелье, бесплатно', def.describe, 'слот после этого пуст'], err }));
   }
   return h('div', { class: 'potion-line', tip: potionTitle(id) }, potionChip(id), h('span', { class: 'potion-name' }, def.name));
 }

@@ -13,6 +13,7 @@ import {
   getStatus,
   performAction,
   previewAttack,
+  previewOnTarget,
   resolveEnemyTurn,
 } from '../src/engine/combat';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
@@ -164,6 +165,23 @@ describe('намерения', () => {
     const m = state.enemies[1];
     m.intent = 'windup';
     expect(computeIntent(m)).toMatchObject({ kind: 'special', label: '', text: 'Замах' });
+  });
+
+  it('предпросмотр остатка HP цели: блок гасит удар, но не пробивающий и не заклинание', () => {
+    const { state } = mkBattle('warrior', ['wolf']);
+    const wolf = first(state);
+    wolf.block = 3;
+    expect(wolf.hp).toBe(12);
+    // Удар 4–6 сквозь блок 3: снимет 1–3, останется 9–11.
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 })).toEqual({ min: 9, max: 11 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'spell')).toEqual({ min: 9, max: 11 });
+    state.hero.stats.pierceBlock = 1;
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 })).toEqual({ min: 6, max: 8 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'spell')).toEqual({ min: 9, max: 11 });
+    // Урон больше HP — остаток не уходит в минус.
+    expect(previewOnTarget(state, wolf, { min: 20, max: 30 })).toEqual({ min: 0, max: 0 });
+    wolf.statuses.push({ id: 'invuln', value: 1, turns: 1 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 })).toEqual({ min: 12, max: 12 });
   });
 });
 

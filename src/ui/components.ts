@@ -27,13 +27,14 @@ import { STATUS_HINTS, STATUS_NAMES, defendBlock } from '../engine/combat';
 import { markKeywords } from './keywords';
 import type { App } from './app';
 
-export function bar(cls: string, cur: number, max: number, label = '', tip = ''): HTMLElement {
+/** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
+export function bar(cls: string, cur: number, max: number, label = '', tip = '', suffix = ''): HTMLElement {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
   return h(
     'div',
     tip ? { class: `bar bar-${cls}`, tip } : { class: `bar bar-${cls}` },
     h('div', { class: 'bar-fill', style: `width:${pct}%` }),
-    h('span', { class: 'bar-text' }, `${label ? label + ' ' : ''}${cur}/${max}`),
+    h('span', { class: 'bar-text' }, `${label ? label + ' ' : ''}${cur}/${max}`, suffix ? h('span', { class: 'bar-suffix' }, ` · ${suffix}`) : null),
   );
 }
 

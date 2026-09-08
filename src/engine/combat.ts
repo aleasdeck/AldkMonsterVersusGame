@@ -424,6 +424,20 @@ export function previewAttack(state: BattleState, bonus = 0, mult = 1): DamageRa
   return { min: Math.max(0, min), max: Math.max(0, max) };
 }
 
+/**
+ * Сколько HP останется у цели после урона из диапазона — для предпросмотра на полоске врага.
+ * Удар гасится блоком, если оружие не пробивает его (pierceBlock); заклинание — всегда. Неуязвимость и уклонение
+ * (для удара) съедают урон целиком. min — после максимального урона, max — после минимального.
+ */
+export function previewOnTarget(state: BattleState, e: EnemyState, range: DamageRange, kind: 'hit' | 'spell' = 'hit'): DamageRange {
+  const untouched = { min: e.hp, max: e.hp };
+  if (getStatus(e, 'invuln')) return untouched;
+  if (kind === 'hit' && getStatus(e, 'dodge')) return untouched;
+  const block = kind === 'spell' || state.hero.stats.pierceBlock <= 0 ? e.block : 0;
+  const after = (dmg: number) => Math.max(0, e.hp - Math.max(0, dmg - block));
+  return { min: after(range.max), max: after(range.min) };
+}
+
 export function rangeText(r: DamageRange): string {
   return r.min === r.max ? `${r.min}` : `${r.min}–${r.max}`;
 }
