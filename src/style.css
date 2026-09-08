@@ -24,9 +24,10 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--text);
-  /* Handjet — пиксельный шрифт с кириллицей; VT323 остаётся запасным для латиницы и цифр. Handjet мельче, поэтому база 23px вместо 20. */
+  /* Handjet — пиксельный шрифт с кириллицей; VT323 остаётся запасным для латиницы и цифр. Handjet мельче, поэтому база 23px вместо 20.
+     Вес 700: на 500 горизонтальные штрихи толще вертикальных и буквы выглядят перечёркнутыми. */
   font-family: 'Handjet', 'VT323', 'Courier New', monospace;
-  font-weight: 500;
+  font-weight: 700;
   font-size: 23px;
   line-height: 1.1;
   overflow: hidden;
@@ -376,6 +377,18 @@ p {
   opacity: 0.45;
   cursor: default;
 }
+/* Правая часть консоли: строка top (ридаут) во всю ширину, под ней ряд «центр | Конец хода | лог». */
+.c-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.c-row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
 .c-mid {
   flex: 1;
   min-width: 0;
@@ -385,7 +398,7 @@ p {
 .c-right {
   width: 110px;
   flex: none;
-  padding: 10px 6px 10px 4px;
+  padding: 8px 6px 8px 4px;
   display: flex;
   flex-direction: column;
 }
@@ -406,23 +419,6 @@ p {
 .c-gear .gear-tile {
   flex: 1 1 0;
   justify-content: flex-start;
-}
-/* Наведение на товар: плитка подсвечена, вместо перка — дельты замены. */
-.gt-diff {
-  display: none;
-  white-space: normal;
-  line-height: 1.05;
-  max-height: 34px;
-  overflow: hidden;
-}
-.gear-tile.hot .gt-diff {
-  display: block;
-}
-.gear-tile.hot .card-perk {
-  display: none;
-}
-.gt-diff-title {
-  color: var(--accent);
 }
 /* Центр хаба: заголовок, карточки на всю высоту, ряд кнопок внизу. */
 .hub-main {
@@ -521,17 +517,14 @@ p {
 .skill-no {
   color: #ff8787;
 }
-/* Иконка типа оружия или брони у бейджа тира; цвет — владение или умение героя (классы mastery-*, skill-*). */
+/* Иконка типа оружия или брони рядом с именем; цвет — владение или умение героя (классы mastery-*, skill-*). */
 .wtype-icon {
   font-size: 15px;
   line-height: 1;
   color: var(--dim);
   cursor: help;
 }
-.tier .wtype-icon {
-  font-size: 14px;
-}
-/* Цвет владения должен перебивать и серый по умолчанию, и цвет тира на бейдже. */
+/* Цвет владения должен перебивать серый по умолчанию. */
 .wtype-icon.mastery-master {
   color: #8ce99a;
 }
@@ -550,6 +543,10 @@ p {
 .card-perk {
   font-size: 15px;
   color: #b8c0ff;
+}
+/* Название перка — отдельным цветом от описания. */
+.perk-name {
+  color: #ff9f6b;
 }
 /* Перк брони, которую герой не умеет носить: зачёркнут и приглушён. */
 .card-perk.off {
@@ -737,14 +734,16 @@ p {
 .coin {
   color: #ffd166;
 }
+/* Подвал карточки: слева сокеты (если есть), кнопка прижата к правому краю и не выезжает за карточку. */
 .card-foot {
   margin-top: auto;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 .card-foot .btn {
-  align-self: flex-start;
+  margin-left: auto;
+  flex: none;
 }
 .note {
   font-size: 15px;
@@ -753,10 +752,10 @@ p {
 .gear-card {
   max-width: none;
 }
-/* Бейдж тира в шапке карточки экипировки — справа от имени. */
-.gear-card .card-head .tier {
+/* Иконка типа в шапке карточки экипировки — у правого края. Тир — цветом рамки и в подсказке к имени. */
+.gear-card .card-head .wtype-icon {
   margin-left: auto;
-  font-size: 13px;
+  font-size: 18px;
   flex: none;
 }
 /* Дельты к надетому: зелёное вырастет, красное пропадёт. */
@@ -764,20 +763,11 @@ p {
   font-size: 15px;
   line-height: 1.1;
 }
-.diff .up,
-.gt-diff .up {
+.diff .up {
   color: var(--good);
 }
-.diff .dn,
-.gt-diff .dn {
+.diff .dn {
   color: var(--bad);
-}
-.tier {
-  display: inline-block;
-  border: 2px solid;
-  padding: 0 6px;
-  font-size: 15px;
-  white-space: nowrap;
 }
 .card-sub {
   display: flex;
@@ -795,7 +785,7 @@ p {
   max-width: none;
 }
 .shop .card-foot .btn {
-  align-self: stretch;
+  flex: 1;
   padding-left: 4px;
   padding-right: 4px;
   font-size: 16px;
@@ -1270,7 +1260,8 @@ p {
   display: flex;
   flex-direction: column;
 }
-/* Строка над плитками: описание приёма под курсором и хвост «останется N HP». Меняется наведением без перерисовки. */
+/* Строка над плитками, «Концом хода» и логом (вся ширина правее блока героя): описание приёма под курсором
+   и хвост «останется N HP». Меняется наведением без перерисовки. */
 .readout {
   height: 30px;
   flex: none;
@@ -1718,9 +1709,6 @@ p {
   gap: 5px;
   min-width: 0;
 }
-.gear-tile.hot {
-  background: #2a2410;
-}
 .gt-head {
   display: flex;
   align-items: center;
@@ -1740,24 +1728,17 @@ p {
   text-overflow: ellipsis;
   min-width: 0;
 }
-.gt-head .tier {
-  font-size: 14px;
+.gt-head .wtype-icon {
+  font-size: 17px;
   flex: none;
 }
+/* Статы у правого края шапки — та же строка, что в карточке награды. */
 .gt-dice {
   margin-left: auto;
-  font-size: 17px;
-  color: var(--dim);
+  font-size: 16px;
+  color: var(--text);
   flex: none;
-}
-.gt-dice b {
-  font-weight: normal;
-  color: var(--accent);
-}
-.gt-affix {
-  font-size: 15px;
-  color: #b8c0ff;
-  flex: none;
+  white-space: nowrap;
 }
 .gear-tile .card-perk {
   font-size: 15px;
@@ -1765,19 +1746,6 @@ p {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.gt-diff {
-  font-size: 15px;
-  line-height: 1.05;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.gt-diff .up {
-  color: var(--good);
-}
-.gt-diff .dn {
-  color: var(--bad);
 }
 /* Сокеты — сетка 2×2 с ячейками одинаковой ширины; ячейки под несуществующие сокеты не рисуются. */
 .gt-sockets {
@@ -2029,6 +1997,10 @@ p {
   text-align: center;
   align-items: center;
 }
+/* Подвал лекаря — во всю ширину, как у остальных товаров, несмотря на центровку карточки. */
+.shop-card .card-foot {
+  align-self: stretch;
+}
 /* Торговец: лекарь и заглушки проданного — узкие карточки, предметы — обычные карточки награды. */
 .shop-card.sold {
   color: var(--dim);
@@ -2058,9 +2030,6 @@ p {
 }
 .shop .card-desc {
   font-size: 15px;
-}
-.shop .gear-card .slots {
-  display: none;
 }
 .shop .card-head .card-name {
   font-size: 18px;

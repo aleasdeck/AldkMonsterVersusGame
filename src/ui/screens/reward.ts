@@ -9,7 +9,7 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import type { ArtTier } from '../../engine/types';
-import { artifactDiffLine, bindSwapPreview, gearDiffLines } from '../diff';
+import { gearDiffLines } from '../diff';
 import type { App } from '../app';
 
 export function rewardScreen(app: App): HTMLElement {
@@ -19,7 +19,7 @@ export function rewardScreen(app: App): HTMLElement {
   const loc = currentLocation(run);
   const cards = (screen?.options ?? []).map((item, i) => {
     if (item.kind === 'artifact') {
-      // Заметка только про слияние с уже стоящим артефактом; про свободные слоты не пишем — это видно по сокетам в консоли.
+      // Заметка только про слияние с уже стоящим артефактом; дельт у артефакта нет — они повторяли бы описание.
       const same = findSameArtifact(run.hero, item.artifact.id);
       let note: string | null = null;
       if (same?.art) {
@@ -30,14 +30,14 @@ export function rewardScreen(app: App): HTMLElement {
         }
       }
       return pickable(
-        artifactCard(item.artifact, h('div', null, note ? h('div', { class: 'note' }, note) : artifactDiffLine(run, item.artifact), button('Взять', () => app.takeReward(i), { class: 'primary' }))),
+        artifactCard(item.artifact, button('Взять', () => app.takeReward(i), { class: 'primary' }), note ? h('div', { class: 'note' }, note) : null),
         () => app.takeReward(i),
       );
     }
     if (item.kind === 'potion') {
       return pickable(potionCard(item.potion, button('Взять', () => app.takeReward(i), { class: 'primary' }), potionReplaceNote(run)), () => app.takeReward(i));
     }
-    return bindSwapPreview(app, pickable(gearCard(item.gear, { def, deltas: gearDiffLines(run, item.gear), footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i)), item.gear);
+    return pickable(gearCard(item.gear, { def, deltas: gearDiffLines(run, item.gear), footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i));
   });
 
   const rerollErr = canReroll(run);

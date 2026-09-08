@@ -1,9 +1,9 @@
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
-import { gearStatText } from '../../data/gear';
+import { GEAR_TIERS, gearStatText } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { currentLocation } from '../../engine/run';
-import { artifactChip, gearTypeIcon, pendingModal, perkLine, pickable, tierBadge } from '../components';
+import { artifactChip, gearTypeIcon, pendingModal, perkLine, pickable, tierTip } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
@@ -31,7 +31,8 @@ function contents(app: App, o: EventOption): HTMLElement | null {
     return h(
       'div',
       { class: 'event-loot' },
-      h('div', { class: 'card-sub' }, tierBadge(o.gear.tier, gearTypeIcon(o.gear, def))),
+      // Рамки у содержимого сундука нет, поэтому тир здесь — словом цвета тира.
+      h('div', { class: 'card-sub' }, h('span', { style: `color:${GEAR_TIERS[o.gear.tier].color}`, tip: tierTip(o.gear.tier) }, GEAR_TIERS[o.gear.tier].name), ' · ', gearTypeIcon(o.gear, def)),
       h('div', { class: 'card-desc' }, o.gear.name),
       h('div', { class: 'note' }, gearStatText(o.gear, def)),
       perkLine(o.gear, def),

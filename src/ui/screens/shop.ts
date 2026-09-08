@@ -7,7 +7,7 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import type { App } from '../app';
-import { artifactDiffLine, bindSwapPreview, gearDiffLines } from '../diff';
+import { gearDiffLines } from '../diff';
 import { findSameArtifact } from '../../engine/equipment';
 import { artifactDef } from '../../data/artifacts';
 import type { ArtTier } from '../../engine/types';
@@ -46,13 +46,13 @@ export function shopScreen(app: App): HTMLElement {
 
   const gearErr = canShopBuyGear(run);
   const gearEl = shop.gear
-    ? bindSwapPreview(app, gearCard(shop.gear, { def, deltas: gearDiffLines(run, shop.gear), footer: buyButton(gearPrice(shop.gear), gearErr, () => app.shopBuyGear()) }), shop.gear)
+    ? gearCard(shop.gear, { def, deltas: gearDiffLines(run, shop.gear), footer: buyButton(gearPrice(shop.gear), gearErr, () => app.shopBuyGear()) })
     : soldCard('Экипировка');
 
   const artErr = canShopBuyArtifact(run);
   let artEl: HTMLElement;
   if (shop.artifact) {
-    // Дубликат апгрейдит стоящий — заметка об этом вместо дельт.
+    // Дубликат апгрейдит стоящий — заметка об этом.
     const same = findSameArtifact(run.hero, shop.artifact.id);
     let note: HTMLElement | null = null;
     if (same?.art) {
@@ -62,7 +62,7 @@ export function shopScreen(app: App): HTMLElement {
         note = h('div', { class: 'note' }, `Улучшит стоящий до тира ${nextTier}: ${artifactDef(shop.artifact.id).describe(nextTier)}`);
       }
     }
-    artEl = artifactCard(shop.artifact, h('div', null, note ?? artifactDiffLine(run, shop.artifact), buyButton(artifactPrice(shop.artifact), artErr, () => app.shopBuyArtifact())));
+    artEl = artifactCard(shop.artifact, buyButton(artifactPrice(shop.artifact), artErr, () => app.shopBuyArtifact()), note);
   } else artEl = soldCard('Артефакт');
 
   const potionErr = canShopBuyPotion(run);
