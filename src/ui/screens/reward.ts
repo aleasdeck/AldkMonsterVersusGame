@@ -9,6 +9,7 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import type { ArtTier } from '../../engine/types';
+import { artifactDiffLine, bindSwapPreview, gearDiffLines } from '../diff';
 import type { App } from '../app';
 
 export function rewardScreen(app: App): HTMLElement {
@@ -29,14 +30,14 @@ export function rewardScreen(app: App): HTMLElement {
         }
       }
       return pickable(
-        artifactCard(item.artifact, h('div', null, note ? h('div', { class: 'note' }, note) : null, button('Взять', () => app.takeReward(i), { class: 'primary' }))),
+        artifactCard(item.artifact, h('div', null, note ? h('div', { class: 'note' }, note) : artifactDiffLine(run, item.artifact), button('Взять', () => app.takeReward(i), { class: 'primary' }))),
         () => app.takeReward(i),
       );
     }
     if (item.kind === 'potion') {
       return pickable(potionCard(item.potion, button('Взять', () => app.takeReward(i), { class: 'primary' }), potionReplaceNote(run)), () => app.takeReward(i));
     }
-    return pickable(gearCard(item.gear, { def, footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i));
+    return bindSwapPreview(app, pickable(gearCard(item.gear, { def, deltas: gearDiffLines(run, item.gear), footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i)), item.gear);
   });
 
   const rerollErr = canReroll(run);

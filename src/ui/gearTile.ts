@@ -72,10 +72,6 @@ function artifactRow(inst: ArtifactInstance, s: DerivedStats): HTMLElement {
 export interface GearTileOpts {
   /** Полный список артефактов с описаниями (оверлей «Персонаж»). */
   expanded?: boolean;
-  /** Вместо строки перка: дельты замены (наведение на товар у торговца). */
-  perkOverride?: Child[] | null;
-  /** Подсветить: этот предмет заменится покупкой. */
-  hot?: boolean;
 }
 
 /**
@@ -94,12 +90,14 @@ export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, opts
     dice = h('span', { class: 'gt-dice' }, [gear.def ? `DEF ${gear.def}` : '', gear.hp ? `+${gear.hp} HP` : ''].filter(Boolean).join(' · ') || 'без бонусов');
   }
   const affix = gear.affix ? h('span', { class: 'gt-affix', tip: 'Случайный бонус предмета' }, `✦ +${gear.affix.stat === 'crit' ? `${Math.round(gear.affix.value * 100)} %` : gear.affix.value} ${AFFIX_NAMES[gear.affix.stat] ?? gear.affix.stat}`) : null;
-  const perk = opts.perkOverride ? h('div', { class: 'gt-diff' }, ...opts.perkOverride) : (perkLine(gear, def) ?? (gearPerkText(gear) ? null : h('div', { class: 'card-perk dim' }, 'без перка')));
+  const perk = perkLine(gear, def) ?? (gearPerkText(gear) ? null : h('div', { class: 'card-perk dim' }, 'без перка'));
+  // Пустой узел дельт: наведение на товар (diff.ts) заполняет его и подсвечивает плитку классом hot.
   return h(
     'div',
-    { class: `gear-tile ${isWeapon ? 'weapon' : 'armor'} ${opts.hot ? 'hot' : ''}`, style: `border-color:${opts.hot ? 'var(--accent)' : info.color}` },
+    { class: `gear-tile ${isWeapon ? 'weapon' : 'armor'}`, style: `border-color:${info.color}` },
     h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name' }, gear.name), tierBadge(gear.tier, gearTypeIcon(gear, def)), dice, affix),
     perk,
+    opts.expanded ? null : h('div', { class: 'gt-diff' }),
     opts.expanded
       ? h('div', { class: 'art-list' }, ...gear.slots.map((a) => (a ? artifactRow(a, s) : h('div', { class: 'art-row empty' }, artifactChip(null), h('span', { class: 'dim' }, 'свободный сокет')))))
       : h('div', { class: 'gt-sockets' }, ...gear.slots.map((a) => socketCell(a, s))),

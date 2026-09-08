@@ -1,6 +1,8 @@
 import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef, HeroPersistent, StatMods } from './types';
 import { ARTIFACTS } from '../data/artifacts';
-import { affixMods, armorPerkMods, weaponDice, weaponPerkMods } from '../data/gear';
+import { affixMods, armorPerkMods, gearPerkText, weaponDice, weaponPerkMods } from '../data/gear';
+import { equipGear } from './equipment';
+import { armorType as armorTypeOf } from '../data/gear';
 
 export function socketedArtifacts(weapon: GearInstance, armor: GearInstance): ArtifactInstance[] {
   const out: ArtifactInstance[] = [];
@@ -71,4 +73,43 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
 
 export function heroStatsOf(def: HeroDef, hero: HeroPersistent): DerivedStats {
   return computeStats(def, hero.weapon, hero.armor);
+}
+
+export interface GearSwapPreview {
+  before: DerivedStats;
+  after: DerivedStats;
+  /** Число сокетов до и после. */
+  slotsBefore: number;
+  slotsAfter: number;
+  /** Строки перков: пустая — перка нет. У брони, которую герой не умеет носить, перк не работает — строка пустая. */
+  perkBefore: string;
+  perkAfter: string;
+  /** Артефакты, которые переедут в новый предмет, и те, которым не хватит сокетов. */
+  moved: ArtifactInstance[];
+  overflow: ArtifactInstance[];
+}
+
+/**
+ * Статы героя, как если бы предмет надели: урон, DEF, HP, число сокетов, судьба перка и артефактов.
+ * Считает на копии героя правилами equipGear, самого героя не трогает. Из разницы строятся дельты на карточках.
+ */
+export function previewGearSwap(def: HeroDef, hero: HeroPersistent, gear: GearInstance): GearSwapPreview {
+  const before = computeStats(def, hero.weapon, hero.armor);
+  const copy: HeroPersistent = { ...hero, weapon: structuredClone(hero.weapon), armor: structuredClone(hero.armor) };
+  const old = gear.kind === 'weapon' ? hero.weapon : hero.armor;
+  const overflow = equipGear(copy, gear);
+  const fresh = gear.kind === 'weapon' ? copy.weapon : copy.armor;
+  const after = computeStats(def, copy.weapon, copy.armor);
+  const worksNow = gear.kind === 'weapon' || def.armorSkill[armorTypeOf(old)];
+  const worksNext = gear.kind === 'weapon' || def.armorSkill[armorTypeOf(gear)];
+  return {
+    before,
+    after,
+    slotsBefore: old.slots.length,
+    slotsAfter: gear.slots.length,
+    perkBefore: worksNow ? gearPerkText(old) : '',
+    perkAfter: worksNext ? gearPerkText(gear) : '',
+    moved: fresh.slots.filter((a): a is ArtifactInstance => !!a),
+    overflow,
+  };
 }

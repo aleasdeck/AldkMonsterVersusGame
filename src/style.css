@@ -403,17 +403,26 @@ p {
   padding: 8px 10px;
   min-width: 0;
 }
-.c-gear .card {
+.c-gear .gear-tile {
   flex: 1 1 0;
-  min-width: 0;
-  max-width: none;
-  padding: 4px 8px;
+  justify-content: flex-start;
 }
-.c-gear .card-name {
-  font-size: 19px;
+/* Наведение на товар: плитка подсвечена, вместо перка — дельты замены. */
+.gt-diff {
+  display: none;
+  white-space: normal;
+  line-height: 1.05;
+  max-height: 34px;
+  overflow: hidden;
 }
-.c-gear .card-desc {
-  font-size: 16px;
+.gear-tile.hot .gt-diff {
+  display: block;
+}
+.gear-tile.hot .card-perk {
+  display: none;
+}
+.gt-diff-title {
+  color: var(--accent);
 }
 /* Центр хаба: заголовок, карточки на всю высоту, ряд кнопок внизу. */
 .hub-main {
@@ -744,26 +753,24 @@ p {
 .gear-card {
   max-width: none;
 }
-/* Компактная карточка панели героя: тир справа в шапке, слоты в строке с уроном. */
-.gear-card.compact {
-  gap: 3px;
-}
-.gear-card.compact .card-head .tier {
+/* Бейдж тира в шапке карточки экипировки — справа от имени. */
+.gear-card .card-head .tier {
   margin-left: auto;
   font-size: 13px;
-  white-space: nowrap;
+  flex: none;
 }
-.gear-card.compact .card-desc {
+/* Дельты к надетому: зелёное вырастет, красное пропадёт. */
+.diff {
   font-size: 15px;
-}
-.gear-card.compact .card-perk {
-  font-size: 14px;
   line-height: 1.1;
 }
-.gear-card.compact .chip {
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
+.diff .up,
+.gt-diff .up {
+  color: var(--good);
+}
+.diff .dn,
+.gt-diff .dn {
+  color: var(--bad);
 }
 .tier {
   display: inline-block;
@@ -975,13 +982,6 @@ p {
 
 /* ─── Карта ─────────────────────────────────────────────────────────── */
 
-.socket-gear {
-  min-width: 190px;
-  font-size: 16px;
-}
-.socket-row.free .socket-name {
-  color: var(--dim);
-}
 .room-desc {
   max-width: 560px;
 }
@@ -1613,26 +1613,56 @@ p {
 }
 .modal {
   text-align: left;
-  width: 620px;
+  width: 820px;
   max-height: 500px;
   overflow: auto;
+  border-color: var(--border);
 }
-.modal .art-card {
+/* Модалка слота: карточка артефакта слева, справа оружие и броня с сокетами-кнопками в сетке 2×2. */
+.pm-body {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.pm-body .art-card {
   max-width: none;
-  margin-bottom: 8px;
+  min-width: 0;
 }
-.socket-list {
+.pm-gears {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.pm-gear {
+  border: 3px solid var(--border);
+  background: var(--panel-2);
+  padding: 6px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.socket-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.pm-sock {
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
 }
-.socket-name {
-  flex: 1;
+.pm-sock:hover:not([disabled]) {
+  border-color: var(--accent);
+}
+.pm-sock.off {
+  opacity: 0.45;
+  cursor: default;
+}
+.pm-act {
+  margin-left: auto;
+  color: var(--accent);
+  flex: none;
+}
+.pm-sock.empty .pm-act {
+  color: var(--good);
 }
 
 /* ─── Плитка экипировки: шапка, перк, сокеты 2×2 ───────────────────── */
@@ -1741,6 +1771,9 @@ p {
   color: var(--dim);
   margin-left: auto;
   flex: none;
+  max-width: 48%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sock.empty {
   border-style: dashed;
@@ -1962,6 +1995,34 @@ p {
 }
 .shop .card-foot .btn {
   white-space: nowrap;
+}
+/* Четыре узкие карточки торговца: плотнее, перк одной строкой (полный текст в подсказке), дельты мельче,
+   чипы сокетов не рисуются — их число уже есть в дельтах. Строки не сжимаются, иначе переполненная колонка схлопнет их в ноль. */
+.shop .card {
+  gap: 4px;
+  padding: 6px 8px;
+}
+.shop .card > * {
+  flex-shrink: 0;
+}
+.shop .card-perk {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shop .diff,
+.shop .note {
+  font-size: 14px;
+}
+.shop .card-desc {
+  font-size: 15px;
+}
+.shop .gear-card .slots {
+  display: none;
+}
+.shop .card-head .card-name {
+  font-size: 18px;
+  line-height: 1;
 }
 .camp-card {
   max-width: 340px;

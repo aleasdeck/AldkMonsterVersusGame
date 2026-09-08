@@ -1,5 +1,5 @@
 import { button, h, type Child } from './dom';
-import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, GearTier, RunState, StatusId } from '../engine/types';
+import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, GearKind, GearTier, RunState, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
@@ -207,36 +207,25 @@ export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null 
       h('s', null, perk),
     );
   }
-  return h('div', { class: 'card-perk' }, ...markKeywords(perk));
+  // Полный текст в подсказке: в узких карточках торговца строка перка обрезается.
+  return h('div', { class: 'card-perk', tip: perk }, ...markKeywords(perk));
 }
 
-export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Child; compact?: boolean } = {}): HTMLElement {
+/**
+ * Карточка экипировки в награде и у торговца: тир и тип в шапке, кубик в руках героя, дельты к надетому
+ * (deltas — строки из diff.ts), перк, сокеты чипами. Число сокетов не пишем: его видно по чипам.
+ */
+export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Child; deltas?: HTMLElement[] } = {}): HTMLElement {
   const info = GEAR_TIERS[gear.tier];
-  const { def, footer, compact } = opts;
+  const { def, footer, deltas } = opts;
   const isWeapon = gear.kind === 'weapon';
-  const glyph = h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨');
-  const name = h('span', { class: 'card-name' }, gear.name);
-  const typeIcon = gearTypeIcon(gear, def);
-  const perk = perkLine(gear, def);
-  if (compact) {
-    // Панель героя: тир и тип в строке с названием, перк короткий, слоты внизу — панель обязана влезать в кадр без прокрутки.
-    return h(
-      'div',
-      { class: 'card gear-card compact', style: `border-color:${info.color}` },
-      h('div', { class: 'card-head' }, glyph, name, tierBadge(gear.tier, typeIcon)),
-      h('div', { class: 'card-desc' }, gearStatText(gear, def)),
-      perk,
-      slotsRow(gear),
-    );
-  }
-  // Число слотов не пишем: его видно по чипам ниже. Сравнение с надетым тоже: оно в панели героя слева.
   return h(
     'div',
     { class: 'card gear-card', style: `border-color:${info.color}` },
-    h('div', { class: 'card-head' }, glyph, name),
-    h('div', { class: 'card-sub' }, tierBadge(gear.tier, typeIcon)),
+    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'card-name' }, gear.name), tierBadge(gear.tier, gearTypeIcon(gear, def))),
     h('div', { class: 'card-desc' }, gearStatText(gear, def)),
-    perk,
+    ...(deltas ?? []),
+    perkLine(gear, def),
     slotsRow(gear),
     footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
@@ -309,15 +298,45 @@ export function statsGrid(s: DerivedStats): HTMLElement {
   );
 }
 
-/** Модалка выбора слота для артефакта: пустой — вставить, занятый — заменить. */
+/**
+ * Модалка выбора слота для артефакта: карточка артефакта слева, справа оружие и броня со своими сокетами
+ * в той же сетке 2×2, что и в консоли. Пустой сокет — «Вставить», занятый — «Заменить», старый артефакт пропадёт.
+ */
 export function pendingModal(app: App): HTMLElement | null {
   const run = app.run;
   const p = run?.pending;
   const art = p?.artifacts[0];
   if (!run || !p || !art) return null;
-  const sockets = socketRefs(run.hero);
   const same = findSameArtifact(run.hero, art.id);
-  const hasFree = sockets.some((s) => !s.art);
+  const hasFree = socketRefs(run.hero).some((s) => !s.art);
+  const group = (kind: GearKind) => {
+    const gear = gearOf(run.hero, kind);
+    const info = GEAR_TIERS[gear.tier];
+    return h(
+      'div',
+      { class: 'pm-gear', style: `border-color:${info.color}` },
+      h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, kind === 'weapon' ? '⚔' : '⛨'), h('span', { class: 'gt-name' }, gear.name), tierBadge(gear.tier)),
+      h(
+        'div',
+        { class: 'gt-sockets' },
+        ...gear.slots.map((a, index) => {
+          const isSame = !!same && same.kind === kind && same.index === index;
+          return h(
+            'button',
+            {
+              class: `sock pm-sock ${a ? '' : 'empty'} ${isSame ? 'off' : ''}`,
+              disabled: isSame,
+              tip: a ? `${artifactTitle(a)}\n— заменить: старый артефакт пропадёт` : 'Свободный сокет: вставить сюда',
+              onclick: () => app.pendingPlace(kind, index),
+            },
+            artifactChip(a),
+            h('span', { class: 'sock-name' }, a ? `${artifactDef(a.id).name} · ${a.tier}` : 'свободный сокет'),
+            h('span', { class: 'pm-act' }, a ? 'Заменить' : 'Вставить'),
+          );
+        }),
+      ),
+    );
+  };
   return h(
     'div',
     { class: 'overlay' },
@@ -325,35 +344,12 @@ export function pendingModal(app: App): HTMLElement | null {
       'div',
       { class: 'panel modal' },
       h('h2', null, 'Куда вставить артефакт?'),
-      h(
-        'p',
-        { class: 'dim' },
-        hasFree ? 'Выберите слот. Занятый слот — замена, старый артефакт пропадёт.' : 'Свободных слотов нет: выберите, какой артефакт заменить.',
-      ),
-      artifactCard(art),
-      h(
-        'div',
-        { class: 'socket-list' },
-        ...sockets.map((s) => {
-          const gear = gearOf(run.hero, s.kind);
-          const isSame = !!same && same.kind === s.kind && same.index === s.index;
-          return h(
-            'div',
-            { class: `socket-row ${s.art ? '' : 'free'}` },
-            h('span', { class: 'socket-gear' }, h('span', { class: 'dim' }, s.kind === 'weapon' ? 'Оружие' : 'Броня'), h('span', null, ` · ${gear.name} · слот ${s.index + 1}`)),
-            artifactChip(s.art),
-            h('span', { class: 'socket-name' }, s.art ? `${artifactDef(s.art.id).name} (тир ${s.art.tier})` : 'пусто'),
-            button(s.art ? 'Заменить' : 'Вставить', () => app.pendingPlace(s.kind, s.index), {
-              class: s.art ? '' : 'primary',
-              disabled: isSame,
-            }),
-          );
-        }),
-      ),
+      h('p', { class: 'dim' }, hasFree ? 'Клик по сокету. Занятый сокет — замена, старый артефакт пропадёт.' : 'Свободных сокетов нет: выберите, какой артефакт заменить.'),
+      h('div', { class: 'pm-body' }, artifactCard(art), h('div', { class: 'pm-gears' }, group('weapon'), group('armor'))),
       h(
         'div',
         { class: 'row' },
-        p.cancellable ? button('Отмена', () => app.pendingCancel()) : button('Выбросить', () => app.pendingDiscard(), { class: 'danger' }),
+        p.cancellable ? button('Отмена', () => app.pendingCancel()) : button('Выбросить', () => app.pendingDiscard(), { class: 'danger', tip: 'Артефакт пропадёт' }),
       ),
     ),
   );

@@ -4,7 +4,8 @@ import { potionDef } from '../data/potions';
 import { canUseAction } from '../engine/combat';
 import { heroStats } from '../engine/run';
 import type { PlayerAction } from '../engine/types';
-import { bar, gearCard, potionChip, potionTitle, segBar } from './components';
+import { bar, potionChip, potionTitle, segBar } from './components';
+import { gearTile } from './gearTile';
 import { spriteImg } from './sprites';
 import { bindPreview } from './preview';
 import type { App } from './app';
@@ -76,11 +77,12 @@ export function heroBlock(app: App): HTMLElement {
   );
 }
 
-/** Центр консоли на хабах: оружие и броня героя. Пока компактные карточки; плитки с сокетами придут с оверлеем «Персонаж». */
+/** Центр консоли на хабах: две плитки экипировки во всю ширину, с перком и сокетами 2×2. */
 export function hubGear(app: App): HTMLElement {
   const run = app.run!;
   const def = heroDef(run.hero.defId);
-  return h('div', { class: 'c-gear' }, gearCard(run.hero.weapon, { def, compact: true }), gearCard(run.hero.armor, { def, compact: true }));
+  const s = heroStats(run);
+  return h('div', { class: 'c-gear' }, gearTile(run.hero.weapon, def, s), gearTile(run.hero.armor, def, s));
 }
 
 export interface ConsoleParts {
