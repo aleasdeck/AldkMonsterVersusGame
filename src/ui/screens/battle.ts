@@ -2,16 +2,15 @@ import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { potionDef } from '../../data/potions';
-import { ROOM_NAMES, ROOMS_PER_LOCATION } from '../../data/locations';
 import { canUseAction, computeIntent, defendBlock, getStatus, previewAttack, rangeText } from '../../engine/combat';
 import { goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, Combatant, EnemyState, PlayerAction } from '../../engine/types';
-import { bar, coin, segBar, statusIcons } from '../components';
+import { bar, coin, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
 import { statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
+import { runFrame } from '../frame';
 import type { App } from '../app';
 
 /** Блок и статусы — над головой бойца. */
@@ -89,7 +88,7 @@ function actionButton(
   );
 }
 
-function actionBar(app: App): HTMLElement {
+function actionList(app: App): HTMLElement {
   const b = app.run!.battle!;
   const target = app.currentTarget();
   const busy = app.busy || b.phase !== 'player';
@@ -145,27 +144,7 @@ function actionBar(app: App): HTMLElement {
       ),
     );
   }
-  // Зелье — отдельно от сетки приёмов, над «Концом хода»: слот один и он не часть билда. Пустой слот занимает место, чтобы кнопки не прыгали.
-  let potionBtn: HTMLElement;
-  if (b.hero.potion) {
-    const pd = potionDef(b.hero.potion);
-    const act: PlayerAction = { type: 'potion', target };
-    potionBtn = actionButton(`${pd.glyph} ${pd.name}`, pd.describe, 'бесплатно', canUseAction(b, act), busy, `${pd.name}\n${pd.describe}\nНе тратит стамину, слот после этого пуст`, () => app.battleAction(act));
-    potionBtn.classList.add('potion');
-  } else {
-    potionBtn = h(
-      'button',
-      { class: 'btn action off potion', disabled: true, tip: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' },
-      h('div', { class: 'action-label' }, '⚗ Зелье'),
-      h('div', { class: 'action-value' }, 'Слот пуст'),
-    );
-  }
-  return h(
-    'div',
-    { class: 'actions' },
-    h('div', { class: 'action-list' }, ...buttons),
-    h('div', { class: 'side' }, potionBtn, button('Конец хода ▶', () => app.endTurn(), { class: 'primary end-turn', disabled: busy })),
-  );
+  return h('div', { class: 'action-list' }, ...buttons);
 }
 
 export function battleScreen(app: App): HTMLElement {
@@ -174,23 +153,13 @@ export function battleScreen(app: App): HTMLElement {
   const def = heroDef(run.hero.defId);
   const loc = currentLocation(run);
 
-  const top = h(
-    'div',
-    { class: 'topbar' },
-    h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/${ROOMS_PER_LOCATION} · ${ROOM_NAMES[currentRoomKind(run)]}`),
-    h('span', { class: 'turn' }, b.phase === 'enemy' ? 'Ход врагов…' : `Ход ${b.turn}`),
-    h('span', { class: 'dim' }, `сид ${run.seed}`),
-  );
-
+  // Полоски героя живут в консоли; над героем в поле — только блок и статусы.
   const heroZone = h(
     'div',
     { class: 'hero-zone' },
     badges(b.hero),
-    h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, 112, 'bob')),
+    h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, 128, 'bob')),
     h('div', { class: 'name' }, def.name),
-    bar('hp', b.hero.hp, b.hero.maxHp, 'HP'),
-    segBar('sta', b.hero.sta, b.hero.maxSta),
-    b.hero.maxMp > 0 ? segBar('mp', b.hero.mp, b.hero.maxMp) : null,
   );
 
   const allyZone = h('div', { class: 'ally-zone' }, ...b.allies.map(allyView));
@@ -200,45 +169,41 @@ export function battleScreen(app: App): HTMLElement {
   const over = b.phase === 'won' || b.phase === 'lost';
   const won = b.phase === 'won';
   const finishLabel = won ? 'Забрать награду' : 'К итогам';
+  const busy = app.busy || b.phase !== 'player';
 
-  // Лог спрятан за узкой кнопкой справа: раскрытый занимает всю нижнюю панель вместо действий и кнопки конца хода.
-  const logToggle = button(app.logOpen ? '✕ Закрыть' : 'Лог боя', () => app.toggleLog(), {
-    class: `log-toggle ${app.logOpen ? 'open' : ''}`,
-    tip: app.logOpen ? (over ? 'Вернуть итог боя' : 'Вернуть действия') : 'Показать лог боя',
-  });
-  let bottom: HTMLElement;
+  let mid: HTMLElement;
   if (app.logOpen) {
     const logEl = h('div', { class: 'log' }, ...b.log.map((l) => h('div', { class: l.startsWith('—') ? 'log-turn' : '' }, l)));
     // Прокрутка к последним записям — после вставки в документ, до этого scrollHeight равен нулю.
     requestAnimationFrame(() => {
       logEl.scrollTop = logEl.scrollHeight;
     });
-    // После боя итоговая плашка спрятана, чтобы не закрывать лог; кнопка выхода из боя стоит рядом с логом.
-    const finish = over ? h('div', { class: 'log-finish' }, button(finishLabel, () => app.finishBattle(), { class: 'primary' })) : null;
-    bottom = h('div', { class: 'bottom' }, logEl, finish, logToggle);
-  } else bottom = h('div', { class: 'bottom' }, actionBar(app), logToggle);
+    mid = logEl;
+  } else mid = actionList(app);
 
-  const screen = h('div', { class: 'screen battle' }, top, field, bottom);
+  const right = over
+    ? button(finishLabel, () => app.finishBattle(), { class: 'primary end-turn' })
+    : button('Конец хода ▶', () => app.endTurn(), { class: 'primary end-turn', disabled: busy, tip: 'Передать ход врагам (Space)' });
 
-  if (over && !app.logOpen) {
-    screen.appendChild(
-      h(
-        'div',
-        { class: 'overlay' },
-        h(
+  const result =
+    over && !app.logOpen
+      ? h(
           'div',
-          { class: `panel result ${won ? 'won' : 'lost'}` },
-          h('h2', null, won ? 'Победа!' : 'Герой пал'),
-          h('p', { class: 'dim' }, ...(won ? [`Бой занял ${b.turn} ход(ов). Добыча: +${goldReward(currentRoomKind(run))} `, coin(), ' золота.'] : ['Забег окончен.'])),
+          { class: 'overlay' },
           h(
             'div',
-            { class: 'row' },
-            button(finishLabel, () => app.finishBattle(), { class: 'primary big' }),
-            button('Лог боя', () => app.toggleLog(), { tip: 'Перечитать ход боя, плашка итога вернётся по «Закрыть»' }),
+            { class: `panel result ${won ? 'won' : 'lost'}` },
+            h('h2', null, won ? 'Победа!' : 'Герой пал'),
+            h('p', { class: 'dim' }, ...(won ? [`Бой занял ${b.turn} ход(ов). Добыча: +${goldReward(currentRoomKind(run))} `, coin(), ' золота.'] : ['Забег окончен.'])),
+            h(
+              'div',
+              { class: 'row' },
+              button(finishLabel, () => app.finishBattle(), { class: 'primary big' }),
+              button('Лог боя', () => app.toggleLog(), { tip: 'Перечитать ход боя, плашка итога вернётся по «Закрыть»' }),
+            ),
           ),
-        ),
-      ),
-    );
-  }
-  return screen;
+        )
+      : null;
+
+  return runFrame(app, { cls: 'battle', center: field, mid, right, log: true, overlays: [result] });
 }

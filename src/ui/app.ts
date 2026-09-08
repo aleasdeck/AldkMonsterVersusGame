@@ -18,6 +18,7 @@ import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
 import { SPIN_MS, buildStrip, chestScreen, type ChestState } from './screens/chest';
 import { hideTooltip, installTooltips } from './tooltip';
+import { formatClock } from './topbar';
 
 const ENEMY_STEP_MS = 600;
 const FLOAT_MS = 900;
@@ -30,8 +31,12 @@ export class App {
   target: number | null = null;
   /** Идёт ход врагов — кнопки заблокированы. */
   busy = false;
-  /** Лог боя раскрыт на всю нижнюю панель вместо действий. Сбрасывается по концу боя. */
+  /** Лог боя раскрыт вместо плиток приёмов. Сбрасывается по концу боя. */
   logOpen = false;
+  /** Открыт оверлей «Персонаж». Живёт только в App, не сохраняется. */
+  sheetOpen = false;
+  /** Открыта пауза. */
+  pauseOpen = false;
   profile: Profile;
   /** Состояние крутки сундука; null — сундук ещё не открыт. */
   chest: ChestState | null = null;
@@ -40,6 +45,8 @@ export class App {
   /** Текст поля «Сид» на экране выбора — переживает перерисовку при клике по плитке. */
   seedText = '';
   private stepTimer: number | null = null;
+  /** Тикает раз в секунду и пишет время забега в топбар напрямую, без перерисовки. */
+  private clockTimer: number | null = null;
   private spinTimer: number | null = null;
   private resultRecorded = false;
 
@@ -101,6 +108,44 @@ export class App {
     }
     hideTooltip();
     this.root.replaceChildren(el);
+    this.syncClock();
+  }
+
+  // ─── Таймер забега ───────────────────────────────────────────────────────
+
+  /** Сколько идёт забег, мс. Законченный — до момента конца. */
+  runElapsed(): number {
+    const s = this.run?.stats;
+    if (!s?.startedAt) return 0;
+    return (s.finishedAt || Date.now()) - s.startedAt;
+  }
+
+  /** Таймер живёт только на экранах забега; в меню и на итогах останавливается. */
+  private syncClock(): void {
+    const active = this.screen === 'run' && !!this.run && !R.isRunOver(this.run);
+    if (active && this.clockTimer === null) {
+      this.clockTimer = window.setInterval(() => {
+        const el = this.root.querySelector('.run-clock');
+        if (el) el.textContent = `⏱ ${formatClock(this.runElapsed())}`;
+      }, 1000);
+    } else if (!active && this.clockTimer !== null) {
+      window.clearInterval(this.clockTimer);
+      this.clockTimer = null;
+    }
+  }
+
+  // ─── Оверлеи ─────────────────────────────────────────────────────────────
+
+  toggleSheet(): void {
+    this.sheetOpen = !this.sheetOpen;
+    this.pauseOpen = false;
+    this.render();
+  }
+
+  togglePause(): void {
+    this.pauseOpen = !this.pauseOpen;
+    this.sheetOpen = false;
+    this.render();
   }
 
   private commit(): void {

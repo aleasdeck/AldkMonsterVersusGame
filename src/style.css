@@ -180,34 +180,288 @@ p {
   flex-wrap: wrap;
 }
 
-/* ─── Панель героя ───────────────────────────────────────────────────── */
+/* ─── Каркас забега: топбар 40 + центр 320 + консоль 180 ────────────── */
 
-.hero-panel {
-  width: 300px;
+.run-top {
+  height: 40px;
   flex: none;
-  padding: 8px 12px;
-  background: #121220;
-  border-right: 3px solid var(--border);
-  overflow: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  background: #0f0f1a;
+  border-bottom: 3px solid var(--border);
+  font-size: 19px;
+}
+.top-left,
+.top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+/* Центральная группа с одинаковыми отступами от левой и правой: свободное место делится поровну. */
+.top-center {
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  white-space: nowrap;
+}
+/* Портрет с именем — кнопка без рамки, открывает оверлей «Персонаж». */
+.hero-link {
+  font: inherit;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0 4px 0 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hero-link:hover .hero-link-name {
+  text-decoration: underline;
+}
+.hero-link-name {
+  font-size: 21px;
+  white-space: nowrap;
+}
+.run-top .gold {
+  margin-left: 0;
+  font-size: 19px;
+}
+.room-strip {
+  display: flex;
+  gap: 3px;
+}
+.room-cell {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border);
+  background: #0e0e18;
+  font-size: 14px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--dim);
+  cursor: help;
+}
+.room-cell.done {
+  color: #555;
+  border-color: #2a2a40;
+}
+.room-cell.current {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: #2a2410;
+}
+.room-cell.future.room-boss {
+  color: var(--bad);
+}
+.room-cell.future.room-shop {
+  color: #ffd166;
+}
+.run-clock {
+  color: var(--dim);
+  font-size: 18px;
+  white-space: nowrap;
+}
+.menu-btn {
+  padding: 0 8px;
+  font-size: 20px;
+  line-height: 1;
+  height: 28px;
+}
+
+.run-center {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+.run-center > .main,
+.run-center > .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.console {
+  height: 180px;
+  flex: none;
+  display: flex;
+  border-top: 3px solid var(--border);
+  background: #0f0f1a;
+}
+/* Блок героя 205 px: портрет, имя, ссылка на персонажа, HP, STA, MP полосками во всю ширину, зелье. */
+.c-hero {
+  width: 205px;
+  flex: none;
+  padding: 8px 10px;
+  border-right: 3px solid #26263c;
   display: flex;
   flex-direction: column;
-  /* Плотнее, чем остальные панели: у обоих предметов теперь строка перка, всё должно влезть в 540px без прокрутки. */
-  gap: 4px;
+  gap: 5px;
 }
-.hero-panel .stats-grid {
-  font-size: 17px;
-}
-.hero-panel .mastery {
-  font-size: 14px;
-}
-.hero-head {
+.c-hero-head {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
-.hero-head > div {
-  flex: 1;
+.c-hero-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
 }
+.c-hero-title .name {
+  font-size: 21px;
+  line-height: 1;
+}
+.link {
+  font: inherit;
+  font-size: 15px;
+  color: var(--dim);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.link:hover {
+  color: var(--accent);
+}
+.c-hero .bar {
+  height: 22px;
+  width: 100%;
+}
+.c-hero .bar-text {
+  line-height: 18px;
+}
+.bar-gap {
+  height: 22px;
+}
+/* Зелье под полосками: чип и название; в бою — кнопка, серая во время хода врагов. */
+.potion-line {
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  text-align: left;
+}
+.potion-line .chip {
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+  flex: none;
+}
+.potion-line .potion-name {
+  color: #6fd97a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.potion-line.clickable {
+  cursor: pointer;
+}
+.potion-line.clickable:hover:not([disabled]) .chip {
+  border-color: var(--accent);
+}
+.potion-line.off {
+  opacity: 0.45;
+  cursor: default;
+}
+.c-mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.c-right {
+  width: 110px;
+  flex: none;
+  padding: 10px 6px 10px 4px;
+  display: flex;
+  flex-direction: column;
+}
+.c-right .btn {
+  flex: 1;
+  font-size: 21px;
+  line-height: 1.05;
+  padding: 0 4px;
+}
+/* Хабы: правее блока героя две плитки экипировки во всю ширину. */
+.c-gear {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+.c-gear .card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+  padding: 4px 8px;
+}
+.c-gear .card-name {
+  font-size: 19px;
+}
+.c-gear .card-desc {
+  font-size: 16px;
+}
+/* Центр хаба: заголовок, карточки на всю высоту, ряд кнопок внизу. */
+.hub-main {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 20px;
+}
+.hub-main .cards {
+  flex: 1;
+  min-height: 0;
+  flex-wrap: nowrap;
+  align-items: stretch;
+}
+.hub-main .cards .card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+}
+.hub-main .row {
+  flex: none;
+}
+.map-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8px 28px;
+}
+.room-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+}
+.room-preview .room-icon {
+  font-size: 34px;
+  color: var(--accent);
+}
+.room-preview .room-title {
+  font-size: 26px;
+  color: var(--accent);
+}
+.room-preview .room-boss {
+  color: var(--bad);
+}
+
+/* ─── Панель героя ───────────────────────────────────────────────────── */
+
 .name {
   font-size: 22px;
   color: var(--accent);
@@ -511,16 +765,6 @@ p {
   height: 30px;
   font-size: 16px;
 }
-.hero-panel .card {
-  min-width: 0;
-  padding: 4px 8px;
-}
-.hero-panel .card-name {
-  font-size: 19px;
-}
-.hero-panel .card-desc {
-  font-size: 16px;
-}
 .tier {
   display: inline-block;
   border: 2px solid;
@@ -548,26 +792,6 @@ p {
   padding-left: 4px;
   padding-right: 4px;
   font-size: 16px;
-}
-/* Карточки выбора (награда, событие): три в ряд на 640px, поэтому текст мельче, чем в панели. */
-.reward .main {
-  display: flex;
-  flex-direction: column;
-}
-/* Карточки занимают всю высоту до ряда кнопок, кнопки внутри карточек прижаты к их низу. */
-.reward .cards {
-  flex: 1;
-  min-height: 0;
-  flex-wrap: nowrap;
-  align-items: stretch;
-}
-.reward .cards .card {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: none;
-}
-.reward .row {
-  flex: none;
 }
 .cards .card-name {
   font-size: 20px;
@@ -751,53 +975,6 @@ p {
 
 /* ─── Карта ─────────────────────────────────────────────────────────── */
 
-.rooms {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  margin: 18px 0;
-}
-.room {
-  /* Восемь клеток этажа с семью связками должны влезть в 620px основной колонки. */
-  width: 64px;
-  height: 76px;
-  border: 3px solid var(--border);
-  background: var(--panel-2);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-.room-icon {
-  font-size: 28px;
-}
-.room-name {
-  font-size: 14px;
-  color: var(--dim);
-}
-.room.done {
-  opacity: 0.4;
-}
-.room.current {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px #3a2f10, 0 0 18px #ffd16655;
-}
-.room.current .room-icon {
-  color: var(--accent);
-}
-.room-boss .room-icon {
-  color: var(--bad);
-}
-/* Торговец: клетка без боя, отличается от комнат только золотой монетой. */
-.room-shop .room-icon {
-  color: #ffd166;
-}
-.room-link {
-  width: 12px;
-  height: 4px;
-  background: var(--border);
-}
 .socket-gear {
   min-width: 190px;
   font-size: 16px;
@@ -805,22 +982,15 @@ p {
 .socket-row.free .socket-name {
   color: var(--dim);
 }
-.room-link.done {
-  background: var(--accent);
-}
 .room-desc {
-  max-width: 480px;
+  max-width: 560px;
 }
 
 /* ─── Бой ───────────────────────────────────────────────────────────── */
 
-.battle {
-  background: linear-gradient(#171726 0, #171726 60%, #12121c 60%, #12121c 100%);
-}
 .field {
-  flex: 1;
   display: flex;
-  padding: 8px 20px 0;
+  padding: 10px 20px 0;
   min-height: 0;
   image-rendering: pixelated;
 }
@@ -828,17 +998,14 @@ p {
   image-rendering: pixelated;
 }
 .hero-zone {
-  width: 260px;
+  width: 220px;
   flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  padding-bottom: 8px;
-}
-.hero-zone .bar {
-  width: 200px;
+  padding-bottom: 10px;
 }
 /* Союзники — рядом с героем, слева от врагов. */
 .ally-zone {
@@ -1056,35 +1223,21 @@ p {
   color: var(--good);
 }
 
-.bottom {
-  flex: none;
-  height: 192px;
-  display: flex;
-  border-top: 3px solid var(--border);
-  background: #0f0f1a;
-}
-.actions {
-  flex: 1;
-  display: flex;
-  gap: 8px;
-  padding: 8px 10px;
-  align-items: stretch;
-  min-width: 0;
-}
-/* Сетка 5×2: максимум действий — удар, защита и до 8 активных артефактов, всё без прокрутки. */
+/* Сетка приёмов в центре консоли: до десяти действий в два ряда без прокрутки. */
 .action-list {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  grid-auto-rows: 82px;
+  grid-auto-rows: 74px;
   gap: 6px;
+  padding: 8px 8px;
   overflow-y: auto;
   min-width: 0;
   align-content: flex-start;
 }
 .btn.action {
   min-width: 0;
-  height: 82px;
+  height: 74px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1149,33 +1302,12 @@ p {
   font-size: 14px;
   color: var(--mp);
 }
-/* Правый столбец панели действий: кнопка зелья над «Концом хода». */
-.actions .side {
-  flex: none;
-  width: 128px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.actions .side .btn.action {
-  width: 100%;
-}
-.btn.action.potion .action-label {
-  color: #6fd97a;
-}
-.end-turn {
-  flex: 1;
-  width: 100%;
-  align-self: stretch;
-  font-size: 22px;
-  padding: 0 8px;
-}
-/* Раскрытый лог: вся нижняя панель, прокрутка к последним записям. */
+/* Раскрытый лог: вместо плиток, прокрутка к последним записям. */
 .log {
   flex: 1;
   min-width: 0;
   padding: 6px 14px;
-  font-size: 16px;
+  font-size: 17px;
   color: var(--dim);
   overflow-y: auto;
 }
@@ -1194,14 +1326,6 @@ p {
 }
 .log-toggle.open {
   color: var(--accent);
-}
-/* Кнопка выхода из законченного боя рядом с раскрытым логом. */
-.log-finish {
-  flex: none;
-  display: flex;
-  align-items: center;
-  padding: 0 14px;
-  border-left: 3px solid var(--border);
 }
 .log-toggle:active:not([disabled]) {
   transform: none;
@@ -1440,17 +1564,6 @@ p {
   color: var(--dim);
   border-style: dashed;
   justify-content: center;
-}
-.shop .cards {
-  flex: 1;
-  min-height: 0;
-  flex-wrap: nowrap;
-  align-items: stretch;
-}
-.shop .cards .card {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: none;
 }
 .shop .card-foot .btn {
   white-space: nowrap;
@@ -1746,9 +1859,38 @@ p {
 .event-loot {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 0 0;
+  gap: 2px;
+  padding: 4px 0 0;
   border-top: 1px dotted var(--border);
+}
+/* Карточки события в полосе 320 px: крупный глиф и описание ужаты, чтобы содержимое сундука и кнопка влезли. */
+.event-card {
+  padding: 6px 10px;
+  gap: 4px;
+}
+.event-card .glyph.big {
+  font-size: 28px;
+  line-height: 1;
+}
+.event-card .card-desc {
+  font-size: 15px;
+  line-height: 1.05;
+}
+.event-card .card-foot .btn {
+  padding: 2px 12px;
+}
+.event-card .note,
+.event-card .card-perk {
+  font-size: 14px;
+  line-height: 1.05;
+}
+.event-card .card-sub {
+  justify-content: center;
+}
+.event-card .chip {
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
 }
 .event-card .card-foot {
   margin-top: auto;

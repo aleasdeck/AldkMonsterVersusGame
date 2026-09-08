@@ -1,11 +1,13 @@
-import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
 import { gearStatText } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { currentLocation } from '../../engine/run';
-import { artifactChip, gearTypeIcon, heroPanel, pendingModal, perkLine, pickable, tierBadge } from '../components';
+import { artifactChip, gearTypeIcon, pendingModal, perkLine, pickable, tierBadge } from '../components';
 import { backgroundStyle } from '../backgrounds';
+import { runFrame } from '../frame';
+import { hubGear } from '../console';
+import { markKeywords } from '../keywords';
 import type { EventOption } from '../../engine/types';
 import type { App } from '../app';
 
@@ -21,7 +23,7 @@ function contents(app: App, o: EventOption): HTMLElement | null {
       { class: 'event-loot' },
       h('div', { class: 'slots' }, artifactChip(o.artifact)),
       h('div', { class: 'card-sub' }, def.name),
-      h('div', { class: 'note' }, def.describe(o.artifact.tier)),
+      h('div', { class: 'note' }, ...markKeywords(def.describe(o.artifact.tier))),
     );
   }
   if (o.id === 'chest') {
@@ -57,21 +59,11 @@ export function eventScreen(app: App): HTMLElement {
       run.pending ? undefined : () => app.chooseEvent(o.id),
     ),
   );
-  return h(
+  const center = h(
     'div',
-    { class: 'screen event' },
-    h('div', { class: 'topbar' }, h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/${ROOMS_PER_LOCATION} · Событие`), h('span', { class: 'dim' }, `сид ${run.seed}`)),
-    h(
-      'div',
-      { class: 'body' },
-      heroPanel(run),
-      h(
-        'div',
-        { class: 'main', style: backgroundStyle(loc.id, 0.78) },
-        h('div', { class: 'title-row' }, h('h2', null, 'Три двери'), h('p', { class: 'dim' }, 'Открыть можно только одну.')),
-        h('div', { class: 'cards' }, ...cards),
-      ),
-    ),
-    pendingModal(app),
+    { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
+    h('div', { class: 'title-row' }, h('h2', null, 'Три двери'), h('p', { class: 'dim' }, 'Открыть можно только одну.')),
+    h('div', { class: 'cards' }, ...cards),
   );
+  return runFrame(app, { cls: 'event', center, mid: hubGear(app), overlays: [pendingModal(app)] });
 }

@@ -21,12 +21,9 @@ import {
   weaponTypeTitle,
 } from '../data/gear';
 import type { Collectible } from '../data/collection';
-import { heroDef } from '../data/heroes';
-import { heroStats } from '../engine/run';
 import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
 import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
 import { STATUS_HINTS, STATUS_NAMES, defendBlock } from '../engine/combat';
-import { spriteImg } from './sprites';
 import { markKeywords } from './keywords';
 import type { App } from './app';
 
@@ -160,18 +157,6 @@ export function potionTitle(id: string): string {
 export function potionChip(id: string | null): HTMLElement {
   if (!id) return h('div', { class: 'chip chip-empty', tip: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' }, '·');
   return h('div', { class: 'chip potion', style: `border-color:${POTION_COLOR}`, tip: potionTitle(id) }, h('span', { class: 'chip-glyph' }, potionDef(id).glyph));
-}
-
-/** Строка зелья в панели героя: подпись, чип и название в одну строку, чтобы панель осталась без прокрутки. */
-export function potionRow(id: string | null): HTMLElement {
-  const def = id ? potionDef(id) : null;
-  return h(
-    'div',
-    { class: 'potion-row', tip: id ? potionTitle(id) : 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' },
-    h('span', { class: 'lbl' }, 'Зелье:'),
-    potionChip(id),
-    h('span', { class: def ? 'potion-name' : 'dim' }, def ? def.name : 'пусто'),
-  );
 }
 
 /** Что вытеснит новое зелье; null — слот пуст. */
@@ -320,26 +305,6 @@ export function statsGrid(s: DerivedStats): HTMLElement {
     s.thorns ? row('Шипы', `${s.thorns}`, 'Урон атакующему') : null,
     s.lifesteal ? row('Вамп.', `${s.lifesteal}`, 'Лечение при базовой атаке') : null,
     s.regen ? row('Реген', `${s.regen}`, 'HP в начале хода') : null,
-  );
-}
-
-export function heroPanel(run: RunState): HTMLElement {
-  const def = heroDef(run.hero.defId);
-  const s = heroStats(run);
-  return h(
-    'div',
-    { class: 'hero-panel' },
-    h(
-      'div',
-      { class: 'hero-head' },
-      spriteImg(def.sprite, def.id, 64),
-      h('div', null, h('div', { class: 'name-row' }, h('div', { class: 'name' }, def.name), goldBadge(run.gold)), bar('hp', run.hero.hp, s.maxHp, 'HP')),
-    ),
-    statsGrid(s),
-    skillLine(def),
-    potionRow(run.hero.potion),
-    gearCard(run.hero.weapon, { def, compact: true }),
-    gearCard(run.hero.armor, { def, compact: true }),
   );
 }
 

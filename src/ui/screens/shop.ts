@@ -1,10 +1,11 @@
-import { ROOMS_PER_LOCATION } from '../../data/locations';
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, gearPrice } from '../../engine/loot';
 import { canShopBuyArtifact, canShopBuyGear, canShopBuyPotion, canShopHeal, canShopReroll, currentLocation, heroStats, shopHealAmount } from '../../engine/run';
-import { artifactCard, coin, gearCard, heroPanel, pendingModal, potionCard, potionReplaceNote } from '../components';
+import { artifactCard, coin, gearCard, pendingModal, potionCard, potionReplaceNote } from '../components';
 import { backgroundStyle } from '../backgrounds';
+import { runFrame } from '../frame';
+import { hubGear } from '../console';
 import type { App } from '../app';
 
 /** Кнопка покупки: «Купить 5 ◉» без «за» — в четырёх узких колонках каждое слово на счету; причина недоступности — в подсказке. */
@@ -51,30 +52,20 @@ export function shopScreen(app: App): HTMLElement {
   const potionEl = shop.potion ? potionCard(shop.potion, buyButton(SHOP_POTION_PRICE, potionErr, () => app.shopBuyPotion()), potionReplaceNote(run)) : soldCard('Зелье');
 
   const rerollErr = canShopReroll(run);
-  return h(
+  const center = h(
     'div',
-    { class: 'screen shop' },
-    h('div', { class: 'topbar' }, h('span', null, `${loc.name} · комната ${run.roomIndex + 1}/${ROOMS_PER_LOCATION} · Торговец`), h('span', { class: 'dim' }, `сид ${run.seed}`)),
+    { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
+    h('div', { class: 'title-row' }, h('h2', null, 'Торговец'), h('p', { class: 'dim' }, 'Купить можно всё, на что хватит золота.')),
+    h('div', { class: 'cards' }, healCard, gearEl, artEl, potionEl),
     h(
       'div',
-      { class: 'body' },
-      heroPanel(run),
-      h(
-        'div',
-        { class: 'main', style: backgroundStyle(loc.id, 0.78) },
-        h('div', { class: 'title-row' }, h('h2', null, 'Торговец'), h('p', { class: 'dim' }, 'Купить можно всё, на что хватит золота.')),
-        h('div', { class: 'cards' }, healCard, gearEl, artEl, potionEl),
-        h(
-          'div',
-          { class: 'row' },
-          button('Уйти', () => app.leaveShop(), { class: 'primary', disabled: !!run.pending }),
-          button(h('span', null, `Перебросить за ${REROLL_COST} `, coin()), () => app.shopReroll(), {
-            disabled: !!rerollErr,
-            tip: rerollErr ?? 'Заменить непроданные товары на новые. Один раз за визит.',
-          }),
-        ),
-      ),
+      { class: 'row' },
+      button('Уйти', () => app.leaveShop(), { class: 'primary', disabled: !!run.pending }),
+      button(h('span', null, `Перебросить за ${REROLL_COST} `, coin()), () => app.shopReroll(), {
+        disabled: !!rerollErr,
+        tip: rerollErr ?? 'Заменить непроданные товары на новые. Один раз за визит.',
+      }),
     ),
-    pendingModal(app),
   );
+  return runFrame(app, { cls: 'shop', center, mid: hubGear(app), overlays: [pendingModal(app)] });
 }

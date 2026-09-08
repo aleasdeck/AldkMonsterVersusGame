@@ -2,8 +2,10 @@ import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
 import { upgradableSockets } from '../../engine/equipment';
 import { currentLocation, heroStats, runLocation } from '../../engine/run';
-import { artifactChip, heroPanel, pickable } from '../components';
+import { artifactChip, pickable } from '../components';
 import { backgroundStyle } from '../backgrounds';
+import { runFrame } from '../frame';
+import { hubGear } from '../console';
 import type { ArtTier } from '../../engine/types';
 import type { App } from '../app';
 
@@ -17,12 +19,12 @@ export function campScreen(app: App): HTMLElement {
 
   const restCard = pickable(
     h(
-    'div',
-    { class: 'card camp-card' },
-    h('div', { class: 'glyph big' }, '♨'),
-    h('div', { class: 'card-name' }, 'Отдых'),
-    h('div', { class: 'card-desc' }, `Восстановить половину максимума HP: +${heal} (сейчас ${run.hero.hp}/${max}).`),
-    button('Отдохнуть', () => app.campRest(), { class: 'primary' }),
+      'div',
+      { class: 'card camp-card' },
+      h('div', { class: 'glyph big' }, '♨'),
+      h('div', { class: 'card-name' }, 'Отдых'),
+      h('div', { class: 'card-desc' }, `Восстановить половину максимума HP: +${heal} (сейчас ${run.hero.hp}/${max}).`),
+      button('Отдохнуть', () => app.campRest(), { class: 'primary' }),
     ),
     () => app.campRest(),
   );
@@ -42,33 +44,25 @@ export function campScreen(app: App): HTMLElement {
             const art = s.art!;
             const def = artifactDef(art.id);
             const nextTier = (art.tier + 1) as ArtTier;
-            const title = `${def.name}, тир ${art.tier} → ${nextTier}\nСейчас: ${def.describe(art.tier)}\nСтанет: ${def.describe(nextTier)}`;
+            const tip = `Сейчас: ${def.describe(art.tier)}\nСтанет: ${def.describe(nextTier)}`;
+            const tipTitle = `${def.name}, тир ${art.tier} → ${nextTier}`;
             return h(
               'div',
-              { class: 'forge-row', tip: title },
+              { class: 'forge-row', tip, tipTitle },
               artifactChip(s.art),
               h('span', { class: 'forge-name' }, def.name),
               h('span', { class: 'forge-tier' }, `${art.tier} → ${nextTier}`),
-              button('Улучшить', () => app.campForge(s.kind, s.index), { class: 'small', tip: title }),
+              button('Улучшить', () => app.campForge(s.kind, s.index), { class: 'small' }),
             );
           }),
         ),
   );
 
-  return h(
+  const center = h(
     'div',
-    { class: 'screen camp' },
-    h('div', { class: 'topbar' }, h('span', null, `Привал · ${loc.name} позади`), h('span', { class: 'dim' }, `сид ${run.seed}`)),
-    h(
-      'div',
-      { class: 'body' },
-      heroPanel(run),
-      h(
-        'div',
-        { class: 'main', style: backgroundStyle(loc.id, 0.78) },
-        h('div', { class: 'title-row' }, h('h2', null, 'Привал'), h('p', { class: 'dim' }, `Впереди — ${next?.name ?? '???'}. Выберите одно.`)),
-        h('div', { class: 'cards' }, restCard, forgeCard),
-      ),
-    ),
+    { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
+    h('div', { class: 'title-row' }, h('h2', null, 'Привал'), h('p', { class: 'dim' }, `${loc.name} позади. Впереди — ${next?.name ?? '???'}. Выберите одно.`)),
+    h('div', { class: 'cards' }, restCard, forgeCard),
   );
+  return runFrame(app, { cls: 'camp', center, mid: hubGear(app) });
 }
