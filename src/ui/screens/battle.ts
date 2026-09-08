@@ -76,7 +76,7 @@ interface TileSpec {
  * Плитка 78 px: иконка, короткое имя, крупное число, цена ярлыком в углу. Недоступная — затемнена, но без атрибута
  * disabled: иначе браузер не шлёт ей наведение, а ридаут должен показать причину.
  */
-function tile(app: App, spec: TileSpec, busy: boolean): HTMLElement {
+function tile(app: App, spec: TileSpec, busy: boolean, index: number): HTMLElement {
   const off = !!spec.err || busy;
   const cd = spec.cooldown;
   const pct = cd ? Math.round((cd.left / Math.max(1, cd.total)) * 100) : 0;
@@ -92,6 +92,7 @@ function tile(app: App, spec: TileSpec, busy: boolean): HTMLElement {
     cd ? h('div', { class: 'cd-fill', style: `height:${pct}%` }) : null,
     cd ? h('div', { class: 'cd-num' }, `${cd.left}`) : null,
     spec.cost.kind !== 'none' ? h('span', { class: `tile-cost cost-${spec.cost.kind}` }, spec.cost.text) : null,
+    index < 9 ? h('span', { class: 'tile-key' }, `${index + 1}`) : null,
     h('div', { class: 'tile-glyph' }, spec.glyph),
     h('div', { class: 'tile-value' }, ...spec.value),
     h('div', { class: 'tile-name' }, spec.name),
@@ -217,7 +218,7 @@ function tiles(app: App): HTMLElement {
 
   // Семь плиток и меньше — один ряд 134 px; восемь и больше — два ряда по 62 px. Класс ставит рендер: число плиток известно здесь.
   const rows = specs.length >= 8 ? 2 : 1;
-  return h('div', { class: `tiles rows-${rows}` }, ...specs.map((s) => tile(app, s, busy)));
+  return h('div', { class: `tiles rows-${rows}` }, ...specs.map((s, i) => tile(app, s, busy, i)));
 }
 
 export function battleScreen(app: App): HTMLElement {

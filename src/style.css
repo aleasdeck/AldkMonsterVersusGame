@@ -1635,6 +1635,287 @@ p {
   flex: 1;
 }
 
+/* ─── Плитка экипировки: шапка, перк, сокеты 2×2 ───────────────────── */
+
+.gear-tile {
+  border: 3px solid var(--border);
+  background: var(--panel-2);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.gear-tile.hot {
+  background: #2a2410;
+}
+.gt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.gt-head .glyph {
+  font-size: 24px;
+  color: var(--accent);
+  line-height: 1;
+}
+.gt-name {
+  font-size: 20px;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.gt-head .tier {
+  font-size: 14px;
+  flex: none;
+}
+.gt-dice {
+  margin-left: auto;
+  font-size: 17px;
+  color: var(--dim);
+  flex: none;
+}
+.gt-dice b {
+  font-weight: normal;
+  color: var(--accent);
+}
+.gt-affix {
+  font-size: 15px;
+  color: #b8c0ff;
+  flex: none;
+}
+.gear-tile .card-perk {
+  font-size: 15px;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gt-diff {
+  font-size: 15px;
+  line-height: 1.05;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gt-diff .up {
+  color: var(--good);
+}
+.gt-diff .dn {
+  color: var(--bad);
+}
+/* Сокеты — сетка 2×2 с ячейками одинаковой ширины; ячейки под несуществующие сокеты не рисуются. */
+.gt-sockets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+}
+.sock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 2px solid var(--border);
+  background: #0e0e18;
+  padding: 2px 6px 2px 2px;
+  font-size: 15px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sock .chip {
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+  flex: none;
+  border: none;
+}
+.sock-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.sock-val {
+  color: var(--dim);
+  margin-left: auto;
+  flex: none;
+}
+.sock.empty {
+  border-style: dashed;
+  color: #666;
+}
+.sock.empty .sock-name {
+  color: #666;
+}
+/* Полный список артефактов в оверлее: чип, имя с тиром и ценой, описание, следующий тир. */
+.art-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.art-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 15px;
+  line-height: 1.1;
+}
+.art-row .chip {
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  flex: none;
+}
+.art-row.empty {
+  align-items: center;
+  color: #666;
+}
+.art-row-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.art-row-name {
+  font-size: 17px;
+}
+.art-row-desc {
+  color: var(--text);
+}
+.art-row-next {
+  color: var(--dim);
+  font-size: 14px;
+}
+
+/* ─── Оверлей «Персонаж» и пауза ───────────────────────────────────── */
+
+.sheet {
+  position: relative;
+  width: 920px;
+  height: 500px;
+  text-align: left;
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  gap: 8px 20px;
+  border-color: var(--border);
+}
+/* Крестик сидит на углу панели, чтобы не перекрывать шапку плитки оружия. */
+.sheet-close {
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  background: var(--panel);
+}
+.sheet-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+.sheet-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.sheet-name {
+  font-size: 30px;
+  color: var(--accent);
+  line-height: 1;
+}
+.sheet-role {
+  font-size: 15px;
+  color: var(--dim);
+  line-height: 1.05;
+  margin-top: 4px;
+}
+.sheet-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1px;
+  font-size: 17px;
+}
+.sheet-stats .stat {
+  cursor: help;
+}
+.sheet-sub {
+  font-size: 15px;
+  color: var(--dim);
+  margin-top: 4px;
+  border-bottom: 1px dotted var(--border);
+}
+.skill-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 16px;
+  cursor: help;
+}
+.skill-val {
+  margin-left: auto;
+  font-size: 15px;
+}
+.sheet-potion {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.sheet-potion .chip {
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+  flex: none;
+}
+.sheet-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.pause {
+  width: 420px;
+  border-color: var(--border);
+}
+.pause-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+.pause-buttons .btn {
+  width: 100%;
+}
+.pause-seed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 19px;
+}
+.seed-value {
+  color: var(--accent);
+}
+.pause-keys {
+  margin-top: 10px;
+  font-size: 15px;
+}
+/* Подпись клавиши в углу плитки. */
+.tile-key {
+  position: absolute;
+  top: 0;
+  left: 3px;
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 1;
+  pointer-events: none;
+}
+
 /* ─── Итоги ─────────────────────────────────────────────────────────── */
 
 .end {
