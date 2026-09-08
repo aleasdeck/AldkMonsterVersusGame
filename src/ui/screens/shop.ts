@@ -7,9 +7,9 @@ import { artifactCard, coin, gearCard, heroPanel, pendingModal, potionCard, poti
 import { backgroundStyle } from '../backgrounds';
 import type { App } from '../app';
 
-/** Кнопка покупки: цена с монетой, причина недоступности — в подсказке. */
+/** Кнопка покупки: «Купить 5 ◉» без «за» — в четырёх узких колонках каждое слово на счету; причина недоступности — в подсказке. */
 function buyButton(cost: number, err: string | null, onclick: () => void): HTMLElement {
-  return button(h('span', null, `Купить за ${cost} `, coin()), onclick, { class: 'primary', disabled: !!err, title: err ?? undefined });
+  return button(h('span', null, `Купить ${cost} `, coin()), onclick, { class: 'primary', disabled: !!err, title: err ?? undefined });
 }
 
 /** Карточка проданного товара: место остаётся, чтобы ряд не прыгал. */
