@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/engine/rng';
 import { heroDef } from '../src/data/heroes';
-import { WEAPON_BASES, baseOf, makeGear, makeStartingGear, weaponDice, weaponType } from '../src/data/gear';
+import { WEAPON_BASES, baseDamage, baseOf, makeGear, makeStartingGear, weaponDice, weaponType } from '../src/data/gear';
 import { canUseAction, createBattle, endTurn, getStatus, performAction, previewAttack, resolveEnemyTurn } from '../src/engine/combat';
 import { computeStats, previewGearSwap } from '../src/engine/stats';
 import { REROLL_COST, START_GOLD, goldReward } from '../src/engine/loot';
@@ -39,6 +39,24 @@ describe('типы оружия и владение', () => {
     expect([...types].sort()).toEqual(['magic', 'melee', 'ranged']);
     expect(WEAPON_BASES.filter((b) => b.type === 'ranged').length).toBeGreaterThanOrEqual(3);
     expect(WEAPON_BASES.filter((b) => b.type === 'magic').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('вес базы: стилет и кинжал бьют слабее меча, топор и молот — сильнее, магическое веса не имеет', () => {
+    for (const tier of [1, 2, 3, 4, 5] as GearTier[]) {
+      const sword = baseDamage(baseOf('weapon', 'sword'), tier);
+      const mid = (d: { min: number; max: number }) => (d.min + d.max) / 2;
+      expect(mid(baseDamage(baseOf('weapon', 'stiletto'), tier)), `стилет т${tier}`).toBeLessThan(mid(sword));
+      expect(mid(baseDamage(baseOf('weapon', 'dagger'), tier)), `кинжал т${tier}`).toBeLessThan(mid(sword));
+      expect(mid(baseDamage(baseOf('weapon', 'axe'), tier)), `топор т${tier}`).toBeGreaterThan(mid(sword));
+      expect(mid(baseDamage(baseOf('weapon', 'hammer'), tier)), `молот т${tier}`).toBeGreaterThan(mid(sword));
+      expect(baseDamage(baseOf('weapon', 'staff'), tier), `посох т${tier}`).toEqual(sword);
+    }
+    // Лёгкий узкий стилет: 1 тир 2–4 → узкий 3–4, 5 тир 7–11 → 8–11; тяжёлый широкий топор: 1 тир 4–6 → 3–7, 5 тир 11–17 → 10–18.
+    expect(baseDamage(baseOf('weapon', 'stiletto'), 1)).toEqual({ min: 3, max: 4 });
+    expect(baseDamage(baseOf('weapon', 'stiletto'), 5)).toEqual({ min: 8, max: 11 });
+    expect(baseDamage(baseOf('weapon', 'axe'), 1)).toEqual({ min: 3, max: 7 });
+    expect(baseDamage(baseOf('weapon', 'axe'), 5)).toEqual({ min: 10, max: 18 });
+    expect(makeGear(createRng(1), 'weapon', 1).dmgMax).toBeGreaterThanOrEqual(makeGear(createRng(1), 'weapon', 1).dmgMin);
   });
 
   it('знакомое оружие — 75 % кубика, чужое — 50 %, минимум 1', () => {

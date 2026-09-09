@@ -1,9 +1,9 @@
-import type { GearKind, GearTier } from '../engine/types';
+import type { GearKind } from '../engine/types';
 import type { Rng } from '../engine/rng';
 import { pick } from '../engine/rng';
 import { ARTIFACT_IDS, artifactCostText, artifactDef } from './artifacts';
 import { POTION_IDS, potionDef } from './potions';
-import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, GEAR_TIERS, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseDamage, baseTitle, dropBases, gearBases, weaponTypeText } from './gear';
+import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, HEFT_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseArmorStats, baseDamage, baseTitle, dropBases, gearBases, weaponTypeText } from './gear';
 import { HERO_LIST, SIGNATURE_OWNER, heroDef } from './heroes';
 
 /**
@@ -73,12 +73,13 @@ function gearEntry(kind: GearKind, baseId: string): Collectible {
   const lo = baseDamage(base, 1);
   const hi = baseDamage(base, 5);
   const spread = base.spread === 'narrow' ? 'узкий разброс' : base.spread === 'wide' ? 'широкий разброс' : 'ровный разброс';
-  const t1 = GEAR_TIERS[1 as GearTier];
-  const t5 = GEAR_TIERS[5 as GearTier];
+  const heft = base.heft ? `${HEFT_NAMES[base.heft]} · ` : '';
+  const a1 = baseArmorStats(base, 1);
+  const a5 = baseArmorStats(base, 5);
   const stats =
     kind === 'weapon'
       ? `Урон ${lo.min}–${lo.max} на 1 тире, ${hi.min}–${hi.max} на 5 тире`
-      : `+${t1.def} DEF и +${t1.hp} HP на 1 тире, +${t5.def} DEF и +${t5.hp} HP на 5 тире`;
+      : `+${a1.def} DEF и +${a1.hp} HP на 1 тире, +${a5.def} DEF и +${a5.hp} HP на 5 тире`;
   const type = base.type ?? 'melee';
   const armorType = base.armorType ?? 'medium';
   const perkLines: string[] = [];
@@ -94,7 +95,7 @@ function gearEntry(kind: GearKind, baseId: string): Collectible {
     name: base.name[0].toUpperCase() + base.name.slice(1),
     glyph: kind === 'weapon' ? WEAPON_TYPE_GLYPHS[type] : ARMOR_TYPE_GLYPHS[armorType],
     color: KIND_COLORS[kind],
-    sub: kind === 'weapon' ? `${WEAPON_TYPE_NAMES[type]} · ${spread}` : `${ARMOR_TYPE_NAMES[armorType]} ${KIND_NAMES.armor.toLowerCase()}`,
+    sub: kind === 'weapon' ? `${WEAPON_TYPE_NAMES[type]} · ${heft}${spread}` : `${ARMOR_TYPE_NAMES[armorType]} ${KIND_NAMES.armor.toLowerCase()}`,
     desc: [stats, ...perkLines, `Встречается от «${baseTitle(base, 1)}» до «${baseTitle(base, 5)}»`].join('\n'),
   };
 }

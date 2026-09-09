@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_LIST, SIGNATURE_OWNER, heroDef } from '../src/data/heroes';
-import { makeGear, makeStartingGear, weaponDice } from '../src/data/gear';
+import { baseArmorStats, baseOf, makeGear, makeStartingGear, weaponDice } from '../src/data/gear';
 import { addArtifact, equipGear, isMaxed, replaceArtifact, socketRefs, upgradableSockets } from '../src/engine/equipment';
 import { computeStats } from '../src/engine/stats';
 import { createRng } from '../src/engine/rng';
@@ -110,15 +110,21 @@ describe('расчёт статов', () => {
     expect(s.maxHp).toBe(46 + 18);
   });
 
-  it('броня из таблицы тиров даёт DEF и HP', () => {
+  it('броня даёт DEF и HP по тиру и типу: тяжёлая — защита, средняя — ровно, лёгкая — почти без защиты', () => {
     const h = mkHero('mage');
     h.armor.slots = [null]; // без пассивки, чтобы HP брони считался чисто
-    const armor = makeGear(createRng(3), 'armor', 5);
-    armor.affix = null;
-    equipGear(h, armor);
-    const s = computeStats(heroDef('mage'), h.weapon, h.armor);
-    expect(s.def).toBe(3 + 7);
-    expect(s.maxHp).toBe(26 + 18);
+    const expected = { plate: [10, 9], harness: [7, 18], robe: [4, 24] };
+    for (const [base, [def, hp]] of Object.entries(expected)) {
+      const armor = makeGear(createRng(3), 'armor', 5);
+      armor.base = base;
+      const stats = baseArmorStats(baseOf('armor', base), 5);
+      armor.def = stats.def;
+      armor.hp = stats.hp;
+      armor.affix = null;
+      equipGear(h, armor);
+      const s = computeStats(heroDef('mage'), h.weapon, h.armor);
+      expect([s.def, s.maxHp], base).toEqual([3 + def, 29 + hp]);
+    }
   });
 
   it('серая экипировка тоже что-то даёт: базовый бонус и аффикс', () => {

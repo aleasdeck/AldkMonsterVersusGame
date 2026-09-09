@@ -424,7 +424,8 @@ describe('мана и артефакты', () => {
     expect(canUseAction(state, { type: 'artifact', artifactId: 'war_cry' })).toMatch(/Перезарядка/);
     const boar = first(state);
     performAction(state, { type: 'attack', target: boar.uid }, rng);
-    expect(boar.hp).toBe(18 - 6);
+    // топор 3–6 на среднем — 5, Сила +2
+    expect(boar.hp).toBe(18 - 7);
     pass(state, rng);
     expect(getStatus(state.hero, 'strength')?.value).toBe(2);
     pass(state, rng);
@@ -660,8 +661,8 @@ describe('ассасин: скрытность', () => {
     expect(getStatus(state.hero, 'stealth')?.turns).toBe(1);
     const bear = first(state);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
-    // стилет 5, Удар в спину +3, крит ×2
-    expect(bear.hp).toBe(35 - 16);
+    // стилет 3–5 на среднем — 4, Удар в спину +3, крит ×2
+    expect(bear.hp).toBe(35 - 14);
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
   });
 
