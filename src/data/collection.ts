@@ -4,7 +4,7 @@ import { pick } from '../engine/rng';
 import { ARTIFACT_IDS, artifactCostText, artifactDef } from './artifacts';
 import { POTION_IDS, potionDef } from './potions';
 import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, GEAR_TIERS, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseDamage, baseTitle, dropBases, gearBases, weaponTypeText } from './gear';
-import { HERO_LIST } from './heroes';
+import { HERO_LIST, SIGNATURE_OWNER, heroDef } from './heroes';
 
 /**
  * Каталог всего, что встречается в приключениях: артефакты, базы экипировки и зелья.
@@ -63,7 +63,7 @@ function artifactEntry(id: string): Collectible {
     name: def.name,
     glyph: def.glyph,
     color: KIND_COLORS.artifact,
-    sub: `Артефакт · ${school}${cost}`,
+    sub: `Артефакт · ${school}${cost}${SIGNATURE_OWNER[id] ? ` · персональный: ${heroDef(SIGNATURE_OWNER[id]).name}` : ''}`,
     desc: `Тир 1: ${def.describe(1)}\nТир 2: ${def.describe(2)}\nТир 3: ${def.describe(3)}`,
   };
 }

@@ -198,7 +198,7 @@ describe('ярость берсерка', () => {
     expect(state.hero.sta).toBe(3); // шкура без перка: лишней стамины в первый ход нет
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
-    expect(state.hero.hp).toBe(hp0 - 3);
+    expect(state.hero.hp).toBe(hp0 - 2);
     expect(state.hero.sta).toBe(6);
     expect(getStatus(state.hero, 'strength')?.value).toBe(1);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'rage' })).toMatch(/Перезарядка/);
@@ -214,12 +214,12 @@ describe('ярость берсерка', () => {
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
     expect(state.hero.block).toBe(block);
-    expect(state.hero.hp).toBe(hp0 - 3);
+    expect(state.hero.hp).toBe(hp0 - 2);
 
     const low = mkBattle('berserk', ['bear']);
-    low.state.hero.hp = 3;
+    low.state.hero.hp = 2;
     expect(canUseAction(low.state, { type: 'artifact', artifactId: 'rage' })).toBe('Слишком мало HP');
-    low.state.hero.hp = 4;
+    low.state.hero.hp = 3;
     expect(canUseAction(low.state, { type: 'artifact', artifactId: 'rage' })).toBeNull();
   });
 });
@@ -289,11 +289,11 @@ describe('предпросмотр смены экипировки', () => {
     expect(p.slotsAfter).toBe(3);
     expect(p.perkBefore).toContain('Парирование');
     expect(p.perkAfter).toBe(weaponsPerk('mace', 4));
-    expect(p.moved.map((a) => a.id)).toEqual(['heavy_strike']);
+    expect(p.moved.map((a) => a.id)).toEqual(['shield_bash']);
     expect(p.overflow).toEqual([]);
     // Сам герой не изменился.
     expect(run.hero.weapon.base).toBe('sword');
-    expect(run.hero.weapon.slots[0]?.id).toBe('heavy_strike');
+    expect(run.hero.weapon.slots[0]?.id).toBe('shield_bash');
   });
 
   it('броня: DEF и HP растут, лишние артефакты попадают в overflow, перк неносимой брони пустой', () => {

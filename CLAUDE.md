@@ -11,7 +11,7 @@
 
 ```bash
 npm run dev                                          # http://localhost:5173
-npx vitest run                                       # тесты движка (~2 с, 146 тестов)
+npx vitest run                                       # тесты движка (~2 с, 154 теста)
 node node_modules/typescript/bin/tsc --noEmit -p .   # typecheck — ТОЛЬКО так (см. ловушки)
 node node_modules/vite/bin/vite.js build             # сборка в dist/
 SIM=1 npx vitest run tests/balance-sim.test.ts       # бот-симулятор баланса, все герои, 60 забегов
@@ -34,9 +34,9 @@ src/engine/   чистая логика, без DOM, покрыта тестам
   loot.ts       константы экономики (золото, цены, шанс зелья, цена кузнеца) и генерация наград/магазина/событий (rollEventKind)
   run.ts        машина состояний забега: enterRoom → startEvent | startBattle → finishBattle → reward → advanceRoom …; события: takeChest, altarPray/altarSacrifice, forgeUpgrade, leaveEvent
 src/data/     типизированные таблицы; каждый файл экспортирует list-based Record + xxxDef(id)
-  heroes.ts     6 героев (warrior, mage, assassin, paladin, berserk, archer)
+  heroes.ts     6 героев (warrior, mage, assassin, paladin, berserk, archer), signature — персональный артефакт, SIGNATURE_OWNER
   enemies.ts    67 врагов по локациям (секции ═══), хелпер act(), ai: cycle | boss-rules
-  artifacts.ts  31 артефакт: пассивные / активные физ. (STA) / активные маг. (MP), тиры 1–3 через t(a,b,c)
+  artifacts.ts  41 артефакт: пассивные / активные физ. (STA) / активные маг. (MP), тиры 1–3 через t(a,b,c); 6 персональных (по одному на героя)
   gear.ts       15 баз оружия + 8 брони (одна startOnly), перки, типы, владение, аффиксы, makeGear, upgradeGearTier (кузнец)
   potions.ts    7 зелий, без тира
   locations.ts  6 локаций с encounters, ACTS (тиры лута), ACT_SCALE, ACT_DMG_BONUS, ROOM_KINDS, EVENT_WEIGHTS, BOSS_HEAL_PCT
@@ -65,16 +65,16 @@ tests/        vitest; sim/bot.ts — умный бот (W — веса оцен�
 - `canXxx(run)` возвращает `string | null` (причина запрета или null), парный `xxx(run)` возвращает boolean/void. UI показывает причину в подсказке.
 - Забег: 3 акта × 10 клеток `['fight','fight','event','fight','fight','event','fight','elite','event','boss']`, после босса лечение `BOSS_HEAL_PCT` и сразу следующая локация (привала между актами нет). Клетка `event` при входе разыгрывает `EventKind` по `EVENT_WEIGHTS` (camp 10, elite 5, shop 25, chest 25, altar 25, forge 10); `run.event` хранит, что выпало (элита из события даёт золото и награду как клетка элиты — `effectiveRoomKind`). Локации 3 из 6 случайно без повторов; числа врагов заданы под «родной» tier локации и приводятся к акту через `enemyScale`.
 - Фазы забега: `map | battle | reward | shop | event | camp | victory | defeat`; `shop` и `camp` — тоже из события; фаза `event` — сундук, алтарь, кузнец (по `run.event.kind`). `run.pending` — артефакт ждёт выбора слота (обрабатывать до всего остального). После боя может быть 2 экрана награды (второй — зелье), поэтому в тестах и ботах награды пропускать циклом `while (run.phase === 'reward')`. В тестах событие нужного вида — `startEvent(run, kind)` после `run.roomIndex = 2`.
-- Бой: STA — очки действий, полностью в начале хода; MP — только реген в начале хода, полностью после комнаты; блок сгорает в начале хода (кроме `blockKeep`); каждая следующая атака в ходу слабее в `fatigue` раз; «Защититься» даёт `ceil(DEF × DEFEND_MULT)`. Статус `smoke` (Дымовая шашка): `damageHero` получает `rng` и гасит удар с шансом `SMOKE_MISS_CHANCE`; для удара в спину и снятия атакой шашка равна скрытности — проверять через `isHidden(h)`, не `getStatus(h, 'stealth')`; праща — `stunOnHit` (шанс на удар).
+- Бой: STA — очки действий, полностью в начале хода; MP — только реген в начале хода, полностью после комнаты; блок сгорает в начале хода (кроме `blockKeep`); каждая следующая атака в ходу слабее в `fatigue` раз; «Защититься» даёт `ceil(DEF × DEFEND_MULT)`. Статус `smoke` (Дымовая шашка): `damageHero` получает `rng` и гасит удар с шансом `SMOKE_MISS_CHANCE`; для удара в спину и снятия атакой шашка равна скрытности — проверять через `isHidden(h)`, не `getStatus(h, 'stealth')`; праща — `stunOnHit` (шанс на удар). Статус `vulnerable`: `VULNERABLE_MULT` 1.25 к ударам и заклинаниям в `damageEnemy`/`damageHero`/`previewOnTarget`, округление `Math.round` (вниз — съедает бонус при уроне 3–7). Новые статы `onKillHeal`, `blockStart`, `markOnHit`.
 
 ## Как добавлять контент
 
 - **Враг**: запись в `enemies.ts` (секция локации, `act(...)`, `ai`), добавить в `encounters` локации в `locations.ts`, строка в таблице GDD §7. Спрайт — `blob(...)` или `humanoid(...)`.
 - **Артефакт**: `artifacts.ts` в нужной секции; новый `Effect`/стат — сначала в `types.ts` (`Effect`, `DerivedStats`), обработка в `combat.ts`, дефолт в `stats.ts`, описание в GDD §5. Коллекция подхватит сам.
 - **База оружия/брони**: `gear.ts` `WEAPON_BASES`/`ARMOR_BASES` с перком через `byTier([...])`; GDD §4. Новые статы перка — как у артефактов.
-- **Герой**: `heroes.ts` (mastery, armorSkill, стартовое снаряжение, 2 артефакта), GDD §3.2, потом SIM на нём.
+- **Герой**: `heroes.ts` (mastery, armorSkill, стартовое снаряжение, `signature` — персональный артефакт, он один в оружии, броня пустая), GDD §3.2, потом SIM на нём. Персональные артефакты фильтрует `canDropFor` в loot.ts; в UI чип/карточка получают класс `signature`.
 - **Изменил форму `RunState`/`BattleState`/`HeroPersistent`** — поднять `SAVE_VERSION` в `types.ts` (старые сейвы просто сбрасываются, миграций нет).
-- Тесты: `combat.test.ts` (`mkBattle(hero, [enemies])` фиксирует урон на среднем, крит 0), `run.test.ts` (простой `playBattle`, `resolvePending`), `weapons.test.ts`, `armor.test.ts`. Новая механика — новый `it` рядом с похожим.
+- Тесты: `combat.test.ts` (`mkBattle(hero, [enemies])` фиксирует урон на среднем, крит 0 и ставит героям классическую пару артефактов `LEGACY_PAIR`, не стартовую), `run.test.ts` (простой `playBattle`, `resolvePending`), `weapons.test.ts`, `armor.test.ts`. Новая механика — новый `it` рядом с похожим.
 - После фичи обновить: `README.md` (если новые параметры/команды), GDD — таблицы + новый абзац `vX.Y:` в §13 и при необходимости пункт в §12.
 
 ## Как менять UI (v0.11, гибрид «топбар + консоль»)
@@ -95,7 +95,7 @@ tests/        vitest; sim/bot.ts — умный бот (W — веса оцен�
 
 Рычаги, которые реально работают на бота (измерено в v0.10): урон врагов `ACT_DMG_BONUS` (locations.ts) и доля DEF в блоке `DEFEND_MULT` (combat.ts). Почти не работают: лечение, частота лута, цены, усталость. HP врагов +40 % даёт паты (бот вечно защищается). Нерфы отдельных приёмов (Вихрь и т. п.) — по наводке пользователя, симулятор их не видит.
 
-Текущее состояние (v0.13, этаж из 10 клеток с тремя событиями): Воин 48 %, Маг 53 %, Ассасин 47 %, Паладин 60 %, Берсерк 45 %, Лучник 57 %. Число событий на этаж — тоже рычаг (третье событие дало +7–12 пунктов). Паты Паладина ~1–3 % против блокирующей элиты — открытая задача.
+Текущее состояние (v0.14, персональные артефакты, один стартовый): на 600 забегах Воин 43 %, Маг 44 %, Ассасин 44 %, Паладин 51 %, Берсерк 45 %, Лучник 52 %. На 300 забегах разброс ±5, решения принимать по 600. Число событий на этаж — тоже рычаг (третье событие дало +7–12 пунктов). Лаборатория для экспериментов: scratchpad `lab2.py` (копия дерева + патчи + SIM). Паты Паладина ~1–3 % против блокирующей элиты — открытая задача.
 
 Сравнение «до/после» честно только на одной версии бота: `git worktree add --detach <scratchpad>/base HEAD`, node_modules — junction через PowerShell `New-Item -ItemType Junction`, прогнать SIM там. Убирать строго: сначала `(Get-Item …\node_modules).Delete()`, потом `git worktree remove --force`. В облачной сессии проще: `cp -r src tests` плюс конфиги в scratchpad, `ln -s` на node_modules, патчить и гнать SIM там (rsync в контейнере нет).
 

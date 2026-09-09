@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_LIST } from '../src/data/heroes';
+import { HERO_LIST, SIGNATURE_OWNER } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
 import { ACTS, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
@@ -43,7 +43,7 @@ import {
   takeChest,
   takeReward,
 } from '../src/engine/run';
-import { POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice, rollEventKind } from '../src/engine/loot';
+import { POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, canDropFor, forgePrice, gearPrice, rollArtifact, rollEventKind } from '../src/engine/loot';
 import { POTION_IDS } from '../src/data/potions';
 import { gearOf, socketRefs } from '../src/engine/equipment';
 import type { RunState } from '../src/engine/types';
@@ -466,6 +466,7 @@ describe('забег', () => {
     const run = newRun('warrior', 11);
     enterRoom(run);
     winCurrentBattle(run);
+    run.hero.armor.slots[0] = { id: 'troll_heart', tier: 1 };
     run.rewards = [{ title: 'x', source: 'fight', rerolled: false, options: [{ kind: 'artifact', artifact: { id: 'troll_heart', tier: 1 } }] }];
     takeReward(run, 0);
     expect(run.pending).toBeNull();
@@ -634,6 +635,7 @@ describe('забег', () => {
 
     const run2 = newRun('warrior', 2);
     run2.roomIndex = 5;
+    run2.hero.armor.slots[0] = { id: 'troll_heart', tier: 1 };
     startEvent(run2, 'camp');
     expect(campForge(run2, 'armor', 0)).toBe(true);
     expect(run2.hero.armor.slots[0]?.tier).toBe(2);
@@ -763,5 +765,23 @@ describe('забег', () => {
     expect(run.phase).toBe('victory');
     expect(run.stats.roomsCleared).toBeGreaterThanOrEqual(FIGHTS_PER_RUN);
     expect(run.stats.roomsCleared).toBeLessThanOrEqual(FIGHTS_PER_RUN + 9);
+  });
+});
+
+describe('персональные артефакты', () => {
+  it('выпадают только владельцу: маг никогда не видит шашку, ассасин — видит', () => {
+    const rng = createRng(3);
+    const mage = newRun('mage', 1).hero;
+    const assassin = newRun('assassin', 1).hero;
+    const seen = new Set<string>();
+    for (let i = 0; i < 400; i++) {
+      const a = rollArtifact(rng, mage, [1], []);
+      expect(SIGNATURE_OWNER[a!.id] ?? 'mage').toBe('mage');
+      seen.add(rollArtifact(rng, assassin, [1], [])!.id);
+    }
+    expect(seen.has('smoke_bomb')).toBe(true);
+    expect(seen.has('shield_bash')).toBe(false);
+    expect(canDropFor(mage, 'magic_missile')).toBe(true);
+    expect(canDropFor(mage, 'rage')).toBe(false);
   });
 });

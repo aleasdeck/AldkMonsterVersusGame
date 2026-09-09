@@ -3,6 +3,7 @@ import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, 
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
+import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import {
   ARMOR_TYPE_GLYPHS,
   ARMOR_TYPE_NAMES,
@@ -111,6 +112,12 @@ export function artifactTitle(inst: ArtifactInstance): string {
   return lines.join('\n');
 }
 
+/** Подпись персонального артефакта: чей он. Пусто для общих. */
+export function signatureNote(id: string): string {
+  const owner = SIGNATURE_OWNER[id];
+  return owner ? `Персональный артефакт: ${heroDef(owner).name}` : '';
+}
+
 export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: () => void; selected?: boolean } = {}): HTMLElement {
   if (!inst) return h('div', { class: 'chip chip-empty', tip: 'Пустой слот' }, '·');
   const def = artifactDef(inst.id);
@@ -118,7 +125,7 @@ export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: ()
   return h(
     'div',
     {
-      class: `chip ${def.kind} ${opts.selected ? 'selected' : ''} ${opts.onclick ? 'clickable' : ''}`,
+      class: `chip ${def.kind} ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${opts.selected ? 'selected' : ''} ${opts.onclick ? 'clickable' : ''}`,
       style: `border-color:${color}`,
       tip: artifactTitle(inst),
       onclick: opts.onclick,
@@ -134,10 +141,10 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Chil
   const color = ART_TIER_COLORS[inst.tier];
   return h(
     'div',
-    { class: 'card art-card', style: `border-color:${color}` },
+    { class: `card art-card ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''}`, style: `border-color:${color}` },
     h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, def.glyph), h('span', { class: 'card-name' }, def.name)),
-    // Тир не пишем: его показывает цвет рамки и подписи.
-    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}`),
+    // Тир не пишем: его показывает цвет рамки и подписи. Персональный — с пометкой, чей.
+    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''}`),
     h('div', { class: 'card-desc' }, ...markKeywords(def.describe(inst.tier))),
     def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
     note ?? null,

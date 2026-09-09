@@ -1,18 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { heroDef } from '../src/data/heroes';
+import { HERO_LIST, SIGNATURE_OWNER, heroDef } from '../src/data/heroes';
 import { makeGear, makeStartingGear, weaponDice } from '../src/data/gear';
 import { addArtifact, equipGear, isMaxed, replaceArtifact, socketRefs, upgradableSockets } from '../src/engine/equipment';
 import { computeStats } from '../src/engine/stats';
 import { createRng } from '../src/engine/rng';
 import type { HeroPersistent } from '../src/engine/types';
 
+/** Герой с классической парой артефактов (приём в оружии, пассивка в броне) — на ней проверяем механику слотов. */
 function mkHero(id = 'warrior'): HeroPersistent {
   const gear = makeStartingGear(heroDef(id));
+  gear.weapon.slots = [{ id: 'heavy_strike', tier: 1 }];
+  gear.armor.slots = [{ id: 'troll_heart', tier: 1 }];
   return { defId: id, hp: 40, weapon: gear.weapon, armor: gear.armor, potion: null };
 }
 
 describe('артефакты и слоты', () => {
-  it('стартовые артефакты стоят в слотах', () => {
+  it('на старте персональный артефакт в оружии, слот брони пуст', () => {
+    for (const def of HERO_LIST) {
+      const gear = makeStartingGear(def);
+      expect(gear.weapon.slots).toEqual([{ id: def.signature, tier: 1 }]);
+      expect(gear.armor.slots).toEqual([null]);
+      expect(SIGNATURE_OWNER[def.signature]).toBe(def.id);
+    }
+  });
+
+  it('пара артефактов в слотах читается по порядку: оружие, броня', () => {
     const h = mkHero();
     const refs = socketRefs(h);
     expect(refs.length).toBe(2);
@@ -100,6 +112,7 @@ describe('расчёт статов', () => {
 
   it('броня из таблицы тиров даёт DEF и HP', () => {
     const h = mkHero('mage');
+    h.armor.slots = [null]; // без пассивки, чтобы HP брони считался чисто
     const armor = makeGear(createRng(3), 'armor', 5);
     armor.affix = null;
     equipGear(h, armor);
