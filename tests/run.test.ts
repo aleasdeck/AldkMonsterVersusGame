@@ -1,27 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_LIST } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
-import { ACTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
+import { ACTS, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
 import { createRng } from '../src/engine/rng';
 import { canUseAction } from '../src/engine/combat';
 import {
+  altarPray,
+  altarSacrifice,
   battleAction,
   battleEndTurn,
   battleEnemyStep,
   campForge,
   campRest,
+  canAltarSacrifice,
+  canForge,
   canReroll,
   canShopBuyGear,
   canShopBuyPotion,
   canShopHeal,
   canShopReroll,
-  chooseEvent,
   currentRoomKind,
   enterRoom,
   finishBattle,
+  forgeUpgrade,
   heroStats,
   isRunOver,
+  leaveEvent,
   leaveShop,
   newRun,
   pendingCancel,
@@ -34,9 +39,11 @@ import {
   shopHealAmount,
   shopReroll,
   skipReward,
+  startEvent,
+  takeChest,
   takeReward,
 } from '../src/engine/run';
-import { POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, gearPrice } from '../src/engine/loot';
+import { POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice, rollEventKind } from '../src/engine/loot';
 import { POTION_IDS } from '../src/data/potions';
 import { gearOf, socketRefs } from '../src/engine/equipment';
 import type { RunState } from '../src/engine/types';
@@ -103,7 +110,9 @@ function playRun(run: RunState, immortal = false): void {
         takeReward(run, 0);
         break;
       case 'event':
-        chooseEvent(run, immortal ? 'spring' : 'chest');
+        if (run.event?.kind === 'chest') takeChest(run);
+        else if (run.event?.kind === 'altar') altarPray(run);
+        else leaveEvent(run);
         break;
       case 'shop':
         leaveShop(run);
@@ -124,28 +133,28 @@ function winCurrentBattle(run: RunState): void {
   playBattle(run);
 }
 
-describe('торговец между элитой и боссом', () => {
-  /** Довести забег до торговца: элита выигрывается читом, награда пропускается, с карты — к торговцу. */
+describe('торговец из события', () => {
+  /** Довести забег до торговца: в клетке события выпадает торговец, товары раскладываются при входе. */
   function toShop(seed: number, heroId = 'warrior'): RunState {
     const run = newRun(heroId, seed);
-    run.roomIndex = ROOM_KINDS.indexOf('elite');
-    enterRoom(run);
-    winCurrentBattle(run);
-    // Награда и, если повезло, выпавшее зелье — оба экрана пропускаем.
-    while (run.phase === 'reward') skipReward(run);
-    expect(run.phase).toBe('map');
-    expect(currentRoomKind(run)).toBe('shop');
-    enterRoom(run);
+    run.roomIndex = ROOM_KINDS.indexOf('event');
+    startEvent(run, 'shop');
     expect(run.phase).toBe('shop');
+    expect(run.event?.kind).toBe('shop');
     return run;
   }
 
-  it('после награды за элиту — карта с клеткой торговца, в него входят с карты', () => {
+  it('торговец открывается из события с полным прилавком, после ухода — следующая клетка', () => {
     const run = toShop(31);
     expect(run.shop?.gear).not.toBeNull();
     expect(run.shop?.artifact).not.toBeNull();
     expect(run.shop?.healed).toBe(false);
     expect(run.shop?.rerolled).toBe(false);
+    leaveShop(run);
+    expect(run.phase).toBe('map');
+    expect(run.shop).toBeNull();
+    expect(run.event).toBeNull();
+    expect(run.roomIndex).toBe(ROOM_KINDS.indexOf('event') + 1);
 
     const plain = newRun('warrior', 31);
     enterRoom(plain);
@@ -204,7 +213,7 @@ describe('торговец между элитой и боссом', () => {
     expect(run.phase).toBe('shop');
     leaveShop(run);
     expect(run.phase).toBe('map');
-    expect(currentRoomKind(run)).toBe('boss');
+    expect(currentRoomKind(run)).toBe('fight');
     expect(run.shop).toBeNull();
   });
 
@@ -360,15 +369,28 @@ describe('зелья в забеге', () => {
 });
 
 describe('забег', () => {
-  it('этаж из 8 клеток: бой, бой, событие, бой, бой, элита, торговец, босс', () => {
+  it('этаж из 9 клеток: бой, бой, событие, бой, бой, событие, бой, элита, босс', () => {
     const run = newRun('warrior', 42);
     const kinds = [];
     for (let i = 0; i < ROOMS_PER_LOCATION; i++) {
       run.roomIndex = i;
       kinds.push(currentRoomKind(run));
     }
-    expect(kinds).toEqual(['fight', 'fight', 'event', 'fight', 'fight', 'elite', 'shop', 'boss']);
-    expect(FIGHTS_PER_RUN).toBe(18);
+    expect(kinds).toEqual(['fight', 'fight', 'event', 'fight', 'fight', 'event', 'fight', 'elite', 'boss']);
+    expect(FIGHTS_PER_RUN).toBe(21);
+  });
+
+  it('событие выпадает по весам: на 3000 бросках доли близки к 10/5/25/25/25/10', () => {
+    const rng = createRng(7);
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < 3000; i++) {
+      const k = rollEventKind(rng);
+      counts[k] = (counts[k] ?? 0) + 1;
+    }
+    for (const [kind, weight] of Object.entries(EVENT_WEIGHTS)) {
+      const share = ((counts[kind] ?? 0) / 3000) * 100;
+      expect(Math.abs(share - weight)).toBeLessThan(3);
+    }
   });
 
   it('новый забег: герой с полным HP, стартовая комната — лёгкий бой', () => {
@@ -485,49 +507,169 @@ describe('забег', () => {
     expect(run.hero.hp).toBe(max0);
   });
 
-  it('событие: родник лечит, алтарь режет HP и даёт артефакт', () => {
+  it('алтарь: молитва лечит 30 %, жертва режет 10 % HP и даёт артефакт без отмены', () => {
     const run = newRun('paladin', 9);
     run.roomIndex = 2;
     run.hero.hp = 10;
-    enterRoom(run);
+    startEvent(run, 'altar');
     expect(run.phase).toBe('event');
+    expect(run.event?.kind).toBe('altar');
     const max = heroStats(run).maxHp;
-    chooseEvent(run, 'spring');
+    altarPray(run);
     expect(run.hero.hp).toBe(10 + Math.floor(max * 0.3));
     expect(run.phase).toBe('map');
     expect(run.roomIndex).toBe(3);
 
     const run2 = newRun('paladin', 9);
     run2.roomIndex = 2;
-    enterRoom(run2);
-    const altar = run2.event!.options.find((o) => o.id === 'altar');
-    expect(altar).toBeDefined();
+    startEvent(run2, 'altar');
+    expect(run2.event?.kind === 'altar' && run2.event.artifact).toBeTruthy();
+    expect(canAltarSacrifice(run2)).toBeNull();
     const max2 = heroStats(run2).maxHp;
-    chooseEvent(run2, 'altar');
+    expect(altarSacrifice(run2)).toBe(true);
     // новый артефакт → выбор слота, отменить нельзя (HP уже отдан)
     expect(run2.pending).not.toBeNull();
     expect(run2.pending?.cancellable).toBe(false);
     pendingDiscard(run2);
     expect(run2.hero.hp).toBe(max2 - Math.floor(max2 * 0.1));
     expect(run2.phase).toBe('map');
+
+    // Мимо алтаря можно пройти
+    const run3 = newRun('paladin', 9);
+    run3.roomIndex = 2;
+    startEvent(run3, 'altar');
+    leaveEvent(run3);
+    expect(run3.phase).toBe('map');
+    expect(run3.roomIndex).toBe(3);
   });
 
-  it('привал: отдых лечит половину, кузница поднимает тир', () => {
+  it('сундук: экипировка надевается сразу, можно оставить', () => {
+    const run = newRun('warrior', 9);
+    run.roomIndex = 2;
+    startEvent(run, 'chest');
+    expect(run.event?.kind).toBe('chest');
+    const gear = run.event?.kind === 'chest' ? run.event.gear : null;
+    takeChest(run);
+    if (run.pending) resolvePending(run);
+    expect(gearOf(run.hero, gear!.kind).name).toBe(gear!.name);
+    expect(run.phase).toBe('map');
+
+    const run2 = newRun('warrior', 9);
+    run2.roomIndex = 2;
+    startEvent(run2, 'chest');
+    const before = run2.hero.weapon.name + run2.hero.armor.name;
+    leaveEvent(run2);
+    expect(run2.hero.weapon.name + run2.hero.armor.name).toBe(before);
+    expect(run2.phase).toBe('map');
+  });
+
+  it('кузнец: поднимает тир предмета за золото, аффикс и артефакты остаются, сокеты добавляются', () => {
+    const run = newRun('warrior', 3);
+    run.roomIndex = 2;
+    startEvent(run, 'forge');
+    expect(run.event?.kind).toBe('forge');
+    run.gold = 0;
+    expect(canForge(run, 'weapon')).toMatch(/золота/);
+    const price = forgePrice(run.hero.weapon);
+    expect(price).toBe(gearPrice({ ...run.hero.weapon, tier: 2 }));
+    run.gold = price;
+    run.hero.weapon.affix = { stat: 'str', value: 1 };
+    const art = run.hero.weapon.slots[0];
+    expect(forgeUpgrade(run, 'weapon')).toBe(true);
+    expect(run.gold).toBe(0);
+    expect(run.hero.weapon.tier).toBe(2);
+    expect(run.hero.weapon.slots.length).toBe(2);
+    expect(run.hero.weapon.slots[0]).toEqual(art);
+    expect(run.hero.weapon.affix).toEqual({ stat: 'str', value: 1 });
+    expect(run.hero.weapon.dmgMin).toBeGreaterThanOrEqual(4);
+    expect(run.phase).toBe('map');
+
+    // Броня: HP растёт вместе с максимумом
+    const run2 = newRun('warrior', 3);
+    run2.roomIndex = 2;
+    startEvent(run2, 'forge');
+    run2.gold = 99;
+    const hpBefore = run2.hero.hp;
+    const maxBefore = heroStats(run2).maxHp;
+    expect(forgeUpgrade(run2, 'armor')).toBe(true);
+    expect(heroStats(run2).maxHp).toBeGreaterThan(maxBefore);
+    expect(run2.hero.hp).toBe(hpBefore + heroStats(run2).maxHp - maxBefore);
+
+    // Предел тира
+    const run3 = newRun('warrior', 3);
+    run3.roomIndex = 2;
+    startEvent(run3, 'forge');
+    run3.gold = 99;
+    run3.hero.weapon.tier = 5;
+    expect(canForge(run3, 'weapon')).toMatch(/Предел/);
+  });
+
+  it('элита из события: золото и награда как за клетку элиты', () => {
+    const run = newRun('warrior', 4);
+    run.roomIndex = 2;
+    startEvent(run, 'elite');
+    expect(run.phase).toBe('battle');
+    expect(enemyDef(run.battle!.enemies[0].defId).rank).toBe('elite');
+    const gold = run.gold;
+    winCurrentBattle(run);
+    expect(run.gold).toBe(gold + 4);
+    expect(run.rewards[0].source).toBe('elite');
+    while (run.phase === 'reward') skipReward(run);
+    expect(run.phase).toBe('map');
+    expect(run.roomIndex).toBe(3);
+    expect(run.event).toBeNull();
+  });
+
+  it('привал из события: отдых лечит половину, кузница поднимает тир, дальше — следующая клетка', () => {
     const run = newRun('warrior', 2);
-    run.phase = 'camp';
-    run.roomIndex = ROOMS_PER_LOCATION;
+    run.roomIndex = 5;
     run.hero.hp = 1;
+    startEvent(run, 'camp');
+    expect(run.phase).toBe('camp');
     campRest(run);
     expect(run.hero.hp).toBe(1 + Math.floor(heroStats(run).maxHp * 0.5));
-    expect(run.locationIndex).toBe(1);
-    expect(run.roomIndex).toBe(0);
+    expect(run.locationIndex).toBe(0);
+    expect(run.roomIndex).toBe(6);
     expect(run.phase).toBe('map');
 
     const run2 = newRun('warrior', 2);
-    run2.phase = 'camp';
+    run2.roomIndex = 5;
+    startEvent(run2, 'camp');
     expect(campForge(run2, 'armor', 0)).toBe(true);
     expect(run2.hero.armor.slots[0]?.tier).toBe(2);
+    expect(run2.roomIndex).toBe(6);
+  });
+
+  it('после босса: лечение на 30 % максимума и сразу следующая локация, без привала', () => {
+    const run = newRun('warrior', 6);
+    run.roomIndex = ROOMS_PER_LOCATION - 1;
+    enterRoom(run);
+    winCurrentBattle(run);
+    run.hero.hp = 10; // бой выигран читом; проверяем само лечение
+    run.battle = null;
+    // finishBattle уже отработал в winCurrentBattle — повторим сценарий вручную на втором забеге
+    const run2 = newRun('warrior', 6);
+    run2.roomIndex = ROOMS_PER_LOCATION - 1;
+    enterRoom(run2);
+    run2.battle!.hero.stats.dmgMin = 999;
+    run2.battle!.hero.stats.dmgMax = 999;
+    run2.battle!.hero.hp = 10;
+    playBattle(run2);
+    const max = heroStats(run2).maxHp;
+    const hpAfterFight = run2.hero.hp;
+    expect(hpAfterFight).toBeLessThanOrEqual(max);
+    expect(hpAfterFight).toBeGreaterThanOrEqual(10);
+    expect(run2.phase).toBe('reward');
+    expect(run2.rewards[0].note).toMatch(/Раны затянулись/);
+    while (run2.phase === 'reward') {
+      const before = run2.hero.hp;
+      skipReward(run2);
+      expect(run2.hero.hp).toBe(before);
+    }
+    expect(run2.phase).toBe('map');
     expect(run2.locationIndex).toBe(1);
+    expect(run2.roomIndex).toBe(0);
+    expect(BOSS_HEAL_PCT).toBe(0.3);
   });
 
   it('босс первого акта даёт экипировку 3 тира и артефакт', () => {
@@ -545,7 +687,8 @@ describe('забег', () => {
     expect(run.rewards[0].options.every((o) => o.kind === 'artifact')).toBe(true);
     takeReward(run, 0);
     if (run.pending) resolvePending(run);
-    expect(run.phase).toBe('camp');
+    expect(run.phase).toBe('map');
+    expect(run.locationIndex).toBe(1);
   });
 
   it('после финального босса награды нет — сразу победа', () => {
@@ -614,10 +757,11 @@ describe('забег', () => {
     }
   });
 
-  it('бессмертный герой доходит до победы через 18 боёв', () => {
+  it('бессмертный герой доходит до победы минимум через 21 бой (элита из события — сверх того)', () => {
     const run = newRun('warrior', 12345);
     playRun(run, true);
     expect(run.phase).toBe('victory');
-    expect(run.stats.roomsCleared).toBe(FIGHTS_PER_RUN);
+    expect(run.stats.roomsCleared).toBeGreaterThanOrEqual(FIGHTS_PER_RUN);
+    expect(run.stats.roomsCleared).toBeLessThanOrEqual(FIGHTS_PER_RUN + 6);
   });
 });

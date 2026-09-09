@@ -1,6 +1,7 @@
 import { App } from './ui/app';
-import { LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locations';
-import type { LocationId } from './engine/types';
+import { EVENT_WEIGHTS, LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locations';
+import { startEvent } from './engine/run';
+import type { EventKind, LocationId } from './engine/types';
 import { COLLECTIBLE_IDS } from './data/collection';
 import { loadProfile, saveProfile } from './ui/save';
 
@@ -23,6 +24,7 @@ app.start();
 
 // Отладочный быстрый старт: ?hero=warrior&seed=5&enter=1 — новый забег и сразу первая комната.
 // ?hero=...&phase=won|reward|shop|event|camp|end — сразу нужный экран (бой выигрывается читом); won — плашка победы, &log=1 — с раскрытым логом.
+// &phase=event&event=chest|altar|forge|elite|shop|camp — заданное событие в третьей клетке.
 const params = new URLSearchParams(window.location.search);
 
 // &mock=1 — демо-профиль: статистика, сундуки и часть коллекции (для отладки экранов)
@@ -62,6 +64,9 @@ if (heroParam) {
   // &loc=1 — начать с указанного акта (0..2)
   const locParam = params.get('loc');
   if (locParam) run.locationIndex = Math.max(0, Math.min(2, Number(locParam) || 0));
+  // &room=8 — начать с указанной клетки этажа (0..8): &room=8&phase=reward — трофей босса с подписью о лечении
+  const roomParam = params.get('room');
+  if (roomParam) run.roomIndex = Math.max(0, Math.min(ROOMS_PER_LOCATION - 1, Number(roomParam) || 0));
   const phase = params.get('phase');
   if (phase === 'reward' || phase === 'won') {
     run.hero.weapon.dmgMin = 999;
@@ -76,22 +81,17 @@ if (heroParam) {
       const i = run.rewards[0]?.options.findIndex((o) => o.kind === 'artifact') ?? -1;
       if (i >= 0) app.takeReward(i);
     }
-  } else if (phase === 'shop') {
-    // Элита выигрывается читом, награда пропускается, с карты — сразу к торговцу.
-    run.roomIndex = ROOMS_PER_LOCATION - 3;
-    run.hero.weapon.dmgMin = 999;
-    run.hero.weapon.dmgMax = 999;
-    app.enterRoom();
-    for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid });
-    app.finishBattle();
-    while (run.phase === 'reward') app.skipReward();
-    app.enterRoom();
   } else if (phase === 'event') {
+    // Случайное событие в третьей клетке; &event=shop|camp|chest|altar|forge|elite — заданное.
     run.roomIndex = 2;
-    app.enterRoom();
-  } else if (phase === 'camp') {
-    run.roomIndex = ROOMS_PER_LOCATION;
-    run.phase = 'camp';
+    const ev = params.get('event');
+    if (ev && ev in EVENT_WEIGHTS) {
+      startEvent(run, ev as EventKind);
+      app.render();
+    } else app.enterRoom();
+  } else if (phase === 'shop' || phase === 'camp') {
+    run.roomIndex = 2;
+    startEvent(run, phase);
     app.render();
   } else if (phase === 'end') {
     run.phase = 'defeat';

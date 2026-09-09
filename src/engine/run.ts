@@ -1,13 +1,15 @@
-import type { DerivedStats, GearKind, LootItem, PlayerAction, RoomKind, RunState } from './types';
+import type { DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RoomKind, RunState } from './types';
 import { SAVE_VERSION } from './types';
 import { chance, createRng, pick } from './rng';
 import { heroDef } from '../data/heroes';
-import { makeStartingGear } from '../data/gear';
-import { ACTS, ACTS_PER_RUN, ROOMS_PER_LOCATION, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
+import { makeStartingGear, upgradeGearTier } from '../data/gear';
+import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
 import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact } from './equipment';
 import {
+  ALTAR_HEAL_PCT,
+  ALTAR_SACRIFICE_PCT,
   POTION_DROP_CHANCE,
   REROLL_COST,
   SHOP_HEAL_COST,
@@ -15,12 +17,13 @@ import {
   SHOP_POTION_PRICE,
   START_GOLD,
   artifactPrice,
+  forgePrice,
   gearPrice,
   goldReward,
   potionRewardScreen,
   rollArtifact,
   rollBossRewards,
-  rollEvent,
+  rollEventKind,
   rollGear,
   rollPotion,
   rollRewardOptions,
@@ -75,6 +78,11 @@ export function currentRoomKind(run: RunState): RoomKind {
   return roomKind(run.roomIndex);
 }
 
+/** Чем считать текущую комнату для золота и наград: элита из события — элитой, остальное — по клетке. */
+export function effectiveRoomKind(run: RunState): RoomKind {
+  return run.event?.kind === 'elite' ? 'elite' : currentRoomKind(run);
+}
+
 export function heroStats(run: RunState): DerivedStats {
   return computeStats(heroDef(run.hero.defId), run.hero.weapon, run.hero.armor);
 }
@@ -95,16 +103,19 @@ function syncMaxHp(run: RunState, before: number): void {
 export function enterRoom(run: RunState): void {
   if (run.phase !== 'map') return;
   const kind = currentRoomKind(run);
-  const loc = currentLocation(run);
   if (kind === 'event') {
-    run.event = { options: rollEvent(run.rng, run.hero, currentAct(run)) };
-    run.phase = 'event';
+    startEvent(run, rollEventKind(run.rng));
     return;
   }
   if (kind === 'shop') {
     openShop(run);
     return;
   }
+  startBattle(run, kind);
+}
+
+function startBattle(run: RunState, kind: 'fight' | 'elite' | 'boss'): void {
+  const loc = currentLocation(run);
   const table =
     kind === 'fight'
       ? run.roomIndex < 2
@@ -118,6 +129,42 @@ export function enterRoom(run: RunState): void {
   run.phase = 'battle';
 }
 
+/**
+ * Войти в событие известного вида. Сам вид разыгрывает enterRoom по весам EVENT_WEIGHTS;
+ * тесты и debug-параметры задают его напрямую. Содержимое сундука и алтаря выпадает при входе.
+ */
+export function startEvent(run: RunState, kind: EventKind): void {
+  if (run.phase !== 'map') return;
+  const act = currentAct(run);
+  switch (kind) {
+    case 'camp':
+      run.event = { kind };
+      run.phase = 'camp';
+      return;
+    case 'shop':
+      run.event = { kind };
+      openShop(run);
+      return;
+    case 'elite':
+      run.event = { kind };
+      startBattle(run, 'elite');
+      return;
+    case 'chest':
+      run.event = { kind, gear: rollGear(run.rng, run.hero, act.gearTiers) };
+      run.phase = 'event';
+      return;
+    case 'altar':
+      run.event = { kind, artifact: rollArtifact(run.rng, run.hero, act.artTiers, []) };
+      run.phase = 'event';
+      return;
+    case 'forge':
+      run.event = { kind };
+      run.phase = 'event';
+      return;
+  }
+}
+
+/** Следующая клетка; после последней — следующая локация без остановки, после третьего босса — победа. */
 export function advanceRoom(run: RunState): void {
   run.battle = null;
   run.event = null;
@@ -130,8 +177,8 @@ export function advanceRoom(run: RunState): void {
       run.phase = 'victory';
       return;
     }
-    run.phase = 'camp';
-    return;
+    run.locationIndex += 1;
+    run.roomIndex = 0;
   }
   run.phase = 'map';
 }
@@ -171,12 +218,17 @@ export function finishBattle(run: RunState): void {
   // Выпитое в бою зелье не возвращается; невыпитое остаётся в слоте.
   run.hero.potion = b.hero.potion;
   run.stats.roomsCleared += 1;
-  const kind = currentRoomKind(run);
+  const kind = effectiveRoomKind(run);
   const act = currentAct(run);
   run.battle = null;
   run.gold += goldReward(kind);
-  if (kind === 'boss') run.rewards = rollBossRewards(run.rng, run.hero, act);
-  else {
+  if (kind === 'boss') {
+    // Привала после босса нет: герой сразу подлечивается и идёт дальше. Сколько дало — подписью на трофее.
+    const heal = bossHealAmount(run);
+    run.hero.hp += heal;
+    run.rewards = rollBossRewards(run.rng, run.hero, act);
+    if (run.rewards[0] && heal > 0) run.rewards[0].note = `Раны затянулись: +${heal} HP (${run.hero.hp}/${heroStats(run).maxHp}). Можно взять только одно.`;
+  } else {
     const source = kind === 'elite' ? 'elite' : 'fight';
     run.rewards = [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', source, options: rollRewards(run.rng, run.hero, act, source), rerolled: false }];
   }
@@ -307,27 +359,93 @@ export function pendingCancel(run: RunState): void {
   run.pending = null;
 }
 
-// ─── Событие ───────────────────────────────────────────────────────────────
+// ─── События: сундук, алтарь, кузнец ───────────────────────────────────────
 
-export function chooseEvent(run: RunState, id: string): void {
-  if (run.phase !== 'event' || !run.event) return;
-  const opt = run.event.options.find((o) => o.id === id);
-  if (!opt) return;
+/** Лечение до доли максимума, но не сверх него. */
+function healAmount(run: RunState, pct: number): number {
   const max = heroStats(run).maxHp;
-  if (opt.id === 'spring') {
-    run.hero.hp = Math.min(max, run.hero.hp + Math.floor(max * 0.3));
-  } else if (opt.id === 'altar') {
-    run.hero.hp = Math.max(1, run.hero.hp - Math.floor(max * 0.1));
-    giveArtifact(run, { kind: 'artifact', artifact: opt.artifact }, { cancellable: false, consumeReward: false });
-  } else {
-    giveGear(run, { kind: 'gear', gear: opt.gear });
-  }
+  return Math.max(0, Math.min(Math.floor(max * pct), max - run.hero.hp));
+}
+
+/** Сколько HP вернёт босс локации. */
+export function bossHealAmount(run: RunState): number {
+  return healAmount(run, BOSS_HEAL_PCT);
+}
+
+/** Уйти из события ни с чем: захлопнуть сундук, пройти мимо алтаря или кузнеца. */
+export function leaveEvent(run: RunState): void {
+  if (run.phase !== 'event' || run.pending) return;
+  advanceRoom(run);
+}
+
+/** Сундук: экипировка надевается сразу, старый предмет пропадает, лишние артефакты ждут выбора слота. */
+export function takeChest(run: RunState): void {
+  if (run.phase !== 'event' || run.event?.kind !== 'chest' || run.pending) return;
+  giveGear(run, { kind: 'gear', gear: run.event.gear });
   if (!run.pending) advanceRoom(run);
+}
+
+export function altarHealAmount(run: RunState): number {
+  return healAmount(run, ALTAR_HEAL_PCT);
+}
+
+/** Сколько HP заберёт жертва: доля максимума, но герой не умирает — остаётся хотя бы 1. */
+export function altarSacrificeCost(run: RunState): number {
+  const max = heroStats(run).maxHp;
+  return Math.min(Math.floor(max * ALTAR_SACRIFICE_PCT), Math.max(0, run.hero.hp - 1));
+}
+
+/** Алтарь, молитва: восстановить долю максимума HP. */
+export function altarPray(run: RunState): void {
+  if (run.phase !== 'event' || run.event?.kind !== 'altar' || run.pending) return;
+  run.hero.hp += altarHealAmount(run);
+  advanceRoom(run);
+}
+
+/** Почему нельзя принести жертву; null — можно. */
+export function canAltarSacrifice(run: RunState): string | null {
+  if (run.phase !== 'event' || run.event?.kind !== 'altar') return 'Сейчас нельзя';
+  if (run.pending) return 'Сначала разместите артефакт';
+  if (!run.event.artifact) return 'Все артефакты уже на максимуме';
+  return null;
+}
+
+/** Алтарь, жертва: отдать долю HP за артефакт. Дубликат апгрейдит стоящий, новый ждёт выбора слота без отмены. */
+export function altarSacrifice(run: RunState): boolean {
+  if (canAltarSacrifice(run)) return false;
+  const ev = run.event;
+  if (!ev || ev.kind !== 'altar' || !ev.artifact) return false;
+  const artifact = ev.artifact;
+  run.hero.hp -= altarSacrificeCost(run);
+  giveArtifact(run, { kind: 'artifact', artifact }, { cancellable: false, consumeReward: false });
+  if (!run.pending) advanceRoom(run);
+  return true;
+}
+
+/** Почему кузнец не улучшит этот предмет; null — можно. */
+export function canForge(run: RunState, kind: GearKind): string | null {
+  if (run.phase !== 'event' || run.event?.kind !== 'forge') return 'Сейчас нельзя';
+  if (run.pending) return 'Сначала разместите артефакт';
+  const gear = gearOf(run.hero, kind);
+  if (gear.tier >= 5) return 'Предел тира';
+  return needGold(run, forgePrice(gear));
+}
+
+/** Кузнец: поднять тир оружия или брони на 1 за золото, один предмет за визит. */
+export function forgeUpgrade(run: RunState, kind: GearKind): boolean {
+  if (canForge(run, kind)) return false;
+  const gear = gearOf(run.hero, kind);
+  const before = heroStats(run).maxHp;
+  run.gold -= forgePrice(gear);
+  upgradeGearTier(run.rng, gear);
+  syncMaxHp(run, before);
+  advanceRoom(run);
+  return true;
 }
 
 // ─── Торговец ──────────────────────────────────────────────────────────────
 
-/** Вход в остановку торговца с карты: товары раскладываются при входе. */
+/** Торговец из события: товары раскладываются при входе. */
 function openShop(run: RunState): void {
   run.shop = rollShop(run.rng, run.hero, currentAct(run));
   run.phase = 'shop';
@@ -445,19 +563,18 @@ export function leaveShop(run: RunState): void {
   advanceRoom(run);
 }
 
-// ─── Привал ────────────────────────────────────────────────────────────────
+// ─── Привал (из события) ───────────────────────────────────────────────────
 
-function nextLocation(run: RunState): void {
-  run.locationIndex += 1;
-  run.roomIndex = 0;
-  run.phase = 'map';
+export const CAMP_HEAL_PCT = 0.5;
+
+export function campHealAmount(run: RunState): number {
+  return healAmount(run, CAMP_HEAL_PCT);
 }
 
 export function campRest(run: RunState): void {
   if (run.phase !== 'camp') return;
-  const max = heroStats(run).maxHp;
-  run.hero.hp = Math.min(max, run.hero.hp + Math.floor(max * 0.5));
-  nextLocation(run);
+  run.hero.hp += campHealAmount(run);
+  advanceRoom(run);
 }
 
 export function campForge(run: RunState, kind: GearKind, index: number): boolean {
@@ -467,6 +584,6 @@ export function campForge(run: RunState, kind: GearKind, index: number): boolean
   const before = heroStats(run).maxHp;
   slot.tier += 1;
   syncMaxHp(run, before);
-  nextLocation(run);
+  advanceRoom(run);
   return true;
 }

@@ -41,16 +41,18 @@ export function bar(cls: string, cur: number, max: number, label = '', tip = '',
 
 /**
  * Расходуемый ресурс: полоска во всю ширину, как HP, поделённая на секции —
- * по одному очку. Секций всегда max, поэтому ширина секции не скачет от бонуса
- * сверх максимума («Кольцо выносливости»: при 5/4 залиты все 4, счётчик — 5/4).
+ * по одному очку. Очки сверх максимума («Кольцо выносливости», «Второе дыхание»: 5/4)
+ * дорисовываются своими секциями другого цвета — видно, что это бонус, а не база.
  */
 export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElement {
   const segs: HTMLElement[] = [];
-  for (let i = 0; i < max; i++) segs.push(h('div', { class: `seg ${i < cur ? 'on' : ''}` }));
+  const total = Math.max(cur, max);
+  for (let i = 0; i < total; i++) segs.push(h('div', { class: `seg ${i < cur ? 'on' : ''} ${i >= max ? 'extra' : ''}` }));
   const label = kind === 'sta' ? 'STA' : 'MP';
+  const extra = cur > max ? ` (+${cur - max} сверх максимума)` : '';
   return h(
     'div',
-    { class: `bar bar-${kind}`, tip: `${kind === 'sta' ? 'Стамина' : 'Мана'} ${cur}/${max}` },
+    { class: `bar bar-${kind}`, tip: `${kind === 'sta' ? 'Стамина' : 'Мана'} ${cur}/${max}${extra}` },
     h('div', { class: 'segs' }, ...segs),
     h('span', { class: 'bar-text' }, `${label} ${cur}/${max}`),
   );

@@ -219,7 +219,7 @@ export const WEAPON_BASES: Base[] = [
     g: 1,
     spread: 'wide',
     type: 'ranged',
-    perk: { name: 'Оглушающий камень', mods: () => ({ stunOnCrit: 1 }), text: () => 'крит оглушает цель' },
+    perk: { name: 'Оглушающий камень', mods: () => ({ stunOnHit: 0.5 }), text: () => 'каждый удар с шансом 50 % оглушает цель' },
   },
   {
     id: 'darts',
@@ -602,6 +602,57 @@ export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, def?: HeroDef
     affix: rollAffix(rng, kind, tier),
     slots: Array.from({ length: info.slots }, () => null),
   };
+}
+
+/**
+ * Поднять тир предмета на 1 (кузнец): кубик, DEF и HP — по таблице тиров, аффикс того же стата — по своему тиру,
+ * сокеты добавляются пустыми, стоящие артефакты остаются, имя получает префикс нового тира. Тир 5 — предел.
+ */
+export function upgradeGearTier(rng: Rng, gear: GearInstance): boolean {
+  if (gear.tier >= 5) return false;
+  const tier = (gear.tier + 1) as GearTier;
+  const base = baseOf(gear.kind, gear.base);
+  const info = GEAR_TIERS[tier];
+  const dmg = baseDamage(base, tier);
+  gear.tier = tier;
+  gear.name = `${pick(rng, PREFIXES[tier])[base.g]} ${base.name}`;
+  gear.dmgMin = gear.kind === 'weapon' ? dmg.min : 0;
+  gear.dmgMax = gear.kind === 'weapon' ? dmg.max : 0;
+  gear.def = gear.kind === 'armor' ? info.def : 0;
+  gear.hp = gear.kind === 'armor' ? info.hp : 0;
+  if (gear.affix) {
+    const def = (gear.kind === 'weapon' ? WEAPON_AFFIXES : ARMOR_AFFIXES).find((a) => a.stat === gear.affix!.stat);
+    if (def && def.values[tier - 1] > 0) gear.affix = { stat: def.stat, value: def.values[tier - 1] };
+  }
+  while (gear.slots.length < info.slots) gear.slots.push(null);
+  return true;
+}
+
+/** Что даст кузнец: «Урон 3–5 → 4–8, +1 сокет» или «DEF 1 → 2, HP 2 → 4, +1 сокет»; пусто — предмет на пределе. */
+export function upgradePreview(gear: GearInstance): string {
+  if (gear.tier >= 5) return '';
+  const tier = (gear.tier + 1) as GearTier;
+  const base = baseOf(gear.kind, gear.base);
+  const info = GEAR_TIERS[tier];
+  const parts: string[] = [];
+  if (gear.kind === 'weapon') {
+    const dmg = baseDamage(base, tier);
+    parts.push(`Урон ${gear.dmgMin}–${gear.dmgMax} → ${dmg.min}–${dmg.max}`);
+  } else {
+    parts.push(`DEF ${gear.def} → ${info.def}`, `HP ${gear.hp} → ${info.hp}`);
+  }
+  if (base.perk) {
+    const now = base.perk.text(gear.tier);
+    const next = base.perk.text(tier);
+    if (now !== next) parts.push(`${base.perk.name}: ${next}`);
+  }
+  if (gear.affix) {
+    const def = (gear.kind === 'weapon' ? WEAPON_AFFIXES : ARMOR_AFFIXES).find((a) => a.stat === gear.affix!.stat);
+    if (def && def.values[tier - 1] > gear.affix.value) parts.push(affixText({ stat: def.stat, value: def.values[tier - 1] }));
+  }
+  const extra = info.slots - gear.slots.length;
+  if (extra > 0) parts.push(`+${extra} сокет${extra > 1 ? 'а' : ''}`);
+  return parts.join(', ');
 }
 
 export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: GearInstance } {

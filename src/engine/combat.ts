@@ -35,6 +35,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   invuln: 'Неуязвимость',
   poison: 'Яд',
   stealth: 'Скрытность',
+  smoke: 'Дымовая завеса',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -50,7 +51,11 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   invuln: 'Не получает урона',
   poison: 'N урона в начале хода, игнорирует блок',
   stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит, снимает скрытность',
+  smoke: 'Каждый удар врага с шансом 80 % проходит мимо. Атаки героя завесу не снимают',
 };
+
+/** Шанс, что удар врага пройдёт мимо героя в дымовой завесе («Дымовая шашка»). */
+export const SMOKE_MISS_CHANCE = 0.8;
 
 // ─── Статусы ───────────────────────────────────────────────────────────────
 
@@ -169,13 +174,19 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   return rest;
 }
 
-function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false): number {
+/** `rng` нужен только ударам (`hit`): дымовая завеса решает бросок за каждый удар отдельно. */
+function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false, rng?: Rng): number {
   const h = state.hero;
   let rest = Math.max(0, amount);
   if (kind === 'hit') {
     if (getStatus(h, 'stealth')) {
       state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
       log(state, 'Враг не видит героя');
+      return 0;
+    }
+    if (rng && getStatus(h, 'smoke') && chance(rng, SMOKE_MISS_CHANCE)) {
+      state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
+      log(state, 'Удар уходит в дым');
       return 0;
     }
     if (getStatus(h, 'invuln')) {
@@ -385,7 +396,7 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
   const { dmg, crit } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit);
   const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce: h.stats.pierceBlock > 0 });
   if (dealt > 0 && e.hp > 0) {
-    if (crit && h.stats.stunOnCrit > 0 && !getStatus(e, 'stun')) addStatus(state, e, e.uid, 'stun', 1, -1);
+    if (h.stats.stunOnHit > 0 && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnHit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
   }
   if (h.stats.blockOnHit > 0) {
@@ -712,7 +723,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
           if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
           continue;
         }
-        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce);
+        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, rng);
         log(state, `${e.name} атакует: ${dmg} (${dealt} по HP${eff.pierce ? ', сквозь блок' : ''})`);
         if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
       }
@@ -773,7 +784,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       addStatus(state, e, e.uid, 'dodge', eff.value, -1);
       break;
     case 'selfDestruct': {
-      const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e);
+      const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e, false, rng);
       log(state, `${e.name} взрывается: ${dealt} по HP`);
       if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
       e.hp = 0;

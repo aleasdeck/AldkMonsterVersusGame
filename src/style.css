@@ -624,6 +624,13 @@ p {
 .bar-mp .seg.on {
   background: var(--mp);
 }
+/* Очки сверх максимума: свой цвет, чтобы бонус читался отдельно от базы. */
+.bar-sta .seg.extra.on {
+  background: #ff8c42;
+}
+.bar-mp .seg.extra.on {
+  background: #b388ff;
+}
 
 .block-badge {
   display: inline-block;
@@ -2329,6 +2336,13 @@ p {
   gap: 2px;
   padding: 4px 0 0;
   border-top: 1px dotted var(--border);
+}
+/* Одна карточка (сундук): не растягивать на всю ширину, держать по центру. */
+.hub-main .cards.single {
+  justify-content: center;
+}
+.hub-main .cards.single .card {
+  flex: 0 1 320px;
 }
 /* Карточки события в полосе 320 px: крупный глиф и описание ужаты, чтобы содержимое сундука и кнопка влезли. */
 .event-card {

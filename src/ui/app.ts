@@ -426,10 +426,33 @@ export class App {
     this.render();
   }
 
-  chooseEvent(id: string): void {
+  // Событие: сундук, алтарь, кузнец. Каждый выбор либо ведёт к следующей клетке, либо открывает выбор слота.
+  leaveEvent(): void {
     if (!this.run) return;
-    R.chooseEvent(this.run, id);
+    R.leaveEvent(this.run);
     this.afterPhaseChange();
+  }
+
+  takeChest(): void {
+    if (!this.run) return;
+    R.takeChest(this.run);
+    this.afterPhaseChange();
+  }
+
+  altarPray(): void {
+    if (!this.run) return;
+    R.altarPray(this.run);
+    this.afterPhaseChange();
+  }
+
+  altarSacrifice(): void {
+    if (!this.run) return;
+    if (R.altarSacrifice(this.run)) this.afterPhaseChange();
+  }
+
+  forgeUpgrade(kind: GearKind): void {
+    if (!this.run) return;
+    if (R.forgeUpgrade(this.run, kind)) this.afterPhaseChange();
   }
 
   // ─── Магазин ─────────────────────────────────────────────────────────────

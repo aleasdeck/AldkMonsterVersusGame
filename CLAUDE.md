@@ -11,7 +11,7 @@
 
 ```bash
 npm run dev                                          # http://localhost:5173
-npx vitest run                                       # тесты движка (~1 с, 140 тестов)
+npx vitest run                                       # тесты движка (~2 с, 146 тестов)
 node node_modules/typescript/bin/tsc --noEmit -p .   # typecheck — ТОЛЬКО так (см. ловушки)
 node node_modules/vite/bin/vite.js build             # сборка в dist/
 SIM=1 npx vitest run tests/balance-sim.test.ts       # бот-симулятор баланса, все герои, 60 забегов
@@ -31,15 +31,15 @@ src/engine/   чистая логика, без DOM, покрыта тестам
   stats.ts      computeStats: база героя → кубик оружия (владение) → перки → аффиксы → пассивки
   combat.ts     бой: статусы, урон, союзники, действия героя, ИИ врагов, createBattle, computeIntent
   equipment.ts  слоты, addArtifact/replaceArtifact/equipGear, апгрейд дубликатом
-  loot.ts       константы экономики (золото, цены, шанс зелья) и генерация наград/магазина/событий
-  run.ts        машина состояний забега: enterRoom → battle → finishBattle → reward → advanceRoom …
+  loot.ts       константы экономики (золото, цены, шанс зелья, цена кузнеца) и генерация наград/магазина/событий (rollEventKind)
+  run.ts        машина состояний забега: enterRoom → startEvent | startBattle → finishBattle → reward → advanceRoom …; события: takeChest, altarPray/altarSacrifice, forgeUpgrade, leaveEvent
 src/data/     типизированные таблицы; каждый файл экспортирует list-based Record + xxxDef(id)
   heroes.ts     6 героев (warrior, mage, assassin, paladin, berserk, archer)
   enemies.ts    67 врагов по локациям (секции ═══), хелпер act(), ai: cycle | boss-rules
   artifacts.ts  31 артефакт: пассивные / активные физ. (STA) / активные маг. (MP), тиры 1–3 через t(a,b,c)
-  gear.ts       15 баз оружия + 8 брони (одна startOnly), перки, типы, владение, аффиксы, makeGear
+  gear.ts       15 баз оружия + 8 брони (одна startOnly), перки, типы, владение, аффиксы, makeGear, upgradeGearTier (кузнец)
   potions.ts    7 зелий, без тира
-  locations.ts  6 локаций с encounters, ACTS (тиры лута), ACT_SCALE, ACT_DMG_BONUS, ROOM_KINDS
+  locations.ts  6 локаций с encounters, ACTS (тиры лута), ACT_SCALE, ACT_DMG_BONUS, ROOM_KINDS, EVENT_WEIGHTS, BOSS_HEAL_PCT
   collection.ts каталог для сундуков/коллекции — собирается автоматически из данных выше
 src/ui/       рендер и клики
   app.ts        class App: state (run, screen, target, busy, logOpen, sheetOpen, pauseOpen…), render() диспатчит по screen/run.phase
@@ -63,9 +63,9 @@ tests/        vitest; sim/bot.ts — умный бот (W — веса оцен�
 - Вся случайность — через `run.rng` / переданный `Rng`. Один сид + герой = тот же забег. Не использовать `Math.random` в движке.
 - UI: наведение (ридаут, штриховка, дельты в плитке) пишет прямо в готовые узлы через preview.ts/diff.ts и ничего не хранит в App — любое действие перерисует экран. Кнопки, у которых при недоступности нужен ридаут, делаются без атрибута `disabled` (браузер не шлёт им наведение), а с классом `off`.
 - `canXxx(run)` возвращает `string | null` (причина запрета или null), парный `xxx(run)` возвращает boolean/void. UI показывает причину в подсказке.
-- Забег: 3 акта × 8 комнат `['fight','fight','event','fight','fight','elite','shop','boss']`, между актами `camp`. Локации 3 из 6 случайно без повторов; числа врагов заданы под «родной» tier локации и приводятся к акту через `enemyScale`.
-- Фазы забега: `map | battle | reward | shop | event | camp | victory | defeat`; `run.pending` — артефакт ждёт выбора слота (обрабатывать до всего остального). После боя может быть 2 экрана награды (второй — зелье), поэтому в тестах и ботах награды пропускать циклом `while (run.phase === 'reward')`.
-- Бой: STA — очки действий, полностью в начале хода; MP — только реген в начале хода, полностью после комнаты; блок сгорает в начале хода (кроме `blockKeep`); каждая следующая атака в ходу слабее в `fatigue` раз; «Защититься» даёт `ceil(DEF × DEFEND_MULT)`.
+- Забег: 3 акта × 9 клеток `['fight','fight','event','fight','fight','event','fight','elite','boss']`, после босса лечение `BOSS_HEAL_PCT` и сразу следующая локация (привала между актами нет). Клетка `event` при входе разыгрывает `EventKind` по `EVENT_WEIGHTS` (camp 10, elite 5, shop 25, chest 25, altar 25, forge 10); `run.event` хранит, что выпало (элита из события даёт золото и награду как клетка элиты — `effectiveRoomKind`). Локации 3 из 6 случайно без повторов; числа врагов заданы под «родной» tier локации и приводятся к акту через `enemyScale`.
+- Фазы забега: `map | battle | reward | shop | event | camp | victory | defeat`; `shop` и `camp` — тоже из события; фаза `event` — сундук, алтарь, кузнец (по `run.event.kind`). `run.pending` — артефакт ждёт выбора слота (обрабатывать до всего остального). После боя может быть 2 экрана награды (второй — зелье), поэтому в тестах и ботах награды пропускать циклом `while (run.phase === 'reward')`. В тестах событие нужного вида — `startEvent(run, kind)` после `run.roomIndex = 2`.
+- Бой: STA — очки действий, полностью в начале хода; MP — только реген в начале хода, полностью после комнаты; блок сгорает в начале хода (кроме `blockKeep`); каждая следующая атака в ходу слабее в `fatigue` раз; «Защититься» даёт `ceil(DEF × DEFEND_MULT)`. Статус `smoke` (Дымовая шашка): `damageHero` получает `rng` и гасит удар с шансом `SMOKE_MISS_CHANCE`; праща — `stunOnHit` (шанс на удар).
 
 ## Как добавлять контент
 
@@ -86,7 +86,7 @@ tests/        vitest; sim/bot.ts — умный бот (W — веса оцен�
 - Плитки боя: `TileSpec` в `battle.ts`; крупное число — `effectValue()`, число артефакта в сокете — `artifactShort()` в `gearTile.ts`. Ряды: класс `.tiles.rows-1|rows-2` ставит рендер по числу плиток (два ряда с восьми).
 - Хоткеи в `hotkeys.ts` работают только при `app.screen === 'run'` и не в полях ввода; новые клавиши — туда же и в подпись паузы.
 - Размеры кадра фиксированы (960×540, консоль 180, блок героя 205, плитка 78): новая строка в блок героя или плитку — сначала посчитать высоту, потом проверить скриншотом.
-- Проверка: dev-сервер пользователя обычно уже крутится на :5173 (свой не поднимать). Скриншот: `msedge.exe --headless=new --disable-gpu --hide-scrollbars --window-size=960,540 --virtual-time-budget=6000 --screenshot=<png> "http://localhost:5173/?hero=warrior&seed=5&enter=1"`, PNG смотреть Read-тулом. Обязательные адреса: бой с 9 плитками `?hero=warrior&art=whirlwind,stun_strike,war_cry,second_wind,bleed_cut,fireball&enter=1`, союзники `?hero=mage&art=wolf_whistle&use=wolf_whistle&enter=1`, `&phase=reward|shop|event|camp`, `&sheet=1`, `&pause=1`. Наведение и полный забег — временным блоком в конце `main.ts` (диспатч `mouseenter`, автоигра через методы App), затем `git checkout src/main.ts`. Расширение Claude in Chrome у пользователя не работает.
+- Проверка: dev-сервер пользователя обычно уже крутится на :5173 (свой не поднимать). Скриншот: `msedge.exe --headless=new --disable-gpu --hide-scrollbars --window-size=960,540 --virtual-time-budget=6000 --screenshot=<png> "http://localhost:5173/?hero=warrior&seed=5&enter=1"`, PNG смотреть Read-тулом. Обязательные адреса: бой с 9 плитками `?hero=warrior&art=whirlwind,stun_strike,war_cry,second_wind,bleed_cut,fireball&enter=1`, союзники `?hero=mage&art=wolf_whistle&use=wolf_whistle&enter=1`, `&phase=reward|shop|event|camp`, события `&phase=event&event=chest|altar|forge`, трофей босса `&room=8&phase=reward`, очки сверх максимума `&art=second_wind&use=second_wind&enter=1`, `&sheet=1`, `&pause=1`. Наведение и полный забег — временным блоком в конце `main.ts` (диспатч `mouseenter`, автоигра через методы App), затем `git checkout src/main.ts`. Расширение Claude in Chrome у пользователя не работает.
 - После правок UI: README (управление, параметры) и GDD §8.
 
 ## Баланс
@@ -95,9 +95,9 @@ tests/        vitest; sim/bot.ts — умный бот (W — веса оцен�
 
 Рычаги, которые реально работают на бота (измерено в v0.10): урон врагов `ACT_DMG_BONUS` (locations.ts) и доля DEF в блоке `DEFEND_MULT` (combat.ts). Почти не работают: лечение, частота лута, цены, усталость. HP врагов +40 % даёт паты (бот вечно защищается). Нерфы отдельных приёмов (Вихрь и т. п.) — по наводке пользователя, симулятор их не видит.
 
-Текущее состояние (v0.10): все герои 50–59 %, паты Паладина ~3 % против блокирующей элиты — открытая задача. Ассасин исторически ниже остальных.
+Текущее состояние (v0.13, после перестройки этажа без правки чисел): Воин 41 %, Маг 49 %, Ассасин 35 %, Паладин 54 %, Берсерк 39 %, Лучник 52 %. Проверенный рычаг: `ACT_DMG_BONUS` 1.3/1.5/1.65 → 55/60/49/63/44/56. Паты Паладина ~1–3 % против блокирующей элиты — открытая задача.
 
-Сравнение «до/после» честно только на одной версии бота: `git worktree add --detach <scratchpad>/base HEAD`, node_modules — junction через PowerShell `New-Item -ItemType Junction`, прогнать SIM там. Убирать строго: сначала `(Get-Item …\node_modules).Delete()`, потом `git worktree remove --force`.
+Сравнение «до/после» честно только на одной версии бота: `git worktree add --detach <scratchpad>/base HEAD`, node_modules — junction через PowerShell `New-Item -ItemType Junction`, прогнать SIM там. Убирать строго: сначала `(Get-Item …\node_modules).Delete()`, потом `git worktree remove --force`. В облачной сессии проще: `cp -r src tests` плюс конфиги в scratchpad, `ln -s` на node_modules, патчить и гнать SIM там (rsync в контейнере нет).
 
 Перебор рычагов: скрипт в scratchpad патчит одну строку исходника, гонит `SIM_N=200`, откатывает. Python в консоли — `PYTHONIOENCODING=utf-8`.
 

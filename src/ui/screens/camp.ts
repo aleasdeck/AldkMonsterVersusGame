@@ -1,7 +1,7 @@
 import { button, h } from '../dom';
 import { artifactDef } from '../../data/artifacts';
 import { upgradableSockets } from '../../engine/equipment';
-import { currentLocation, heroStats, runLocation } from '../../engine/run';
+import { campHealAmount, currentLocation, heroStats } from '../../engine/run';
 import { artifactChip, pickable } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
@@ -12,9 +12,8 @@ import type { App } from '../app';
 export function campScreen(app: App): HTMLElement {
   const run = app.run!;
   const loc = currentLocation(run);
-  const next = runLocation(run, run.locationIndex + 1);
   const max = heroStats(run).maxHp;
-  const heal = Math.min(Math.floor(max * 0.5), max - run.hero.hp);
+  const heal = campHealAmount(run);
   const upg = upgradableSockets(run.hero);
 
   const restCard = pickable(
@@ -61,7 +60,7 @@ export function campScreen(app: App): HTMLElement {
   const center = h(
     'div',
     { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
-    h('div', { class: 'title-row' }, h('h2', null, 'Привал'), h('p', { class: 'dim' }, `${loc.name} позади. Впереди — ${next?.name ?? '???'}. Выберите одно.`)),
+    h('div', { class: 'title-row' }, h('h2', null, 'Привал'), h('p', { class: 'dim' }, 'Тихое место: можно перевести дух или разжечь горн. Выберите одно.')),
     h('div', { class: 'cards' }, restCard, forgeCard),
   );
   return runFrame(app, { cls: 'camp', center, mid: hubGear(app) });

@@ -44,7 +44,7 @@ export function rewardScreen(app: App): HTMLElement {
   const center = h(
     'div',
     { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
-    h('div', { class: 'title-row' }, h('h2', null, screen?.title ?? 'Награда'), h('p', { class: 'dim' }, screen?.source === 'potion' ? 'Слот зелья один: новое вытеснит старое.' : 'Можно взять только одно.')),
+    h('div', { class: 'title-row' }, h('h2', null, screen?.title ?? 'Награда'), h('p', { class: 'dim' }, screen?.note ?? (screen?.source === 'potion' ? 'Слот зелья один: новое вытеснит старое.' : 'Можно взять только одно.'))),
     h('div', { class: 'cards' }, ...cards),
     h(
       'div',

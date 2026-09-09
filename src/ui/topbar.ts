@@ -1,5 +1,5 @@
 import { button, h } from './dom';
-import { ACTS_PER_RUN, ROOM_KINDS, ROOM_NAMES } from '../data/locations';
+import { ACTS_PER_RUN, EVENT_NAMES, ROOM_KINDS, ROOM_NAMES } from '../data/locations';
 import { heroDef } from '../data/heroes';
 import { currentLocation, currentRoomKind } from '../engine/run';
 import type { RoomKind } from '../engine/types';
@@ -26,10 +26,10 @@ export function formatClock(ms: number): string {
   return `${hours > 0 ? `${hours}:` : ''}${mm}:${String(seconds).padStart(2, '0')}`;
 }
 
-/** Лента из восьми клеток этажа: пройденные погашены, текущая жёлтая. На привале весь этаж позади. */
+/** Лента из девяти клеток этажа: пройденные погашены, текущая жёлтая. */
 function roomStrip(app: App): HTMLElement {
   const run = app.run!;
-  const cur = run.phase === 'camp' ? ROOM_KINDS.length : run.roomIndex;
+  const cur = run.roomIndex;
   return h(
     'div',
     { class: 'room-strip' },
@@ -49,7 +49,8 @@ export function topbar(app: App): HTMLElement {
   const run = app.run!;
   const def = heroDef(run.hero.defId);
   const loc = currentLocation(run);
-  const where = run.phase === 'camp' ? 'Привал' : ROOM_NAMES[currentRoomKind(run)];
+  // В клетке события пишем, что именно выпало: «Торговец», а не «Событие».
+  const where = run.event ? EVENT_NAMES[run.event.kind] : ROOM_NAMES[currentRoomKind(run)];
   const b = run.battle;
   const turn = b && run.phase === 'battle' ? h('span', { class: 'turn' }, b.phase === 'enemy' ? 'Ход врагов…' : `Ход ${b.turn}`) : null;
   return h(

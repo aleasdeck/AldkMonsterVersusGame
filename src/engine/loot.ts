@@ -1,7 +1,7 @@
 import type {
   ArtTier,
   ArtifactInstance,
-  EventOption,
+  EventKind,
   GearInstance,
   GearKind,
   GearTier,
@@ -12,11 +12,11 @@ import type {
   RoomKind,
   ShopState,
 } from './types';
-import { chance, pick, type Rng } from './rng';
+import { chance, pick, weighted, type Rng } from './rng';
 import { ARTIFACT_IDS } from '../data/artifacts';
 import { makeGear } from '../data/gear';
 import { heroDef } from '../data/heroes';
-import type { ActDef } from '../data/locations';
+import { EVENT_WEIGHTS, type ActDef } from '../data/locations';
 import { POTION_IDS, potionDef } from '../data/potions';
 import { isMaxed } from './equipment';
 import { computeStats } from './stats';
@@ -171,18 +171,21 @@ export function rollBossRewards(rng: Rng, hero: HeroPersistent, act: ActDef): Re
   return screens;
 }
 
-export function rollEvent(rng: Rng, hero: HeroPersistent, act: ActDef): EventOption[] {
-  const art = rollArtifact(rng, hero, act.artTiers, []);
-  const gear = rollGear(rng, hero, act.gearTiers);
-  const opts: EventOption[] = [{ id: 'spring', title: 'Родник', desc: 'Восстановить 30 % максимального HP.' }];
-  if (art) {
-    opts.push({
-      id: 'altar',
-      title: 'Алтарь',
-      desc: 'Потерять 10 % максимального HP и забрать артефакт.',
-      artifact: art,
-    });
-  }
-  opts.push({ id: 'chest', title: 'Сундук', desc: 'Экипировка: наденется сразу, старый предмет пропадёт.', gear });
-  return opts;
+// ─── События ───────────────────────────────────────────────────────────────
+
+/** Что выпало в клетке «Событие» — по весам EVENT_WEIGHTS. */
+export function rollEventKind(rng: Rng): EventKind {
+  return weighted(
+    rng,
+    (Object.keys(EVENT_WEIGHTS) as EventKind[]).map((kind) => ({ item: kind, weight: EVENT_WEIGHTS[kind] })),
+  );
+}
+
+/** Алтарь: молитва лечит долю максимума HP, жертва отнимает долю и даёт артефакт. */
+export const ALTAR_HEAL_PCT = 0.3;
+export const ALTAR_SACRIFICE_PCT = 0.1;
+
+/** Кузнец: поднять тир предмета на 1 стоит как покупка предмета нового тира — аффикс, сокеты и артефакты при этом остаются. */
+export function forgePrice(gear: GearInstance): number {
+  return SHOP_GEAR_PRICE[Math.min(5, gear.tier + 1) as GearTier];
 }
