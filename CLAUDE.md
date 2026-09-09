@@ -11,7 +11,7 @@
 
 ```bash
 npm run dev                                          # http://localhost:5173
-npx vitest run                                       # тесты движка (~2 с, 154 теста)
+npx vitest run                                       # тесты движка (~2 с, 155 тестов)
 node node_modules/typescript/bin/tsc --noEmit -p .   # typecheck — ТОЛЬКО так (см. ловушки)
 node node_modules/vite/bin/vite.js build             # сборка в dist/
 SIM=1 npx vitest run tests/balance-sim.test.ts       # бот-симулятор баланса, все герои, 60 забегов
