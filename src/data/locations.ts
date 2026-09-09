@@ -263,10 +263,10 @@ export function enemyScale(homeTier: LocationTier, act: number, rank: 'normal' |
 }
 
 /**
- * Этаж локации: девять клеток, два случайных события. Торговца и привала как своих клеток нет —
+ * Этаж локации: десять клеток, три случайных события (третье — перед боссом). Торговца и привала как своих клеток нет —
  * они выпадают в событии (EVENT_WEIGHTS), после босса герой лечится на BOSS_HEAL_PCT и сразу идёт в следующую локацию.
  */
-export const ROOM_KINDS: RoomKind[] = ['fight', 'fight', 'event', 'fight', 'fight', 'event', 'fight', 'elite', 'boss'];
+export const ROOM_KINDS: RoomKind[] = ['fight', 'fight', 'event', 'fight', 'fight', 'event', 'fight', 'elite', 'event', 'boss'];
 
 export const ROOMS_PER_LOCATION = ROOM_KINDS.length;
 

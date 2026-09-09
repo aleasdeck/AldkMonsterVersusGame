@@ -2,7 +2,7 @@ import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { canUseAction, computeAllyIntent, computeIntent, defendBlock, getStatus, previewAttack, rangeText, type DamageRange } from '../../engine/combat';
+import { canUseAction, computeAllyIntent, computeIntent, defendBlock, isHidden, previewAttack, rangeText, type DamageRange } from '../../engine/combat';
 import { goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction } from '../../engine/types';
@@ -161,7 +161,7 @@ function tiles(app: App): HTMLElement {
   const specs: TileSpec[] = [];
 
   // Из скрытности любая атака — удар в спину: гарантированный крит.
-  const stealthed = !!getStatus(b.hero, 'stealth');
+  const stealthed = isHidden(b.hero);
   const critX = (r: DamageRange) => ({ min: r.min * b.hero.stats.critMult, max: r.max * b.hero.stats.critMult });
   const fatigue = Math.round((1 - b.hero.stats.fatigue) * 100);
 

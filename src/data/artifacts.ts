@@ -231,7 +231,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 3,
     target: 'self',
     effects: (tier) => [{ type: 'status', target: 'self', status: 'smoke', value: 1, turns: t(2, 2, 3)(tier) }],
-    describe: (tier) => `Дымовая завеса на ${t(2, 2, 3)(tier)} ход(а): каждый удар врага с шансом 80 % проходит мимо. Атаки завесу не снимают. КД 3`,
+    describe: (tier) => `Дымовая завеса на ${t(2, 2, 3)(tier)} ход(а): удары врагов с шансом 80 % мимо, следующая атака — удар в спину. КД 3`,
   },
   {
     id: 'poison_vial',

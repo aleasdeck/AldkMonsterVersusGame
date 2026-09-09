@@ -652,7 +652,7 @@ describe('ассасин: скрытность', () => {
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
   });
 
-  it('дымовая шашка: 3/3/2 STA, завеса на 2/2/3 хода, удары героя её не снимают', () => {
+  it('дымовая шашка: 3/3/2 STA, завеса на 2/2/3 хода, удар из дыма — крит в спину и снимает завесу', () => {
     const t1 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
     performAction(t1.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t1.rng);
     expect(t1.state.hero.sta).toBe(0);
@@ -662,8 +662,11 @@ describe('ассасин: скрытность', () => {
     performAction(t3.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t3.rng);
     expect(t3.state.hero.sta).toBe(1);
     expect(getStatus(t3.state.hero, 'smoke')?.turns).toBe(3);
+    const hp = first(t3.state).hp;
     performAction(t3.state, { type: 'attack', target: first(t3.state).uid }, t3.rng);
-    expect(getStatus(t3.state.hero, 'smoke')?.turns).toBe(3);
+    // стартовый меч воина 4–6 + Сила, крит ×2: не меньше удвоенного минимума
+    expect(hp - first(t3.state).hp).toBeGreaterThanOrEqual(2 * (4 + t3.state.hero.stats.str));
+    expect(getStatus(t3.state.hero, 'smoke')).toBeUndefined();
   });
 
   it('дымовая завеса гасит около 80 % ударов: на 400 ударах медведя проходит от 40 до 120', () => {

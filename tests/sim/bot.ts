@@ -230,7 +230,7 @@ export function evaluate(b: BattleState): number {
   if (pushing) s += (b.stats.damageDealt - pushBase) * W.pushReward;
   const str = getStatus(h, 'strength');
   if (str) s += str.value * Math.min(3, str.turns === -1 ? 3 : str.turns) * 1.5;
-  const st = getStatus(h, 'stealth');
+  const st = getStatus(h, 'stealth') ?? getStatus(h, 'smoke');
   if (st && (st.turns === -1 || st.turns > 1)) s += 4;
   s += statusValue(h, 'dodge') * 3;
   s += h.mp * W.mp;

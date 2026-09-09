@@ -64,7 +64,7 @@ if (heroParam) {
   // &loc=1 — начать с указанного акта (0..2)
   const locParam = params.get('loc');
   if (locParam) run.locationIndex = Math.max(0, Math.min(2, Number(locParam) || 0));
-  // &room=8 — начать с указанной клетки этажа (0..8): &room=8&phase=reward — трофей босса с подписью о лечении
+  // &room=9 — начать с указанной клетки этажа (0..9): &room=9&phase=reward — трофей босса с подписью о лечении
   const roomParam = params.get('room');
   if (roomParam) run.roomIndex = Math.max(0, Math.min(ROOMS_PER_LOCATION - 1, Number(roomParam) || 0));
   const phase = params.get('phase');

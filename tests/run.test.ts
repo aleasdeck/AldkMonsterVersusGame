@@ -369,14 +369,14 @@ describe('зелья в забеге', () => {
 });
 
 describe('забег', () => {
-  it('этаж из 9 клеток: бой, бой, событие, бой, бой, событие, бой, элита, босс', () => {
+  it('этаж из 10 клеток: бой, бой, событие, бой, бой, событие, бой, элита, событие, босс', () => {
     const run = newRun('warrior', 42);
     const kinds = [];
     for (let i = 0; i < ROOMS_PER_LOCATION; i++) {
       run.roomIndex = i;
       kinds.push(currentRoomKind(run));
     }
-    expect(kinds).toEqual(['fight', 'fight', 'event', 'fight', 'fight', 'event', 'fight', 'elite', 'boss']);
+    expect(kinds).toEqual(['fight', 'fight', 'event', 'fight', 'fight', 'event', 'fight', 'elite', 'event', 'boss']);
     expect(FIGHTS_PER_RUN).toBe(21);
   });
 
@@ -762,6 +762,6 @@ describe('забег', () => {
     playRun(run, true);
     expect(run.phase).toBe('victory');
     expect(run.stats.roomsCleared).toBeGreaterThanOrEqual(FIGHTS_PER_RUN);
-    expect(run.stats.roomsCleared).toBeLessThanOrEqual(FIGHTS_PER_RUN + 6);
+    expect(run.stats.roomsCleared).toBeLessThanOrEqual(FIGHTS_PER_RUN + 9);
   });
 });
