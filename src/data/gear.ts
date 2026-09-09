@@ -1,22 +1,23 @@
 import type { ArmorType, DerivedStats, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Mastery, StatMods, WeaponType } from '../engine/types';
 import { pick, weighted, type Rng } from '../engine/rng';
 
+type ByTier = [number, number, number, number, number];
+
 export interface TierInfo {
   name: string;
   color: string;
   slots: number;
+  /** Кубик обычного (не лёгкого и не тяжёлого) оружия с ровным разбросом; база сдвигает его через heft и spread. */
   dmgMin: number;
   dmgMax: number;
-  def: number;
-  hp: number;
 }
 
 export const GEAR_TIERS: Record<GearTier, TierInfo> = {
-  1: { name: 'Обычный', color: '#9a9a9a', slots: 1, dmgMin: 3, dmgMax: 5, def: 1, hp: 2 },
-  2: { name: 'Необычный', color: '#4caf50', slots: 2, dmgMin: 4, dmgMax: 8, def: 2, hp: 4 },
-  3: { name: 'Редкий', color: '#42a5f5', slots: 2, dmgMin: 5, dmgMax: 9, def: 3, hp: 7 },
-  4: { name: 'Мифический', color: '#ab47bc', slots: 3, dmgMin: 7, dmgMax: 12, def: 5, hp: 12 },
-  5: { name: 'Легендарный', color: '#ff9800', slots: 4, dmgMin: 9, dmgMax: 14, def: 7, hp: 18 },
+  1: { name: 'Обычный', color: '#9a9a9a', slots: 1, dmgMin: 3, dmgMax: 5 },
+  2: { name: 'Необычный', color: '#4caf50', slots: 2, dmgMin: 4, dmgMax: 8 },
+  3: { name: 'Редкий', color: '#42a5f5', slots: 2, dmgMin: 5, dmgMax: 9 },
+  4: { name: 'Мифический', color: '#ab47bc', slots: 3, dmgMin: 7, dmgMax: 12 },
+  5: { name: 'Легендарный', color: '#ff9800', slots: 4, dmgMin: 9, dmgMax: 14 },
 };
 
 export const ART_TIER_COLORS: Record<1 | 2 | 3, string> = {
@@ -59,6 +60,23 @@ export const MASTERY_DROP_WEIGHT: Record<Mastery, number> = {
   foreign: 20,
 };
 
+/**
+ * Вес оружия (v0.15): кубик тира умножается до разброса. Лёгкое (кинжал, стилет, дротики, праща) бьёт слабее,
+ * зато несёт сильный перк «на удар»; тяжёлое (топор, молот) — сильнее, перк у него скромный. Магическое оружие веса не имеет:
+ * посох и жезл — инструменты кастера, их кубик и так −1 к максимуму. Владение и Сила не трогаются.
+ */
+export type Heft = 'light' | 'heavy';
+
+export const HEFT_MULT: Record<Heft, number> = {
+  light: 0.8,
+  heavy: 1.2,
+};
+
+export const HEFT_NAMES: Record<Heft, string> = {
+  light: 'лёгкое',
+  heavy: 'тяжёлое',
+};
+
 /** Бонус к заклинаниям, встроенный в магическое оружие, по тиру. */
 export const MAGIC_SPELL_POWER: [number, number, number, number, number] = [1, 1, 2, 3, 4];
 
@@ -99,6 +117,18 @@ export const ARMOR_TYPE_GLYPHS: Record<ArmorType, string> = {
   light: '◇',
 };
 
+/**
+ * DEF и HP брони по типу и тиру (v0.15): тяжёлая — сталь, держит удар (DEF ×1.5, HP вполовину); средняя — ровная;
+ * лёгкая почти не защищает (DEF вполовину, роба 1 тира — 0), зато не сковывает — HP на треть больше — и живёт перком.
+ * DEF и HP работают у всех, в отличие от перка. Бот резко чувствует DEF лёгкой брони: −1 на тирах 2–5 стоил Ассасину 7 пунктов,
+ * поэтому герои в лёгкой броне получили компенсацию в базе (см. heroes.ts).
+ */
+export const ARMOR_TYPE_STATS: Record<ArmorType, { def: ByTier; hp: ByTier }> = {
+  heavy: { def: [2, 3, 5, 7, 10], hp: [1, 2, 4, 6, 9] },
+  medium: { def: [1, 2, 3, 5, 7], hp: [2, 4, 7, 12, 18] },
+  light: { def: [0, 1, 2, 3, 4], hp: [3, 6, 10, 16, 24] },
+};
+
 /** Веса типа при выпадении брони: тип, который герой умеет носить, вдвое чаще. */
 export const ARMOR_DROP_WEIGHT = { skilled: 40, unskilled: 20 };
 
@@ -106,7 +136,6 @@ export const ARMOR_DROP_WEIGHT = { skilled: 40, unskilled: 20 };
 
 type Gender = 0 | 1 | 2 | 3; // m, f, n, pl
 
-type ByTier = [number, number, number, number, number];
 const byTier = (v: ByTier) => (tier: GearTier) => v[tier - 1];
 
 /** Перк базы: чем меч отличается от копья, а латы — от плаща. */
@@ -122,6 +151,8 @@ export interface Base {
   g: Gender;
   /** narrow — разброс уже (мин +1), wide — шире (мин −1, макс +1). */
   spread?: 'narrow' | 'wide';
+  /** Только у оружия: лёгкое бьёт на 20 % слабее кубика тира, тяжёлое — на 20 % сильнее; без поля — обычное. */
+  heft?: Heft;
   /** Только у оружия. */
   type?: WeaponType;
   /** Только у брони. */
@@ -144,6 +175,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'axe',
+    heft: 'heavy',
     name: 'топор',
     g: 0,
     spread: 'wide',
@@ -163,6 +195,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'dagger',
+    heft: 'light',
     name: 'кинжал',
     g: 0,
     spread: 'narrow',
@@ -171,6 +204,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'stiletto',
+    heft: 'light',
     name: 'стилет',
     g: 0,
     spread: 'narrow',
@@ -190,6 +224,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'hammer',
+    heft: 'heavy',
     name: 'молот',
     g: 0,
     spread: 'wide',
@@ -215,6 +250,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'sling',
+    heft: 'light',
     name: 'праща',
     g: 1,
     spread: 'wide',
@@ -223,6 +259,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'darts',
+    heft: 'light',
     name: 'дротики',
     g: 3,
     spread: 'narrow',
@@ -449,17 +486,24 @@ export function masteryTitle(type: WeaponType, m: Mastery): string {
   return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[m]}: ${Math.round(MASTERY_MULT[m] * 100)} % кубика оружия\nСвойство типа: ${weaponTypeHint(type)}`;
 }
 
-/** Разброс урона базы на тире — с учётом её ширины. */
+/** Разброс урона базы на тире: кубик тира × вес (округление к ближайшему), потом ширина. Лёгкий узкий 1 тира — 3–4, тяжёлый широкий — 3–7. */
 export function baseDamage(base: Base, tier: GearTier): { min: number; max: number } {
   const info = GEAR_TIERS[tier];
-  let min = info.dmgMin;
-  let max = info.dmgMax;
+  const mult = base.heft ? HEFT_MULT[base.heft] : 1;
+  let min = Math.round(info.dmgMin * mult);
+  let max = Math.round(info.dmgMax * mult);
   if (base.spread === 'narrow') min += 1;
   if (base.spread === 'wide') {
     min = Math.max(1, min - 1);
     max += 1;
   }
-  return { min, max };
+  return { min, max: Math.max(min, max) };
+}
+
+/** DEF и HP базы брони на тире — по её типу. */
+export function baseArmorStats(base: Base, tier: GearTier): { def: number; hp: number } {
+  const t = ARMOR_TYPE_STATS[base.armorType ?? 'medium'];
+  return { def: t.def[tier - 1], hp: t.hp[tier - 1] };
 }
 
 /** Название базы с префиксом тира: «Драконий меч». */
@@ -588,24 +632,23 @@ export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, def?: HeroDef
   const prefix = pick(rng, PREFIXES[tier])[base.g];
   const info = GEAR_TIERS[tier];
   const dmg = baseDamage(base, tier);
-  const dmgMin = kind === 'weapon' ? dmg.min : 0;
-  const dmgMax = kind === 'weapon' ? dmg.max : 0;
+  const arm = baseArmorStats(base, tier);
   return {
     kind,
     tier,
     base: base.id,
     name: `${prefix} ${base.name}`,
-    dmgMin,
-    dmgMax,
-    def: kind === 'armor' ? info.def : 0,
-    hp: kind === 'armor' ? info.hp : 0,
+    dmgMin: kind === 'weapon' ? dmg.min : 0,
+    dmgMax: kind === 'weapon' ? dmg.max : 0,
+    def: kind === 'armor' ? arm.def : 0,
+    hp: kind === 'armor' ? arm.hp : 0,
     affix: rollAffix(rng, kind, tier),
     slots: Array.from({ length: info.slots }, () => null),
   };
 }
 
 /**
- * Поднять тир предмета на 1 (кузнец): кубик, DEF и HP — по таблице тиров, аффикс того же стата — по своему тиру,
+ * Поднять тир предмета на 1 (кузнец): кубик — по тиру и весу базы, DEF и HP — по тиру и типу брони, аффикс того же стата — по своему тиру,
  * сокеты добавляются пустыми, стоящие артефакты остаются, имя получает префикс нового тира. Тир 5 — предел.
  */
 export function upgradeGearTier(rng: Rng, gear: GearInstance): boolean {
@@ -614,12 +657,13 @@ export function upgradeGearTier(rng: Rng, gear: GearInstance): boolean {
   const base = baseOf(gear.kind, gear.base);
   const info = GEAR_TIERS[tier];
   const dmg = baseDamage(base, tier);
+  const arm = baseArmorStats(base, tier);
   gear.tier = tier;
   gear.name = `${pick(rng, PREFIXES[tier])[base.g]} ${base.name}`;
   gear.dmgMin = gear.kind === 'weapon' ? dmg.min : 0;
   gear.dmgMax = gear.kind === 'weapon' ? dmg.max : 0;
-  gear.def = gear.kind === 'armor' ? info.def : 0;
-  gear.hp = gear.kind === 'armor' ? info.hp : 0;
+  gear.def = gear.kind === 'armor' ? arm.def : 0;
+  gear.hp = gear.kind === 'armor' ? arm.hp : 0;
   if (gear.affix) {
     const def = (gear.kind === 'weapon' ? WEAPON_AFFIXES : ARMOR_AFFIXES).find((a) => a.stat === gear.affix!.stat);
     if (def && def.values[tier - 1] > 0) gear.affix = { stat: def.stat, value: def.values[tier - 1] };
@@ -639,7 +683,8 @@ export function upgradePreview(gear: GearInstance): string {
     const dmg = baseDamage(base, tier);
     parts.push(`Урон ${gear.dmgMin}–${gear.dmgMax} → ${dmg.min}–${dmg.max}`);
   } else {
-    parts.push(`DEF ${gear.def} → ${info.def}`, `HP ${gear.hp} → ${info.hp}`);
+    const arm = baseArmorStats(base, tier);
+    parts.push(`DEF ${gear.def} → ${arm.def}`, `HP ${gear.hp} → ${arm.hp}`);
   }
   if (base.perk) {
     const now = base.perk.text(gear.tier);

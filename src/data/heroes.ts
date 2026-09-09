@@ -29,7 +29,8 @@ const list: HeroDef[] = [
     name: 'Маг',
     role: 'Хрупкий, урон через ману: Волшебная стрела бьёт каждый ход без перезарядки.',
     // 26, а не 23 (v0.14): без стартового Магического щита бот падал до 39 %, с 26 — 44 %.
-    hp: 26,
+    // 29 (v0.15): роба стала почти без DEF, бот падал до 37 %; +3 HP вернули 41 %.
+    hp: 29,
     def: 3,
     // 7, а не 10 (v0.14.1): с 10 маны и Волшебной стрелой без лимита Маг был «имбой» по отзыву пользователя.
     mp: 7,
@@ -51,13 +52,15 @@ const list: HeroDef[] = [
     name: 'Ассасин',
     role: 'Входит в бой в тени: враги его не видят, а любая атака из скрытности — удар в спину, всегда крит. Дымовая шашка возвращает в тень, яд не выдаёт.',
     hp: 31,
-    def: 4,
+    // 5, а не 4 (v0.15): лёгкая броня почти без DEF, бот падал до 40 %; своя защита +1 вернула 44 %.
+    def: 5,
     mp: 3,
     mpRegen: 1,
     sta: 3,
     mastery: { melee: 'master', ranged: 'trained', magic: 'foreign' },
     armorSkill: { heavy: false, medium: false, light: true },
-    weapon: { base: 'stiletto', name: 'Стилет', dmgMin: 4, dmgMax: 6 },
+    // Стилет — лёгкое оружие: кубик ниже меча Воина (4–6), удар в спину добирает своё.
+    weapon: { base: 'stiletto', name: 'Стилет', dmgMin: 3, dmgMax: 5 },
     armor: { base: 'shroud', name: 'Тёмный покров', def: 0, hp: 0 },
     signature: 'smoke_bomb',
     sprite: {
@@ -99,7 +102,8 @@ const list: HeroDef[] = [
     mastery: { melee: 'master', ranged: 'trained', magic: 'foreign' },
     // Броню не носит вовсе: любая для него — только DEF, HP, аффикс и слоты. Стартовая шкура поэтому без перка.
     armorSkill: { heavy: false, medium: false, light: false },
-    weapon: { base: 'axe', name: 'Топор', dmgMin: 2, dmgMax: 5 },
+    // Топор — тяжёлое оружие: 3–6 вместо 2–5 (v0.15), всё ещё ниже меча Воина, Силу добирает Ярость.
+    weapon: { base: 'axe', name: 'Топор', dmgMin: 3, dmgMax: 6 },
     armor: { base: 'hide', name: 'Шкура', def: 0, hp: 0 },
     signature: 'rage',
     sprite: {
@@ -113,7 +117,8 @@ const list: HeroDef[] = [
     name: 'Лучник',
     role: 'Стрелок: Прицельный выстрел всегда критует, Подсечный ослабляет врага. Хрупкий, защита слабая.',
     hp: 29,
-    def: 4,
+    // 5, а не 4 (v0.15): куртка почти без DEF — та же компенсация, что у Ассасина.
+    def: 5,
     mp: 3,
     mpRegen: 1,
     sta: 3,
