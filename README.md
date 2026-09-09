@@ -16,7 +16,7 @@ npm run build      # typecheck + сборка в dist/
 npm run preview    # посмотреть собранную версию
 ```
 
-Собранная версия — статика, её можно выложить на любой хостинг (GitHub Pages, Netlify).
+Собранная версия — статика. Каждый пуш в `main` выкладывает её на GitHub Pages (`.github/workflows/pages.yml`): **https://aleasdeck.github.io/AldkMonsterVersusGame/** — отладочные параметры URL работают и там.
 
 ## Управление
 
