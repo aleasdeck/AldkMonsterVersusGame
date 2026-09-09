@@ -667,7 +667,7 @@ export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: G
       def: 0,
       hp: 0,
       affix: null,
-      slots: [{ id: def.artifacts[0], tier: 1 }],
+      slots: [{ id: def.signature, tier: 1 }],
     },
     armor: {
       kind: 'armor',
@@ -679,7 +679,8 @@ export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: G
       def: def.armor.def,
       hp: def.armor.hp,
       affix: null,
-      slots: [{ id: def.artifacts[1], tier: 1 }],
+      // Второй стартовый артефакт убран (v0.14): пустой сокет ждёт первую находку.
+      slots: [null],
     },
   };
 }

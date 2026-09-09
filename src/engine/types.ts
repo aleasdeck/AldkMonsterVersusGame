@@ -30,6 +30,7 @@ export type StatusId =
   | 'invuln' // не получает урона, turns ходов
   | 'poison' // value урона в начале хода, turns ходов; яд ассасина
   | 'stealth' // враги не видят героя; любая атака — удар в спину (крит) и снимает статус (только герой)
+  | 'vulnerable' // получает на 25 % больше урона от ударов и заклинаний (VULNERABLE_MULT), turns ходов
   | 'smoke'; // дымовая завеса: каждый удар врага с шансом SMOKE_MISS_CHANCE проходит мимо; атаки героя её не снимают (только герой)
 
 export interface Status {
@@ -94,6 +95,12 @@ export interface DerivedStats {
   stealthStart: number;
   /** Бонус урона удара из скрытности (стилет). */
   backstab: number;
+  /** Лечение героя за каждого убитого врага («Кровавый жетон»). */
+  onKillHeal: number;
+  /** Блок в начале боя («Плащ странника»). */
+  blockStart: number;
+  /** Первый удар героя в ходу вешает Уязвимость на N ходов («Метка охотника»). */
+  markOnHit: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -211,7 +218,11 @@ export interface HeroDef {
   armorSkill: Record<ArmorType, boolean>;
   weapon: { base: string; name: string; dmgMin: number; dmgMax: number };
   armor: { base: string; name: string; def: number; hp: number };
-  artifacts: [string, string];
+  /**
+   * Персональный артефакт: стоит в оружии на старте (слот брони пуст) и выпадает в забеге только этому герою —
+   * дубликат апгрейдит стоящий, а выброшенный можно найти снова. Другим героям не попадается вовсе.
+   */
+  signature: string;
   sprite: SpriteSpec;
 }
 

@@ -7,7 +7,8 @@ const list: HeroDef[] = [
     id: 'warrior',
     name: 'Воин',
     role: 'Ровный боец: много действий за ход, крепкий. Эталон для баланса.',
-    hp: 40,
+    // 46, а не 40 (v0.14): без стартового Сердца тролля (+6 HP) бот падал до 36 %, с 46 — 43 %.
+    hp: 46,
     def: 6,
     mp: 2,
     mpRegen: 0,
@@ -16,7 +17,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: true, medium: true, light: false },
     weapon: { base: 'sword', name: 'Меч', dmgMin: 4, dmgMax: 6 },
     armor: { base: 'mail', name: 'Кольчуга', def: 1, hp: 0 },
-    artifacts: ['heavy_strike', 'troll_heart'],
+    signature: 'shield_bash',
     sprite: {
       type: 'humanoid',
       head: 'helmet',
@@ -26,8 +27,9 @@ const list: HeroDef[] = [
   {
     id: 'mage',
     name: 'Маг',
-    role: 'Хрупкий, урон через ману, защищается Магическим щитом.',
-    hp: 23,
+    role: 'Хрупкий, урон через ману: Волшебная стрела бьёт каждый ход без перезарядки.',
+    // 26, а не 23 (v0.14): без стартового Магического щита бот падал до 39 %, с 26 — 44 %.
+    hp: 26,
     def: 3,
     mp: 10,
     mpRegen: 2,
@@ -36,7 +38,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: false, medium: false, light: true },
     weapon: { base: 'staff', name: 'Посох', dmgMin: 3, dmgMax: 6 },
     armor: { base: 'robe', name: 'Роба', def: 0, hp: 0 },
-    artifacts: ['fireball', 'mana_shield'],
+    signature: 'magic_missile',
     sprite: {
       type: 'humanoid',
       head: 'hat',
@@ -56,7 +58,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: false, medium: false, light: true },
     weapon: { base: 'stiletto', name: 'Стилет', dmgMin: 4, dmgMax: 6 },
     armor: { base: 'shroud', name: 'Тёмный покров', def: 0, hp: 0 },
-    artifacts: ['smoke_bomb', 'poison_vial'],
+    signature: 'smoke_bomb',
     sprite: {
       type: 'humanoid',
       head: 'mask',
@@ -66,7 +68,7 @@ const list: HeroDef[] = [
   {
     id: 'paladin',
     name: 'Паладин',
-    role: 'Танк с самолечением, низкий урон.',
+    role: 'Танк: Молот света бьёт и лечит, низкий урон.',
     hp: 31,
     def: 5,
     mp: 6,
@@ -76,7 +78,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: true, medium: true, light: false },
     weapon: { base: 'mace', name: 'Булава', dmgMin: 2, dmgMax: 6 },
     armor: { base: 'plate', name: 'Латы', def: 1, hp: 0 },
-    artifacts: ['heal', 'turtle_shell'],
+    signature: 'light_hammer',
     sprite: {
       type: 'humanoid',
       head: 'plume',
@@ -98,7 +100,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: false, medium: false, light: false },
     weapon: { base: 'axe', name: 'Топор', dmgMin: 2, dmgMax: 5 },
     armor: { base: 'hide', name: 'Шкура', def: 0, hp: 0 },
-    artifacts: ['war_cry', 'rage'],
+    signature: 'rage',
     sprite: {
       type: 'humanoid',
       head: 'horns',
@@ -118,7 +120,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: false, medium: true, light: true },
     weapon: { base: 'bow', name: 'Лук', dmgMin: 3, dmgMax: 7 },
     armor: { base: 'cloak', name: 'Куртка', def: 0, hp: 0 },
-    artifacts: ['aimed_shot', 'crippling_shot'],
+    signature: 'aimed_shot',
     sprite: {
       type: 'humanoid',
       head: 'cap',
@@ -129,6 +131,9 @@ const list: HeroDef[] = [
 
 export const HEROES: Record<string, HeroDef> = Object.fromEntries(list.map((h) => [h.id, h]));
 export const HERO_LIST: HeroDef[] = list;
+
+/** id артефакта → id героя, которому он принадлежит. Остальным героям персональные артефакты не выпадают. */
+export const SIGNATURE_OWNER: Record<string, string> = Object.fromEntries(list.map((h) => [h.signature, h.id]));
 
 export function heroDef(id: string): HeroDef {
   const def = HEROES[id];

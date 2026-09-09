@@ -123,6 +123,16 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '..####..',
     '........',
   ],
+  vulnerable: [
+    '........',
+    '...##...',
+    '..#..#..',
+    '.#....#.',
+    '.#....#.',
+    '..#..#..',
+    '...##...',
+    '........',
+  ],
   smoke: [
     '........',
     '...##...',
@@ -149,6 +159,7 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   poison: '#7ddc5a',
   stealth: '#9aa6c8',
   smoke: '#c9c9d6',
+  vulnerable: '#ff6b6b',
 };
 
 const OUTLINE = '#0b0b12';

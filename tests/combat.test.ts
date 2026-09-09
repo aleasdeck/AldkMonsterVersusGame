@@ -19,6 +19,15 @@ import {
 } from '../src/engine/combat';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
 
+const LEGACY_PAIR: Record<string, [string, string]> = {
+  warrior: ['heavy_strike', 'troll_heart'],
+  mage: ['fireball', 'mana_shield'],
+  assassin: ['smoke_bomb', 'poison_vial'],
+  paladin: ['heal', 'turtle_shell'],
+  berserk: ['war_cry', 'rage'],
+  archer: ['aimed_shot', 'crippling_shot'],
+};
+
 function mkHero(heroId: string, extra: ArtifactInstance[] = [], potion: string | null = null): HeroPersistent {
   const def = heroDef(heroId);
   const gear = makeStartingGear(def);
@@ -26,6 +35,10 @@ function mkHero(heroId: string, extra: ArtifactInstance[] = [], potion: string |
   const mid = Math.round((gear.weapon.dmgMin + gear.weapon.dmgMax) / 2);
   gear.weapon.dmgMin = mid;
   gear.weapon.dmgMax = mid;
+  // Классическая пара до v0.14 (приём + второй артефакт): тесты приёмов писались под неё.
+  const pair = LEGACY_PAIR[heroId];
+  gear.weapon.slots = [{ id: pair[0], tier: 1 }];
+  gear.armor.slots = [{ id: pair[1], tier: 1 }];
   // Дополнительные артефакты — в расширенные слоты оружия.
   for (const a of extra) gear.weapon.slots.push(a);
   return { defId: heroId, hp: 999, weapon: gear.weapon, armor: gear.armor, potion };
@@ -765,5 +778,73 @@ describe('зелья', () => {
     const skin = mkBattle('warrior', ['rat'], { potion: 'stone_skin' });
     performAction(skin.state, { type: 'potion' }, skin.rng);
     expect(skin.state.hero.block).toBe(10);
+  });
+});
+
+describe('v0.14: уязвимость и новые артефакты', () => {
+  it('уязвимость: удары и заклинания по врагу сильнее на четверть с округлением к ближайшему, раны не растут', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'hex', tier: 1 }] });
+    const bear = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'hex' }, rng);
+    expect(getStatus(bear, 'vulnerable')?.turns).toBe(2);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    // меч 5 → 6.25 → 6
+    expect(bear.hp).toBe(35 - 6);
+  });
+
+  it('уязвимость на герое: удар врага сильнее, Противоядие снимает', () => {
+    const { state, rng } = mkBattle('warrior', ['goblin_shaman'], { potion: 'antidote' });
+    const shaman = first(state);
+    shaman.intent = 'curse';
+    pass(state, rng);
+    expect(getStatus(state.hero, 'vulnerable')).toBeDefined();
+    performAction(state, { type: 'potion' }, rng);
+    expect(getStatus(state.hero, 'vulnerable')).toBeUndefined();
+  });
+
+  it('метка охотника: первый удар в ходу вешает уязвимость, второй бьёт сильнее', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'hunters_mark', tier: 1 }] });
+    const bear = first(state);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 5);
+    expect(getStatus(bear, 'vulnerable')?.turns).toBe(1);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    // 5 × 0.75 усталости = 3 → ×1.25 = 3.75 → 4
+    expect(bear.hp).toBe(35 - 5 - 4);
+  });
+
+  it('кровавый жетон лечит за убийство, плащ странника даёт блок в начале боя', () => {
+    const { state, rng } = mkBattle('warrior', ['rat'], { extra: [{ id: 'blood_token', tier: 1 }, { id: 'wanderer_cloak', tier: 2 }] });
+    expect(state.hero.block).toBe(5);
+    state.hero.hp = 20;
+    first(state).hp = 3;
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(state.enemies.length).toBe(0);
+    expect(state.hero.hp).toBe(22);
+  });
+
+  it('адреналин: стамина сейчас, изнурение на следующем ходу', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'adrenaline', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'adrenaline' }, rng);
+    expect(state.hero.sta).toBe(4);
+    pass(state, rng);
+    expect(state.hero.sta).toBe(2);
+  });
+
+  it('щитовой удар и молот света: удар с блоком, удар с лечением за ману', () => {
+    const w = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_bash', tier: 1 }] });
+    const bear = first(w.state);
+    performAction(w.state, { type: 'artifact', artifactId: 'shield_bash', target: bear.uid }, w.rng);
+    // 5 × 0.75 = 3.75 → 3, блок +3
+    expect(bear.hp).toBe(35 - 3);
+    expect(w.state.hero.block).toBe(3);
+
+    const p = mkBattle('paladin', ['bear'], { extra: [{ id: 'light_hammer', tier: 1 }] });
+    p.state.hero.hp = 10;
+    performAction(p.state, { type: 'artifact', artifactId: 'light_hammer', target: first(p.state).uid }, p.rng);
+    expect(p.state.hero.hp).toBe(12);
+    expect(p.state.hero.sta).toBe(2);
+    expect(p.state.hero.mp).toBe(5);
+    expect(canUseAction(p.state, { type: 'artifact', artifactId: 'light_hammer', target: first(p.state).uid })).toMatch(/Перезарядка/);
   });
 });

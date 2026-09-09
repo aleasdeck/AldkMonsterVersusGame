@@ -15,7 +15,7 @@ import type {
 import { chance, pick, weighted, type Rng } from './rng';
 import { ARTIFACT_IDS } from '../data/artifacts';
 import { makeGear } from '../data/gear';
-import { heroDef } from '../data/heroes';
+import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { EVENT_WEIGHTS, type ActDef } from '../data/locations';
 import { POTION_IDS, potionDef } from '../data/potions';
 import { isMaxed } from './equipment';
@@ -88,8 +88,14 @@ function bump<T extends number>(tiers: T[], max: T): T[] {
   return Array.from(new Set(out));
 }
 
+/** Может ли артефакт выпасть герою: персональные — только владельцу (дубликат апгрейдит, выброшенный находится снова). */
+export function canDropFor(hero: HeroPersistent, id: string): boolean {
+  const owner = SIGNATURE_OWNER[id];
+  return !owner || owner === hero.defId;
+}
+
 export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], exclude: string[]): ArtifactInstance | null {
-  const ids = ARTIFACT_IDS.filter((id) => !exclude.includes(id) && !isMaxed(hero, id));
+  const ids = ARTIFACT_IDS.filter((id) => !exclude.includes(id) && !isMaxed(hero, id) && canDropFor(hero, id));
   if (ids.length === 0) return null;
   return { id: pick(rng, ids), tier: pick(rng, tiers) };
 }

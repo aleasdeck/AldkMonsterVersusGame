@@ -67,8 +67,8 @@ function heroPreview(app: App, def: HeroDef): HTMLElement {
       h(
         'div',
         { class: 'preview-col' },
-        h('h3', null, 'Стартовые артефакты'),
-        h('div', { class: 'preview-arts' }, ...def.artifacts.map((id) => artifactCard({ id, tier: 1 }))),
+        h('h3', null, 'Персональный артефакт'),
+        h('div', { class: 'preview-arts' }, artifactCard({ id: def.signature, tier: 1 }), h('p', { class: 'dim note' }, 'Стоит в оружии на старте, слот брони пуст. В забеге выпадает только этому герою.')),
       ),
     ),
     h('div', { class: 'row preview-foot' }, button(`Выбрать: ${def.name}`, () => app.newRun(def.id, parseSeed(app.seedText)), { class: 'primary big' })),

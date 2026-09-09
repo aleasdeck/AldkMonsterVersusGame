@@ -37,6 +37,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   poison: 'Яд',
   stealth: 'Скрытность',
   smoke: 'Дымовая завеса',
+  vulnerable: 'Уязвимость',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -52,8 +53,15 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   invuln: 'Не получает урона',
   poison: 'N урона в начале хода, игнорирует блок',
   stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит, снимает скрытность',
+  vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   smoke: 'Каждый удар врага с шансом 80 % проходит мимо. Атака героя из дыма — удар в спину: крит, снимает завесу',
 };
+
+/**
+ * Уязвимость: удары и заклинания по цели сильнее на четверть. Округление к ближайшему, не вниз:
+ * при уроне 3–7 за удар округление вниз съедало бонус целиком (3 × 1.25 = 3.75 → 3), и статус был декоративным.
+ */
+export const VULNERABLE_MULT = 1.25;
 
 /** Шанс, что удар врага пройдёт мимо героя в дымовой завесе («Дымовая шашка»). */
 export const SMOKE_MISS_CHANCE = 0.8;
@@ -154,6 +162,7 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     }
   }
   let rest = Math.max(0, amount);
+  if ((kind === 'hit' || kind === 'spell') && getStatus(e, 'vulnerable')) rest = Math.round(rest * VULNERABLE_MULT);
   if ((kind === 'hit' && !opts.pierce) || kind === 'spell') {
     const b = Math.min(e.block, rest);
     e.block -= b;
@@ -202,6 +211,7 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
       log(state, 'Герой уклоняется');
       return 0;
     }
+    if (getStatus(h, 'vulnerable')) rest = Math.round(rest * VULNERABLE_MULT);
     // Кольца кольчуги гасят часть каждого удара ещё до блока.
     if (h.stats.hitReduce > 0) rest = Math.max(0, rest - h.stats.hitReduce);
     if (!pierce) {
@@ -326,6 +336,8 @@ function cleanupDead(state: BattleState, rng: Rng): void {
     state.events.push({ type: 'death', target: e.uid });
     log(state, `${e.name} повержен`);
     state.stats.kills += 1;
+    // «Кровавый жетон»: глоток жизни за каждого убитого.
+    if (state.hero.stats.onKillHeal > 0 && state.hero.hp > 0) healHero(state, state.hero.stats.onKillHeal);
   }
   state.enemies = state.enemies.filter((e) => e.hp > 0);
   state.enemyQueue = state.enemyQueue.filter((uid) => state.enemies.some((e) => e.uid === uid));
@@ -405,6 +417,8 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
   if (dealt > 0 && e.hp > 0) {
     if (h.stats.stunOnHit > 0 && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnHit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
+    // «Метка охотника»: первый удар в ходу открывает цель для остальных.
+    if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
   }
   if (h.stats.blockOnHit > 0) {
     h.block += h.stats.blockOnHit;
@@ -452,7 +466,8 @@ export function previewOnTarget(state: BattleState, e: EnemyState, range: Damage
   if (getStatus(e, 'invuln')) return untouched;
   if (kind === 'hit' && getStatus(e, 'dodge')) return untouched;
   const block = kind === 'spell' || state.hero.stats.pierceBlock <= 0 ? e.block : 0;
-  const after = (dmg: number) => Math.max(0, e.hp - Math.max(0, dmg - block));
+  const vuln = getStatus(e, 'vulnerable') ? VULNERABLE_MULT : 1;
+  const after = (dmg: number) => Math.max(0, e.hp - Math.max(0, Math.round(dmg * vuln) - block));
   return { min: after(range.max), max: after(range.min) };
 }
 
@@ -549,7 +564,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       h.mp = Math.min(h.maxMp, h.mp + eff.amount);
       break;
     case 'cleanse': {
-      const bad: StatusId[] = ['bleed', 'burn', 'poison', 'weak', 'exhaust'];
+      const bad: StatusId[] = ['bleed', 'burn', 'poison', 'weak', 'exhaust', 'vulnerable'];
       const had = h.statuses.filter((s) => bad.includes(s.id)).map((s) => STATUS_NAMES[s.id]);
       for (const id of bad) removeStatus(h, id);
       log(state, had.length ? `Снято: ${had.join(', ')}` : 'Снимать нечего');
@@ -902,6 +917,11 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
   // Тень покрова: герой входит в бой невидимым.
   if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
   startPlayerTurn(state);
+  // «Плащ странника»: блок в начале боя — после старта хода, иначе сгорит вместе с остальным.
+  if (stats.blockStart > 0) {
+    state.hero.block += stats.blockStart;
+    state.events.push({ type: 'block', target: 'hero', amount: stats.blockStart });
+  }
   return state;
 }
 

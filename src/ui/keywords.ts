@@ -31,6 +31,7 @@ const STATUS_STEMS: Record<StatusId, string> = {
   invuln: 'неуязвим[а-яё]*',
   poison: 'яд(?:а|у|ом|е)?',
   stealth: 'скрытност[а-яё]*',
+  vulnerable: 'уязвим[а-яё]*',
   smoke: 'дымов(?:ая|ой|ую) завес[а-яё]*|завес[а-яё]*',
 };
 

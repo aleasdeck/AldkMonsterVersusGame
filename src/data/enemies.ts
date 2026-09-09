@@ -131,7 +131,7 @@ const list: EnemyDef[] = [
     location: 'forest',
     rank: 'normal',
     actions: [
-      act('curse', 'Проклятие', [{ type: 'debuff', status: 'weak', value: 1, turns: 2 }]),
+      act('curse', 'Сглаз', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 2 }]),
       act('mend', 'Знахарство', [{ type: 'heal', amount: 4, target: 'allies' }]),
       act('spark', 'Искра', [{ type: 'attack', amount: 5 }]),
     ],
@@ -322,7 +322,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     actions: [
       act('hex', 'Сглаз', [
-        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+        { type: 'debuff', status: 'vulnerable', value: 1, turns: 2 },
         { type: 'drainMp', amount: 2 },
       ]),
       act('spark', 'Чёрная искра', [{ type: 'attack', amount: 8 }]),
@@ -677,7 +677,7 @@ const list: EnemyDef[] = [
     location: 'swamp',
     rank: 'normal',
     actions: [
-      act('morok', 'Морок', [{ type: 'debuff', status: 'weak', value: 1, turns: 2 }]),
+      act('morok', 'Морок', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 2 }]),
       act('scratch', 'Царапины', [{ type: 'attack', amount: 4, hits: 2 }]),
       act('cackle', 'Хохот', [{ type: 'heal', amount: 3, target: 'allies' }]),
     ],
@@ -840,7 +840,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     actions: [
       act('spores', 'Споры', [
-        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+        { type: 'debuff', status: 'vulnerable', value: 1, turns: 2 },
         { type: 'drainMp', amount: 1 },
       ]),
       act('burst', 'Выброс', [
@@ -1003,7 +1003,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     actions: [
       act('song', 'Песнь', [
-        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+        { type: 'debuff', status: 'vulnerable', value: 1, turns: 2 },
         { type: 'drainMp', amount: 3 },
       ]),
       act('claws', 'Когти', [{ type: 'attack', amount: 10 }]),

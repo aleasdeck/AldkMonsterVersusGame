@@ -102,6 +102,30 @@ const list: ArtifactDef[] = [
     describe: (tier) => `+${t(3, 6, 9)(tier)} к максимуму урона оружия`,
   },
 
+  {
+    id: 'blood_token',
+    name: 'Кровавый жетон',
+    glyph: '✚',
+    kind: 'passive',
+    mods: (tier) => ({ onKillHeal: t(2, 3, 4)(tier) }),
+    describe: (tier) => `+${t(2, 3, 4)(tier)} HP за каждого убитого врага`,
+  },
+  {
+    id: 'wanderer_cloak',
+    name: 'Плащ странника',
+    glyph: '⛊',
+    kind: 'passive',
+    mods: (tier) => ({ blockStart: t(3, 5, 7)(tier) }),
+    describe: (tier) => `+${t(3, 5, 7)(tier)} Блока в начале боя`,
+  },
+  {
+    id: 'hunters_mark',
+    name: 'Метка охотника',
+    glyph: '◎',
+    kind: 'passive',
+    mods: (tier) => ({ markOnHit: t(1, 2, 2)(tier) }),
+    describe: (tier) => `Первый удар героя в ходу вешает Уязвимость на ${t(1, 2, 2)(tier)} ход(а)`,
+  },
   // ─── Активные физические (STA) ───────────────────────────────────────────
   {
     id: 'heavy_strike',
@@ -174,12 +198,12 @@ const list: ArtifactDef[] = [
     cooldown: () => 2,
     target: 'self',
     effects: (tier) => [
-      // Цена крови 3/2/2: с 2/1/1 Берсерк был самым живучим героем у бота даже после общего нерфа.
-      { type: 'selfDamage', amount: t(3, 2, 2)(tier) },
+      // Цена крови 2/1/1 (v0.14): с одной Яростью на старте и без Клича при 3/2/2 Берсерк давал 34 % у бота, с 2/1/1 — 47 %.
+      { type: 'selfDamage', amount: t(2, 1, 1)(tier) },
       { type: 'gainSta', amount: t(3, 3, 3)(tier) },
       { type: 'status', target: 'self', status: 'strength', value: t(1, 2, 3)(tier), turns: 1 },
     ],
-    describe: (tier) => `Ранит себя на ${t(3, 2, 2)(tier)} HP, даёт +${t(3, 3, 3)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
+    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(3, 3, 3)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
   },
   {
     id: 'second_wind',
@@ -245,6 +269,65 @@ const list: ArtifactDef[] = [
     describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода (стакается). Бросок не снимает скрытность`,
   },
 
+  {
+    id: 'shield_bash',
+    name: 'Щитовой удар',
+    glyph: '⛨',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 2,
+    target: 'enemy',
+    effects: (tier) => [
+      { type: 'attack', bonus: t(0, 1, 2)(tier), target: 'enemy', mult: 0.75 },
+      { type: 'block', amount: t(3, 4, 5)(tier) },
+    ],
+    describe: (tier) => `Атака на 75 % урона +${t(0, 1, 2)(tier)} и +${t(3, 4, 5)(tier)} Блока. КД 2`,
+  },
+  {
+    id: 'light_hammer',
+    name: 'Молот света',
+    glyph: '✠',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 1, mp: 1 },
+    // Первая версия (+2/3/4, лечение 3/4/5, КД 2) давала Паладину 72 % у бота; эта — 58 %.
+    cooldown: () => 3,
+    target: 'enemy',
+    effects: (tier) => [
+      { type: 'attack', bonus: t(1, 2, 3)(tier), target: 'enemy' },
+      { type: 'heal', amount: t(2, 3, 4)(tier) },
+    ],
+    describe: (tier) => `Атака +${t(1, 2, 3)(tier)} и лечение ${t(2, 3, 4)(tier)} HP. 1 STA + 1 MP, КД 3`,
+  },
+  {
+    id: 'net',
+    name: 'Ловчая сеть',
+    glyph: '⌗',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 2,
+    target: 'allEnemies',
+    effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'weak', value: 1, turns: t(1, 2, 2)(tier) }],
+    describe: (tier) => `Слабость всем врагам на ${t(1, 2, 2)(tier)} ход(а). КД 2`,
+  },
+  {
+    id: 'adrenaline',
+    name: 'Адреналин',
+    glyph: '↯',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 0 },
+    cooldown: () => 3,
+    target: 'self',
+    effects: (tier) => [
+      { type: 'gainSta', amount: t(1, 1, 2)(tier) },
+      // Два хода, а не один: статус вешается в свой ход и тик конца хода снял бы его до начала следующего.
+      { type: 'status', target: 'self', status: 'exhaust', value: 1, turns: 2 },
+    ],
+    describe: (tier) => `+${t(1, 1, 2)(tier)} STA сейчас, Изнурение 1 на следующем ходу. КД 3`,
+  },
   // ─── Активные магические (MP) ────────────────────────────────────────────
   {
     id: 'fireball',
@@ -345,6 +428,44 @@ const list: ArtifactDef[] = [
     effects: (tier) => [{ type: 'summon', enemyId: 'wolf', hpBonus: t(0, 4, 8)(tier) }],
     describe: (tier) =>
       `Призывает волка (${enemyDef('wolf').hp + t(0, 4, 8)(tier)} HP) рядом с героем. Кусает сам после вашего хода, враги бьют его первым. КД 3`,
+  },
+  {
+    id: 'magic_missile',
+    name: 'Волшебная стрела',
+    glyph: '➹',
+    kind: 'active',
+    school: 'magic',
+    cost: { mp: 1 },
+    target: 'enemy',
+    effects: (tier) => [{ type: 'spell', amount: t(4, 5, 6)(tier), target: 'enemy' }],
+    describe: (tier) => `${t(4, 5, 6)(tier)} урона заклинанием. Без перезарядки`,
+  },
+  {
+    id: 'spark',
+    name: 'Искра',
+    glyph: '✦',
+    kind: 'active',
+    school: 'magic',
+    cost: { mp: 1 },
+    cooldown: () => 1,
+    target: 'enemy',
+    effects: (tier) => [
+      { type: 'spell', amount: t(4, 6, 8)(tier), target: 'enemy' },
+      { type: 'status', target: 'enemy', status: 'burn', value: t(1, 2, 3)(tier), turns: 2 },
+    ],
+    describe: (tier) => `${t(4, 6, 8)(tier)} урона заклинанием и Горение ${t(1, 2, 3)(tier)} на 2 хода. Раз в ход`,
+  },
+  {
+    id: 'hex',
+    name: 'Сглаз',
+    glyph: '☉',
+    kind: 'active',
+    school: 'magic',
+    cost: { mp: 1 },
+    cooldown: () => 2,
+    target: 'allEnemies',
+    effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'vulnerable', value: 1, turns: t(2, 3, 3)(tier) }],
+    describe: (tier) => `Уязвимость всем врагам на ${t(2, 3, 3)(tier)} ход(а). КД 2`,
   },
 ];
 
