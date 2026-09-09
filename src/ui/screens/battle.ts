@@ -213,6 +213,7 @@ function tiles(app: App): HTMLElement {
       kind = 'spell';
     }
     const total = ad.cooldown?.(inst.tier) ?? 0;
+    const limit = ad.usesPerTurn?.(inst.tier) ?? 0;
     const err = canUseAction(b, action);
     specs.push({
       glyph: ad.glyph,
@@ -225,7 +226,7 @@ function tiles(app: App): HTMLElement {
       onclick: () => app.battleAction(action),
       preview: () => ({
         title: `${ad.name} · тир ${inst.tier}`,
-        parts: [artifactCostText(ad, inst.tier), ad.describe(inst.tier), total ? `перезарядка ${total} х.` : ''],
+        parts: [artifactCostText(ad, inst.tier), ad.describe(inst.tier), total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
         target: range ? target : undefined,
         range: range ?? undefined,
         kind,

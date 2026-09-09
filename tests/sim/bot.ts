@@ -88,7 +88,7 @@ export const USES: Record<string, number> = {};
 function cloneBattle(b: BattleState): BattleState {
   return {
     ...b,
-    hero: { ...b.hero, statuses: b.hero.statuses.map((s) => ({ ...s })), cooldowns: { ...b.hero.cooldowns } },
+    hero: { ...b.hero, statuses: b.hero.statuses.map((s) => ({ ...s })), cooldowns: { ...b.hero.cooldowns }, uses: { ...b.hero.uses } },
     enemies: b.enemies.map((e) => ({ ...e, statuses: e.statuses.map((s) => ({ ...s })), uses: { ...e.uses }, lastUsedTurn: { ...e.lastUsedTurn } })),
     allies: b.allies.map((a) => ({ ...a, statuses: a.statuses.map((s) => ({ ...s })) })),
     allyQueue: b.allyQueue.slice(),

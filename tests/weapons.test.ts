@@ -93,7 +93,7 @@ describe('перки баз в статах', () => {
     expect(computeStats(w, weapon('sword', 5), armorOf('warrior')).def).toBe(6 + 1 + 1);
     expect(computeStats(w, weapon('axe', 5), armorOf('warrior')).fatigue).toBeCloseTo(0.8);
     const m = heroDef('mage');
-    expect(computeStats(m, weapon('staff', 5), armorOf('mage')).maxMp).toBe(12);
+    expect(computeStats(m, weapon('staff', 5), armorOf('mage')).maxMp).toBe(7 + 2);
     expect(computeStats(m, weapon('wand', 5), armorOf('mage')).mpRegen).toBe(3);
     expect(computeStats(m, weapon('orb', 5), armorOf('mage')).thorns).toBe(1);
   });
