@@ -96,7 +96,7 @@ describe('расчёт статов', () => {
   it('складывает героя, броню и пассивки', () => {
     const h = mkHero('warrior');
     const s = computeStats(heroDef('warrior'), h.weapon, h.armor);
-    expect(s.maxHp).toBe(40 + 6);
+    expect(s.maxHp).toBe(46 + 6);
     // 6 героя + 1 кольчуга + 1 Парирование меча
     expect(s.def).toBe(6 + 1 + 1);
     expect([s.dmgMin, s.dmgMax]).toEqual([4, 6]);
@@ -107,7 +107,7 @@ describe('расчёт статов', () => {
     const h = mkHero('warrior');
     addArtifact(h, { id: 'troll_heart', tier: 3 });
     const s = computeStats(heroDef('warrior'), h.weapon, h.armor);
-    expect(s.maxHp).toBe(40 + 18);
+    expect(s.maxHp).toBe(46 + 18);
   });
 
   it('броня из таблицы тиров даёт DEF и HP', () => {
@@ -118,7 +118,7 @@ describe('расчёт статов', () => {
     equipGear(h, armor);
     const s = computeStats(heroDef('mage'), h.weapon, h.armor);
     expect(s.def).toBe(3 + 7);
-    expect(s.maxHp).toBe(23 + 18);
+    expect(s.maxHp).toBe(26 + 18);
   });
 
   it('серая экипировка тоже что-то даёт: базовый бонус и аффикс', () => {
