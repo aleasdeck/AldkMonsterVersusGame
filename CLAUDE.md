@@ -113,7 +113,7 @@ tests/        vitest; sim/bot.ts — умный бот (W — веса оцен�
 
 - Ветки `feat/…`, `ui/…`, `fix/…`; после работы merge в `main` (без squash, история — merge-коммиты). Remote: github.com/aleasdeck/AldkMonsterVersusGame.
 - Коммиты на английском в стиле `feat: …`, `ui: …`, `fix(ui): …`. **Без AI-атрибуции** (правило пользователя).
-- fetch/push через `HTTPS_PROXY=http://mow-it-proxy-haproxy.partner.ru:3128`; push лучше в фоне (GCM может открыть окно входа).
+- На рабочей машине fetch/push идут через корпоративный прокси: `HTTPS_PROXY` брать из окружения / локальных заметок, в репо не писать; push лучше в фоне (GCM может открыть окно входа).
 - Стейл `.git/index.lock` от прошлой сессии — удалять, если `tasklist` не показывает git.
 
 ## Ловушки тулинга
