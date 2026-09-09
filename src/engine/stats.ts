@@ -47,7 +47,7 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     thornsImmune: 0,
     splash: 0,
     onHitBleed: 0,
-    stunOnCrit: 0,
+    stunOnHit: 0,
     blockOnHit: 0,
     spellLeech: 0,
     hitReduce: 0,

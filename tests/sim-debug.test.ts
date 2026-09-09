@@ -3,9 +3,9 @@
  * SIM_DEBUG=stall SIM_HERO=paladin — найти первый забег с патом и показать хвост лога зависшего боя.
  */
 import { it } from 'vitest';
-import { campRest, chooseEvent, currentRoomKind, enterRoom, heroStats, isRunOver, leaveShop, newRun } from '../src/engine/run';
+import { campRest, currentRoomKind, enterRoom, heroStats, isRunOver, leaveShop, newRun } from '../src/engine/run';
 import { artifactDef } from '../src/data/artifacts';
-import { chooseReward, evaluate, planTurn, playBattle, resolvePending } from './sim/bot';
+import { chooseEventRoom, chooseReward, evaluate, planTurn, playBattle, resolvePending } from './sim/bot';
 import type { RunState } from '../src/engine/types';
 
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
@@ -52,7 +52,7 @@ function playUntil(run: RunState, onBattle: (kind: string, log: string[]) => boo
         chooseReward(run);
         break;
       case 'event':
-        chooseEvent(run, 'spring');
+        chooseEventRoom(run);
         break;
       case 'shop':
         leaveShop(run);

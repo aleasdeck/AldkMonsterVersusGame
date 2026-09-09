@@ -29,7 +29,8 @@ export type StatusId =
   | 'regen' // +value HP в начале хода
   | 'invuln' // не получает урона, turns ходов
   | 'poison' // value урона в начале хода, turns ходов; яд ассасина
-  | 'stealth'; // враги не видят героя; любая атака — удар в спину (крит) и снимает статус (только герой)
+  | 'stealth' // враги не видят героя; любая атака — удар в спину (крит) и снимает статус (только герой)
+  | 'smoke'; // дымовая завеса: каждый удар врага с шансом SMOKE_MISS_CHANCE проходит мимо; атаки героя её не снимают (только герой)
 
 export interface Status {
   id: StatusId;
@@ -72,8 +73,8 @@ export interface DerivedStats {
   splash: number;
   /** Кровотечение, которое вешает каждый удар (на 2 хода). */
   onHitBleed: number;
-  /** >0 — крит оглушает цель. */
-  stunOnCrit: number;
+  /** Шанс 0..1, что удар оглушит цель (праща). */
+  stunOnHit: number;
   /** Блок за каждый удар. */
   blockOnHit: number;
   /** Лечение за каждое заклинание. */
@@ -407,6 +408,8 @@ export type RewardSource = 'fight' | 'elite' | 'bossGear' | 'bossArt' | 'potion'
 
 export interface RewardScreen {
   title: string;
+  /** Подзаголовок вместо стандартного: «Раны затянулись: +12 HP» после босса. */
+  note?: string;
   source: RewardSource;
   options: LootItem[];
   /** Переброс уже потрачен (один на экран). */
@@ -422,10 +425,21 @@ export interface PendingPlacement {
   consumeReward: boolean;
 }
 
-export type EventOption =
-  | { id: 'spring'; title: string; desc: string }
-  | { id: 'altar'; title: string; desc: string; artifact: ArtifactInstance }
-  | { id: 'chest'; title: string; desc: string; gear: GearInstance };
+/** Что выпало в клетке «Событие»: привал, элита, торговец, сундук, алтарь или кузнец (веса — EVENT_WEIGHTS). */
+export type EventKind = 'camp' | 'elite' | 'shop' | 'chest' | 'altar' | 'forge';
+
+/**
+ * Событие, пока герой в нём. Привал и торговец живут своими фазами (`camp`, `shop`), элита — боем с пометкой,
+ * чтобы награда и золото были как за клетку элиты; сундук, алтарь и кузнец — фаза `event`.
+ */
+export type EventState =
+  | { kind: 'camp' }
+  | { kind: 'elite' }
+  | { kind: 'shop' }
+  | { kind: 'chest'; gear: GearInstance }
+  /** null — все артефакты уже на максимуме, остаётся только молитва. */
+  | { kind: 'altar'; artifact: ArtifactInstance | null }
+  | { kind: 'forge' };
 
 export interface RunStats {
   kills: number;
@@ -439,7 +453,7 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
@@ -458,7 +472,8 @@ export interface RunState {
   rewards: RewardScreen[];
   /** Товары торговца, пока герой у него; null — закрыт. */
   shop: ShopState | null;
-  event: { options: EventOption[] } | null;
+  /** Текущее событие клетки «Событие»; null — герой не в событии. */
+  event: EventState | null;
   pending: PendingPlacement | null;
   stats: RunStats;
 }

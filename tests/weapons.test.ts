@@ -139,13 +139,16 @@ describe('перки баз в бою', () => {
     expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 1, turns: 2 });
   });
 
-  it('праща оглушает критом', () => {
-    const { state, rng } = mkBattle('archer', ['bear'], weapon('sling', 5));
-    state.hero.stats.crit = 1;
-    const bear = state.enemies[0];
-    performAction(state, { type: 'attack', target: bear.uid }, rng);
-    expect(bear.hp).toBe(35 - 10);
-    expect(getStatus(bear, 'stun')).toBeDefined();
+  it('праща оглушает каждым ударом с шансом 50 %: на 400 первых ударах от 150 до 250 оглушений', () => {
+    let stuns = 0;
+    for (let seed = 1; seed <= 400; seed++) {
+      const { state, rng } = mkBattle('archer', ['bear'], weapon('sling', 5), seed);
+      const bear = state.enemies[0];
+      performAction(state, { type: 'attack', target: bear.uid }, rng);
+      if (getStatus(bear, 'stun')) stuns += 1;
+    }
+    expect(stuns).toBeGreaterThanOrEqual(150);
+    expect(stuns).toBeLessThanOrEqual(250);
   });
 
   it('арбалет даёт блок за каждый выстрел', () => {

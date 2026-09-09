@@ -8,32 +8,40 @@
  */
 import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { canUseAction, endTurn, getStatus, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
+import { SMOKE_MISS_CHANCE, canUseAction, endTurn, getStatus, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
-import { canWearArmor, weaponDice } from '../../src/data/gear';
+import { canWearArmor, upgradeGearTier, weaponDice } from '../../src/data/gear';
 import { potionDef } from '../../src/data/potions';
 import { findSameArtifact, gearOf, socketRefs, type SocketRef } from '../../src/engine/equipment';
-import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, gearPrice } from '../../src/engine/loot';
+import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice } from '../../src/engine/loot';
 import {
+  altarHealAmount,
+  altarPray,
+  altarSacrifice,
+  altarSacrificeCost,
   battleAction,
   battleEndTurn,
   battleEnemyStep,
   campForge,
+  campHealAmount,
   campRest,
+  canAltarSacrifice,
+  canForge,
   canReroll,
   canShopBuyArtifact,
   canShopBuyGear,
   canShopBuyPotion,
   canShopHeal,
   canShopReroll,
-  chooseEvent,
   currentRoomKind,
   enterRoom,
   finishBattle,
+  forgeUpgrade,
   heroStats,
   isRunOver,
+  leaveEvent,
   leaveShop,
   pendingDiscard,
   pendingPlace,
@@ -45,6 +53,7 @@ import {
   shopHealAmount,
   shopReroll,
   skipReward,
+  takeChest,
   takeReward,
 } from '../../src/engine/run';
 
@@ -143,6 +152,9 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
   const hidden = !!st && (st.turns === -1 || st.turns > 1);
   const inv = getStatus(h, 'invuln');
   const invuln = !!inv && (inv.turns === -1 || inv.turns > 1);
+  // Дымовая завеса гасит удар с шансом SMOKE_MISS_CHANCE — в ожидании считаем долю урона.
+  const sm = getStatus(h, 'smoke');
+  const smokeMult = sm && (sm.turns === -1 || sm.turns > 1) ? 1 - SMOKE_MISS_CHANCE : 1;
   let dodge = statusValue(h, 'dodge');
   let block = h.block;
   let hit = 0;
@@ -164,7 +176,7 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
             dodge--;
             continue;
           }
-          let rest = Math.max(0, dmg - h.stats.hitReduce);
+          let rest = Math.max(0, Math.round(dmg * smokeMult) - h.stats.hitReduce);
           if (!pierce) {
             const used = Math.min(block, rest);
             block -= used;
@@ -218,7 +230,7 @@ export function evaluate(b: BattleState): number {
   if (pushing) s += (b.stats.damageDealt - pushBase) * W.pushReward;
   const str = getStatus(h, 'strength');
   if (str) s += str.value * Math.min(3, str.turns === -1 ? 3 : str.turns) * 1.5;
-  const st = getStatus(h, 'stealth');
+  const st = getStatus(h, 'stealth') ?? getStatus(h, 'smoke');
   if (st && (st.turns === -1 || st.turns > 1)) s += 4;
   s += statusValue(h, 'dodge') * 3;
   s += h.mp * W.mp;
@@ -434,6 +446,7 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
           if (e.status === 'strength') per += e.value * turns * 1.5;
           else if (e.status === 'dodge') per += 4;
           else if (e.status === 'stealth') per += turns * 4;
+          else if (e.status === 'smoke') per += turns * 3;
           else if (e.status === 'regen') per += e.value * turns;
           else per += 2;
         } else {
@@ -567,28 +580,40 @@ export function chooseReward(run: RunState): void {
   else skipReward(run);
 }
 
-function chooseEventDoor(run: RunState): void {
-  const max = heroStats(run).maxHp;
-  const missing = max - run.hero.hp;
-  let bestId = 'spring';
-  let bestScore = Math.min(Math.floor(max * 0.3), missing);
-  for (const o of run.event?.options ?? []) {
-    let score = -Infinity;
-    if (o.id === 'altar') {
-      const cost = Math.floor(max * 0.1);
-      score = run.hero.hp - cost >= max * 0.3 ? artifactGain(run, o.artifact) * 2 - cost : -Infinity;
-    } else if (o.id === 'chest') score = gearGain(run, o.gear);
-    if (score > bestScore) {
-      bestScore = score;
-      bestId = o.id;
-    }
+/** Сундук, алтарь, кузнец: то же, что награда и торговец — по ценности, лишнее оставить. */
+export function chooseEventRoom(run: RunState): void {
+  const ev = run.event;
+  if (!ev) return;
+  if (ev.kind === 'chest') {
+    if (gearGain(run, ev.gear) > 0) takeChest(run);
+    else leaveEvent(run);
+    return;
   }
-  chooseEvent(run, bestId);
+  if (ev.kind === 'altar') {
+    const max = heroStats(run).maxHp;
+    const heal = altarHealAmount(run);
+    const cost = altarSacrificeCost(run);
+    const gain = ev.artifact && !canAltarSacrifice(run) && run.hero.hp - cost >= max * 0.3 ? artifactGain(run, ev.artifact) * 2 - cost : -Infinity;
+    if (gain > heal && gain > 0) altarSacrifice(run);
+    else altarPray(run);
+    return;
+  }
+  // Кузнец: ценность апгрейда — как у нового предмета того же тира на месте надетого; цена за монету — как у торговца.
+  let best: { kind: GearInstance['kind']; ratio: number } | null = null;
+  for (const kind of ['weapon', 'armor'] as GearInstance['kind'][]) {
+    if (canForge(run, kind)) continue;
+    const cur = gearOf(run.hero, kind);
+    const copy: GearInstance = { ...cur, slots: cur.slots.slice(), affix: cur.affix ? { ...cur.affix } : null };
+    upgradeGearTier(createRng(1), copy);
+    const ratio = gearGain(run, copy) / forgePrice(cur);
+    if (ratio >= 0.6 && (!best || ratio > best.ratio)) best = { kind, ratio };
+  }
+  if (best) forgeUpgrade(run, best.kind);
+  else leaveEvent(run);
 }
 
 function chooseCamp(run: RunState): void {
-  const max = heroStats(run).maxHp;
-  const heal = Math.min(Math.floor(max * 0.5), max - run.hero.hp);
+  const heal = campHealAmount(run);
   let best: SocketRef | null = null;
   let bestGain = 0;
   for (const s of socketRefs(run.hero)) {
@@ -647,7 +672,7 @@ export function playRun(run: RunState, onBoss?: (run: RunState) => void): RunOut
         chooseReward(run);
         break;
       case 'event':
-        chooseEventDoor(run);
+        chooseEventRoom(run);
         break;
       case 'shop':
         shopVisit(run);

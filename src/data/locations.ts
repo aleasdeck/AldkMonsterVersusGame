@@ -1,4 +1,4 @@
-import type { ArtTier, GearTier, LocationId, RoomKind } from '../engine/types';
+import type { ArtTier, EventKind, GearTier, LocationId, RoomKind } from '../engine/types';
 import { shuffle, type Rng } from '../engine/rng';
 
 export type LocationTier = 1 | 2 | 3;
@@ -262,12 +262,15 @@ export function enemyScale(homeTier: LocationTier, act: number, rank: 'normal' |
   return { hp: to.hp / from.hp, dmg: (to.dmg / from.dmg) * ACT_DMG_BONUS[idx] };
 }
 
-/** Этаж локации: торговец — остановка без боя между элитой и боссом, в него входят с карты, как в комнату. */
-export const ROOM_KINDS: RoomKind[] = ['fight', 'fight', 'event', 'fight', 'fight', 'elite', 'shop', 'boss'];
+/**
+ * Этаж локации: десять клеток, три случайных события (третье — перед боссом). Торговца и привала как своих клеток нет —
+ * они выпадают в событии (EVENT_WEIGHTS), после босса герой лечится на BOSS_HEAL_PCT и сразу идёт в следующую локацию.
+ */
+export const ROOM_KINDS: RoomKind[] = ['fight', 'fight', 'event', 'fight', 'fight', 'event', 'fight', 'elite', 'event', 'boss'];
 
 export const ROOMS_PER_LOCATION = ROOM_KINDS.length;
 
-/** Боёв за забег — для статистики и «лучшего результата». */
+/** Гарантированных боёв за забег — для статистики и «лучшего результата»; элита из события сверх того. */
 export const FIGHTS_PER_RUN = ROOM_KINDS.filter((k) => k !== 'event' && k !== 'shop').length * ACTS_PER_RUN;
 
 export const ROOM_NAMES: Record<RoomKind, string> = {
@@ -277,6 +280,28 @@ export const ROOM_NAMES: Record<RoomKind, string> = {
   shop: 'Торговец',
   boss: 'Босс',
 };
+
+/** Что может выпасть в клетке «Событие», в процентах. Сумма 100. */
+export const EVENT_WEIGHTS: Record<EventKind, number> = {
+  camp: 10,
+  elite: 5,
+  shop: 25,
+  chest: 25,
+  altar: 25,
+  forge: 10,
+};
+
+export const EVENT_NAMES: Record<EventKind, string> = {
+  camp: 'Привал',
+  elite: 'Элита',
+  shop: 'Торговец',
+  chest: 'Сундук',
+  altar: 'Алтарь',
+  forge: 'Кузнец',
+};
+
+/** Доля максимума HP, которую герой восстанавливает после босса локации. */
+export const BOSS_HEAL_PCT = 0.3;
 
 export function roomKind(roomIndex: number): RoomKind {
   return ROOM_KINDS[roomIndex] ?? 'boss';
