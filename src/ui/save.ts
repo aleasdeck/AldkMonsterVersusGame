@@ -28,6 +28,8 @@ export interface Profile {
   chests: number;
   /** id найденных предметов каталога. */
   collection: string[];
+  /** id врагов, которые хоть раз показались в бою — открытые записи бестиария. */
+  bestiary: string[];
 }
 
 function emptyProfile(): Profile {
@@ -44,6 +46,7 @@ function emptyProfile(): Profile {
     heroWins: {},
     chests: 0,
     collection: [],
+    bestiary: [],
   };
 }
 
@@ -141,5 +144,12 @@ export function claimChest(id: string): Profile {
   const p = loadProfile();
   if (p.chests > 0) p.chests -= 1;
   if (!p.collection.includes(id)) p.collection.push(id);
+  return saveProfile(p);
+}
+
+/** Записать встреченных врагов в бестиарий. Список приходит уже без дубликатов и уже открытых. */
+export function recordEnemies(ids: string[]): Profile {
+  const p = loadProfile();
+  for (const id of ids) if (!p.bestiary.includes(id)) p.bestiary.push(id);
   return saveProfile(p);
 }

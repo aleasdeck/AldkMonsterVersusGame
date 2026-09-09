@@ -2,6 +2,7 @@ import { button, h } from '../dom';
 import { HEROES, heroDef } from '../../data/heroes';
 import { FIGHTS_PER_RUN } from '../../data/locations';
 import { COLLECTIBLES } from '../../data/collection';
+import { ENEMY_LIST } from '../../data/enemies';
 import type { Profile } from '../save';
 import type { App } from '../app';
 
@@ -35,6 +36,7 @@ function statsPanel(p: Profile): HTMLElement {
       row('Урона нанесено', `${p.damageDealt}`),
       row('Урона получено', `${p.damageTaken}`),
       row('Коллекция', `${p.collection.length}/${COLLECTIBLES.length}`),
+      row('Бестиарий', `${p.bestiary.length}/${ENEMY_LIST.length}`),
       row('Сундуков', `${p.chests}`),
     ),
   );
@@ -58,6 +60,7 @@ export function menuScreen(app: App): HTMLElement {
         button('Новый забег', () => app.showHeroSelect(), { class: hasSave ? 'big' : 'primary big' }),
         button(p.chests > 0 ? `Сундук (${p.chests})` : 'Сундук', () => app.showChest(), { class: p.chests > 0 ? 'big accent' : 'big' }),
         button('Коллекция', () => app.showCollection(), { class: 'big' }),
+        button('Бестиарий', () => app.showBestiary(), { class: 'big' }),
       ),
       p.runs ? statsPanel(p) : h('div', { class: 'menu-stats empty dim' }, 'Ещё ни одного забега.\nЗа каждый пройденный забег дают сундук с находкой в коллекцию.'),
     ),

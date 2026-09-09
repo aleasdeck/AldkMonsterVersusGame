@@ -11,7 +11,7 @@
 
 ```bash
 npm run dev                                          # http://localhost:5173
-npx vitest run                                       # тесты движка (~2 с, 155 тестов)
+npx vitest run                                       # тесты движка (~2 с, 160 тестов)
 node node_modules/typescript/bin/tsc --noEmit -p .   # typecheck — ТОЛЬКО так (см. ловушки)
 node node_modules/vite/bin/vite.js build             # сборка в dist/
 SIM=1 npx vitest run tests/balance-sim.test.ts       # бот-симулятор баланса, все герои, 60 забегов
@@ -29,7 +29,7 @@ src/engine/   чистая логика, без DOM, покрыта тестам
   types.ts      ВСЕ типы + SAVE_VERSION, MAX_ENEMIES, MAX_ALLIES. Начинать чтение отсюда.
   rng.ts        mulberry32: createRng/next/int/chance/pick/shuffle/weighted
   stats.ts      computeStats: база героя → кубик оружия (владение) → перки → аффиксы → пассивки
-  combat.ts     бой: статусы, урон, союзники, действия героя, ИИ врагов, createBattle, computeIntent
+  combat.ts     бой: статусы, урон, союзники, действия героя, ИИ врагов, createBattle, describeAction/computeIntent
   equipment.ts  слоты, addArtifact/replaceArtifact/equipGear, апгрейд дубликатом
   loot.ts       константы экономики (золото, цены, шанс зелья, цена кузнеца) и генерация наград/магазина/событий (rollEventKind)
   run.ts        машина состояний забега: enterRoom → startEvent | startBattle → finishBattle → reward → advanceRoom …; события: takeChest, altarPray/altarSacrifice, forgeUpgrade, leaveEvent
@@ -46,13 +46,13 @@ src/ui/       рендер и клики
                 и добавляет оверлеи, commit() = saveRun + render, ход врагов с таймером ENEMY_STEP_MS (под оверлеем ждёт), таймер забега
   frame.ts      runFrame(app, parts): топбар 40 + центр 320 + консоль 180 — все шесть экранов забега
   topbar.ts     портрет, золото, акт/локация, лента комнат (ROOM_ICONS), ход, таймер, меню; console.ts — блок героя, hubGear, кнопка лога
-  screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи
+  screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи; bestiary.ts — альбом врагов по локациям (describeAction из combat.ts)
   components.ts карточки предметов, бары, чипы, иконки типов, pendingModal; gearTile.ts — плитка экипировки с сокетами 2×2; dom.ts — h()/button()
   tooltip.ts    свои подсказки: атрибуты tip / tipTitle в h() → data-tip; keywords.ts — подсветка ключевых слов в описаниях
   preview.ts    ридаут и штриховка предпросмотра урона в бою (пишет в DOM без перерисовки); diff.ts — дельты к надетому в карточках
   hotkeys.ts    1–9, Space, C, L, Esc
   sprites.ts, backgrounds.ts, icons.ts   процедурная пиксель-графика (data URL)
-  save.ts       localStorage: забег (mv_run_v1, сброс при смене SAVE_VERSION) и профиль (mv_profile_v1, переживает версии)
+  save.ts       localStorage: забег (mv_run_v1, сброс при смене SAVE_VERSION) и профиль (mv_profile_v1, переживает версии; статистика, сундуки, коллекция, бестиарий — recordEnemies из App.render())
 src/main.ts   монтирование, масштаб кадра 960×540, разбор debug-параметров URL
 src/style.css один файл, секции /* ─── … */
 tests/        vitest; sim/bot.ts — умный бот (W — веса оценки, planTurn, playRun, chooseReward)
