@@ -2222,6 +2222,167 @@ p {
   max-width: none;
 }
 
+/* ─── Бестиарий: вкладки локаций, сетка врагов слева, запись справа ──── */
+
+.sprite.silhouette {
+  /* Не встреченный враг — чёрный силуэт: видно размер и форму, но не раскраску. */
+  filter: brightness(0) opacity(0.55);
+}
+.beast-tabs {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #101020;
+  border-bottom: 3px solid var(--border);
+}
+.beast-tab {
+  flex: 1;
+}
+.beast-tab.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: #2a2412;
+}
+.beast-tab-count {
+  margin-left: 6px;
+  font-size: 15px;
+  color: var(--dim);
+}
+.beast-grid {
+  width: 330px;
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 90px;
+  align-content: start;
+  gap: 6px;
+  padding: 8px;
+  background: #121220;
+  border-right: 3px solid var(--border);
+  overflow-y: auto;
+}
+.beast-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px;
+  background: var(--panel-2);
+  border: 2px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  transition: border-color 90ms, transform 90ms;
+}
+.beast-tile:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.beast-tile.selected {
+  border-color: var(--accent);
+  background: #2a2412;
+}
+.beast-tile.locked {
+  background: #10101a;
+  border-style: dashed;
+}
+.beast-tile.rank-elite:not(.locked) {
+  border-color: #b388ff;
+}
+.beast-tile.rank-boss:not(.locked) {
+  border-color: var(--bad);
+}
+.beast-tile.selected.rank-elite:not(.locked),
+.beast-tile.selected.rank-boss:not(.locked) {
+  border-color: var(--accent);
+}
+.beast-tile-name {
+  font-size: 14px;
+  line-height: 14px;
+  color: var(--dim);
+  text-align: center;
+  max-height: 28px;
+  overflow: hidden;
+}
+.beast-tile.locked .beast-tile-name {
+  color: #4a4a63;
+}
+.beast-detail {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.beast-head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.beast-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.beast-name {
+  font-size: 30px;
+  color: var(--accent);
+}
+.beast-rank {
+  font-size: 17px;
+  color: var(--dim);
+}
+.beast-rank.rank-elite {
+  color: #b388ff;
+}
+.beast-rank.rank-boss {
+  color: var(--bad);
+}
+.beast-hp {
+  font-size: 20px;
+  color: var(--hp);
+}
+.beast-detail h3 {
+  margin: 6px 0 0;
+  font-size: 18px;
+  color: var(--dim);
+}
+.beast-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.beast-action {
+  display: grid;
+  grid-template-columns: 22px 150px 1fr;
+  gap: 8px;
+  align-items: baseline;
+  padding: 2px 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  font-size: 17px;
+}
+.beast-action-icon {
+  text-align: center;
+}
+.beast-action-text {
+  font-size: 16px;
+}
+.beast-pattern,
+.beast-note {
+  font-size: 16px;
+  margin-top: 4px;
+}
+.beast-empty {
+  margin-top: 12px;
+  font-size: 18px;
+  max-width: 420px;
+}
+
 /* ─── Сундук ────────────────────────────────────────────────────────── */
 
 .chest .topbar .title-sm {

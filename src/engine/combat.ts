@@ -934,14 +934,31 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
 
 export type IntentKind = 'attack' | 'defend' | 'buff' | 'debuff' | 'heal' | 'summon' | 'special';
 
-export interface IntentInfo {
+/** Описание приёма врага: вид для иконки, короткая подпись (урон/блок) и текст подсказки. */
+export interface ActionInfo {
   kind: IntentKind;
   icon: string;
   label: string;
   name: string;
   text: string;
+}
+
+export interface IntentInfo extends ActionInfo {
   stunned: boolean;
 }
+
+/**
+ * Чем домножать числа приёма при описании: множители акта и текущие статусы врага.
+ * В бою берутся из состояния врага, в бестиарии — родные числа без статусов (BASE_SCALE).
+ */
+export interface ActionScale {
+  hpMult: number;
+  dmgMult: number;
+  strength: number;
+  weak: boolean;
+}
+
+export const BASE_SCALE: ActionScale = { hpMult: 1, dmgMult: 1, strength: 0, weak: false };
 
 const INTENT_ICON: Record<IntentKind, string> = {
   attack: '⚔',
@@ -955,17 +972,16 @@ const INTENT_ICON: Record<IntentKind, string> = {
 
 const INTENT_PRIORITY: IntentKind[] = ['attack', 'summon', 'debuff', 'heal', 'buff', 'defend', 'special'];
 
-export function computeIntent(e: EnemyState): IntentInfo {
-  const def = enemyDef(e.defId);
-  const a = enemyAction(def, e.intent);
+/** Текст приёма (или эффекта при смерти) по его эффектам — общий для намерения в бою и записи бестиария. */
+export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyEffect[] }, s: ActionScale = BASE_SCALE): ActionInfo {
   const parts: string[] = [];
   const kinds: IntentKind[] = [];
   let label = '';
   for (const eff of a.effects) {
     switch (eff.type) {
       case 'attack': {
-        let dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
-        if (getStatus(e, 'weak')) dmg = Math.floor(dmg * 0.75);
+        let dmg = scaled(s.dmgMult, eff.amount) + s.strength;
+        if (s.weak) dmg = Math.floor(dmg * 0.75);
         const hits = eff.hits ?? 1;
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
         const notes = [eff.pierce ? 'сквозь блок' : '', eff.drain ? 'вампиризм' : ''].filter(Boolean);
@@ -974,7 +990,7 @@ export function computeIntent(e: EnemyState): IntentInfo {
         break;
       }
       case 'block': {
-        const blk = scaled(e.hpMult, eff.amount);
+        const blk = scaled(s.hpMult, eff.amount);
         if (!label) label = `${blk}`;
         parts.push(`Блок ${blk}${eff.target === 'allies' ? ' всем' : ''}`);
         kinds.push('defend');
@@ -985,9 +1001,9 @@ export function computeIntent(e: EnemyState): IntentInfo {
         kinds.push('buff');
         break;
       case 'selfDestruct': {
-        const dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
+        const dmg = scaled(s.dmgMult, eff.amount) + s.strength;
         label = `${dmg}`;
-        parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${scaled(e.dmgMult, eff.burn)}` : ''}`);
+        parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${scaled(s.dmgMult, eff.burn)}` : ''}`);
         kinds.push('attack');
         break;
       }
@@ -996,17 +1012,17 @@ export function computeIntent(e: EnemyState): IntentInfo {
         break;
       case 'buffStr':
         parts.push(
-          `+${scaled(e.dmgMult, eff.amount)} к урону (${eff.target === 'self' ? 'себе' : eff.target === 'allies' ? 'всем союзникам' : 'всем: ' + def.name})`,
+          `+${scaled(s.dmgMult, eff.amount)} к урону (${eff.target === 'self' ? 'себе' : eff.target === 'allies' ? 'всем союзникам' : 'всем: ' + def.name})`,
         );
         kinds.push('buff');
         break;
       case 'heal':
-        parts.push(`Лечит ${scaled(e.hpMult, eff.amount)} (${eff.target === 'self' ? 'себя' : 'всех союзников'})`);
+        parts.push(`Лечит ${scaled(s.hpMult, eff.amount)} (${eff.target === 'self' ? 'себя' : 'всех союзников'})`);
         kinds.push('heal');
         break;
       case 'debuff': {
         const dur = eff.turns > 0 ? ` на ${eff.turns} ход(а)` : '';
-        const val = isDot(eff.status) ? ` ${scaled(e.dmgMult, eff.value)}` : '';
+        const val = isDot(eff.status) ? ` ${scaled(s.dmgMult, eff.value)}` : '';
         parts.push(`${STATUS_NAMES[eff.status]}${val}${dur}`);
         kinds.push('debuff');
         break;
@@ -1024,7 +1040,7 @@ export function computeIntent(e: EnemyState): IntentInfo {
         kinds.push('special');
         break;
       case 'thorns':
-        parts.push(`Шипы ${scaled(e.dmgMult, eff.amount)}`);
+        parts.push(`Шипы ${scaled(s.dmgMult, eff.amount)}`);
         kinds.push('buff');
         break;
     }
@@ -1036,8 +1052,14 @@ export function computeIntent(e: EnemyState): IntentInfo {
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: a.name,
     text: parts.length ? `${a.name}: ${parts.join(', ')}` : a.name,
-    stunned: !!getStatus(e, 'stun'),
   };
+}
+
+export function computeIntent(e: EnemyState): IntentInfo {
+  const def = enemyDef(e.defId);
+  const a = enemyAction(def, e.intent);
+  const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak') });
+  return { ...info, stunned: !!getStatus(e, 'stun') };
 }
 
 export interface AllyIntentInfo extends IntentInfo {

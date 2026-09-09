@@ -1,8 +1,8 @@
 import { h } from './dom';
-import type { BattleEvent, GearKind, PlayerAction, RunState } from '../engine/types';
+import type { BattleEvent, GearKind, LocationId, PlayerAction, RunState } from '../engine/types';
 import * as R from '../engine/run';
 import { STATUS_NAMES, canUseAction } from '../engine/combat';
-import { claimChest, clearRun, loadProfile, loadRun, recordResult, saveRun, type Profile } from './save';
+import { claimChest, clearRun, loadProfile, loadRun, recordEnemies, recordResult, saveRun, type Profile } from './save';
 import { rollCollectible } from '../data/collection';
 import { HERO_LIST } from '../data/heroes';
 import { createRng } from '../engine/rng';
@@ -16,6 +16,7 @@ import { shopScreen } from './screens/shop';
 import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
+import { bestiaryScreen } from './screens/bestiary';
 import { SPIN_MS, buildStrip, chestScreen, type ChestState } from './screens/chest';
 import { hideTooltip, installTooltips } from './tooltip';
 import { formatClock } from './topbar';
@@ -29,7 +30,7 @@ const FLOAT_MS = 900;
 export class App {
   root: HTMLElement;
   run: RunState | null = null;
-  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'chest' = 'menu';
+  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'bestiary' | 'chest' = 'menu';
   /** Выбранная цель в бою (uid врага). */
   target: number | null = null;
   /** Идёт ход врагов — кнопки заблокированы. */
@@ -47,6 +48,9 @@ export class App {
   heroPick: string = HERO_LIST[0].id;
   /** Текст поля «Сид» на экране выбора — переживает перерисовку при клике по плитке. */
   seedText = '';
+  /** Вкладка-локация и выбранная запись в бестиарии. */
+  bestiaryLoc: LocationId = 'forest';
+  bestiaryPick: string | null = null;
   private stepTimer: number | null = null;
   /** Тикает раз в секунду и пишет время забега в топбар напрямую, без перерисовки. */
   private clockTimer: number | null = null;
@@ -81,9 +85,11 @@ export class App {
   }
 
   render(): void {
+    this.noteEnemies();
     let el: HTMLElement;
     if (this.screen === 'heroSelect') el = heroSelectScreen(this);
     else if (this.screen === 'collection') el = collectionScreen(this);
+    else if (this.screen === 'bestiary') el = bestiaryScreen(this);
     else if (this.screen === 'chest') el = chestScreen(this);
     else if (this.screen === 'menu' || !this.run) el = menuScreen(this);
     else {
@@ -119,6 +125,17 @@ export class App {
     hideTooltip();
     this.root.replaceChildren(el);
     this.syncClock();
+  }
+
+  /**
+   * Каждый враг, показавшийся в бою, открывается в бестиарии — призванные и отделившиеся тоже.
+   * Проверка при каждой перерисовке: любое появление врага на поле проходит через render().
+   */
+  private noteEnemies(): void {
+    const enemies = this.run?.battle?.enemies;
+    if (!enemies) return;
+    const fresh = enemies.map((e) => e.defId).filter((id, i, all) => !this.profile.bestiary.includes(id) && all.indexOf(id) === i);
+    if (fresh.length) this.profile = recordEnemies(fresh);
   }
 
   // ─── Таймер забега ───────────────────────────────────────────────────────
@@ -227,6 +244,19 @@ export class App {
     this.stopSpin();
     this.chest = null;
     this.screen = 'collection';
+    this.render();
+  }
+
+  showBestiary(loc?: LocationId): void {
+    this.stopSpin();
+    this.chest = null;
+    if (loc) this.bestiaryLoc = loc;
+    this.screen = 'bestiary';
+    this.render();
+  }
+
+  bestiarySelect(id: string): void {
+    this.bestiaryPick = id;
     this.render();
   }
 

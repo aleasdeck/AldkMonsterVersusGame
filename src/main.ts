@@ -3,6 +3,7 @@ import { EVENT_WEIGHTS, LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locati
 import { startEvent } from './engine/run';
 import type { EventKind, LocationId } from './engine/types';
 import { COLLECTIBLE_IDS } from './data/collection';
+import { ENEMY_LIST } from './data/enemies';
 import { loadProfile, saveProfile } from './ui/save';
 
 const WIDTH = 960;
@@ -27,7 +28,7 @@ app.start();
 // &phase=event&event=chest|altar|forge|elite|shop|camp — заданное событие в третьей клетке.
 const params = new URLSearchParams(window.location.search);
 
-// &mock=1 — демо-профиль: статистика, сундуки и часть коллекции (для отладки экранов)
+// &mock=1 — демо-профиль: статистика, сундуки, часть коллекции и половина бестиария (для отладки экранов)
 if (params.get('mock')) {
   saveProfile({
     ...loadProfile(),
@@ -43,6 +44,7 @@ if (params.get('mock')) {
     heroWins: { assassin: 2, warrior: 1 },
     chests: 3,
     collection: COLLECTIBLE_IDS.filter((_, i) => i % 3 === 0),
+    bestiary: ENEMY_LIST.filter((_, i) => i % 2 === 0).map((e) => e.id),
   });
   app.profile = loadProfile();
   app.render();
@@ -106,10 +108,12 @@ if (heroParam) {
     app.render();
   }
 } else {
-  // ?screen=select|collection|chest — сразу нужный экран вне забега
+  // ?screen=select|collection|bestiary|chest — сразу нужный экран вне забега; &loc=crypt — вкладка бестиария
   const screen = params.get('screen');
+  const locParam = params.get('loc');
   if (screen === 'select') app.showHeroSelect();
   else if (screen === 'collection') app.showCollection();
+  else if (screen === 'bestiary') app.showBestiary(locParam && locParam in LOCATION_BY_ID ? (locParam as LocationId) : undefined);
   else if (screen === 'chest') app.showChest();
   else if (screen === 'spin') app.openChest();
 }
