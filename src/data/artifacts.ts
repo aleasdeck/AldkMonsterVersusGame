@@ -436,9 +436,11 @@ const list: ArtifactDef[] = [
     kind: 'active',
     school: 'magic',
     cost: { mp: 1 },
+    // Без перезарядки, но не бесконечно: с 10 маны и без лимита Маг выносил бои за ход — «имба» по отзыву пользователя.
+    usesPerTurn: (tier) => t(3, 4, 5)(tier),
     target: 'enemy',
     effects: (tier) => [{ type: 'spell', amount: t(4, 5, 6)(tier), target: 'enemy' }],
-    describe: (tier) => `${t(4, 5, 6)(tier)} урона заклинанием. Без перезарядки`,
+    describe: (tier) => `${t(4, 5, 6)(tier)} урона заклинанием. До ${t(3, 4, 5)(tier)} раз за ход`,
   },
   {
     id: 'spark',

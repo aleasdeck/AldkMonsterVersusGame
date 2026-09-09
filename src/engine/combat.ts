@@ -494,6 +494,8 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if (!inst) return 'Артефакт не вставлен';
       const cd = h.cooldowns[def.id] ?? 0;
       if (cd > 0) return `Перезарядка: ${cd}`;
+      const limit = def.usesPerTurn?.(inst.tier);
+      if (limit && (h.uses[def.id] ?? 0) >= limit) return `Не больше ${limit} раз за ход`;
       const cost = artifactCost(def, inst.tier);
       if (cost.sta === 'all' ? h.sta < Math.max(1, h.maxSta) : (cost.sta ?? 0) > h.sta) return cost.sta === 'all' ? 'Нужна вся стамина' : 'Нет стамины';
       if ((cost.mp ?? 0) > h.mp) return 'Нет маны';
@@ -611,6 +613,7 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     h.mp -= cost.mp ?? 0;
     const cd = def.cooldown?.(inst.tier) ?? 0;
     if (cd > 0) h.cooldowns[def.id] = cd;
+    h.uses[def.id] = (h.uses[def.id] ?? 0) + 1;
     log(state, `Герой: ${def.name}`);
     const effects = def.effects?.(inst.tier) ?? [];
     for (const eff of effects) applyEffect(state, eff, action.target, rng);
@@ -628,6 +631,7 @@ function startPlayerTurn(state: BattleState): void {
   h.block = Math.min(h.block, h.stats.blockKeep);
   h.defended = false;
   h.attacks = 0;
+  h.uses = {};
   const ex = getStatus(h, 'exhaust');
   h.sta = Math.max(0, h.maxSta - (ex?.value ?? 0));
   if (ex) removeStatus(h, 'exhaust');
@@ -893,6 +897,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       mp: stats.maxMp,
       maxMp: stats.maxMp,
       cooldowns: {},
+      uses: {},
       stats,
       artifacts: socketedArtifacts(hero.weapon, hero.armor),
       potion: hero.potion,

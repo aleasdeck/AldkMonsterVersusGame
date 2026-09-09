@@ -371,12 +371,12 @@ describe('мана и артефакты', () => {
   it('огненный шар тратит ману, бьёт по тиру + сила заклинаний, раз в ход', () => {
     const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'sage_eye', tier: 1 }] });
     const boar = first(state);
-    // 10 маги + 2 Резерв посоха
-    expect(state.hero.mp).toBe(12);
+    // 7 маги + 2 Резерв посоха
+    expect(state.hero.mp).toBe(9);
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid }, rng);
     // 7 по тиру + 1 Око мудреца + 1 магический посох
     expect(boar.hp).toBe(18 - 9);
-    expect(state.hero.mp).toBe(10);
+    expect(state.hero.mp).toBe(7);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid })).toMatch(/Перезарядка/);
     pass(state, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid })).toBeNull();
@@ -385,9 +385,9 @@ describe('мана и артефакты', () => {
   it('мана восстанавливается на реген со второго хода', () => {
     const { state, rng } = mkBattle('mage', ['boar']);
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: first(state).uid }, rng);
-    expect(state.hero.mp).toBe(10);
+    expect(state.hero.mp).toBe(7);
     pass(state, rng);
-    expect(state.hero.mp).toBe(12);
+    expect(state.hero.mp).toBe(9);
   });
 
   it('лечение паладина: стоит ману и стамину, кулдаун 3', () => {
@@ -491,8 +491,8 @@ describe('боссы', () => {
     const { state, rng } = mkBattle('mage', ['lich']);
     first(state).intent = 'wither';
     pass(state, rng);
-    // 10 базовых + 2 посох, −3 иссушение, +2 реген в начале следующего хода
-    expect(state.hero.mp).toBe(12 - 3 + 2);
+    // 7 базовых + 2 посох, −3 иссушение, +2 реген в начале следующего хода
+    expect(state.hero.mp).toBe(9 - 3 + 2);
   });
 });
 
@@ -846,5 +846,17 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     expect(p.state.hero.sta).toBe(2);
     expect(p.state.hero.mp).toBe(5);
     expect(canUseAction(p.state, { type: 'artifact', artifactId: 'light_hammer', target: first(p.state).uid })).toMatch(/Перезарядка/);
+  });
+});
+
+describe('лимит применений за ход', () => {
+  it('волшебная стрела: не больше 3 раз за ход на 1 тире, на следующем ходу снова доступна', () => {
+    const { state, rng } = mkBattle('mage', ['bear'], { extra: [{ id: 'magic_missile', tier: 1 }] });
+    const bear = first(state);
+    for (let i = 0; i < 3; i++) performAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid }, rng);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toMatch(/3 раз/);
+    expect(state.hero.mp).toBe(9 - 3);
+    pass(state, rng);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toBeNull();
   });
 });

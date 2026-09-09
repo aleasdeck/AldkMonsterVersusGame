@@ -138,6 +138,8 @@ export interface ArtifactDef {
   /** Цена: число или вся стамина ('all' — нужна полная, уходит целиком); может зависеть от тира. */
   cost?: ArtifactCost | ((tier: ArtTier) => ArtifactCost);
   cooldown?: (tier: ArtTier) => number;
+  /** Не больше N применений за ход (Волшебная стрела: без перезарядки, но не бесконечно). */
+  usesPerTurn?: (tier: ArtTier) => number;
   target?: TargetKind;
   effects?: (tier: ArtTier) => Effect[];
   mods?: (tier: ArtTier) => StatMods;
@@ -301,6 +303,8 @@ export interface HeroBattle extends Combatant {
   mp: number;
   maxMp: number;
   cooldowns: Record<string, number>;
+  /** Сколько раз каждый приём применён в этом ходу — для лимита usesPerTurn. Сбрасывается в начале хода. */
+  uses: Record<string, number>;
   stats: DerivedStats;
   /** Снимок вставленных артефактов на момент начала боя. */
   artifacts: ArtifactInstance[];
@@ -464,7 +468,7 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
