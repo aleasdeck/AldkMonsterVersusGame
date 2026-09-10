@@ -105,6 +105,20 @@ export interface DerivedStats {
 
 export type StatMods = Partial<DerivedStats>;
 
+// ─── Анимации боя ──────────────────────────────────────────────────────────
+
+/**
+ * Род типовой анимации приёма: взмах оружием в руке, стрела, магический снаряд, брошенная склянка.
+ * Облако дебафа и свечение бафа выводятся из событий боя и в данных не задаются.
+ */
+export type FxKind = 'melee' | 'arrow' | 'orb' | 'flask';
+
+/** Настройка типовой анимации: род (по умолчанию выводится из эффектов и оружия) и цвет. */
+export interface FxSpec {
+  kind?: FxKind;
+  color?: string;
+}
+
 // ─── Артефакты ─────────────────────────────────────────────────────────────
 
 export type TargetKind = 'enemy' | 'allEnemies' | 'self';
@@ -144,6 +158,8 @@ export interface ArtifactDef {
   effects?: (tier: ArtTier) => Effect[];
   mods?: (tier: ArtTier) => StatMods;
   describe: (tier: ArtTier) => string;
+  /** Анимация в бою: цвет снаряда или взмаха; род — если не тот, что следует из эффектов (Флакон яда — склянка). */
+  fx?: FxSpec;
 }
 
 export interface ArtifactInstance {
@@ -162,6 +178,8 @@ export interface PotionDef {
   describe: string;
   /** Бесполезно герою без маны — не выпадает ему. */
   needsMp?: boolean;
+  /** Цвет склянки в анимации: бросок во врагов или глоток. */
+  fx?: FxSpec;
 }
 
 // ─── Экипировка ────────────────────────────────────────────────────────────
@@ -260,6 +278,8 @@ export interface EnemyAction {
   effects: EnemyEffect[];
   /** Для циклов: действие пропускается, если условие ложно. */
   condition?: (ctx: AiCtx) => boolean;
+  /** Анимация приёма — только у элиты и боссов; рядовые враги просто наскакивают. */
+  fx?: FxSpec;
 }
 
 export interface BossRule {

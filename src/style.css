@@ -1120,6 +1120,30 @@ p {
 .enemy.acting .sprite-wrap {
   animation: lunge 400ms ease-out;
 }
+/* Герой наскакивает при взмахе оружием, как союзник. */
+.hero-zone.acting .sprite-wrap {
+  animation: lunge-right 400ms ease-out;
+}
+
+/* Слой анимаций поверх поля (fx.ts): снаряды, взмахи, облака, искры. Кликов не ловит, за поле не режется. */
+.fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.fx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+  image-rendering: pixelated;
+}
+/* Росчерк удара: светлая полоса по цели в момент попадания. */
+.fx-slash {
+  height: 4px;
+  transform-origin: 50% 50%;
+}
 .badges {
   display: flex;
   gap: 6px;
@@ -1439,7 +1463,16 @@ p {
 .enemy.preview {
   border-color: #ffd16688;
 }
-.bar-suffix {
+/* Блок поверх полоски HP: полупрозрачная штриховка цвета щита на первые N HP, число в скобках тем же цветом. */
+.bar-block {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: repeating-linear-gradient(-45deg, #8ecae6cc 0 4px, #8ecae666 4px 8px);
+  transition: width 200ms;
+}
+.bar-block-text {
   color: var(--shield);
 }
 /* Лог — выдвижная панель поверх поля у правого края, плитки остаются на месте. */

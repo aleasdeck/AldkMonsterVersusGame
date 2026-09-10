@@ -1,9 +1,12 @@
-import type { AiCtx, EnemyAction, EnemyDef, EnemyEffect, HeadStyle, SpriteSpec } from '../engine/types';
+import type { AiCtx, EnemyAction, EnemyDef, EnemyEffect, FxSpec, HeadStyle, SpriteSpec } from '../engine/types';
 import { MAX_ENEMIES } from '../engine/types';
 
 function act(id: string, name: string, effects: EnemyEffect[], condition?: (ctx: AiCtx) => boolean): EnemyAction {
   return condition ? { id, name, effects, condition } : { id, name, effects };
 }
+
+/** Приём элиты или босса с анимацией героя: снаряд, взмах клинком, склянка. Рядовые враги просто наскакивают. */
+const withFx = (fx: FxSpec, a: EnemyAction): EnemyAction => ({ ...a, fx });
 
 const hasRoom = (ctx: AiCtx) => ctx.enemies.length < MAX_ENEMIES;
 const countKind = (ctx: AiCtx, defId: string) => ctx.enemies.filter((e) => e.defId === defId).length;
@@ -338,7 +341,7 @@ const list: EnemyDef[] = [
     location: 'crypt',
     rank: 'elite',
     actions: [
-      act('bolt', 'Тёмная стрела', [{ type: 'attack', amount: 10 }]),
+      withFx({ kind: 'orb', color: '#7a3fb0' }, act('bolt', 'Тёмная стрела', [{ type: 'attack', amount: 10 }])),
       act('raise', 'Поднять скелета', [{ type: 'summon', enemyId: 'skeleton_warrior', count: 1 }], (ctx) => hasRoom(ctx) && countKind(ctx, 'skeleton_warrior') < 2),
       act('curse', 'Проклятие', [{ type: 'debuff', status: 'weak', value: 1, turns: 2 }]),
     ],
@@ -372,7 +375,7 @@ const list: EnemyDef[] = [
     location: 'crypt',
     rank: 'boss',
     actions: [
-      act('ray', 'Тёмный луч', [{ type: 'attack', amount: 12 }]),
+      withFx({ kind: 'orb', color: '#8a2be2' }, act('ray', 'Тёмный луч', [{ type: 'attack', amount: 12 }])),
       act('wither', 'Иссушение', [
         { type: 'attack', amount: 7 },
         { type: 'drainMp', amount: 3 },
@@ -555,15 +558,15 @@ const list: EnemyDef[] = [
     location: 'caves',
     rank: 'elite',
     actions: [
-      act('flame', 'Пламя', [
+      withFx({ kind: 'orb', color: '#ff7b00' }, act('flame', 'Пламя', [
         { type: 'attack', amount: 14 },
         { type: 'debuff', status: 'burn', value: 4, turns: 3 },
-      ]),
+      ])),
       act('fire_shield', 'Огненный щит', [
         { type: 'block', amount: 12 },
         { type: 'thorns', amount: 2 },
       ]),
-      act('burst', 'Взрыв', [{ type: 'attack', amount: 22 }]),
+      withFx({ kind: 'orb', color: '#ffd166' }, act('burst', 'Взрыв', [{ type: 'attack', amount: 22 }])),
     ],
     ai: { type: 'cycle', order: ['flame', 'fire_shield', 'burst'] },
     sprite: blob('#3a0a00', '#ff7b00', '#d63a00', '#ffffff', 20),
@@ -575,9 +578,9 @@ const list: EnemyDef[] = [
     location: 'caves',
     rank: 'elite',
     actions: [
-      act('axe', 'Секира', [{ type: 'attack', amount: 18 }]),
+      withFx({ kind: 'melee', color: '#c9ccd1' }, act('axe', 'Секира', [{ type: 'attack', amount: 18 }])),
       act('windup', 'Замах', [{ type: 'none' }]),
-      act('smash', 'Сокрушительный удар', [{ type: 'attack', amount: 30 }]),
+      withFx({ kind: 'melee', color: '#c9ccd1' }, act('smash', 'Сокрушительный удар', [{ type: 'attack', amount: 30 }])),
       act('roar', 'Рёв', [{ type: 'buffStr', amount: 3, target: 'self' }]),
     ],
     ai: { type: 'cycle', order: ['axe', 'windup', 'smash', 'roar'] },
@@ -590,10 +593,10 @@ const list: EnemyDef[] = [
     location: 'caves',
     rank: 'boss',
     actions: [
-      act('breath', 'Дыхание', [
+      withFx({ kind: 'orb', color: '#ff5a1f' }, act('breath', 'Дыхание', [
         { type: 'attack', amount: 18 },
         { type: 'debuff', status: 'burn', value: 4, turns: 3 },
-      ]),
+      ])),
       act('claw', 'Коготь', [{ type: 'attack', amount: 10, hits: 2 }]),
       act('tail', 'Хвост', [
         { type: 'attack', amount: 14 },
@@ -734,10 +737,10 @@ const list: EnemyDef[] = [
     actions: [
       act('tongue', 'Язык', [{ type: 'attack', amount: 8 }]),
       act('puff', 'Раздуться', [{ type: 'block', amount: 8 }]),
-      act('spit', 'Ядовитый плевок', [
+      withFx({ kind: 'flask', color: '#7ddc5a' }, act('spit', 'Ядовитый плевок', [
         { type: 'attack', amount: 6 },
         { type: 'debuff', status: 'weak', value: 1, turns: 1 },
-      ]),
+      ])),
       act('spawn', 'Икра', [{ type: 'summon', enemyId: 'toad', count: 1 }], hasRoom),
     ],
     ai: { type: 'cycle', order: ['tongue', 'puff', 'spit', 'spawn'] },
@@ -906,10 +909,10 @@ const list: EnemyDef[] = [
     rank: 'boss',
     actions: [
       act('slam', 'Удар щупальцем', [{ type: 'attack', amount: 11 }]),
-      act('acid_rain', 'Кислотный дождь', [
+      withFx({ kind: 'flask', color: '#b5e61d' }, act('acid_rain', 'Кислотный дождь', [
         { type: 'attack', amount: 6 },
         { type: 'debuff', status: 'burn', value: 3, turns: 3 },
-      ]),
+      ])),
       act('brood', 'Выводок', [{ type: 'summon', enemyId: 'larva', count: 2 }]),
       act('chitin', 'Хитин', [{ type: 'block', amount: 14 }]),
       act('frenzy', 'Феромон ярости', [{ type: 'buffStr', amount: 3, target: 'allies' }]),
@@ -1035,12 +1038,12 @@ const list: EnemyDef[] = [
     location: 'ship',
     rank: 'elite',
     actions: [
-      act('twin_blades', 'Два клинка', [{ type: 'attack', amount: 9, hits: 2 }]),
+      withFx({ kind: 'melee', color: '#dcdcdc' }, act('twin_blades', 'Два клинка', [{ type: 'attack', amount: 9, hits: 2 }])),
       act('parry', 'Парирование', [
         { type: 'block', amount: 14 },
         { type: 'thorns', amount: 3 },
       ]),
-      act('lunge', 'Выпад', [{ type: 'attack', amount: 14, pierce: true }]),
+      withFx({ kind: 'melee', color: '#dcdcdc' }, act('lunge', 'Выпад', [{ type: 'attack', amount: 14, pierce: true }])),
     ],
     ai: { type: 'cycle', order: ['twin_blades', 'parry', 'lunge'] },
     sprite: humanoid('hood', { s: '#d9a06b', h: '#1a1a2a', b: '#2a2a4a', l: '#1a1a2a', w: '#e0e0e0' }),
@@ -1052,7 +1055,7 @@ const list: EnemyDef[] = [
     location: 'ship',
     rank: 'elite',
     actions: [
-      act('trident', 'Трезубец', [{ type: 'attack', amount: 16 }]),
+      withFx({ kind: 'melee', color: '#5ee0d0' }, act('trident', 'Трезубец', [{ type: 'attack', amount: 16 }])),
       act('wave', 'Волна', [
         { type: 'attack', amount: 10 },
         { type: 'debuff', status: 'exhaust', value: 1, turns: 1 },
@@ -1069,11 +1072,11 @@ const list: EnemyDef[] = [
     location: 'ship',
     rank: 'boss',
     actions: [
-      act('sabre', 'Абордажная сабля', [{ type: 'attack', amount: 18 }]),
-      act('pistol', 'Пистоль', [{ type: 'attack', amount: 12, pierce: true }]),
+      withFx({ kind: 'melee', color: '#c9ccd1' }, act('sabre', 'Абордажная сабля', [{ type: 'attack', amount: 18 }])),
+      withFx({ kind: 'orb', color: '#ffb347' }, act('pistol', 'Пистоль', [{ type: 'attack', amount: 12, pierce: true }])),
       act('all_hands', 'Свистать всех наверх', [{ type: 'summon', enemyId: 'pirate', count: 1 }]),
       act('aim', 'Наводит пушки', [{ type: 'none' }]),
-      act('broadside', 'Бортовой залп', [{ type: 'attack', amount: 28 }]),
+      withFx({ kind: 'orb', color: '#ff7b00' }, act('broadside', 'Бортовой залп', [{ type: 'attack', amount: 28 }])),
       act('curse', 'Проклятие', [{ type: 'debuff', status: 'bleed', value: 4, turns: 3 }]),
     ],
     ai: {

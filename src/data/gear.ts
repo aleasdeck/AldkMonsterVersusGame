@@ -1,4 +1,4 @@
-import type { ArmorType, DerivedStats, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Mastery, StatMods, WeaponType } from '../engine/types';
+import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Mastery, StatMods, WeaponType } from '../engine/types';
 import { pick, weighted, type Rng } from '../engine/rng';
 
 type ByTier = [number, number, number, number, number];
@@ -160,6 +160,8 @@ export interface Base {
   perk?: Perk;
   /** Только стартовая вещь героя: не выпадает в награду и не входит в коллекцию. */
   startOnly?: boolean;
+  /** Только у оружия дальнего и магического: цвет снаряда; праща вместо стрелы кидает камень (род orb). */
+  fx?: FxSpec;
 }
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
@@ -234,6 +236,7 @@ export const WEAPON_BASES: Base[] = [
   // ── Дальнее ──
   {
     id: 'bow',
+    fx: { color: '#e9c46a' },
     name: 'лук',
     g: 0,
     spread: 'wide',
@@ -242,6 +245,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'crossbow',
+    fx: { color: '#c0392b' },
     name: 'арбалет',
     g: 0,
     spread: 'narrow',
@@ -250,6 +254,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'sling',
+    fx: { kind: 'orb', color: '#9aa0a6' },
     heft: 'light',
     name: 'праща',
     g: 1,
@@ -259,6 +264,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'darts',
+    fx: { color: '#7ddc5a' },
     heft: 'light',
     name: 'дротики',
     g: 3,
@@ -273,6 +279,7 @@ export const WEAPON_BASES: Base[] = [
   // ── Магическое ──
   {
     id: 'staff',
+    fx: { color: '#c9a227' },
     name: 'посох',
     g: 0,
     type: 'magic',
@@ -280,6 +287,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'wand',
+    fx: { color: '#b388ff' },
     name: 'жезл',
     g: 0,
     type: 'magic',
@@ -287,6 +295,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'scepter',
+    fx: { color: '#e63946' },
     name: 'скипетр',
     g: 0,
     type: 'magic',
@@ -298,6 +307,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'orb',
+    fx: { color: '#5ee0d0' },
     name: 'сфера',
     g: 1,
     type: 'magic',
