@@ -39,6 +39,7 @@ import {
   enterRoom,
   finishBattle,
   forgeUpgrade,
+  gnomeTakeLoot,
   heroStats,
   isRunOver,
   leaveEvent,
@@ -605,6 +606,18 @@ export function chooseEventRoom(run: RunState): void {
     const gain = ev.artifact && !canAltarSacrifice(run) && run.hero.hp - cost >= max * 0.3 ? artifactGain(run, ev.artifact) * 2 - cost : -Infinity;
     if (gain > heal && gain > 0) altarSacrifice(run);
     else altarPray(run);
+    return;
+  }
+  if (ev.kind === 'gnome_art') {
+    // Своя вещь и так на месте; из мешка вора может выпасть чужой артефакт — его берём.
+    if (ev.result === 'slain' && ev.loot) gnomeTakeLoot(run);
+    else leaveEvent(run);
+    return;
+  }
+  if (ev.kind === 'gnome') {
+    // Мешок вора: артефакт бесплатный, брать всегда — бот сам решит, в какой сокет его девать.
+    if (ev.result === 'slain' && ev.artifact) gnomeTakeLoot(run);
+    else leaveEvent(run);
     return;
   }
   // Кузнец: ценность апгрейда — как у нового предмета того же тира на месте надетого; цена за монету — как у торговца.
