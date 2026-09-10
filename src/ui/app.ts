@@ -582,13 +582,13 @@ export class App {
   }
 
   /**
-   * Всплывающие числа и эффекты на бойцах по событиям боя — на свежем поле. Облако (дебаф) и свечение (баф, блок,
-   * лечение) — по одному на бойца за пакет; план добавляет свои: свечение героя от приёма на себя, глоток зелья.
+   * Всплывающие числа и эффекты на бойцах по событиям боя — на свежем поле. Облако (дебаф), свечение (баф, лечение)
+   * и щит (блок) — по одному на бойца за пакет; план добавляет свои: свечение героя от приёма на себя, глоток зелья.
    */
   playEvents(events: BattleEvent[], plan?: FxPlan): void {
     const counters = new Map<string, number>();
     const done = new Set<string>();
-    const after = (kind: 'glow' | 'cloud' | 'drink', color: string, target: EventTarget) => {
+    const after = (kind: 'glow' | 'cloud' | 'drink' | 'shield', color: string, target: EventTarget) => {
       const key = `${kind}:${target}`;
       if (done.has(key)) return;
       done.add(key);
@@ -604,7 +604,8 @@ export class App {
       const wrap = this.spriteWrap(ev.target);
       if (!wrap) continue;
       const fx = eventFx(ev);
-      if (fx && (fx.kind === 'cloud' || this.glows(ev.target))) after(fx.kind, fx.color, ev.target);
+      // Щит и облако видны у всех, свечение — только у героя, элит и боссов.
+      if (fx && (fx.kind !== 'glow' || this.glows(ev.target))) after(fx.kind, fx.color, ev.target);
       const key = String(ev.target);
       const n = counters.get(key) ?? 0;
       counters.set(key, n + 1);
