@@ -70,7 +70,7 @@ export function heroBlock(app: App): HTMLElement {
         h('button', { class: 'link', onclick: () => app.toggleSheet(), tip: 'Статы, экипировка, умения (C)' }, 'Персонаж ›'),
       ),
     ),
-    bar('hp', hp, maxHp, 'HP'),
+    bar('hp', hp, maxHp, 'HP', b && b.hero.block > 0 ? `Блок ${b.hero.block}: первые ${b.hero.block} урона удара уйдут в него, сгорает в начале следующего хода` : '', b?.hero.block ?? 0),
     segBar('sta', sta, maxSta),
     maxMp > 0 ? segBar('mp', mp, maxMp) : h('div', { class: 'bar-gap' }),
     potionLine(app),

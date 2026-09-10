@@ -1,7 +1,9 @@
 import { h } from './dom';
-import type { BattleEvent, GearKind, LocationId, PlayerAction, RunState } from '../engine/types';
+import type { BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RunState } from '../engine/types';
 import * as R from '../engine/run';
 import { STATUS_NAMES, canUseAction } from '../engine/combat';
+import { enemyDef } from '../data/enemies';
+import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type FxPlan } from './fx';
 import { claimChest, clearRun, loadProfile, loadRun, recordEnemies, recordResult, saveRun, type Profile } from './save';
 import { rollCollectible } from '../data/collection';
 import { HERO_LIST } from '../data/heroes';
@@ -52,6 +54,8 @@ export class App {
   bestiaryLoc: LocationId = 'forest';
   bestiaryPick: string | null = null;
   private stepTimer: number | null = null;
+  /** Снаряд героя в полёте: перерисовка и числа ждут попадания, новые действия не принимаются. */
+  private fxTimer: number | null = null;
   /** Тикает раз в секунду и пишет время забега в топбар напрямую, без перерисовки. */
   private clockTimer: number | null = null;
   private spinTimer: number | null = null;
@@ -123,6 +127,10 @@ export class App {
       else if (this.pauseOpen) el.appendChild(pauseMenu(this));
     }
     hideTooltip();
+    // Слой анимаций боя переезжает в новое дерево: снаряд, выпущенный до перерисовки, долетает и лопается уже в нём.
+    const live = this.root.querySelector<HTMLElement>('.fx-layer');
+    const fresh = el.querySelector<HTMLElement>('.fx-layer');
+    if (live && fresh) fresh.replaceWith(live);
     this.root.replaceChildren(el);
     this.syncClock();
   }
@@ -351,19 +359,37 @@ export class App {
     this.render();
   }
 
-  battleAction(action: PlayerAction): void {
+  /**
+   * Действие героя. План анимации считается до применения (цели ещё живы), снаряды летят по старому полю,
+   * и только когда долетят — перерисовка и всплывающие числа; до этого новые действия не принимаются.
+   * animate=false — без ожидания (отладочные параметры URL применяют действия подряд).
+   */
+  battleAction(action: PlayerAction, animate = true): void {
     const run = this.run;
-    if (!run?.battle || this.busy) return;
+    if (!run?.battle || this.busy || this.fxTimer !== null) return;
     if (canUseAction(run.battle, action)) return;
+    const plan = animate ? planHeroFx(run, action) : null;
     R.battleAction(run, action);
     const events = run.battle.events.splice(0);
-    this.commit();
-    this.playEvents(events);
+    if (!plan) {
+      this.commit();
+      this.playEvents(events);
+      return;
+    }
+    saveRun(run);
+    const impact = playShots(this.root, plan);
+    const land = () => {
+      this.fxTimer = null;
+      this.render();
+      this.playEvents(events, plan);
+    };
+    if (impact > 0) this.fxTimer = window.setTimeout(land, impact);
+    else land();
   }
 
   endTurn(): void {
     const run = this.run;
-    if (!run?.battle || this.busy || run.battle.phase !== 'player') return;
+    if (!run?.battle || this.busy || this.fxTimer !== null || run.battle.phase !== 'player') return;
     R.battleEndTurn(run);
     this.busy = true;
     this.render();
@@ -386,23 +412,34 @@ export class App {
       this.scheduleStep();
       return;
     }
+    // Жертва атаки — первый союзник, иначе герой: снаряд босса летит в него.
+    const victim: EventTarget = run.battle.allies[0]?.uid ?? 'hero';
     R.battleEnemyStep(run);
     const events = run.battle.events.splice(0);
-    if (run.battle.phase === 'enemy') {
-      this.render();
-      this.playEvents(events);
-      this.scheduleStep();
-    } else {
-      this.busy = false;
-      saveRun(run);
-      this.render();
-      this.playEvents(events);
-    }
+    const plan = planEnemyFx(run, events, victim);
+    const impact = playShots(this.root, plan);
+    const land = () => {
+      this.stepTimer = null;
+      if (run.battle!.phase === 'enemy') {
+        this.render();
+        this.playEvents(events, plan);
+        this.scheduleStep();
+      } else {
+        this.busy = false;
+        saveRun(run);
+        this.render();
+        this.playEvents(events, plan);
+      }
+    };
+    if (impact > 0) this.stepTimer = window.setTimeout(land, impact);
+    else land();
   }
 
   private stopStepping(): void {
     if (this.stepTimer !== null) window.clearTimeout(this.stepTimer);
     this.stepTimer = null;
+    if (this.fxTimer !== null) window.clearTimeout(this.fxTimer);
+    this.fxTimer = null;
     this.busy = false;
   }
 
@@ -537,12 +574,37 @@ export class App {
     return this.root.querySelector<HTMLElement>(sel);
   }
 
-  playEvents(events: BattleEvent[]): void {
+  /** Свечение бафа — герою, союзникам, элите и боссам; рядовые враги только наскакивают. Облако дебафа — всем. */
+  private glows(target: EventTarget): boolean {
+    if (target === 'hero') return true;
+    const e = this.run?.battle?.enemies.find((x) => x.uid === target);
+    return !e || enemyDef(e.defId).rank !== 'normal';
+  }
+
+  /**
+   * Всплывающие числа и эффекты на бойцах по событиям боя — на свежем поле. Облако (дебаф) и свечение (баф, блок,
+   * лечение) — по одному на бойца за пакет; план добавляет свои: свечение героя от приёма на себя, глоток зелья.
+   */
+  playEvents(events: BattleEvent[], plan?: FxPlan): void {
     const counters = new Map<string, number>();
+    const done = new Set<string>();
+    const after = (kind: 'glow' | 'cloud' | 'drink', color: string, target: EventTarget) => {
+      const key = `${kind}:${target}`;
+      if (done.has(key)) return;
+      done.add(key);
+      // Глоток сам подсвечивает героя.
+      if (kind === 'drink') done.add('glow:hero');
+      playAfter(this.root, { kind, color, target });
+    };
+    // Разбитая склянка сама даёт облако — статусное поверх него не нужно.
+    for (const s of plan?.shots ?? []) if (s.kind === 'flask') done.add(`cloud:${s.to}`);
+    for (const a of plan?.after ?? []) after(a.kind, a.color, a.target);
     for (const ev of events) {
       if (ev.type === 'log') continue;
       const wrap = this.spriteWrap(ev.target);
       if (!wrap) continue;
+      const fx = eventFx(ev);
+      if (fx && (fx.kind === 'cloud' || this.glows(ev.target))) after(fx.kind, fx.color, ev.target);
       const key = String(ev.target);
       const n = counters.get(key) ?? 0;
       counters.set(key, n + 1);
@@ -574,7 +636,7 @@ export class App {
         case 'enemyAction':
           text = ev.name;
           cls = 'f-action';
-          wrap.closest('.enemy, .ally')?.classList.add('acting');
+          if (!plan?.lunged.has(ev.target)) wrap.closest('.enemy, .ally')?.classList.add('acting');
           break;
         case 'stunned':
           text = 'оглушён';

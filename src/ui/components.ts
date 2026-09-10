@@ -30,13 +30,19 @@ import { markKeywords } from './keywords';
 import type { App } from './app';
 
 /** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
-export function bar(cls: string, cur: number, max: number, label = '', tip = '', suffix = ''): HTMLElement {
+/**
+ * Полоска HP. Блок — наложением поверх заливки слева, шириной в долю максимума (первые N HP прикрыты),
+ * и «(+N)» цветом щита в подписи; у героя и врагов одинаково.
+ */
+export function bar(cls: string, cur: number, max: number, label = '', tip = '', block = 0): HTMLElement {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
+  const blockPct = max > 0 ? Math.min(100, (block / max) * 100) : 0;
   return h(
     'div',
     tip ? { class: `bar bar-${cls}`, tip } : { class: `bar bar-${cls}` },
     h('div', { class: 'bar-fill', style: `width:${pct}%` }),
-    h('span', { class: 'bar-text' }, `${label ? label + ' ' : ''}${cur}/${max}`, suffix ? h('span', { class: 'bar-suffix' }, ` · ${suffix}`) : null),
+    block > 0 ? h('div', { class: 'bar-block', style: `width:${blockPct}%` }) : null,
+    h('span', { class: 'bar-text' }, `${label ? label + ' ' : ''}${cur}/${max}`, block > 0 ? h('span', { class: 'bar-block-text' }, ` (+${block})`) : null),
   );
 }
 

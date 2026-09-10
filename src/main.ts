@@ -74,7 +74,7 @@ if (heroParam) {
     run.hero.weapon.dmgMin = 999;
     run.hero.weapon.dmgMax = 999;
     app.enterRoom();
-    for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid });
+    for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid }, false);
     // &phase=won — остаться на плашке победы, не забирая награду; &log=1 — сразу раскрыть лог боя.
     if (phase === 'reward') app.finishBattle();
     else if (params.get('log')) app.toggleLog();
@@ -102,7 +102,7 @@ if (heroParam) {
     app.enterRoom();
     // &use=id1,id2 — сразу применить артефакты по первому врагу
     for (const id of (params.get('use') ?? '').split(',').filter(Boolean)) {
-      app.battleAction({ type: 'artifact', artifactId: id, target: run.battle?.enemies[0]?.uid });
+      app.battleAction({ type: 'artifact', artifactId: id, target: run.battle?.enemies[0]?.uid }, false);
     }
   } else {
     app.render();

@@ -129,6 +129,7 @@ const list: ArtifactDef[] = [
   // ─── Активные физические (STA) ───────────────────────────────────────────
   {
     id: 'heavy_strike',
+    fx: { color: '#ff7b00' },
     name: 'Мощный удар',
     glyph: '⚒',
     kind: 'active',
@@ -140,6 +141,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'whirlwind',
+    fx: { color: '#ffffff' },
     name: 'Вихрь',
     glyph: '๑',
     kind: 'active',
@@ -152,6 +154,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'stun_strike',
+    fx: { color: '#ffd166' },
     name: 'Оглушающий удар',
     glyph: '✴',
     kind: 'active',
@@ -167,6 +170,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'bleed_cut',
+    fx: { kind: 'melee', color: '#e63946' },
     name: 'Кровопускание',
     glyph: '⚕',
     kind: 'active',
@@ -207,6 +211,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'second_wind',
+    fx: { color: '#ffd166' },
     name: 'Второе дыхание',
     glyph: '↻',
     kind: 'active',
@@ -219,6 +224,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'aimed_shot',
+    fx: { color: '#ffd166' },
     name: 'Прицельный выстрел',
     glyph: '➶',
     kind: 'active',
@@ -231,6 +237,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'crippling_shot',
+    fx: { color: '#b388ff' },
     name: 'Подсечный выстрел',
     glyph: '➴',
     kind: 'active',
@@ -259,6 +266,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'poison_vial',
+    fx: { kind: 'flask', color: '#7ddc5a' },
     name: 'Флакон яда',
     glyph: '⚗',
     kind: 'active',
@@ -271,6 +279,7 @@ const list: ArtifactDef[] = [
 
   {
     id: 'shield_bash',
+    fx: { color: '#8ecae6' },
     name: 'Щитовой удар',
     glyph: '⛨',
     kind: 'active',
@@ -286,6 +295,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'light_hammer',
+    fx: { color: '#ffe9a0' },
     name: 'Молот света',
     glyph: '✠',
     kind: 'active',
@@ -331,6 +341,7 @@ const list: ArtifactDef[] = [
   // ─── Активные магические (MP) ────────────────────────────────────────────
   {
     id: 'fireball',
+    fx: { color: '#ff7b00' },
     name: 'Огненный шар',
     glyph: '✹',
     kind: 'active',
@@ -343,6 +354,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'ice_shard',
+    fx: { color: '#7fd7ff' },
     name: 'Ледяной осколок',
     glyph: '❄',
     kind: 'active',
@@ -382,6 +394,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'chain_lightning',
+    fx: { color: '#ffe45c' },
     name: 'Цепная молния',
     glyph: 'ϟ',
     kind: 'active',
@@ -394,6 +407,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'drain',
+    fx: { color: '#b388ff' },
     name: 'Высасывание',
     glyph: '☽',
     kind: 'active',
@@ -418,6 +432,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'wolf_whistle',
+    fx: { color: '#8ecae6' },
     name: 'Волчий свисток',
     glyph: 'ᛟ',
     kind: 'active',
@@ -431,6 +446,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'magic_missile',
+    fx: { color: '#d58cff' },
     name: 'Волшебная стрела',
     glyph: '➹',
     kind: 'active',
@@ -444,6 +460,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'spark',
+    fx: { color: '#ffd166' },
     name: 'Искра',
     glyph: '✦',
     kind: 'active',
@@ -459,6 +476,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'hex',
+    fx: { kind: 'orb', color: '#6a4fb3' },
     name: 'Сглаз',
     glyph: '☉',
     kind: 'active',

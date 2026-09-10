@@ -45,7 +45,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     badges(e, false),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
     h('div', { class: 'name' }, e.name),
-    bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block > 0 ? `⛨ ${e.block}` : ''),
+    bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
   );
 }
 
@@ -64,7 +64,7 @@ function allyView(b: BattleState, a: AllyState, underFire: boolean): HTMLElement
     h('div', { class: 'badges' }, underFire ? h('span', { class: 'under-fire', tip: 'Враги атакуют этого союзника раньше героя' }, '◀ под ударом') : null, a.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${a.block}`) : null, statusIcons(a)),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, spriteSize(def.sprite) * 4)),
     h('div', { class: 'name' }, a.name),
-    bar('hp', a.hp, a.maxHp),
+    bar('hp', a.hp, a.maxHp, '', '', a.block),
   );
 }
 
@@ -262,7 +262,8 @@ export function battleScreen(app: App): HTMLElement {
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));
   // Худший случай — шесть бойцов: врагам оставляем по 140 px.
   const crowded = b.allies.length + b.enemies.length >= 5;
-  const field = h('div', { class: `field ${crowded ? 'crowded' : ''}`, style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, allyZone, enemyZone);
+  // Слой анимаций поверх поля: снаряды, взмахи, облака и искры (fx.ts) живут в нём между перерисовками.
+  const field = h('div', { class: `field ${crowded ? 'crowded' : ''}`, style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, allyZone, enemyZone, h('div', { class: 'fx-layer' }));
 
   // Лог — выдвижная панель поверх поля, плитки при этом остаются на месте.
   if (app.logOpen) {
