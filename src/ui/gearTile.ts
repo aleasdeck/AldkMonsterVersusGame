@@ -24,6 +24,8 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return `${e.amount + s.spellPower}${e.target === 'allEnemies' ? ' всем' : ''}`;
       case 'block':
         return `+${e.amount} блока`;
+      case 'blockStrike':
+        return `блок ×${e.mult}`;
       case 'heal':
         return `+${e.amount} HP`;
       case 'gainSta':

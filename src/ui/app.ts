@@ -28,6 +28,11 @@ import { installHotkeys } from './hotkeys';
 
 const ENEMY_STEP_MS = 600;
 const FLOAT_MS = 900;
+/**
+ * Сколько новый экран не принимает кликов. Второй клик двойного клика по «Надеть» в награде прилетал уже во «Войти»
+ * на карте (кнопки стоят друг под другом) и открывал следующую клетку — событие разыгрывалось без игрока.
+ */
+const SETTLE_MS = 400;
 
 export class App {
   root: HTMLElement;
@@ -60,12 +65,25 @@ export class App {
   private clockTimer: number | null = null;
   private spinTimer: number | null = null;
   private resultRecorded = false;
+  /** Отпечаток экрана и момент его смены: клики в первые SETTLE_MS после смены глотаются (см. SETTLE_MS). */
+  private screenKey = '';
+  private screenChangedAt = -Infinity;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.profile = loadProfile();
     installTooltips(root);
     installHotkeys(this);
+    root.addEventListener(
+      'click',
+      (ev) => {
+        if (performance.now() - this.screenChangedAt < SETTLE_MS) {
+          ev.stopPropagation();
+          ev.preventDefault();
+        }
+      },
+      true,
+    );
   }
 
   start(): void {
@@ -90,6 +108,13 @@ export class App {
 
   render(): void {
     this.noteEnemies();
+    // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
+    const r = this.run;
+    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending].join('|');
+    if (key !== this.screenKey) {
+      this.screenKey = key;
+      this.screenChangedAt = performance.now();
+    }
     let el: HTMLElement;
     if (this.screen === 'heroSelect') el = heroSelectScreen(this);
     else if (this.screen === 'collection') el = collectionScreen(this);

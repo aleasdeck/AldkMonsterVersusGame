@@ -640,6 +640,17 @@ p {
   font-size: 16px;
   padding: 0 6px;
 }
+/* Усталость героя: иконка изнурения и процент от полного урона, в тон стамине. */
+.fatigue-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #1a1208;
+  border: 2px solid #ff8c42;
+  color: #ff8c42;
+  font-size: 16px;
+  padding: 0 5px;
+}
 
 /* ─── Артефакты и экипировка ─────────────────────────────────────────── */
 
@@ -1207,6 +1218,16 @@ p {
   border-color: #666;
   color: #aaa;
   font-size: 17px;
+}
+/* Хвост пилюли: остальные эффекты приёма — дебаф иконкой статуса, бафф/лечение/призыв иконкой вида, за точечной чертой. */
+.pill-extra {
+  display: inline-flex;
+  align-items: center;
+  font-size: 18px;
+  line-height: 1;
+  margin-left: 2px;
+  padding-left: 5px;
+  border-left: 2px dotted var(--border);
 }
 
 .statuses {

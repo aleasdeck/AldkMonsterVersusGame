@@ -836,9 +836,9 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     const w = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_bash', tier: 1 }] });
     const bear = first(w.state);
     performAction(w.state, { type: 'artifact', artifactId: 'shield_bash', target: bear.uid }, w.rng);
-    // 5 × 0.75 = 3.75 → 3, блок +3
+    // 5 × 0.75 = 3.75 → 3 урона; блок — 60 % от них: 1.8 → 2
     expect(bear.hp).toBe(35 - 3);
-    expect(w.state.hero.block).toBe(3);
+    expect(w.state.hero.block).toBe(2);
 
     const p = mkBattle('paladin', ['bear'], { extra: [{ id: 'light_hammer', tier: 1 }] });
     p.state.hero.hp = 10;
@@ -847,6 +847,33 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     expect(p.state.hero.sta).toBe(2);
     expect(p.state.hero.mp).toBe(5);
     expect(canUseAction(p.state, { type: 'artifact', artifactId: 'light_hammer', target: first(p.state).uid })).toMatch(/Перезарядка/);
+  });
+});
+
+describe('v0.18: блок от урона и удар блоком', () => {
+  it('щитовой удар: блок растёт с уроном, на третьем тире равен ему', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_bash', tier: 3 }] });
+    state.hero.stats.str = 10;
+    const bear = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: bear.uid }, rng);
+    // (5 + 10) × 0.75 = 11.25 → 11 урона и столько же блока
+    expect(bear.hp).toBe(35 - 11);
+    expect(state.hero.block).toBe(11);
+  });
+
+  it('таран: урон равен текущему блоку × множитель, блок не тратится, без блока недоступен', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_ram', tier: 2 }] });
+    const bear = first(state);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'shield_ram', target: bear.uid })).toBe('Нет блока');
+    performAction(state, { type: 'defend' }, rng);
+    const block = state.hero.block;
+    expect(block).toBeGreaterThan(0);
+    performAction(state, { type: 'artifact', artifactId: 'shield_ram', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - Math.floor(block * 1.5));
+    expect(state.hero.block).toBe(block);
+    // Не атака оружием: усталость не растёт, но цель видит героя.
+    expect(state.hero.attacks).toBe(0);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'shield_ram', target: bear.uid })).toMatch(/Перезарядка/);
   });
 });
 

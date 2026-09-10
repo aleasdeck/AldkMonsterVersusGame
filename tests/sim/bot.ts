@@ -8,7 +8,7 @@
  */
 import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { SMOKE_MISS_CHANCE, VULNERABLE_MULT, canUseAction, endTurn, getStatus, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
+import { SMOKE_MISS_CHANCE, VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
@@ -422,6 +422,11 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
     switch (e.type) {
       case 'attack':
         per += (avg * (e.mult ?? 1) + e.bonus) * (e.sureCrit ? 2 : 1) * (e.target === 'allEnemies' ? 1.8 : 1) * W.enemyHp;
+        if (e.blockPct) per += avg * (e.mult ?? 1) * e.blockPct * 0.8;
+        break;
+      case 'blockStrike':
+        // Блок в момент тарана — обычно то, что дала «Защититься».
+        per += defendBlock(s) * e.mult * W.enemyHp;
         break;
       case 'spell':
         per += (e.amount + s.spellPower) * (e.target === 'allEnemies' ? 1.8 : 1) * W.enemyHp + (e.drain ? e.amount * 0.7 : 0);
