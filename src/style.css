@@ -210,29 +210,11 @@ p {
   min-width: 0;
   white-space: nowrap;
 }
-/* Портрет с именем — кнопка без рамки, открывает оверлей «Персонаж». */
-.hero-link {
-  font: inherit;
-  color: var(--accent);
-  background: none;
-  border: none;
-  padding: 0 4px 0 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.hero-link:hover .hero-link-name {
-  text-decoration: underline;
-}
-.hero-link-name {
-  font-size: 21px;
-  white-space: nowrap;
-}
 .run-top .gold {
   margin-left: 0;
   font-size: 19px;
 }
+/* Кнопки-иконки топбара: «Персонаж» слева и меню справа — одинаковые квадраты 28 px. */
 .room-strip {
   display: flex;
   gap: 3px;
