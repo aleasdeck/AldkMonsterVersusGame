@@ -1,6 +1,7 @@
 import { button, h } from './dom';
 import { ACTS_PER_RUN, EVENT_NAMES, ROOM_KINDS, ROOM_NAMES } from '../data/locations';
 import { heroDef } from '../data/heroes';
+import { artifactDef } from '../data/artifacts';
 import { currentLocation, currentRoomKind } from '../engine/run';
 import type { RoomKind } from '../engine/types';
 import { goldBadge } from './components';
@@ -66,6 +67,21 @@ export function topbar(app: App): HTMLElement {
         h('span', { class: 'hero-link-name' }, `${def.name} ▾`),
       ),
       goldBadge(run.gold),
+      // Пока вор режет кошель, украденное висит рядом с золотом: видно, сколько уйдёт, если его упустить.
+      run.battle && run.battle.stolen > 0
+        ? h('span', { class: 'gold-stolen', tip: 'Уже срезано вором: пропадёт, если он удерёт, и вернётся, если его убить' }, `−${run.battle.stolen}`)
+        : null,
+      run.battle?.stolenArtifact
+        ? h(
+            'span',
+            {
+              class: 'gold-stolen',
+              tip: `«${artifactDef(run.battle.stolenArtifact.id).name}» в мешке вора: пропадёт вместе с ним, если он удерёт`,
+              tipTitle: 'Стянутый артефакт',
+            },
+            `−${artifactDef(run.battle.stolenArtifact.id).glyph}`,
+          )
+        : null,
     ),
     h('div', { class: 'top-center' }, h('span', { class: 'dim' }, `Акт ${run.locationIndex + 1}/${ACTS_PER_RUN} · ${loc.name} · ${where}`), roomStrip(app)),
     h(

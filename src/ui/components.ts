@@ -296,7 +296,7 @@ export function goldBadge(gold: number): HTMLElement {
 }
 
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
-const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge'];
+const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge', 'evade'];
 
 export function statusIcons(c: Combatant): HTMLElement {
   return h(

@@ -233,6 +233,13 @@ p {
   margin-left: 0;
   font-size: 19px;
 }
+
+/* Срезанное вором: рядом с золотом, пока идёт бой с ним. */
+.gold-stolen {
+  margin-left: 4px;
+  font-size: 19px;
+  color: #e63946;
+}
 .room-strip {
   display: flex;
   gap: 3px;
@@ -1690,6 +1697,23 @@ p {
 }
 .panel.lost h2 {
   color: var(--bad);
+}
+/* Часики побега над вором. */
+.flee-timer {
+  font-size: 17px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+.flee-timer.urgent {
+  color: #e63946;
+}
+
+/* Вор удрал: не победа и не гибель — приглушённая плашка. */
+.panel.fled {
+  border-color: var(--border);
+}
+.panel.fled h2 {
+  color: var(--dim, #9aa6c8);
 }
 .modal {
   text-align: left;

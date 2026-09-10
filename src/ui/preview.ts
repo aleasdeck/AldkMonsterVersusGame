@@ -29,7 +29,8 @@ function readoutNode(app: App): HTMLElement | null {
 export function defaultReadout(app: App): Child[] {
   const b = app.run?.battle;
   if (!b) return [];
-  if (b.phase === 'won') return [h('b', null, 'Победа!'), ' Заберите награду.'];
+  if (b.phase === 'won')
+    return b.fled ? [h('b', null, 'Вор ушёл.'), ' Добыча уплыла вместе с ним.'] : [h('b', null, 'Победа!'), ' Заберите награду.'];
   if (b.phase === 'lost') return [h('b', null, 'Герой пал.')];
   if (b.phase === 'enemy' || app.busy) return ['Ход врагов…'];
   const e = findEnemy(b, app.currentTarget());

@@ -1,4 +1,4 @@
-import type { DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RoomKind, RunState } from './types';
+import type { ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RoomKind, RunState } from './types';
 import { SAVE_VERSION } from './types';
 import { chance, createRng, pick } from './rng';
 import { heroDef } from '../data/heroes';
@@ -6,10 +6,12 @@ import { makeStartingGear, upgradeGearTier } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
-import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact } from './equipment';
+import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs } from './equipment';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
+  GNOME_ART_CHANCE,
+  GNOME_BOUNTY,
   POTION_DROP_CHANCE,
   REROLL_COST,
   SHOP_HEAL_COST,
@@ -30,6 +32,10 @@ import {
   rollRewards,
   rollShop,
 } from './loot';
+
+/** Враги событий «Вор»: деньгокрад режет кошель, вещекрад тянет артефакт. */
+const GNOME_ID = 'gnome_thief';
+const GNOME_ART_ID = 'gnome_snatcher';
 
 export function randomSeed(): number {
   return (Math.random() * 0xffffffff) >>> 0;
@@ -161,6 +167,13 @@ export function startEvent(run: RunState, kind: EventKind): void {
       run.event = { kind };
       run.phase = 'event';
       return;
+    case 'gnome':
+    case 'gnome_art':
+      // Вор не даёт выбора «войти или пройти мимо»: он уже тянет руку к кошельку, драка начинается сразу.
+      run.event = kind === 'gnome' ? { kind, result: 'fight', gold: 0, artifact: null } : { kind, result: 'fight', gold: 0, artifact: null, loot: null };
+      run.battle = createBattle(heroDef(run.hero.defId), run.hero, [kind === 'gnome' ? GNOME_ID : GNOME_ART_ID], run.rng, run.locationIndex);
+      run.phase = 'battle';
+      return;
   }
 }
 
@@ -220,6 +233,16 @@ export function finishBattle(run: RunState): void {
   run.stats.roomsCleared += 1;
   const kind = effectiveRoomKind(run);
   const act = currentAct(run);
+  if (run.event?.kind === 'gnome') {
+    run.battle = null;
+    finishGnome(run, b.fled, b.stolen, act);
+    return;
+  }
+  if (run.event?.kind === 'gnome_art') {
+    run.battle = null;
+    finishSnatcher(run, b.fled, b.stolenArtifact, act);
+    return;
+  }
   run.battle = null;
   run.gold += goldReward(kind);
   if (kind === 'boss') {
@@ -240,6 +263,69 @@ export function finishBattle(run: RunState): void {
     return;
   }
   run.phase = 'reward';
+}
+
+// ─── Гном-деньгокрад ───────────────────────────────────────────────────────
+
+/**
+ * Итог боя с вором отдельным экраном: удрал — унёс срезанное (больше, чем есть в кошеле, не унесёт),
+ * убит — герой забирает украденное обратно, мешок вора сверху и с шансом GNOME_ART_CHANCE артефакт.
+ */
+function finishGnome(run: RunState, fled: boolean, stolen: number, act: ActDef): void {
+  if (fled) {
+    const lost = Math.min(stolen, run.gold);
+    run.gold -= lost;
+    run.event = { kind: 'gnome', result: 'fled', gold: lost, artifact: null };
+  } else {
+    const gold = stolen + GNOME_BOUNTY;
+    run.gold += gold;
+    const artifact = chance(run.rng, GNOME_ART_CHANCE) ? rollArtifact(run.rng, run.hero, act.artTiers, []) : null;
+    run.event = { kind: 'gnome', result: 'slain', gold, artifact };
+  }
+  run.phase = 'event';
+}
+
+/**
+ * Итог боя с вещекрадом: удрал — стянутый артефакт выдирается из сокета навсегда (сокет пустеет, максимум HP пересчитывается),
+ * убит — вещь так и осталась на месте. Красть было нечего — за труд платят золотом, иначе награда и есть спасённый артефакт.
+ */
+function finishSnatcher(run: RunState, fled: boolean, stolen: ArtifactInstance | null, act: ActDef): void {
+  if (fled) {
+    if (stolen) {
+      const before = heroStats(run).maxHp;
+      const slot = socketRefs(run.hero).find((s) => s.art?.id === stolen.id && s.art?.tier === stolen.tier);
+      if (slot) gearOf(run.hero, slot.kind).slots[slot.index] = null;
+      syncMaxHp(run, before);
+    }
+    run.event = { kind: 'gnome_art', result: 'fled', gold: 0, artifact: stolen, loot: null };
+    run.phase = 'event';
+    return;
+  }
+  // В мешке у вора не только твоё: с тем же шансом, что у брата, оттуда выпадает чужой артефакт.
+  // Золотом это событие не выкупить (проверено симулятором: +12 золота не сдвинули Мага ни на пункт), а артефакт — рычаг.
+  const loot = chance(run.rng, GNOME_ART_CHANCE) ? rollArtifact(run.rng, run.hero, act.artTiers, []) : null;
+  run.event = { kind: 'gnome_art', result: 'slain', gold: 0, artifact: stolen, loot };
+  run.phase = 'event';
+}
+
+/** Забрать артефакт из мешка вора: как жертва на алтаре — размещение без отмены, потом дальше по этажу. */
+export function gnomeTakeLoot(run: RunState): boolean {
+  const ev = run.event;
+  if (run.phase !== 'event' || run.pending) return false;
+  if (ev?.kind === 'gnome_art') {
+    if (ev.result !== 'slain' || !ev.loot) return false;
+    const found = ev.loot;
+    ev.loot = null;
+    giveArtifact(run, { kind: 'artifact', artifact: found }, { cancellable: false, consumeReward: false });
+    if (!run.pending) advanceRoom(run);
+    return true;
+  }
+  if (ev?.kind !== 'gnome' || ev.result !== 'slain' || !ev.artifact) return false;
+  const artifact = ev.artifact;
+  ev.artifact = null;
+  giveArtifact(run, { kind: 'artifact', artifact }, { cancellable: false, consumeReward: false });
+  if (!run.pending) advanceRoom(run);
+  return true;
 }
 
 // ─── Награды и размещение ──────────────────────────────────────────────────

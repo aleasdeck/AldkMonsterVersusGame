@@ -2,8 +2,8 @@ import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { canUseAction, computeAllyIntent, computeIntent, defendBlock, isHidden, previewAttack, rangeText, type DamageRange } from '../../engine/combat';
-import { goldReward } from '../../engine/loot';
+import { canUseAction, computeAllyIntent, computeIntent, defendBlock, isHidden, previewAttack, rangeText, turnsToFlee, type DamageRange } from '../../engine/combat';
+import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction } from '../../engine/types';
 import { MAX_ALLIES } from '../../engine/types';
@@ -29,10 +29,22 @@ function intentPill(b: BattleState, e: EnemyState): HTMLElement {
   return h('div', { class: `pill intent-${intent.kind}`, tip: `${intent.text}${victim}`, tipTitle: intent.name }, h('span', { class: 'pill-icon' }, intent.icon), intent.label ? h('span', { class: 'pill-label' }, intent.label) : null);
 }
 
+/** Часики над вором: сколько ходов осталось до побега. Считает движок, у обычных врагов ничего не рисуется. */
+function fleeTimer(e: EnemyState): HTMLElement | null {
+  const left = turnsToFlee(e);
+  if (left === null) return null;
+  const word = left === 1 ? 'сбежит в этот ход' : `сбежит через ${left} ход(а)`;
+  return h(
+    'div',
+    { class: `flee-timer ${left <= 1 ? 'urgent' : ''}`, tip: `${word} и унесёт всё срезанное. Убить нужно раньше`, tipTitle: 'Побег' },
+    `⏳ ${left}`,
+  );
+}
+
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
   const size = spriteSize(def.sprite);
-  const px = size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5);
+  const px = Math.round(size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5) * (def.spriteScale ?? 1));
   const selected = app.currentTarget() === e.uid;
   return h(
     'div',
@@ -42,6 +54,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
       onclick: () => app.selectTarget(e.uid),
     },
     intentPill(app.run!.battle!, e),
+    fleeTimer(e),
     badges(e, false),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
     h('div', { class: 'name' }, e.name),
@@ -277,7 +290,14 @@ export function battleScreen(app: App): HTMLElement {
 
   const over = b.phase === 'won' || b.phase === 'lost';
   const won = b.phase === 'won';
-  const finishLabel = won ? 'Забрать награду' : 'К итогам';
+  // Вор удрал — поле пусто, но это не победа: добыча уходит с ним, и подводить итог надо честно.
+  const fled = won && b.fled;
+  // Убитый вор платит не за клетку, а из своего мешка: возвращает украденное и добавляет свой.
+  const gnomeSlain = won && !b.fled && run.event?.kind === 'gnome';
+  // Вещекрад: ставка не в монете, а в стянутом артефакте.
+  const snatcher = run.event?.kind === 'gnome_art';
+  const stolenName = b.stolenArtifact ? artifactDef(b.stolenArtifact.id).name : null;
+  const finishLabel = fled || (won && snatcher) ? 'Дальше' : won ? 'Забрать награду' : 'К итогам';
   const busy = app.busy || b.phase !== 'player';
 
   const top = h('div', { class: 'readout' }, ...defaultReadout(app));
@@ -294,9 +314,25 @@ export function battleScreen(app: App): HTMLElement {
           { class: 'overlay' },
           h(
             'div',
-            { class: `panel result ${won ? 'won' : 'lost'}` },
-            h('h2', null, won ? 'Победа!' : 'Герой пал'),
-            h('p', { class: 'dim' }, ...(won ? [`Бой занял ${b.turn} ход(ов). Добыча: +${goldReward(currentRoomKind(run))} `, coin(), ' золота.'] : ['Забег окончен.'])),
+            { class: `panel result ${fled ? 'fled' : won ? 'won' : 'lost'}` },
+            h('h2', null, fled ? 'Только его и видели' : won ? (snatcher && stolenName ? 'Вещь отбита' : 'Победа!') : 'Герой пал'),
+            h(
+              'p',
+              { class: 'dim' },
+              ...(fled && snatcher
+                ? [stolenName ? `Бой занял ${b.turn} ход(ов). Вор унёс «${stolenName}».` : `Бой занял ${b.turn} ход(ов). Красть у героя было нечего.`]
+                : fled
+                  ? [`Бой занял ${b.turn} ход(ов). Вор ушёл с ${b.stolen} `, coin(), ' золота.']
+                  : won && snatcher
+                    ? [stolenName ? `Бой занял ${b.turn} ход(ов). «${stolenName}» остался при герое.` : `Бой занял ${b.turn} ход(ов). Вор ушёл ни с чем.`]
+                    : won
+                  ? [
+                      `Бой занял ${b.turn} ход(ов). Добыча: +${gnomeSlain ? b.stolen + GNOME_BOUNTY : goldReward(currentRoomKind(run))} `,
+                      coin(),
+                      ' золота.',
+                    ]
+                  : ['Забег окончен.']),
+            ),
             h(
               'div',
               { class: 'row' },

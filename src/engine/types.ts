@@ -31,7 +31,8 @@ export type StatusId =
   | 'poison' // value урона в начале хода, turns ходов; яд ассасина
   | 'stealth' // враги не видят героя; любая атака — удар в спину (крит) и снимает статус (только герой)
   | 'vulnerable' // получает на 25 % больше урона от ударов и заклинаний (VULNERABLE_MULT), turns ходов
-  | 'smoke'; // дымовая завеса: каждый удар врага с шансом SMOKE_MISS_CHANCE проходит мимо; атаки героя её не снимают (только герой)
+  | 'smoke' // дымовая завеса: каждый удар врага с шансом SMOKE_MISS_CHANCE проходит мимо; атаки героя её не снимают (только герой)
+  | 'evade'; // процентный уворот: удар или заклинание по владельцу с шансом value % мимо; раны (DoT) бьют всегда (только враги)
 
 export interface Status {
   id: StatusId;
@@ -262,6 +263,14 @@ export type EnemyEffect =
   | { type: 'dodge'; value: number }
   /** Урон герою, после чего враг погибает. */
   | { type: 'selfDestruct'; amount: number; burn?: number }
+  /** Срезать кошель: amount золота копится в добыче вора (`BattleState.stolen`), мешок тяжелеет — уворот падает на EVADE_DROP. */
+  | { type: 'stealGold'; amount: number }
+  /** Стянуть артефакт: случайный из вставленных у героя уходит в мешок вора (`BattleState.stolenArtifact`); красть нечего — приём вхолостую. */
+  | { type: 'stealArtifact' }
+  /** Накинуть себе процентный уворот (статус `evade`): value процентов ударов и заклинаний пройдут мимо. */
+  | { type: 'evade'; value: number }
+  /** Удрать с добычей: враг покидает бой, не считаясь убитым. Пустое поле боя — победа с пометкой `fled`. */
+  | { type: 'flee' }
   /** Замах: ход без эффекта, готовит следующий приём. */
   | { type: 'none' };
 
@@ -303,6 +312,10 @@ export interface EnemyDef {
   rank: 'normal' | 'elite' | 'boss';
   actions: EnemyAction[];
   ai: { type: 'cycle'; order: string[] } | { type: 'boss'; rules: BossRule[] };
+  /** Процентный уворот при появлении (статус `evade`, 0..100): столько процентов ударов и заклинаний проходит мимо. */
+  evade?: number;
+  /** Множитель размера спрайта в бою (1 — как у всех своего ранга): гном мельче элиты, ему 0.7. */
+  spriteScale?: number;
   /** Срабатывает при смерти: деление, взрыв. */
   onDeath?: { name: string; effects: EnemyEffect[] };
   sprite: SpriteSpec;
@@ -387,6 +400,12 @@ export interface BattleState {
   events: BattleEvent[];
   log: string[];
   nextUid: number;
+  /** Золото, которое вор уже срезал в этом бою: вернётся герою, если вора убить, и пропадёт, если тот удерёт. */
+  stolen: number;
+  /** Артефакт, стянутый вором: вернётся в свой сокет, если вора убить, и пропадёт вместе с ним, если тот удерёт. */
+  stolenArtifact: ArtifactInstance | null;
+  /** Враг сбежал, а не погиб: бой закрыт победой, но добыча ушла с ним. */
+  fled: boolean;
   stats: { damageDealt: number; damageTaken: number; kills: number };
 }
 
@@ -460,8 +479,8 @@ export interface PendingPlacement {
   consumeReward: boolean;
 }
 
-/** Что выпало в клетке «Событие»: привал, элита, торговец, сундук, алтарь или кузнец (веса — EVENT_WEIGHTS). */
-export type EventKind = 'camp' | 'elite' | 'shop' | 'chest' | 'altar' | 'forge';
+/** Что выпало в клетке «Событие»: привал, элита, торговец, сундук, алтарь, кузнец или вор (веса — EVENT_WEIGHTS). */
+export type EventKind = 'camp' | 'elite' | 'shop' | 'chest' | 'altar' | 'forge' | 'gnome' | 'gnome_art';
 
 /**
  * Событие, пока герой в нём. Привал и торговец живут своими фазами (`camp`, `shop`), элита — боем с пометкой,
@@ -474,7 +493,17 @@ export type EventState =
   | { kind: 'chest'; gear: GearInstance }
   /** null — все артефакты уже на максимуме, остаётся только молитва. */
   | { kind: 'altar'; artifact: ArtifactInstance | null }
-  | { kind: 'forge' };
+  | { kind: 'forge' }
+  /**
+   * Гном-деньгокрад: `fight` — идёт бой, дальше экран итога. `fled` — удрал, `gold` золота потеряно;
+   * `slain` — убит, `gold` золота получено, `artifact` (если есть) ждёт кнопки «Забрать».
+   */
+  | { kind: 'gnome'; result: 'fight' | 'fled' | 'slain'; gold: number; artifact: ArtifactInstance | null }
+  /**
+   * Гном-вещекрад: `fight` — идёт бой; `fled` — удрал, `artifact` вырван из сокета навсегда;
+   * `slain` — убит, `artifact` вернулся на место (null — красть было нечего, тогда за труд платят золотом `gold`).
+   */
+  | { kind: 'gnome_art'; result: 'fight' | 'fled' | 'slain'; gold: number; artifact: ArtifactInstance | null; loot: ArtifactInstance | null };
 
 export interface RunStats {
   kills: number;
@@ -488,7 +517,7 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 13;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

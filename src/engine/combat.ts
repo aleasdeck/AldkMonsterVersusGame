@@ -1,11 +1,13 @@
 import type {
   AiCtx,
   AllyState,
+  ArtifactInstance,
   BattleState,
   Combatant,
   Effect,
   EnemyDef,
   EnemyEffect,
+  DerivedStats,
   EnemyState,
   HeroBattle,
   EventTarget,
@@ -16,7 +18,7 @@ import type {
   StatusId,
 } from './types';
 import { MAX_ALLIES, MAX_ENEMIES } from './types';
-import { chance, int, weighted, type Rng } from './rng';
+import { chance, int, pick, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
@@ -38,6 +40,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   stealth: 'Скрытность',
   smoke: 'Дымовая завеса',
   vulnerable: 'Уязвимость',
+  evade: 'Уворот',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -55,6 +58,7 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит, снимает скрытность',
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   smoke: 'Каждый удар врага с шансом 80 % проходит мимо. Атака героя из дыма — удар в спину: крит, снимает завесу',
+  evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) бьют всегда',
 };
 
 /**
@@ -65,6 +69,12 @@ export const VULNERABLE_MULT = 1.25;
 
 /** Шанс, что удар врага пройдёт мимо героя в дымовой завесе («Дымовая шашка»). */
 export const SMOKE_MISS_CHANCE = 0.8;
+
+/**
+ * На сколько процентных пунктов падает уворот вора за каждый срезанный кошель: набитый мешок тянет к земле.
+ * Отсюда весь выбор в бою с гномом — бить сразу вслепую или дать ему обворовать себя, зато потом бить наверняка.
+ */
+export const EVADE_DROP = 12;
 
 // ─── Статусы ───────────────────────────────────────────────────────────────
 
@@ -142,6 +152,8 @@ interface HitOpts {
   noThorns?: boolean;
   /** Бьёт союзник, а не герой: шипы отвечают ему. */
   attacker?: AllyState;
+  /** Нужен цели с процентным уворотом (`evade`): бросок делается на каждый удар и каждое заклинание отдельно. */
+  rng?: Rng;
 }
 
 function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, opts: HitOpts = {}): number {
@@ -150,6 +162,15 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
     log(state, `${e.name} неуязвим`);
     return 0;
+  }
+  // Процентный уворот вора: раны (dot) и шипы ему не помеха — только прямые удары и заклинания.
+  if (kind === 'hit' || kind === 'spell') {
+    const ev = statusValue(e, 'evade');
+    if (ev > 0 && opts.rng && chance(opts.rng, ev / 100)) {
+      state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
+      log(state, `${e.name} уворачивается (${ev} %)`);
+      return 0;
+    }
   }
   if (kind === 'hit') {
     const d = getStatus(e, 'dodge');
@@ -293,7 +314,7 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
           const target = state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
           if (!target) break;
           log(state, `${a.name} атакует ${target.name}: ${dmg}`);
-          damageEnemy(state, target, dmg, 'hit', { attacker: a });
+          damageEnemy(state, target, dmg, 'hit', { attacker: a, rng });
         }
         break;
       }
@@ -413,7 +434,7 @@ interface StrikeOpts {
 function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpts = {}): { dmg: number; crit: boolean } {
   const h = state.hero;
   const { dmg, crit } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit);
-  const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce: h.stats.pierceBlock > 0 });
+  const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce: h.stats.pierceBlock > 0, rng });
   if (dealt > 0 && e.hp > 0) {
     if (h.stats.stunOnHit > 0 && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnHit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
@@ -430,7 +451,7 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
       const part = Math.floor(dmg * h.stats.splash);
       if (part > 0) {
         log(state, `Сквозной удар по ${next.name}: ${part}`);
-        damageEnemy(state, next, part, 'hit', { pierce: h.stats.pierceBlock > 0, noThorns: true });
+        damageEnemy(state, next, part, 'hit', { pierce: h.stats.pierceBlock > 0, noThorns: true, rng });
       }
     }
   }
@@ -534,7 +555,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       const amount = eff.amount + h.stats.spellPower;
       for (const e of targetsFor(state, eff.target, targetUid)) {
         log(state, `Заклинание по ${e.name}: ${amount}`);
-        damageEnemy(state, e, amount, 'spell');
+        damageEnemy(state, e, amount, 'spell', { rng });
       }
       if (eff.drain) healHero(state, amount);
       if (h.stats.spellLeech > 0) healHero(state, h.stats.spellLeech);
@@ -725,6 +746,8 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     dmgMult: sc.dmg,
   };
   state.enemies.push(e);
+  // Процентный уворот вора: висит статусом, чтобы игрок видел текущий шанс промаха прямо на плитке врага.
+  if (def.evade) addStatus(state, e, e.uid, 'evade', def.evade, -1);
   chooseIntent(state, e, rng);
   if (announce) {
     state.events.push({ type: 'summon', target: e.uid });
@@ -816,9 +839,82 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       e.hp = 0;
       break;
     }
+    case 'stealGold': {
+      state.stolen += eff.amount;
+      log(state, `${e.name} срезает кошель: ${eff.amount} золота (всего ${state.stolen})`);
+      // Каждый кошель тянет мешок вниз: уворот падает, попасть становится проще.
+      const ev = getStatus(e, 'evade');
+      if (ev) {
+        ev.value = Math.max(0, ev.value - EVADE_DROP);
+        state.events.push({ type: 'status', target: e.uid, status: 'evade', value: ev.value });
+        if (ev.value <= 0) removeStatus(e, 'evade');
+      }
+      break;
+    }
+    case 'stealArtifact': {
+      // Крадём из снимка вставленных: что именно уйдёт из сокета, разберёт забег после боя.
+      // Вор не разбирает, чьё и последнее ли: тянет что подвернулось, включая персональный артефакт героя.
+      const pool = h.artifacts;
+      if (state.stolenArtifact || pool.length === 0) {
+        log(state, `${e.name} шарит по карманам, но брать нечего`);
+        break;
+      }
+      const art = pick(rng, pool);
+      state.stolenArtifact = art;
+      log(state, `${e.name} стягивает артефакт: ${artifactDef(art.id).name}`);
+      // Вещь ушла из рук прямо сейчас: плитка приёма пропадает, пассивная прибавка снимается с героя.
+      h.artifacts = h.artifacts.filter((a) => a !== art);
+      stripArtifactMods(state, art);
+      // Мешок с добычей тянет вниз — уворот падает так же, как от кошелька (у вещекрада на этот момент его ещё нет: он прикроется следующим ходом).
+      const ev = getStatus(e, 'evade');
+      if (ev) {
+        ev.value = Math.max(0, ev.value - EVADE_DROP);
+        state.events.push({ type: 'status', target: e.uid, status: 'evade', value: ev.value });
+        if (ev.value <= 0) removeStatus(e, 'evade');
+      }
+      break;
+    }
+    case 'evade':
+      addStatus(state, e, e.uid, 'evade', eff.value, -1);
+      break;
+    case 'flee':
+      fleeEnemy(state, e);
+      break;
     case 'none':
       log(state, `${e.name} готовится`);
       break;
+  }
+}
+
+/**
+ * Снять с героя прибавку украденного артефакта: пассивные моды вычитаются, а текущие HP/MP срезаются
+ * до новых максимумов (украли Сердце тролля — герой сразу худеет, но не умирает: остаётся хотя бы 1 HP).
+ */
+function stripArtifactMods(state: BattleState, art: ArtifactInstance): void {
+  const def = artifactDef(art.id);
+  if (def.kind !== 'passive' || !def.mods) return;
+  const h = state.hero;
+  const mods = def.mods(art.tier);
+  for (const key of Object.keys(mods) as (keyof DerivedStats)[]) h.stats[key] -= mods[key] ?? 0;
+  h.stats.crit = Math.max(0, h.stats.crit);
+  h.maxHp = h.stats.maxHp;
+  h.maxMp = h.stats.maxMp;
+  h.maxSta = h.stats.sta;
+  h.hp = Math.max(1, Math.min(h.hp, h.maxHp));
+  h.mp = Math.min(h.mp, h.maxMp);
+  h.sta = Math.min(h.sta, h.maxSta);
+}
+
+/** Враг покидает бой живым: с поля исчезает, в убитые не идёт. Опустело поле — бой закрыт победой с пометкой `fled`. */
+function fleeEnemy(state: BattleState, e: EnemyState): void {
+  state.enemies = state.enemies.filter((x) => x.uid !== e.uid);
+  state.enemyQueue = state.enemyQueue.filter((uid) => uid !== e.uid);
+  state.events.push({ type: 'death', target: e.uid });
+  log(state, `${e.name} удирает с добычей`);
+  state.fled = true;
+  if (state.enemies.length === 0 && state.phase !== 'lost') {
+    state.phase = 'won';
+    log(state, 'Бой окончен');
   }
 }
 
@@ -914,6 +1010,9 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     events: [],
     log: [],
     nextUid: 1,
+    stolen: 0,
+    stolenArtifact: null,
+    fled: false,
     stats: { damageDealt: 0, damageTaken: 0, kills: 0 },
   };
   for (const id of enemyIds) spawnEnemy(state, id, rng, false);
@@ -1007,6 +1106,22 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         kinds.push('attack');
         break;
       }
+      case 'stealGold':
+        parts.push(`Крадёт ${eff.amount} золота, свой уворот −${EVADE_DROP} %`);
+        kinds.push('debuff');
+        break;
+      case 'stealArtifact':
+        parts.push(`Крадёт случайный артефакт, свой уворот −${EVADE_DROP} %`);
+        kinds.push('debuff');
+        break;
+      case 'evade':
+        parts.push(`Уворот ${eff.value} %: удары и заклинания мимо`);
+        kinds.push('buff');
+        break;
+      case 'flee':
+        parts.push('Удирает с украденным');
+        kinds.push('special');
+        break;
       case 'none':
         kinds.push('special');
         break;
@@ -1053,6 +1168,25 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
     name: a.name,
     text: parts.length ? `${a.name}: ${parts.join(', ')}` : a.name,
   };
+}
+
+/**
+ * Через сколько ходов враг сбежит с добычей: 1 — удерёт прямо в этот ход врагов, null — бегством не грозит.
+ * Считается по циклу приёмов от объявленного намерения; у боссов с весами (и у циклов с условиями) не предсказуемо — там null.
+ */
+export function turnsToFlee(e: EnemyState): number | null {
+  const def = enemyDef(e.defId);
+  if (def.ai.type !== 'cycle') return null;
+  const order = def.ai.order;
+  const fleeIds = new Set(def.actions.filter((a) => a.effects.some((eff) => eff.type === 'flee')).map((a) => a.id));
+  if (fleeIds.size === 0) return null;
+  // Намерение уже объявлено: оно исполнится ближайшим ходом, дальше цикл идёт по порядку.
+  // Позицию берём из cycleIdx, а не из поиска по имени: один и тот же приём может стоять в цикле дважды.
+  const start = ((e.cycleIdx % order.length) + order.length) % order.length;
+  for (let i = 0; i < order.length; i++) {
+    if (fleeIds.has(order[(start + i) % order.length])) return i + 1;
+  }
+  return null;
 }
 
 export function computeIntent(e: EnemyState): IntentInfo {

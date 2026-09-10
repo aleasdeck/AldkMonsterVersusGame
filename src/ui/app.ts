@@ -1,5 +1,5 @@
 import { h } from './dom';
-import type { BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RunState } from '../engine/types';
+import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RunState } from '../engine/types';
 import * as R from '../engine/run';
 import { STATUS_NAMES, canUseAction } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
@@ -338,9 +338,14 @@ export class App {
 
   // ─── Комнаты ─────────────────────────────────────────────────────────────
 
+  /** Отладка: если задано, каждая клетка события разыгрывает этот вид (URL `&events=gnome_art`). */
+  forcedEvent: EventKind | null = null;
+
   enterRoom(): void {
     if (!this.run) return;
-    R.enterRoom(this.run);
+    // Отладка (&events=kind): клетка события всегда разыгрывает заданный вид — живой забег, но нужное событие.
+    if (this.forcedEvent && this.run.phase === 'map' && R.currentRoomKind(this.run) === 'event') R.startEvent(this.run, this.forcedEvent);
+    else R.enterRoom(this.run);
     this.target = null;
     this.commit();
   }
@@ -493,7 +498,7 @@ export class App {
     this.render();
   }
 
-  // Событие: сундук, алтарь, кузнец. Каждый выбор либо ведёт к следующей клетке, либо открывает выбор слота.
+  // Событие: сундук, алтарь, кузнец, добыча с вора. Каждый выбор либо ведёт к следующей клетке, либо открывает выбор слота.
   leaveEvent(): void {
     if (!this.run) return;
     R.leaveEvent(this.run);
@@ -520,6 +525,11 @@ export class App {
   forgeUpgrade(kind: GearKind): void {
     if (!this.run) return;
     if (R.forgeUpgrade(this.run, kind)) this.afterPhaseChange();
+  }
+
+  gnomeTakeLoot(): void {
+    if (!this.run) return;
+    if (R.gnomeTakeLoot(this.run)) this.afterPhaseChange();
   }
 
   // ─── Магазин ─────────────────────────────────────────────────────────────

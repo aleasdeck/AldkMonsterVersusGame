@@ -25,7 +25,7 @@ app.start();
 
 // Отладочный быстрый старт: ?hero=warrior&seed=5&enter=1 — новый забег и сразу первая комната.
 // ?hero=...&phase=won|reward|shop|event|camp|end — сразу нужный экран (бой выигрывается читом); won — плашка победы, &log=1 — с раскрытым логом.
-// &phase=event&event=chest|altar|forge|elite|shop|camp — заданное событие в третьей клетке.
+// &phase=event&event=chest|altar|forge|elite|shop|camp|gnome|gnome_art — заданное событие в третьей клетке; &events=<вид> — на весь забег.
 const params = new URLSearchParams(window.location.search);
 
 // &mock=1 — демо-профиль: статистика, сундуки, часть коллекции и половина бестиария (для отладки экранов)
@@ -57,6 +57,9 @@ if (heroParam) {
   const run = app.run!;
   // &art=id1,id2 — досыпать артефакты в оружие (для отладки интерфейса)
   for (const id of (params.get('art') ?? '').split(',').filter(Boolean)) run.hero.weapon.slots.push({ id, tier: 1 });
+  // &events=gnome_art — каждая клетка события в этом забеге разыгрывает заданный вид (живой забег, нужное событие)
+  const forced = params.get('events');
+  if (forced && forced in EVENT_WEIGHTS) app.forcedEvent = forced as EventKind;
   // &potion=heal_potion — положить зелье в слот
   const potionParam = params.get('potion');
   if (potionParam) run.hero.potion = potionParam;
@@ -84,7 +87,7 @@ if (heroParam) {
       if (i >= 0) app.takeReward(i);
     }
   } else if (phase === 'event') {
-    // Случайное событие в третьей клетке; &event=shop|camp|chest|altar|forge|elite — заданное.
+    // Случайное событие в третьей клетке; &event=shop|camp|chest|altar|forge|elite|gnome|gnome_art — заданное.
     run.roomIndex = 2;
     const ev = params.get('event');
     if (ev && ev in EVENT_WEIGHTS) {

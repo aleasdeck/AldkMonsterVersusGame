@@ -1,5 +1,6 @@
 import type { AiCtx, EnemyAction, EnemyDef, EnemyEffect, FxSpec, HeadStyle, SpriteSpec } from '../engine/types';
 import { MAX_ENEMIES } from '../engine/types';
+import { GNOME_STEAL } from '../engine/loot';
 
 function act(id: string, name: string, effects: EnemyEffect[], condition?: (ctx: AiCtx) => boolean): EnemyAction {
   return condition ? { id, name, effects, condition } : { id, name, effects };
@@ -1091,6 +1092,55 @@ const list: EnemyDef[] = [
       ],
     },
     sprite: humanoid('hat', { o: '#0e0e16', e: '#5cf0ff', s: '#8fa8a0', h: '#1a1a2a', b: '#3a1a2a', l: '#1a1a2a', w: '#d4af37' }),
+  },
+  // ═══ Вор (событие любого этажа) ═══════════════════════════════════════════
+  // Родной tier — первый (лес): бой с вором длится всего четыре хода, и числа заданы под урон героя в первом акте;
+  // дальше их поднимает обычный масштаб элиты (×1.5 во втором акте, ×2.4 в третьем).
+  {
+    id: 'gnome_thief',
+    name: 'Гном-деньгокрад',
+    hp: 18,
+    location: 'forest',
+    rank: 'elite',
+    // Половина ударов мимо, но каждый срезанный кошель тянет мешок к земле: −12 % за кражу.
+    evade: 50,
+    // Гном ростом с полтора мешка: на поле он мельче любой элиты и даже рядового.
+    spriteScale: 0.7,
+    actions: [
+      withFx({ kind: 'melee', color: '#ffd166' }, act('pinch', 'Срезать кошель', [{ type: 'stealGold', amount: GNOME_STEAL }])),
+      withFx({ kind: 'flask', color: '#c2b280' }, act('sand', 'Песок в глаза', [
+        { type: 'attack', amount: 4 },
+        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+      ])),
+      act('bolt', 'Дать дёру', [{ type: 'flee' }]),
+    ],
+    ai: { type: 'cycle', order: ['pinch', 'sand', 'pinch', 'bolt'] },
+    sprite: humanoid('cap', { s: '#e0b088', h: '#2a6a3a', b: '#7a5230', l: '#3a2a1a', w: '#ffd166' }),
+  },
+  {
+    id: 'gnome_snatcher',
+    name: 'Гном-вещекрад',
+    hp: 34,
+    location: 'forest',
+    rank: 'elite',
+    // Уворота с порога у него нет: первый ход он занят карманами, и это окно героя. Уворот приходит вторым ходом («Мелькнуть»).
+    spriteScale: 0.7,
+    actions: [
+      // Вместе с вещью выуживает искру из кармана: иначе Маг с полной маной валит вора за два хода (98 % у бота).
+      withFx({ kind: 'melee', color: '#8fd3ff' }, act('snatch', 'Стянуть вещь', [
+        { type: 'stealArtifact' },
+        { type: 'drainMp', amount: 5 },
+      ])),
+      withFx({ kind: 'flask', color: '#c2b280' }, act('sand', 'Песок в глаза', [
+        { type: 'attack', amount: 4 },
+        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+      ])),
+      act('slip', 'Мелькнуть', [{ type: 'evade', value: 50 }]),
+      act('duck', 'Юркнуть', [{ type: 'block', amount: 6 }]),
+      act('bolt', 'Дать дёру', [{ type: 'flee' }]),
+    ],
+    ai: { type: 'cycle', order: ['snatch', 'slip', 'sand', 'duck', 'bolt'] },
+    sprite: humanoid('hood', { s: '#d9a273', h: '#6a2438', b: '#9c3b4e', l: '#3a1a22', w: '#d8d8e8' }),
   },
 ];
 
