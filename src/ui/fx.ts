@@ -31,9 +31,9 @@ export interface Shot {
   delay: number;
 }
 
-/** Эффект на бойце после перерисовки: свечение (баф), облако (дебаф) или глоток зелья. */
+/** Эффект на бойце после перерисовки: свечение (баф), облако (дебаф), щит (блок) или глоток зелья. */
 export interface AfterFx {
-  kind: 'glow' | 'cloud' | 'drink';
+  kind: 'glow' | 'cloud' | 'drink' | 'shield';
   color: string;
   target: EventTarget;
 }
@@ -99,7 +99,9 @@ function planEffects(
 ): void {
   const hostile = effects.find((e) => (e.type === 'attack' || e.type === 'spell' || e.type === 'status') && e.target !== 'self');
   if (!hostile || !('target' in hostile)) {
-    plan.after.push({ kind: potion ? 'drink' : 'glow', color: fx?.color ?? selfColor, target: 'hero' });
+    // Приём на себя: зелье — глоток, блок — щит перед героем, остальное — свечение.
+    const kind = potion ? 'drink' : effects.some((e) => e.type === 'block') ? 'shield' : 'glow';
+    plan.after.push({ kind, color: kind === 'shield' ? (fx?.color ?? SHIELD) : (fx?.color ?? selfColor), target: 'hero' });
     return;
   }
   const targets = hostile.target === 'allEnemies' ? all : target !== undefined && all.includes(target) ? [target] : all.slice(0, 1);
@@ -162,13 +164,13 @@ export function planEnemyFx(run: RunState, events: BattleEvent[], victim: EventT
   return plan;
 }
 
-/** Облако или свечение по событию боя: статус по своему цвету, блок — цвет щита, лечение — зелёное. */
-export function eventFx(ev: BattleEvent): { kind: 'glow' | 'cloud'; color: string } | null {
+/** Облако, свечение или щит по событию боя: статус по своему цвету, блок — щит перед бойцом, лечение — зелёное свечение. */
+export function eventFx(ev: BattleEvent): { kind: 'glow' | 'cloud' | 'shield'; color: string } | null {
   switch (ev.type) {
     case 'status':
       return { kind: DEBUFFS.has(ev.status) ? 'cloud' : 'glow', color: STATUS_COLORS[ev.status] };
     case 'block':
-      return { kind: 'glow', color: SHIELD };
+      return { kind: 'shield', color: SHIELD };
     case 'heal':
       return { kind: 'glow', color: HEAL };
     default:
@@ -257,6 +259,33 @@ function orbImg(color: string): HTMLImageElement {
 const FLASK = ['..ooo..', '..oco..', '..oGo..', '.oGGGo.', 'oGLLLGo', 'oLLLLLo', 'oLLLLLo', '.oLLLo.', '..ooo..'];
 function flaskImg(color: string): HTMLImageElement {
   return img(gridUrl(`flask:${color}`, FLASK, { o: OUTLINE, c: '#8a6b3f', G: '#cfe8ff', L: color }), 7, 9, 4);
+}
+
+/** Щит 11×13: контур, кайма, поле цветом, блик слева сверху, умбон по центру. */
+const SHIELD_SPRITE = [
+  '.ooooooooo.',
+  'oRRRRRRRRRo',
+  'oRWWBBBBBRo',
+  'oRWBBBBBBRo',
+  'oRWBBuuBBRo',
+  'oRBBBuuBBRo',
+  'oRBBBBBBBRo',
+  'oRBBBBBBBRo',
+  '.oRBBBBBRo.',
+  '.oRBBBBBRo.',
+  '..oRBBBRo..',
+  '...oRBRo...',
+  '....ooo....',
+];
+function shieldImg(color: string): HTMLImageElement {
+  const el = img(
+    gridUrl(`shield:${color}`, SHIELD_SPRITE, { o: OUTLINE, R: mix(color, '#000000', 0.35), B: color, W: mix(color, '#ffffff', 0.55), u: '#f4d35e' }),
+    11,
+    13,
+    4,
+  );
+  el.style.filter = `drop-shadow(0 0 5px ${color})`;
+  return el;
 }
 
 /** Клуб облака 9×9 без контура, два тона. */
@@ -465,6 +494,37 @@ function glow(root: HTMLElement, layer: HTMLElement, t: EventTarget, color: stri
   }
 }
 
+/**
+ * Щит блока: вырастает перед бойцом со стороны противника (герой смотрит вправо, враги — влево),
+ * держится и растворяется вверх. Сам боец коротко подсвечивается цветом щита.
+ */
+function shield(root: HTMLElement, layer: HTMLElement, t: EventTarget, color: string): void {
+  const sprite = spriteOf(root, t);
+  const p = anchor(root, layer, t);
+  if (!sprite || !p) return;
+  const el = shieldImg(color);
+  const side = t === 'hero' ? 1 : -1;
+  const x = p.x + side * p.w * 0.38 - el.width / 2;
+  const y = p.y - el.height / 2 + p.h * 0.05;
+  el.style.transformOrigin = '50% 60%';
+  layer.appendChild(el);
+  animate(el, [
+    { transform: `translate(${x}px, ${y + 6}px) scale(0.4)`, opacity: 0 },
+    { transform: `translate(${x}px, ${y}px) scale(1.15)`, opacity: 1, offset: 0.22 },
+    { transform: `translate(${x}px, ${y}px) scale(1)`, opacity: 1, offset: 0.35 },
+    { transform: `translate(${x}px, ${y}px) scale(1)`, opacity: 1, offset: 0.68 },
+    { transform: `translate(${x}px, ${y - 10}px) scale(1.2)`, opacity: 0, filter: 'brightness(2)' },
+  ], { duration: 900, easing: 'ease-out' }, () => el.remove());
+  sprite.animate(
+    [
+      { filter: 'drop-shadow(0 0 0 transparent)' },
+      { filter: `drop-shadow(0 0 8px ${color})`, offset: 0.3 },
+      { filter: 'drop-shadow(0 0 0 transparent)' },
+    ],
+    { duration: 700, easing: 'ease-out' },
+  );
+}
+
 /** Глоток: склянка появляется у лица героя, наклоняется и исчезает, герой светится её цветом. */
 function drink(root: HTMLElement, layer: HTMLElement, color: string): void {
   const p = anchor(root, layer, 'hero');
@@ -488,6 +548,7 @@ export function playAfter(root: HTMLElement, fx: AfterFx): void {
   const layer = root.querySelector<HTMLElement>('.fx-layer');
   if (!layer) return;
   if (fx.kind === 'glow') glow(root, layer, fx.target, fx.color);
+  else if (fx.kind === 'shield') shield(root, layer, fx.target, fx.color);
   else if (fx.kind === 'drink') drink(root, layer, fx.color);
   else {
     const p = anchor(root, layer, fx.target);
