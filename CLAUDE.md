@@ -45,7 +45,7 @@ src/ui/       рендер и клики
   app.ts        class App: state (run, screen, target, busy, logOpen, sheetOpen, pauseOpen…), render() диспатчит по screen/run.phase
                 и добавляет оверлеи, commit() = saveRun + render, ход врагов с таймером ENEMY_STEP_MS (под оверлеем ждёт), таймер забега
   frame.ts      runFrame(app, parts): топбар 40 + центр 320 + консоль 180 — все шесть экранов забега
-  topbar.ts     портрет, золото, акт/локация, лента комнат (ROOM_ICONS), ход, таймер, меню; console.ts — блок героя, hubGear, кнопка лога
+  topbar.ts     кнопка «Персонаж» (☻), золото, акт/локация, лента комнат (ROOM_ICONS), ход, таймер, меню; console.ts — блок героя, hubGear, кнопка лога
   screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи; bestiary.ts — альбом врагов по локациям (describeAction из combat.ts)
   components.ts карточки предметов, бары, чипы, иконки типов, pendingModal; gearTile.ts — плитка экипировки с сокетами 2×2; dom.ts — h()/button()
   tooltip.ts    свои подсказки: атрибуты tip / tipTitle в h() → data-tip; keywords.ts — подсветка ключевых слов в описаниях
