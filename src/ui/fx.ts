@@ -97,7 +97,7 @@ function planEffects(
   selfColor: string,
   potion: boolean,
 ): void {
-  const hostile = effects.find((e) => (e.type === 'attack' || e.type === 'spell' || e.type === 'status') && e.target !== 'self');
+  const hostile = effects.find((e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status') && e.target !== 'self');
   if (!hostile || !('target' in hostile)) {
     // Приём на себя: зелье — глоток, блок — щит перед героем, остальное — свечение.
     const kind = potion ? 'drink' : effects.some((e) => e.type === 'block') ? 'shield' : 'glow';
@@ -108,7 +108,7 @@ function planEffects(
   let kind = fx?.kind;
   let color = fx?.color;
   if (!kind) {
-    if (effects.some((e) => e.type === 'attack')) {
+    if (effects.some((e) => e.type === 'attack' || e.type === 'blockStrike')) {
       kind = weapon.kind;
       color ??= weapon.color;
     } else if (effects.some((e) => e.type === 'spell')) {

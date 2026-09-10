@@ -503,6 +503,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if (state.allies.length >= MAX_ALLIES && def.effects?.(inst.tier).some((e) => e.type === 'summon')) return 'Рядом нет места';
       for (const eff of def.effects?.(inst.tier) ?? []) {
         if (eff.type === 'selfDamage' && h.hp <= eff.amount) return 'Слишком мало HP';
+        if (eff.type === 'blockStrike' && h.block <= 0) return 'Нет блока';
       }
       return null;
     }
@@ -524,12 +525,33 @@ function targetsFor(state: BattleState, target: 'enemy' | 'allEnemies', uid?: nu
 function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefined, rng: Rng): void {
   const h = state.hero;
   switch (eff.type) {
-    case 'attack':
+    case 'attack': {
+      let swung = 0;
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const { dmg, crit } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy' });
+        swung += dmg;
         log(state, `Удар по ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
       }
+      // Щитовой удар: блок — доля урона замаха, а не того, что дошло до HP: блок и уклонение врага щит не отменяют.
+      if (eff.blockPct && swung > 0) {
+        const gain = Math.round(swung * eff.blockPct);
+        if (gain > 0) {
+          h.block += gain;
+          state.events.push({ type: 'block', target: 'hero', amount: gain });
+          log(state, `Щит принимает удар: +${gain} блока`);
+        }
+      }
       break;
+    }
+    case 'blockStrike': {
+      // Таран: урон от текущего блока, как удар — гасится блоком врага (кроме булавы), отвечает шипами, но без усталости и крита.
+      const dmg = Math.floor(h.block * eff.mult);
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        log(state, `Таран по ${e.name}: ${dmg}`);
+        damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0 });
+      }
+      break;
+    }
     case 'spell': {
       const amount = eff.amount + h.stats.spellPower;
       for (const e of targetsFor(state, eff.target, targetUid)) {
@@ -618,7 +640,7 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     const effects = def.effects?.(inst.tier) ?? [];
     for (const eff of effects) applyEffect(state, eff, action.target, rng);
     if (effects.some((e) => e.type === 'attack')) h.attacks += 1;
-    if (effects.some((e) => e.type === 'attack' || e.type === 'spell')) breakStealth(state);
+    if (effects.some((e) => e.type === 'attack' || e.type === 'spell' || e.type === 'blockStrike')) breakStealth(state);
   }
   cleanupDead(state, rng);
 }
@@ -934,13 +956,19 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
 
 export type IntentKind = 'attack' | 'defend' | 'buff' | 'debuff' | 'heal' | 'summon' | 'special';
 
-/** Описание приёма врага: вид для иконки, короткая подпись (урон/блок) и текст подсказки. */
+/**
+ * Описание приёма врага: вид для иконки, короткая подпись (урон/блок) и текст подсказки.
+ * `kinds` — все виды эффектов приёма по убыванию важности (первый — `kind`), `statuses` — что он вешает на героя:
+ * пилюля показывает их рядом с главной иконкой, чтобы дебаф при ударе не прятался в подсказке.
+ */
 export interface ActionInfo {
   kind: IntentKind;
   icon: string;
   label: string;
   name: string;
   text: string;
+  kinds: IntentKind[];
+  statuses: StatusId[];
 }
 
 export interface IntentInfo extends ActionInfo {
@@ -960,7 +988,7 @@ export interface ActionScale {
 
 export const BASE_SCALE: ActionScale = { hpMult: 1, dmgMult: 1, strength: 0, weak: false };
 
-const INTENT_ICON: Record<IntentKind, string> = {
+export const INTENT_ICON: Record<IntentKind, string> = {
   attack: '⚔',
   defend: '⛨',
   buff: '↑',
@@ -976,6 +1004,7 @@ const INTENT_PRIORITY: IntentKind[] = ['attack', 'summon', 'debuff', 'heal', 'bu
 export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyEffect[] }, s: ActionScale = BASE_SCALE): ActionInfo {
   const parts: string[] = [];
   const kinds: IntentKind[] = [];
+  const statuses: StatusId[] = [];
   let label = '';
   for (const eff of a.effects) {
     switch (eff.type) {
@@ -1005,6 +1034,10 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         label = `${dmg}`;
         parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${scaled(s.dmgMult, eff.burn)}` : ''}`);
         kinds.push('attack');
+        if (eff.burn) {
+          kinds.push('debuff');
+          statuses.push('burn');
+        }
         break;
       }
       case 'none':
@@ -1025,6 +1058,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         const val = isDot(eff.status) ? ` ${scaled(s.dmgMult, eff.value)}` : '';
         parts.push(`${STATUS_NAMES[eff.status]}${val}${dur}`);
         kinds.push('debuff');
+        statuses.push(eff.status);
         break;
       }
       case 'drainMp':
@@ -1052,6 +1086,8 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: a.name,
     text: parts.length ? `${a.name}: ${parts.join(', ')}` : a.name,
+    kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
+    statuses: statuses.filter((id, i) => statuses.indexOf(id) === i),
   };
 }
 
@@ -1116,6 +1152,8 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: action.name,
     text: parts.length ? `${action.name}: ${parts.join(', ')}` : action.name,
+    kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
+    statuses: [],
     stunned: false,
     target,
   };

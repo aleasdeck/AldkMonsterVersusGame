@@ -287,11 +287,22 @@ const list: ArtifactDef[] = [
     cost: { sta: 1 },
     cooldown: () => 2,
     target: 'enemy',
-    effects: (tier) => [
-      { type: 'attack', bonus: t(0, 1, 2)(tier), target: 'enemy', mult: 0.75 },
-      { type: 'block', amount: t(3, 4, 5)(tier) },
-    ],
-    describe: (tier) => `Атака на 75 % урона +${t(0, 1, 2)(tier)} и +${t(3, 4, 5)(tier)} Блока. КД 2`,
+    // Блок — доля урона, а не плоские +3/4/5 (v0.18): с оружием третьего акта плоский блок не гасил и половины удара.
+    effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', mult: 0.75, blockPct: t(0.6, 0.8, 1)(tier) }],
+    describe: (tier) => `Атака на 75 % урона; ${t(60, 80, 100)(tier)} % нанесённого урона становится Блоком. КД 2`,
+  },
+  {
+    id: 'shield_ram',
+    fx: { kind: 'melee', color: '#8ecae6' },
+    name: 'Таран',
+    glyph: '◈',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 2,
+    target: 'enemy',
+    effects: (tier) => [{ type: 'blockStrike', mult: t(1, 1.5, 2)(tier), target: 'enemy' }],
+    describe: (tier) => `Удар щитом: ${t(100, 150, 200)(tier)} % текущего Блока героя уроном по цели. Оружие и усталость не участвуют, блок не тратится. КД 2`,
   },
   {
     id: 'light_hammer',

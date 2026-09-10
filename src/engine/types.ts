@@ -124,7 +124,18 @@ export interface FxSpec {
 export type TargetKind = 'enemy' | 'allEnemies' | 'self';
 
 export type Effect =
-  | { type: 'attack'; bonus: number; target: 'enemy' | 'allEnemies'; /** Доля урона оружия, 1 — полный. */ mult?: number; sureCrit?: boolean }
+  | {
+      type: 'attack';
+      bonus: number;
+      target: 'enemy' | 'allEnemies';
+      /** Доля урона оружия, 1 — полный. */
+      mult?: number;
+      sureCrit?: boolean;
+      /** Доля нанесённого урона, которая становится Блоком героя (Щитовой удар): блок растёт вместе с оружием. */
+      blockPct?: number;
+    }
+  /** Удар щитом (Таран): урон равен текущему Блоку героя × mult. Кубик оружия, Сила и усталость не участвуют, блок не тратится. */
+  | { type: 'blockStrike'; mult: number; target: 'enemy' }
   | { type: 'spell'; amount: number; target: 'enemy' | 'allEnemies'; drain?: boolean }
   | { type: 'block'; amount: number }
   | { type: 'heal'; amount: number }
