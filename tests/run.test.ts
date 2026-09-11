@@ -718,15 +718,15 @@ describe('забег', () => {
   });
 
   it('враги масштабируются под акт, а не под родную локацию', () => {
-    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +75 % надбавки акта
+    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +65 % надбавки акта
     expect(enemyScale(1, 2).hp).toBeCloseTo(2.7);
-    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * 1.75);
-    // враг пещер (tier 3) в первом акте — наоборот, тоньше, надбавка первого акта +40 %; боссы растут мягче рядовых
+    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * 1.65);
+    // враг пещер (tier 3) в первом акте — наоборот, тоньше, надбавка первого акта +30 %; боссы растут мягче рядовых
     expect(enemyScale(3, 0).hp).toBeCloseTo(1 / 2.7);
-    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * 1.4);
+    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * 1.3);
     expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4);
-    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * 1.75);
-    expect(enemyScale(2, 1).dmg).toBeCloseTo(1.6);
+    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * 1.65);
+    expect(enemyScale(2, 1).dmg).toBeCloseTo(1.5);
     const run = newRun('warrior', 3);
     run.locations = ['ship', 'forest', 'swamp'];
     enterRoom(run);

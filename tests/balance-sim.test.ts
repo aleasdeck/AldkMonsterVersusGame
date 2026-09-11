@@ -1,7 +1,7 @@
 /**
  * Симуляция баланса: бот проходит забеги за каждого героя и печатает статистику.
  * Запуск: SIM=1 npx vitest run tests/balance-sim.test.ts  (по умолчанию пропускается)
- * SIM_HERO=berserk — один герой, SIM_N=300 — число забегов.
+ * SIM_HERO=berserk — один герой, SIM_N=300 — число забегов, SIM_LOCS=caves,caves,caves — локации по актам.
  * Сам бот — в tests/sim/bot.ts: планирует ход перебором на копии состояния, вне боя считает ценность предметов.
  */
 import { it } from 'vitest';
@@ -9,12 +9,15 @@ import { HERO_LIST } from '../src/data/heroes';
 import { POTION_IDS } from '../src/data/potions';
 import { heroStats, newRun } from '../src/engine/run';
 import { USES, playRun } from './sim/bot';
+import type { RunState } from '../src/engine/types';
 
 // без @types/node: читаем переменные окружения через globalThis
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
 const N = Number(env.SIM_N ?? 60);
 /** SIM_HERO=berserk — прогнать только одного героя. */
 const ONLY = env.SIM_HERO;
+/** SIM_LOCS=caves,caves,caves — зафиксировать локации забега по актам (замер одного босса на всех трёх актах). */
+const LOCS = env.SIM_LOCS?.split(',').filter(Boolean) as RunState['locations'] | undefined;
 
 for (const hero of HERO_LIST) {
   // Отдельный it на героя: между ними vitest успевает отчитаться воркеру, иначе долгий прогон падает по таймауту RPC.
@@ -30,6 +33,7 @@ for (const hero of HERO_LIST) {
     const bossHp: number[][] = [[], [], []];
     for (let seed = 1; seed <= N; seed++) {
       const run = newRun(hero.id, seed * 7919);
+      if (LOCS) run.locations = LOCS;
       const outcome = playRun(run, (r) => bossHp[r.locationIndex].push(r.hero.hp / heroStats(r).maxHp));
       if (outcome === 'victory') wins++;
       else if (outcome === 'stall') stuck++;
