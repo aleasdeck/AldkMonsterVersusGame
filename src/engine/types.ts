@@ -318,6 +318,13 @@ export interface EnemyDef {
   spriteScale?: number;
   /** Срабатывает при смерти: деление, взрыв. */
   onDeath?: { name: string; effects: EnemyEffect[] };
+  /**
+   * Вторая фаза босса: как только HP опускается до доли `atHp` от максимума, босс тут же (ещё в ход героя) меняет
+   * облик — разыгрывает `effects`, получает ауру цвета `aura` и `phase = 2`; правила ИИ различают фазы через `ctx.self.phase`.
+   */
+  phase2?: { atHp: number; name: string; effects: EnemyEffect[]; aura: string };
+  /** Аура с появления: тело, вставшее после смерти босса (Развоплощённый лич, Призрак капитана). */
+  aura?: string;
   sprite: SpriteSpec;
 }
 
@@ -363,6 +370,10 @@ export interface EnemyState extends Combatant {
   /** Множители под акт забега: HP/блок/лечение и урон/DoT. Считаются при появлении. */
   hpMult: number;
   dmgMult: number;
+  /** Фаза босса: 1 — обычная, 2 — после перехода `EnemyDef.phase2`. У рядовых всегда 1. */
+  phase: number;
+  /** Цвет зловещей ауры (вторая фаза босса или тело, вставшее после смерти); нет — ауры нет. */
+  aura?: string;
 }
 
 /** Союзник героя: ходит по правилам своего врага-прототипа, бьёт сам, враги атакуют его первым. */
@@ -384,6 +395,8 @@ export type BattleEvent =
   | { type: 'summon'; target: number }
   | { type: 'enemyAction'; target: number; name: string }
   | { type: 'stunned'; target: number }
+  /** Босс перешёл во вторую фазу или встал после смерти: вспышка и аура цвета `color`, всплывает `name`. */
+  | { type: 'phase'; target: number; name: string; color: string }
   | { type: 'log'; text: string };
 
 export interface BattleState {
@@ -517,7 +530,7 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

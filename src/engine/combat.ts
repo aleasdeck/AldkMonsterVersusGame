@@ -350,7 +350,26 @@ function healEnemy(state: BattleState, e: EnemyState, amount: number): void {
   state.events.push({ type: 'heal', target: e.uid, amount: healed });
 }
 
+/**
+ * Вторая фаза босса. Порог проверяется после каждого пакета урона (удар героя, союзник, раны), переход происходит сразу:
+ * эффекты перехода ложатся ещё в ход героя, намерение выбирается заново по правилам новой фазы (обязательное продолжение
+ * замаха при этом сохраняется). Один раз за бой — `phase` больше не вернётся к 1.
+ */
+function checkPhases(state: BattleState, rng: Rng): void {
+  for (const e of state.enemies) {
+    const p2 = enemyDef(e.defId).phase2;
+    if (!p2 || e.phase >= 2 || e.hp <= 0 || e.hp > Math.ceil(e.maxHp * p2.atHp)) continue;
+    e.phase = 2;
+    e.aura = p2.aura;
+    state.events.push({ type: 'phase', target: e.uid, name: p2.name, color: p2.aura });
+    log(state, `${e.name}: ${p2.name}!`);
+    for (const eff of p2.effects) applyEnemyEffect(state, e, eff, rng);
+    chooseIntent(state, e, rng);
+  }
+}
+
 function cleanupDead(state: BattleState, rng: Rng): void {
+  checkPhases(state, rng);
   const dead = state.enemies.filter((e) => e.hp <= 0);
   if (dead.length === 0) return;
   for (const e of dead) {
@@ -744,6 +763,7 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     forcedNext: null,
     hpMult: sc.hp,
     dmgMult: sc.dmg,
+    phase: 1,
   };
   state.enemies.push(e);
   // Процентный уворот вора: висит статусом, чтобы игрок видел текущий шанс промаха прямо на плитке врага.
@@ -752,6 +772,11 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
   if (announce) {
     state.events.push({ type: 'summon', target: e.uid });
     log(state, `Появляется ${e.name}`);
+  }
+  // Тело, вставшее после смерти босса: аура с первого кадра и та же вспышка, что у перехода во вторую фазу.
+  if (def.aura) {
+    e.aura = def.aura;
+    state.events.push({ type: 'phase', target: e.uid, name: e.name, color: def.aura });
   }
   return e;
 }

@@ -495,6 +495,62 @@ describe('боссы', () => {
     // 7 базовых + 2 посох, −3 иссушение, +2 реген в начале следующего хода
     expect(state.hero.mp).toBe(9 - 3 + 2);
   });
+
+  it('вожак на половине HP сразу переходит во вторую фазу: аура, блок, вой и старое разрывание отключаются', () => {
+    const { state, rng } = mkBattle('warrior', ['alpha_wolf', 'wolf']);
+    const a = first(state);
+    a.hp = 29; // порог — 28 из 55, любой удар переводит
+    performAction(state, { type: 'attack', target: a.uid }, rng);
+    expect(a.phase).toBe(2);
+    expect(a.aura).toBe('#ff3b3b');
+    expect(a.block).toBe(6);
+    expect(state.events.filter((ev) => ev.type === 'phase' && ev.target === a.uid).length).toBe(1);
+    state.hero.hp = 100000;
+    state.hero.maxHp = 100000;
+    for (let i = 0; i < 30; i++) {
+      expect(['howl', 'rend']).not.toContain(a.intent);
+      pass(state, rng);
+    }
+    // переход одноразовый: добили ниже — второй вспышки нет
+    a.hp = 5;
+    performAction(state, { type: 'attack', target: a.uid }, rng);
+    expect(state.events.filter((ev) => ev.type === 'phase').length).toBe(1);
+  });
+
+  it('пламенный покров дракона: блок и шипы ложатся ещё в ход героя, рёв больше не выбирается', () => {
+    const { state, rng } = mkBattle('warrior', ['dragon']);
+    const d = first(state);
+    d.hp = 61; // порог — 60 из 120
+    performAction(state, { type: 'attack', target: d.uid }, rng);
+    expect(d.phase).toBe(2);
+    expect(d.block).toBe(10);
+    expect(getStatus(d, 'thorns')?.value).toBe(2);
+    state.hero.hp = 100000;
+    state.hero.maxHp = 100000;
+    for (let i = 0; i < 20; i++) {
+      expect(d.intent).not.toBe('roar');
+      pass(state, rng);
+    }
+  });
+
+  it('лич после смерти встаёт развоплощённым — с аурой и вспышкой, бой не окончен', () => {
+    const { state, rng } = mkBattle('warrior', ['lich']);
+    const l = first(state);
+    l.hp = 1;
+    performAction(state, { type: 'attack', target: l.uid }, rng);
+    expect(state.phase).toBe('player');
+    expect(state.enemies.map((e) => e.defId)).toEqual(['lich_ghost']);
+    expect(state.enemies[0].aura).toBe('#8a2be2');
+    expect(state.events.some((ev) => ev.type === 'phase' && ev.target === state.enemies[0].uid)).toBe(true);
+  });
+
+  it('призрак капитана появляется с уворотом 30 %', () => {
+    const { state, rng } = mkBattle('warrior', ['cursed_captain']);
+    first(state).hp = 1;
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(first(state).defId).toBe('captain_ghost');
+    expect(getStatus(first(state), 'evade')?.value).toBe(30);
+  });
 });
 
 describe('пошаговый ход врагов', () => {
