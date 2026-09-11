@@ -878,12 +878,12 @@ describe('v0.18: блок от урона и удар блоком', () => {
 });
 
 describe('лимит применений за ход', () => {
-  it('волшебная стрела: не больше 3 раз за ход на 1 тире, на следующем ходу снова доступна', () => {
+  it('волшебная стрела: не больше 2 раз за ход на 1 тире, на следующем ходу снова доступна', () => {
     const { state, rng } = mkBattle('mage', ['bear'], { extra: [{ id: 'magic_missile', tier: 1 }] });
     const bear = first(state);
-    for (let i = 0; i < 3; i++) performAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid }, rng);
-    expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toMatch(/3 раз/);
-    expect(state.hero.mp).toBe(9 - 3);
+    for (let i = 0; i < 2; i++) performAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid }, rng);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toMatch(/2 раз/);
+    expect(state.hero.mp).toBe(9 - 2);
     pass(state, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toBeNull();
   });
