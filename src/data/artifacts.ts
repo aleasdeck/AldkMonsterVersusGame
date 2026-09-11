@@ -436,10 +436,10 @@ const list: ArtifactDef[] = [
     kind: 'active',
     school: 'magic',
     cost: { mp: 2 },
-    cooldown: (tier) => t(3, 2, 1)(tier),
+    cooldown: (tier) => t(4, 3, 2)(tier),
     target: 'self',
     effects: () => [{ type: 'status', target: 'self', status: 'dodge', value: 1, turns: -1 }],
-    describe: (tier) => `Следующая атака по герою не наносит урона. КД ${t(3, 2, 1)(tier)}`,
+    describe: (tier) => `Следующая атака по герою не наносит урона. КД ${t(4, 3, 2)(tier)}`,
   },
   {
     id: 'wolf_whistle',
