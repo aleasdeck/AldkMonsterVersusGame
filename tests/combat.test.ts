@@ -371,12 +371,12 @@ describe('мана и артефакты', () => {
   it('огненный шар тратит ману, бьёт по тиру + сила заклинаний, раз в ход', () => {
     const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'sage_eye', tier: 1 }] });
     const boar = first(state);
-    // 7 маги + 2 Резерв посоха
-    expect(state.hero.mp).toBe(9);
+    // 5 маны + 2 Резерв посоха
+    expect(state.hero.mp).toBe(7);
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid }, rng);
     // 7 по тиру + 1 Око мудреца + 1 магический посох
     expect(boar.hp).toBe(18 - 9);
-    expect(state.hero.mp).toBe(7);
+    expect(state.hero.mp).toBe(5);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid })).toMatch(/Перезарядка/);
     pass(state, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid })).toBeNull();
@@ -385,9 +385,9 @@ describe('мана и артефакты', () => {
   it('мана восстанавливается на реген со второго хода', () => {
     const { state, rng } = mkBattle('mage', ['boar']);
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: first(state).uid }, rng);
-    expect(state.hero.mp).toBe(7);
+    expect(state.hero.mp).toBe(5);
     pass(state, rng);
-    expect(state.hero.mp).toBe(9);
+    expect(state.hero.mp).toBe(7);
   });
 
   it('лечение паладина: стоит ману и стамину, кулдаун 3', () => {
@@ -492,8 +492,8 @@ describe('боссы', () => {
     const { state, rng } = mkBattle('mage', ['lich']);
     first(state).intent = 'wither';
     pass(state, rng);
-    // 7 базовых + 2 посох, −3 иссушение, +2 реген в начале следующего хода
-    expect(state.hero.mp).toBe(9 - 3 + 2);
+    // 5 базовых + 2 посох, −3 иссушение, +2 реген в начале следующего хода
+    expect(state.hero.mp).toBe(7 - 3 + 2);
   });
 });
 
@@ -883,7 +883,7 @@ describe('лимит применений за ход', () => {
     const bear = first(state);
     for (let i = 0; i < 2; i++) performAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid }, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toMatch(/2 раз/);
-    expect(state.hero.mp).toBe(9 - 2);
+    expect(state.hero.mp).toBe(7 - 2);
     pass(state, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toBeNull();
   });
