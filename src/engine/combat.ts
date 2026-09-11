@@ -514,7 +514,8 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
   const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce, detail });
   log(state, `${opts.label ?? 'Герой бьёт'} ${e.name}: ${dmg} (${why})${hitTail(dmg, dealt, detail, pierce && e.block > 0)}`);
   if (dealt > 0 && e.hp > 0) {
-    if (h.stats.stunOnHit > 0 && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnHit)) addStatus(state, e, e.uid, 'stun', 1, -1);
+    // Праща: оглушает только критом, и то не каждым — бросок делается лишь после крита, чтобы не тратить RNG на обычных ударах.
+    if (h.stats.stunOnCrit > 0 && crit && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnCrit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
     // «Метка охотника»: первый удар в ходу открывает цель для остальных.
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);

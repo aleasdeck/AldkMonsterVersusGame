@@ -3,6 +3,7 @@ import { HEROES, heroDef } from '../../data/heroes';
 import { FIGHTS_PER_RUN } from '../../data/locations';
 import { COLLECTIBLES } from '../../data/collection';
 import { ENEMY_LIST } from '../../data/enemies';
+import { GAME_VERSION } from '../../engine/types';
 import type { Profile } from '../save';
 import type { App } from '../app';
 
@@ -70,5 +71,6 @@ export function menuScreen(app: App): HTMLElement {
       'Ударить и Защититься стоят стамину, артефакты — стамину или ману. ',
       'Над каждым врагом видно, что он сделает на следующем ходу.',
     ),
+    h('div', { class: 'version' }, `v${GAME_VERSION}`),
   );
 }

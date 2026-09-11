@@ -260,7 +260,7 @@ export const WEAPON_BASES: Base[] = [
     g: 1,
     spread: 'wide',
     type: 'ranged',
-    perk: { name: 'Оглушающий камень', mods: () => ({ stunOnHit: 0.5 }), text: () => 'каждый удар с шансом 50 % оглушает цель' },
+    perk: { name: 'Оглушающий камень', mods: () => ({ stunOnCrit: 0.3 }), text: () => 'критический удар с шансом 30 % оглушает цель' },
   },
   {
     id: 'darts',

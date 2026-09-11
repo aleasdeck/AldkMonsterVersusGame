@@ -74,8 +74,8 @@ export interface DerivedStats {
   splash: number;
   /** Кровотечение, которое вешает каждый удар (на 2 хода). */
   onHitBleed: number;
-  /** Шанс 0..1, что удар оглушит цель (праща). */
-  stunOnHit: number;
+  /** Шанс 0..1, что критический удар оглушит цель (праща); обычные удары не оглушают. */
+  stunOnCrit: number;
   /** Блок за каждый удар. */
   blockOnHit: number;
   /** Лечение за каждое заклинание. */
@@ -509,6 +509,9 @@ export interface BattleLog {
   turns: number;
   lines: string[];
 }
+
+/** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
+export const GAME_VERSION = '0.19.1';
 
 export const SAVE_VERSION = 12;
 

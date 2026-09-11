@@ -111,7 +111,7 @@ describe('перки баз в статах', () => {
     expect(computeStats(w, weapon('sword', 5), armorOf('warrior')).def).toBe(6 + 1 + 1);
     expect(computeStats(w, weapon('axe', 5), armorOf('warrior')).fatigue).toBeCloseTo(0.8);
     const m = heroDef('mage');
-    expect(computeStats(m, weapon('staff', 5), armorOf('mage')).maxMp).toBe(7 + 2);
+    expect(computeStats(m, weapon('staff', 5), armorOf('mage')).maxMp).toBe(5 + 2);
     expect(computeStats(m, weapon('wand', 5), armorOf('mage')).mpRegen).toBe(3);
     expect(computeStats(m, weapon('orb', 5), armorOf('mage')).thorns).toBe(1);
   });
@@ -157,16 +157,24 @@ describe('перки баз в бою', () => {
     expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 1, turns: 2 });
   });
 
-  it('праща оглушает каждым ударом с шансом 50 %: на 400 первых ударах от 150 до 250 оглушений', () => {
-    let stuns = 0;
+  it('праща оглушает только критом и с шансом 30 %: без крита ни одного стана, на 400 критах от 80 до 170', () => {
+    let plain = 0;
+    let crits = 0;
     for (let seed = 1; seed <= 400; seed++) {
+      const flat = mkBattle('archer', ['bear'], weapon('sling', 5), seed);
+      const target = flat.state.enemies[0];
+      performAction(flat.state, { type: 'attack', target: target.uid }, flat.rng);
+      if (getStatus(target, 'stun')) plain += 1;
+
       const { state, rng } = mkBattle('archer', ['bear'], weapon('sling', 5), seed);
+      state.hero.stats.crit = 1;
       const bear = state.enemies[0];
       performAction(state, { type: 'attack', target: bear.uid }, rng);
-      if (getStatus(bear, 'stun')) stuns += 1;
+      if (getStatus(bear, 'stun')) crits += 1;
     }
-    expect(stuns).toBeGreaterThanOrEqual(150);
-    expect(stuns).toBeLessThanOrEqual(250);
+    expect(plain).toBe(0);
+    expect(crits).toBeGreaterThanOrEqual(80);
+    expect(crits).toBeLessThanOrEqual(170);
   });
 
   it('арбалет даёт блок за каждый выстрел', () => {

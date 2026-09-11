@@ -436,10 +436,10 @@ const list: ArtifactDef[] = [
     kind: 'active',
     school: 'magic',
     cost: { mp: 2 },
-    cooldown: (tier) => t(3, 2, 1)(tier),
+    cooldown: (tier) => t(4, 3, 2)(tier),
     target: 'self',
     effects: () => [{ type: 'status', target: 'self', status: 'dodge', value: 1, turns: -1 }],
-    describe: (tier) => `Следующая атака по герою не наносит урона. КД ${t(3, 2, 1)(tier)}`,
+    describe: (tier) => `Следующая атака по герою не наносит урона. КД ${t(4, 3, 2)(tier)}`,
   },
   {
     id: 'wolf_whistle',
@@ -464,10 +464,10 @@ const list: ArtifactDef[] = [
     school: 'magic',
     cost: { mp: 1 },
     // Без перезарядки, но не бесконечно: с 10 маны и без лимита Маг выносил бои за ход — «имба» по отзыву пользователя.
-    usesPerTurn: (tier) => t(3, 4, 5)(tier),
+    usesPerTurn: (tier) => t(2, 3, 4)(tier),
     target: 'enemy',
     effects: (tier) => [{ type: 'spell', amount: t(4, 5, 6)(tier), target: 'enemy' }],
-    describe: (tier) => `${t(4, 5, 6)(tier)} урона заклинанием. До ${t(3, 4, 5)(tier)} раз за ход`,
+    describe: (tier) => `${t(4, 5, 6)(tier)} урона заклинанием. До ${t(2, 3, 4)(tier)} раз за ход`,
   },
   {
     id: 'spark',
