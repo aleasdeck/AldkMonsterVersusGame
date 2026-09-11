@@ -892,9 +892,9 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     const w = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_bash', tier: 1 }] });
     const bear = first(w.state);
     performAction(w.state, { type: 'artifact', artifactId: 'shield_bash', target: bear.uid }, w.rng);
-    // 5 × 0.75 = 3.75 → 3, блок +3
+    // 5 × 0.75 = 3.75 → 3 урона; блок — 60 % от них: 1.8 → 2
     expect(bear.hp).toBe(35 - 3);
-    expect(w.state.hero.block).toBe(3);
+    expect(w.state.hero.block).toBe(2);
 
     const p = mkBattle('paladin', ['bear'], { extra: [{ id: 'light_hammer', tier: 1 }] });
     p.state.hero.hp = 10;
@@ -903,6 +903,33 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     expect(p.state.hero.sta).toBe(2);
     expect(p.state.hero.mp).toBe(5);
     expect(canUseAction(p.state, { type: 'artifact', artifactId: 'light_hammer', target: first(p.state).uid })).toMatch(/Перезарядка/);
+  });
+});
+
+describe('v0.18: блок от урона и удар блоком', () => {
+  it('щитовой удар: блок растёт с уроном, на третьем тире равен ему', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_bash', tier: 3 }] });
+    state.hero.stats.str = 10;
+    const bear = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: bear.uid }, rng);
+    // (5 + 10) × 0.75 = 11.25 → 11 урона и столько же блока
+    expect(bear.hp).toBe(35 - 11);
+    expect(state.hero.block).toBe(11);
+  });
+
+  it('таран: урон равен текущему блоку × множитель, блок не тратится, без блока недоступен', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_ram', tier: 2 }] });
+    const bear = first(state);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'shield_ram', target: bear.uid })).toBe('Нет блока');
+    performAction(state, { type: 'defend' }, rng);
+    const block = state.hero.block;
+    expect(block).toBeGreaterThan(0);
+    performAction(state, { type: 'artifact', artifactId: 'shield_ram', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - Math.floor(block * 1.5));
+    expect(state.hero.block).toBe(block);
+    // Не атака оружием: усталость не растёт, но цель видит героя.
+    expect(state.hero.attacks).toBe(0);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'shield_ram', target: bear.uid })).toMatch(/Перезарядка/);
   });
 });
 
@@ -915,5 +942,35 @@ describe('лимит применений за ход', () => {
     expect(state.hero.mp).toBe(9 - 3);
     pass(state, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toBeNull();
+  });
+});
+
+describe('лог боя', () => {
+  it('удар героя пишет раскладку урона и что съел блок, статусы и блок врага — свои строки', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'hex', tier: 1 }] });
+    const bear = first(state);
+    bear.block = 2;
+    performAction(state, { type: 'artifact', artifactId: 'hex' }, rng);
+    expect(state.log.at(-1)).toBe('Медведь: Уязвимость на 2 хода');
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    // меч 5 → уязвимость 6.25 → 6, блок 2 → 4 по HP
+    expect(state.log.at(-1)).toBe('Герой бьёт Медведь: 5 (кубик 5) → 4 по HP (уязвимость ×1.25 = 6, блок −2)');
+    performAction(state, { type: 'defend' }, rng);
+    expect(state.log.at(-1)).toMatch(/^Герой защищается: \+\d+ блока$/);
+  });
+
+  it('удар врага пишет, что гасит кольчуга и блок; лечение и статусы врагов — тоже в логе', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf']);
+    performAction(state, { type: 'defend' }, rng);
+    pass(state, rng);
+    const hit = state.log.find((l) => l.startsWith('Волк атакует:'));
+    expect(hit).toMatch(/кольчуга −1/);
+    expect(hit).toMatch(/блок −/);
+    const t = mkBattle('warrior', ['troll']);
+    const troll = first(t.state);
+    troll.hp = 10;
+    troll.intent = 'regen';
+    pass(t.state, t.rng);
+    expect(t.state.log.some((l) => l.startsWith('Тролль: +') && l.includes('HP'))).toBe(true);
   });
 });

@@ -55,6 +55,12 @@ export function endScreen(app: App): HTMLElement {
       h(
         'div',
         { class: 'row' },
+        button('Персонаж', () => app.toggleSheet(), { class: 'big', tip: 'Билд, с которым закончился забег (C)' }),
+        button('Лог боя', () => app.toggleLog(), { class: 'big', tip: 'Все бои забега (L)' }),
+      ),
+      h(
+        'div',
+        { class: 'row' },
         app.profile.chests > 0 ? button('Открыть сундук', () => app.showChest(), { class: 'primary big' }) : null,
         button('Новый забег', () => app.showHeroSelect(), { class: app.profile.chests > 0 ? 'big' : 'primary big' }),
         button('В меню', () => app.showMenu(), { class: 'big' }),

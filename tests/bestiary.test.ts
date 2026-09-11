@@ -21,6 +21,17 @@ describe('бестиарий: описание приёмов по родным 
     expect(bite.text).toBe('Укус: Атака 10');
   });
 
+  it('приём с ударом и дебафом: главный вид — атака, хвост — дебаф с именем статуса', () => {
+    const rat = enemyDef('rat');
+    const gnaw = describeAction(rat, rat.actions[1]);
+    expect(gnaw.kind).toBe('attack');
+    expect(gnaw.kinds).toEqual(['attack', 'debuff']);
+    expect(gnaw.statuses).toEqual(['bleed']);
+    const bite = describeAction(rat, rat.actions[0]);
+    expect(bite.kinds).toEqual(['attack']);
+    expect(bite.statuses).toEqual([]);
+  });
+
   it('эффект при смерти описывается тем же способом', () => {
     const slime = enemyDef('grave_slime');
     expect(slime.onDeath).toBeTruthy();

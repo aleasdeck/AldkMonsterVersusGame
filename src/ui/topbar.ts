@@ -1,11 +1,9 @@
 import { button, h } from './dom';
 import { ACTS_PER_RUN, EVENT_NAMES, ROOM_KINDS, ROOM_NAMES } from '../data/locations';
-import { heroDef } from '../data/heroes';
 import { artifactDef } from '../data/artifacts';
 import { currentLocation, currentRoomKind } from '../engine/run';
 import type { RoomKind } from '../engine/types';
 import { goldBadge } from './components';
-import { spriteImg } from './sprites';
 import type { App } from './app';
 
 /** Иконки клеток этажа — в ленте топбара и на карте. */
@@ -43,12 +41,11 @@ function roomStrip(app: App): HTMLElement {
 }
 
 /**
- * Топбар забега, 40 px: слева портрет с именем (клик — «Персонаж») и золото; по центру акт, локация,
- * вид комнаты и лента клеток; справа ход (только в бою), таймер и меню. Полосок и артефактов здесь нет — решение пользователя.
+ * Топбар забега, 40 px: слева кнопка-иконка «Персонаж» и золото; по центру акт, локация,
+ * вид комнаты и лента клеток; справа ход (только в бою), таймер и меню. Полосок, портрета и имени здесь нет — решение пользователя.
  */
 export function topbar(app: App): HTMLElement {
   const run = app.run!;
-  const def = heroDef(run.hero.defId);
   const loc = currentLocation(run);
   // В клетке события пишем, что именно выпало: «Торговец», а не «Событие».
   const where = run.event ? EVENT_NAMES[run.event.kind] : ROOM_NAMES[currentRoomKind(run)];
@@ -60,12 +57,7 @@ export function topbar(app: App): HTMLElement {
     h(
       'div',
       { class: 'top-left' },
-      h(
-        'button',
-        { class: 'hero-link', tip: 'Персонаж: статы, экипировка, умения (C)', onclick: () => app.toggleSheet() },
-        spriteImg(def.sprite, def.id, 28),
-        h('span', { class: 'hero-link-name' }, `${def.name} ▾`),
-      ),
+      button('☻', () => app.toggleSheet(), { class: 'small menu-btn', tip: 'Персонаж: статы, экипировка, умения (C)' }),
       goldBadge(run.gold),
       // Пока вор режет кошель, украденное висит рядом с золотом: видно, сколько уйдёт, если его упустить.
       run.battle && run.battle.stolen > 0

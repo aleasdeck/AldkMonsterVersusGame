@@ -125,7 +125,18 @@ export interface FxSpec {
 export type TargetKind = 'enemy' | 'allEnemies' | 'self';
 
 export type Effect =
-  | { type: 'attack'; bonus: number; target: 'enemy' | 'allEnemies'; /** Доля урона оружия, 1 — полный. */ mult?: number; sureCrit?: boolean }
+  | {
+      type: 'attack';
+      bonus: number;
+      target: 'enemy' | 'allEnemies';
+      /** Доля урона оружия, 1 — полный. */
+      mult?: number;
+      sureCrit?: boolean;
+      /** Доля нанесённого урона, которая становится Блоком героя (Щитовой удар): блок растёт вместе с оружием. */
+      blockPct?: number;
+    }
+  /** Удар щитом (Таран): урон равен текущему Блоку героя × mult. Кубик оружия, Сила и усталость не участвуют, блок не тратится. */
+  | { type: 'blockStrike'; mult: number; target: 'enemy' }
   | { type: 'spell'; amount: number; target: 'enemy' | 'allEnemies'; drain?: boolean }
   | { type: 'block'; amount: number }
   | { type: 'heal'; amount: number }
@@ -402,6 +413,8 @@ export type BattleEvent =
 export interface BattleState {
   hero: HeroBattle;
   enemies: EnemyState[];
+  /** Имена врагов на старте боя — заголовок лога в журнале забега (к концу боя все они мертвы). */
+  roster: string[];
   /** Акт забега (0..2) для масштабирования врагов; null — без масштабирования. */
   act: number | null;
   allies: AllyState[];
@@ -530,7 +543,16 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 14;
+/** Лог одного боя в журнале забега. */
+export interface BattleLog {
+  /** «Акт 1 · Лес · Бой 2: Волк, Волк». */
+  title: string;
+  result: 'won' | 'lost';
+  turns: number;
+  lines: string[];
+}
+
+export const SAVE_VERSION = 15;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
@@ -553,4 +575,6 @@ export interface RunState {
   event: EventState | null;
   pending: PendingPlacement | null;
   stats: RunStats;
+  /** Логи всех боёв забега по порядку — журнал на экране итогов и в паузе. */
+  logs: BattleLog[];
 }

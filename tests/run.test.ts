@@ -785,3 +785,37 @@ describe('персональные артефакты', () => {
     expect(canDropFor(mage, 'rage')).toBe(false);
   });
 });
+
+describe('журнал забега', () => {
+  it('каждый бой попадает в журнал с заголовком, итогом и всеми строками лога', () => {
+    const run = newRun('warrior', 5);
+    expect(run.logs).toEqual([]);
+    enterRoom(run);
+    const roster = run.battle!.roster.join(', ');
+    expect(roster.length).toBeGreaterThan(0);
+    winCurrentBattle(run);
+    expect(run.logs.length).toBe(1);
+    expect(run.logs[0].title).toBe(`Акт 1 · ${LOCATIONS.find((l) => l.id === run.locations[0])!.name} · Бой 1: ${roster}`);
+    expect(run.logs[0].result).toBe('won');
+    expect(run.logs[0].lines[0]).toBe('— Ход 1 —');
+    expect(run.logs[0].lines.some((l) => l.includes('кубик'))).toBe(true);
+    while (run.phase === 'reward') skipReward(run);
+    enterRoom(run);
+    winCurrentBattle(run);
+    expect(run.logs.length).toBe(2);
+    expect(run.logs[1].title).toContain('Бой 2');
+  });
+
+  it('проигранный бой тоже в журнале, с итогом «поражение»', () => {
+    const run = newRun('mage', 5);
+    enterRoom(run);
+    run.battle!.hero.hp = 1;
+    run.battle!.hero.maxHp = 1;
+    for (const e of run.battle!.enemies) e.hp = 999;
+    playBattle(run);
+    expect(run.phase).toBe('defeat');
+    expect(run.logs.length).toBe(1);
+    expect(run.logs[0].result).toBe('lost');
+    expect(run.logs[0].lines.some((l) => l.includes('Герой пал'))).toBe(true);
+  });
+});

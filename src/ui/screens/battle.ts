@@ -2,7 +2,7 @@ import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { canUseAction, computeAllyIntent, computeIntent, defendBlock, isHidden, previewAttack, rangeText, turnsToFlee, type DamageRange } from '../../engine/combat';
+import { INTENT_ICON, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction } from '../../engine/types';
@@ -14,19 +14,62 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
+import { runLogBody } from './runLog';
 
 /** Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы. */
-function badges(c: Combatant, withBlock: boolean): HTMLElement {
-  return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, statusIcons(c));
+function badges(c: Combatant, withBlock: boolean, ...extra: Child[]): HTMLElement {
+  return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, ...extra, statusIcons(c));
 }
 
-/** Пилюля намерения: иконка и число, цвет по типу; название приёма, расшифровка и цель — в подсказке. */
+/**
+ * Усталость героя — рядом с блоком и статусами, пока в этом ходу были атаки: число атак в ходу, процент от полного
+ * урона — в подсказке. Статусом движка она не является (это счётчик атак), поэтому бейдж свой.
+ */
+function fatigueBadge(b: BattleState): HTMLElement | null {
+  const hero = b.hero;
+  if (hero.attacks === 0 || hero.stats.fatigue >= 1) return null;
+  const pct = Math.round(fatigueMult(b) * 100);
+  const step = Math.round((1 - hero.stats.fatigue) * 100);
+  return h(
+    'span',
+    {
+      class: 'fatigue-badge',
+      tip: `Атак в этом ходу: ${hero.attacks}. Каждая следующая на ${step} % слабее предыдущей: удары и физические приёмы сейчас бьют на ${pct} % от полного урона. Заклинания, раны и шипы усталость не трогает; на новом ходу счётчик обнуляется`,
+      tipTitle: `Усталость: ${pct} % урона`,
+    },
+    statusIcon('exhaust', 16),
+    `${hero.attacks}`,
+  );
+}
+
+/**
+ * Хвост пилюли: остальные виды эффектов приёма мелкими иконками — дебаф иконкой самого статуса, чтобы «⚔ 7» с Кровотечением
+ * или Изнурением читался без подсказки; бафф, лечение, призыв — иконкой вида.
+ */
+function intentExtras(intent: IntentInfo): Child[] {
+  const out: Child[] = [];
+  for (const kind of intent.kinds.slice(1)) {
+    if (kind === 'debuff') {
+      for (const id of intent.statuses) out.push(h('span', { class: 'pill-extra intent-debuff' }, statusIcon(id, 16)));
+      if (intent.statuses.length === 0) out.push(h('span', { class: 'pill-extra intent-debuff' }, INTENT_ICON.debuff));
+    } else out.push(h('span', { class: `pill-extra intent-${kind}` }, INTENT_ICON[kind]));
+  }
+  return out;
+}
+
+/** Пилюля намерения: иконка и число, цвет по главному эффекту, остальные эффекты хвостом; название, расшифровка и цель — в подсказке. */
 function intentPill(b: BattleState, e: EnemyState): HTMLElement {
   const intent = computeIntent(e);
   if (intent.stunned) return h('div', { class: 'pill intent-stunned', tip: 'Пропустит следующий ход', tipTitle: 'Оглушён' }, statusIcon('stun', 18), 'оглушён');
   // Враги бьют первого союзника раньше героя.
   const victim = intent.kind === 'attack' ? `\nЦель: ${b.allies[0]?.name ?? 'герой'}` : '';
-  return h('div', { class: `pill intent-${intent.kind}`, tip: `${intent.text}${victim}`, tipTitle: intent.name }, h('span', { class: 'pill-icon' }, intent.icon), intent.label ? h('span', { class: 'pill-label' }, intent.label) : null);
+  return h(
+    'div',
+    { class: `pill intent-${intent.kind}`, tip: `${intent.text}${victim}`, tipTitle: intent.name },
+    h('span', { class: 'pill-icon' }, intent.icon),
+    intent.label ? h('span', { class: 'pill-label' }, intent.label) : null,
+    ...intentExtras(intent),
+  );
 }
 
 /** Часики над вором: сколько ходов осталось до побега. Считает движок, у обычных врагов ничего не рисуется. */
@@ -149,6 +192,8 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return [`${e.amount}`, e.target === 'allEnemies' ? h('small', null, 'всем') : null];
       case 'block':
         return [`+${e.amount}`, h('small', null, '⛨')];
+      case 'blockStrike':
+        return [range ? rangeText(range) : '0', h('small', null, `⛨×${e.mult}`)];
       case 'heal':
         return [`+${e.amount}`, h('small', null, 'HP')];
       case 'gainSta':
@@ -216,11 +261,16 @@ function tiles(app: App): HTMLElement {
     const effects = ad.effects?.(inst.tier) ?? [];
     const atkEff = effects.find((e) => e.type === 'attack');
     const spellEff = effects.find((e) => e.type === 'spell');
+    const ramEff = effects.find((e) => e.type === 'blockStrike');
     let range: DamageRange | null = null;
     let kind: 'hit' | 'spell' = 'hit';
     if (atkEff && atkEff.type === 'attack') {
       const r = previewAttack(b, atkEff.bonus, atkEff.mult);
       range = atkEff.sureCrit || stealthed ? critX(r) : r;
+    } else if (ramEff && ramEff.type === 'blockStrike') {
+      // Таран бьёт текущим блоком: без кубика, крита и усталости.
+      const dmg = Math.floor(b.hero.block * ramEff.mult);
+      range = { min: dmg, max: dmg };
     } else if (spellEff && spellEff.type === 'spell') {
       const dmg = spellEff.amount + b.hero.stats.spellPower;
       range = { min: dmg, max: dmg };
@@ -264,7 +314,7 @@ export function battleScreen(app: App): HTMLElement {
   const heroZone = h(
     'div',
     { class: `hero-zone ${hasAllies ? 'narrow' : ''}` },
-    badges(b.hero, true),
+    badges(b.hero, true, fatigueBadge(b)),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, hasAllies ? 104 : 128, 'bob')),
     h('div', { class: 'name' }, def.name),
   );
@@ -281,7 +331,7 @@ export function battleScreen(app: App): HTMLElement {
 
   // Лог — выдвижная панель поверх поля, плитки при этом остаются на месте.
   if (app.logOpen) {
-    const logEl = h('div', { class: 'log' }, ...b.log.map((l) => h('div', { class: l.startsWith('—') ? 'log-turn' : '' }, l)));
+    const logEl = h('div', { class: 'log' }, ...runLogBody(run));
     // Прокрутка к последним записям — после вставки в документ, до этого scrollHeight равен нулю.
     requestAnimationFrame(() => {
       logEl.scrollTop = logEl.scrollHeight;

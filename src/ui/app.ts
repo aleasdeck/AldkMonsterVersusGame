@@ -24,10 +24,16 @@ import { hideTooltip, installTooltips } from './tooltip';
 import { formatClock } from './topbar';
 import { heroSheet } from './screens/heroSheet';
 import { pauseMenu } from './screens/pause';
+import { logOverlay } from './screens/runLog';
 import { installHotkeys } from './hotkeys';
 
 const ENEMY_STEP_MS = 600;
 const FLOAT_MS = 900;
+/**
+ * Сколько новый экран не принимает кликов. Второй клик двойного клика по «Надеть» в награде прилетал уже во «Войти»
+ * на карте (кнопки стоят друг под другом) и открывал следующую клетку — событие разыгрывалось без игрока.
+ */
+const SETTLE_MS = 400;
 
 export class App {
   root: HTMLElement;
@@ -60,12 +66,25 @@ export class App {
   private clockTimer: number | null = null;
   private spinTimer: number | null = null;
   private resultRecorded = false;
+  /** Отпечаток экрана и момент его смены: клики в первые SETTLE_MS после смены глотаются (см. SETTLE_MS). */
+  private screenKey = '';
+  private screenChangedAt = -Infinity;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.profile = loadProfile();
     installTooltips(root);
     installHotkeys(this);
+    root.addEventListener(
+      'click',
+      (ev) => {
+        if (performance.now() - this.screenChangedAt < SETTLE_MS) {
+          ev.stopPropagation();
+          ev.preventDefault();
+        }
+      },
+      true,
+    );
   }
 
   start(): void {
@@ -90,6 +109,13 @@ export class App {
 
   render(): void {
     this.noteEnemies();
+    // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
+    const r = this.run;
+    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending].join('|');
+    if (key !== this.screenKey) {
+      this.screenKey = key;
+      this.screenChangedAt = performance.now();
+    }
     let el: HTMLElement;
     if (this.screen === 'heroSelect') el = heroSelectScreen(this);
     else if (this.screen === 'collection') el = collectionScreen(this);
@@ -122,9 +148,12 @@ export class App {
     }
     // Оверлеи рисуются той же перерисовкой из состояния App: ход врагов по таймеру их не снесёт,
     // а клики по полю и плиткам под ними не проходят.
-    if (this.screen === 'run' && this.run && !R.isRunOver(this.run)) {
+    // «Персонаж» и лог доступны и на итогах забега: посмотреть билд и бои, которыми он кончился.
+    // В бою лог — выдвижная панель на поле (battle.ts), вне боя — оверлей.
+    if (this.screen === 'run' && this.run) {
       if (this.sheetOpen) el.appendChild(heroSheet(this));
-      else if (this.pauseOpen) el.appendChild(pauseMenu(this));
+      else if (this.logOpen && this.run.phase !== 'battle') el.appendChild(logOverlay(this));
+      else if (this.pauseOpen && !R.isRunOver(this.run)) el.appendChild(pauseMenu(this));
     }
     hideTooltip();
     // Слой анимаций боя переезжает в новое дерево: снаряд, выпущенный до перерисовки, долетает и лопается уже в нём.
@@ -192,13 +221,14 @@ export class App {
   /** Esc: закрыть верхний слой, а если слоёв нет — открыть паузу. */
   escape(): void {
     if (this.sheetOpen) this.toggleSheet();
+    else if (this.logOpen) this.toggleLog();
     else if (this.pauseOpen) this.togglePause();
-    else if (this.logOpen && this.run?.phase === 'battle') this.toggleLog();
+    else if (this.run && R.isRunOver(this.run)) return;
     else this.togglePause();
   }
 
   private overlayOpen(): boolean {
-    return this.sheetOpen || this.pauseOpen;
+    return this.sheetOpen || this.pauseOpen || (this.logOpen && this.run?.phase !== 'battle');
   }
 
   private commit(): void {
@@ -229,6 +259,7 @@ export class App {
     this.chest = null;
     this.sheetOpen = false;
     this.pauseOpen = false;
+    this.logOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
     this.screen = 'menu';
     this.render();
@@ -238,6 +269,8 @@ export class App {
     this.stopStepping();
     this.stopSpin();
     this.chest = null;
+    this.sheetOpen = false;
+    this.logOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
     this.screen = 'heroSelect';
     this.render();
@@ -448,8 +481,10 @@ export class App {
     this.busy = false;
   }
 
+  /** Лог боя за весь забег: в бою — панель на поле, вне боя — оверлей. Открывается поверх паузы. */
   toggleLog(): void {
     this.logOpen = !this.logOpen;
+    if (this.logOpen) this.pauseOpen = false;
     this.render();
   }
 
@@ -592,8 +627,8 @@ export class App {
   }
 
   /**
-   * Всплывающие числа и эффекты на бойцах по событиям боя — на свежем поле. Облако (дебаф) и свечение (баф, блок,
-   * лечение) — по одному на бойца за пакет; план добавляет свои: свечение героя от приёма на себя, глоток зелья.
+   * Всплывающие числа и эффекты на бойцах по событиям боя — на свежем поле. Облако (дебаф), свечение (баф, лечение)
+   * и щит (блок) — по одному на бойца за пакет; план добавляет свои: свечение героя от приёма на себя, глоток зелья.
    */
   playEvents(events: BattleEvent[], plan?: FxPlan): void {
     const counters = new Map<string, number>();
@@ -614,7 +649,8 @@ export class App {
       const wrap = this.spriteWrap(ev.target);
       if (!wrap) continue;
       const fx = eventFx(ev);
-      if (fx && (fx.kind === 'cloud' || this.glows(ev.target))) after(fx.kind, fx.color, ev.target);
+      // Щит и облако видны у всех, свечение — только у героя, элит и боссов.
+      if (fx && (fx.kind !== 'glow' || this.glows(ev.target))) after(fx.kind, fx.color, ev.target);
       const key = String(ev.target);
       const n = counters.get(key) ?? 0;
       counters.set(key, n + 1);

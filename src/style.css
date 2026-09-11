@@ -210,25 +210,6 @@ p {
   min-width: 0;
   white-space: nowrap;
 }
-/* Портрет с именем — кнопка без рамки, открывает оверлей «Персонаж». */
-.hero-link {
-  font: inherit;
-  color: var(--accent);
-  background: none;
-  border: none;
-  padding: 0 4px 0 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.hero-link:hover .hero-link-name {
-  text-decoration: underline;
-}
-.hero-link-name {
-  font-size: 21px;
-  white-space: nowrap;
-}
 .run-top .gold {
   margin-left: 0;
   font-size: 19px;
@@ -240,6 +221,7 @@ p {
   font-size: 19px;
   color: #e63946;
 }
+/* Кнопки-иконки топбара: «Персонаж» слева и меню справа — одинаковые квадраты 28 px. */
 .room-strip {
   display: flex;
   gap: 3px;
@@ -646,6 +628,17 @@ p {
   color: var(--shield);
   font-size: 16px;
   padding: 0 6px;
+}
+/* Усталость героя: иконка изнурения и процент от полного урона, в тон стамине. */
+.fatigue-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #1a1208;
+  border: 2px solid #ff8c42;
+  color: #ff8c42;
+  font-size: 16px;
+  padding: 0 5px;
 }
 
 /* ─── Артефакты и экипировка ─────────────────────────────────────────── */
@@ -1263,6 +1256,16 @@ p {
   border-color: #666;
   color: #aaa;
   font-size: 17px;
+}
+/* Хвост пилюли: остальные эффекты приёма — дебаф иконкой статуса, бафф/лечение/призыв иконкой вида, за точечной чертой. */
+.pill-extra {
+  display: inline-flex;
+  align-items: center;
+  font-size: 18px;
+  line-height: 1;
+  margin-left: 2px;
+  padding-left: 5px;
+  border-left: 2px dotted var(--border);
 }
 
 .statuses {
@@ -2050,6 +2053,60 @@ p {
 .pause {
   width: 420px;
   border-color: var(--border);
+}
+/* Журнал забега: панель почти во весь кадр, бои свёрнуты в details, последний раскрыт. */
+.runlog {
+  width: 900px;
+  height: 500px;
+  border-color: var(--border);
+  text-align: left;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.runlog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: none;
+}
+.runlog-head h2 {
+  margin: 0;
+}
+.runlog-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+.runlog-battle {
+  border-top: 1px dotted #33334d;
+  padding: 4px 0;
+}
+.runlog-battle summary {
+  cursor: pointer;
+  font-size: 19px;
+  list-style: none;
+}
+.runlog-battle summary::before {
+  content: '▸ ';
+  color: var(--accent);
+}
+.runlog-battle[open] summary::before {
+  content: '▾ ';
+}
+.runlog-battle.live .runlog-title {
+  color: var(--accent);
+}
+.runlog-lines {
+  padding: 4px 0 4px 18px;
+  overflow: visible;
+}
+.runlog-won {
+  color: var(--good);
+}
+.runlog-lost {
+  color: var(--hp);
 }
 .pause-buttons {
   display: flex;
