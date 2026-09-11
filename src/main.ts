@@ -5,6 +5,7 @@ import type { EventKind, LocationId } from './engine/types';
 import { COLLECTIBLE_IDS } from './data/collection';
 import { ENEMY_LIST, enemyDef } from './data/enemies';
 import { loadProfile, saveProfile } from './ui/save';
+import { upgradeGearTier } from './data/gear';
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -66,6 +67,19 @@ if (heroParam) {
   // &locs=swamp,hive,ship — задать локации забега по порядку
   const locs = (params.get('locs') ?? '').split(',').filter((id): id is LocationId => id in LOCATION_BY_ID);
   if (locs.length) run.locations = locs.concat(run.locations.filter((id) => !locs.includes(id))).slice(0, 3);
+  // &gauntlet=1 — парад боссов: каждый акт начинается сразу с клетки босса, экипировка героя на 5 тире, артефакты на 3-м
+  // (с &art=… и &potion=… — билд под просмотр фаз; &locs= задаёт трёх боссов, остальных трёх — второй забег)
+  if (params.get('gauntlet')) {
+    for (const g of [run.hero.weapon, run.hero.armor]) while (upgradeGearTier(run.rng, g)) {}
+    for (const a of [...run.hero.weapon.slots, ...run.hero.armor.slots]) if (a) a.tier = 3;
+    run.roomIndex = ROOMS_PER_LOCATION - 1;
+    run.hero.hp = 999; // до нового максимума обрежет пересчёт статов при входе в бой
+    const render = app.render.bind(app);
+    app.render = () => {
+      if (run.phase === 'map' && run.roomIndex === 0) run.roomIndex = ROOMS_PER_LOCATION - 1;
+      render();
+    };
+  }
   // &loc=1 — начать с указанного акта (0..2)
   const locParam = params.get('loc');
   if (locParam) run.locationIndex = Math.max(0, Math.min(2, Number(locParam) || 0));
