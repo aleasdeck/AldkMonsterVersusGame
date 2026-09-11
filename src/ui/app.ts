@@ -3,7 +3,7 @@ import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerA
 import * as R from '../engine/run';
 import { STATUS_NAMES, canUseAction } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
-import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type FxPlan } from './fx';
+import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
 import { claimChest, clearRun, loadProfile, loadRun, recordEnemies, recordResult, saveRun, type Profile } from './save';
 import { rollCollectible } from '../data/collection';
 import { HERO_LIST } from '../data/heroes';
@@ -598,7 +598,7 @@ export class App {
   playEvents(events: BattleEvent[], plan?: FxPlan): void {
     const counters = new Map<string, number>();
     const done = new Set<string>();
-    const after = (kind: 'glow' | 'cloud' | 'drink', color: string, target: EventTarget) => {
+    const after = (kind: AfterFx['kind'], color: string, target: EventTarget) => {
       const key = `${kind}:${target}`;
       if (done.has(key)) return;
       done.add(key);
@@ -655,6 +655,11 @@ export class App {
         case 'summon':
           text = 'появляется';
           cls = 'f-status';
+          break;
+        case 'phase':
+          text = ev.name;
+          cls = 'f-phase';
+          playAfter(this.root, { kind: 'burst', color: ev.color, target: ev.target });
           break;
         default:
           continue;

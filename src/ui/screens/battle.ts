@@ -49,7 +49,8 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
   return h(
     'div',
     {
-      class: `enemy rank-${def.rank} ${selected ? 'selected' : ''}`,
+      class: `enemy rank-${def.rank} ${selected ? 'selected' : ''} ${e.aura ? 'aura' : ''}`,
+      style: e.aura ? `--aura:${e.aura}` : '',
       'data-uid': e.uid,
       onclick: () => app.selectTarget(e.uid),
     },
