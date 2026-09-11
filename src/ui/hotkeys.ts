@@ -23,16 +23,14 @@ export function installHotkeys(app: App): void {
       app.toggleSheet();
       return;
     }
-    // Под оверлеем остальные клавиши не действуют: клики по полю тоже не проходят.
-    if (app.sheetOpen || app.pauseOpen) return;
-    const inBattle = app.run.phase === 'battle' && !!app.run.battle;
     if (lower === 'l' || lower === 'д') {
-      if (inBattle) {
-        ev.preventDefault();
-        app.toggleLog();
-      }
+      ev.preventDefault();
+      app.toggleLog();
       return;
     }
+    // Под оверлеем остальные клавиши не действуют: клики по полю тоже не проходят.
+    if (app.sheetOpen || app.pauseOpen || app.logOpen) return;
+    const inBattle = app.run.phase === 'battle' && !!app.run.battle;
     if (key === ' ') {
       if (inBattle) {
         ev.preventDefault();

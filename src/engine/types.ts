@@ -387,6 +387,8 @@ export type BattleEvent =
 export interface BattleState {
   hero: HeroBattle;
   enemies: EnemyState[];
+  /** Имена врагов на старте боя — заголовок лога в журнале забега (к концу боя все они мертвы). */
+  roster: string[];
   /** Акт забега (0..2) для масштабирования врагов; null — без масштабирования. */
   act: number | null;
   allies: AllyState[];
@@ -499,7 +501,16 @@ export interface RunStats {
   finishedAt: number;
 }
 
-export const SAVE_VERSION = 11;
+/** Лог одного боя в журнале забега. */
+export interface BattleLog {
+  /** «Акт 1 · Лес · Бой 2: Волк, Волк». */
+  title: string;
+  result: 'won' | 'lost';
+  turns: number;
+  lines: string[];
+}
+
+export const SAVE_VERSION = 12;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
@@ -522,4 +533,6 @@ export interface RunState {
   event: EventState | null;
   pending: PendingPlacement | null;
   stats: RunStats;
+  /** Логи всех боёв забега по порядку — журнал на экране итогов и в паузе. */
+  logs: BattleLog[];
 }
