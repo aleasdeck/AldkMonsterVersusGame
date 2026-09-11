@@ -26,7 +26,7 @@ SIM_DEBUG=stall SIM_HERO=paladin npx vitest run tests/sim-debug.test.ts         
 
 ```
 src/engine/   чистая логика, без DOM, покрыта тестами
-  types.ts      ВСЕ типы + SAVE_VERSION, MAX_ENEMIES, MAX_ALLIES. Начинать чтение отсюда.
+  types.ts      ВСЕ типы + SAVE_VERSION, GAME_VERSION (версия в углу меню), MAX_ENEMIES, MAX_ALLIES. Начинать чтение отсюда.
   rng.ts        mulberry32: createRng/next/int/chance/pick/shuffle/weighted
   stats.ts      computeStats: база героя → кубик оружия (владение) → перки → аффиксы → пассивки
   combat.ts     бой: статусы, урон, союзники, действия героя, ИИ врагов, createBattle, describeAction/computeIntent

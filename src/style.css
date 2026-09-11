@@ -854,6 +854,15 @@ p {
   color: #6f6f8a;
   font-size: 17px;
 }
+/* Версия игры: правый нижний угол главного экрана, .screen уже absolute и служит опорой. */
+.menu .version {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  color: #6f6f8a;
+  font-size: 17px;
+  letter-spacing: 1px;
+}
 
 /* ─── Выбор героя: сетка плиток слева, превью справа ─────────────────── */
 
