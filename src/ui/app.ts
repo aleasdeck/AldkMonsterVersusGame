@@ -24,6 +24,7 @@ import { hideTooltip, installTooltips } from './tooltip';
 import { formatClock } from './topbar';
 import { heroSheet } from './screens/heroSheet';
 import { pauseMenu } from './screens/pause';
+import { logOverlay } from './screens/runLog';
 import { installHotkeys } from './hotkeys';
 
 const ENEMY_STEP_MS = 600;
@@ -147,9 +148,12 @@ export class App {
     }
     // Оверлеи рисуются той же перерисовкой из состояния App: ход врагов по таймеру их не снесёт,
     // а клики по полю и плиткам под ними не проходят.
-    if (this.screen === 'run' && this.run && !R.isRunOver(this.run)) {
+    // «Персонаж» и лог доступны и на итогах забега: посмотреть билд и бои, которыми он кончился.
+    // В бою лог — выдвижная панель на поле (battle.ts), вне боя — оверлей.
+    if (this.screen === 'run' && this.run) {
       if (this.sheetOpen) el.appendChild(heroSheet(this));
-      else if (this.pauseOpen) el.appendChild(pauseMenu(this));
+      else if (this.logOpen && this.run.phase !== 'battle') el.appendChild(logOverlay(this));
+      else if (this.pauseOpen && !R.isRunOver(this.run)) el.appendChild(pauseMenu(this));
     }
     hideTooltip();
     // Слой анимаций боя переезжает в новое дерево: снаряд, выпущенный до перерисовки, долетает и лопается уже в нём.
@@ -217,13 +221,14 @@ export class App {
   /** Esc: закрыть верхний слой, а если слоёв нет — открыть паузу. */
   escape(): void {
     if (this.sheetOpen) this.toggleSheet();
+    else if (this.logOpen) this.toggleLog();
     else if (this.pauseOpen) this.togglePause();
-    else if (this.logOpen && this.run?.phase === 'battle') this.toggleLog();
+    else if (this.run && R.isRunOver(this.run)) return;
     else this.togglePause();
   }
 
   private overlayOpen(): boolean {
-    return this.sheetOpen || this.pauseOpen;
+    return this.sheetOpen || this.pauseOpen || (this.logOpen && this.run?.phase !== 'battle');
   }
 
   private commit(): void {
@@ -254,6 +259,7 @@ export class App {
     this.chest = null;
     this.sheetOpen = false;
     this.pauseOpen = false;
+    this.logOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
     this.screen = 'menu';
     this.render();
@@ -263,6 +269,8 @@ export class App {
     this.stopStepping();
     this.stopSpin();
     this.chest = null;
+    this.sheetOpen = false;
+    this.logOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
     this.screen = 'heroSelect';
     this.render();
@@ -468,8 +476,10 @@ export class App {
     this.busy = false;
   }
 
+  /** Лог боя за весь забег: в бою — панель на поле, вне боя — оверлей. Открывается поверх паузы. */
   toggleLog(): void {
     this.logOpen = !this.logOpen;
+    if (this.logOpen) this.pauseOpen = false;
     this.render();
   }
 

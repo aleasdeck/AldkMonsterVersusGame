@@ -21,7 +21,7 @@ export function pauseMenu(app: App): HTMLElement {
         { class: 'pause-buttons' },
         button('Продолжить', () => app.togglePause(), { class: 'primary big' }),
         button('Персонаж', () => app.toggleSheet(), { class: 'big', tip: 'Статы, экипировка, умения (C)' }),
-        run.phase === 'battle' ? button(app.logOpen ? 'Скрыть лог боя' : 'Лог боя', () => app.toggleLogFromPause(), { class: 'big' }) : null,
+        button('Лог боя', () => app.toggleLogFromPause(), { class: 'big', tip: 'Все бои забега (L)' }),
         button('В главное меню', () => app.showMenu(), { class: 'big', tip: 'Забег сохранится, продолжить можно из меню' }),
         button('Бросить забег', () => app.abandonRun(), { class: 'big danger' }),
       ),

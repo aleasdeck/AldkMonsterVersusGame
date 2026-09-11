@@ -3,7 +3,7 @@ import { SAVE_VERSION } from './types';
 import { chance, createRng, pick } from './rng';
 import { heroDef } from '../data/heroes';
 import { makeStartingGear, upgradeGearTier } from '../data/gear';
-import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
+import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, ROOM_NAMES, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
 import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact } from './equipment';
@@ -57,6 +57,7 @@ export function newRun(heroId: string, seed: number = randomSeed(), now: number 
     event: null,
     pending: null,
     stats: { kills: 0, turns: 0, damageDealt: 0, damageTaken: 0, roomsCleared: 0, startedAt: now, finishedAt: 0 },
+    logs: [],
   };
 }
 
@@ -200,6 +201,13 @@ export function battleEnemyStep(run: RunState): void {
   enemyStep(run.battle, run.rng);
 }
 
+/** Заголовок боя для журнала: «Акт 1 · Лес · Бой 2: Волк, Волк». Элита из события подписывается элитой. */
+export function battleTitle(run: RunState): string {
+  const kind = effectiveRoomKind(run);
+  const roster = run.battle?.roster.join(', ') ?? '';
+  return `Акт ${run.locationIndex + 1} · ${currentLocation(run).name} · ${ROOM_NAMES[kind]} ${run.roomIndex + 1}: ${roster}`;
+}
+
 /** Закрыть бой после победы или поражения: перенести HP, статистику, выдать награды. */
 export function finishBattle(run: RunState): void {
   const b = run.battle;
@@ -208,6 +216,7 @@ export function finishBattle(run: RunState): void {
   run.stats.turns += b.turn;
   run.stats.damageDealt += b.stats.damageDealt;
   run.stats.damageTaken += b.stats.damageTaken;
+  run.logs.push({ title: battleTitle(run), result: b.phase, turns: b.turn, lines: b.log.slice() });
   if (b.phase === 'lost') {
     run.hero.hp = 0;
     run.battle = null;

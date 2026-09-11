@@ -11,7 +11,7 @@
 
 ```bash
 npm run dev                                          # http://localhost:5173
-npx vitest run                                       # тесты движка (~2 с, 160 тестов)
+npx vitest run                                       # тесты движка (~2 с, 167 тестов)
 node node_modules/typescript/bin/tsc --noEmit -p .   # typecheck — ТОЛЬКО так (см. ловушки)
 node node_modules/vite/bin/vite.js build             # сборка в dist/
 SIM=1 npx vitest run tests/balance-sim.test.ts       # бот-симулятор баланса, все герои, 60 забегов
@@ -32,7 +32,7 @@ src/engine/   чистая логика, без DOM, покрыта тестам
   combat.ts     бой: статусы, урон, союзники, действия героя, ИИ врагов, createBattle, describeAction/computeIntent
   equipment.ts  слоты, addArtifact/replaceArtifact/equipGear, апгрейд дубликатом
   loot.ts       константы экономики (золото, цены, шанс зелья, цена кузнеца) и генерация наград/магазина/событий (rollEventKind)
-  run.ts        машина состояний забега: enterRoom → startEvent | startBattle → finishBattle → reward → advanceRoom …; события: takeChest, altarPray/altarSacrifice, forgeUpgrade, leaveEvent
+  run.ts        машина состояний забега: enterRoom → startEvent | startBattle → finishBattle (лог боя → run.logs с battleTitle) → reward → advanceRoom …; события: takeChest, altarPray/altarSacrifice, forgeUpgrade, leaveEvent
 src/data/     типизированные таблицы; каждый файл экспортирует list-based Record + xxxDef(id)
   heroes.ts     6 героев (warrior, mage, assassin, paladin, berserk, archer), signature — персональный артефакт, SIGNATURE_OWNER
   enemies.ts    67 врагов по локациям (секции ═══), хелпер act(), ai: cycle | boss-rules
@@ -46,7 +46,7 @@ src/ui/       рендер и клики
                 и добавляет оверлеи, commit() = saveRun + render, ход врагов с таймером ENEMY_STEP_MS (под оверлеем ждёт), таймер забега
   frame.ts      runFrame(app, parts): топбар 40 + центр 320 + консоль 180 — все шесть экранов забега
   topbar.ts     кнопка «Персонаж» (☻), золото, акт/локация, лента комнат (ROOM_ICONS), ход, таймер, меню; console.ts — блок героя, hubGear, кнопка лога
-  screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи; bestiary.ts — альбом врагов по локациям (describeAction из combat.ts)
+  screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи; runLog.ts — тело лога за весь забег (runLogBody: прошлые бои свёрнуты, текущий строками) и оверлей лога вне боя; bestiary.ts — альбом врагов по локациям (describeAction из combat.ts)
   components.ts карточки предметов, бары, чипы, иконки типов, pendingModal; gearTile.ts — плитка экипировки с сокетами 2×2; dom.ts — h()/button()
   tooltip.ts    свои подсказки: атрибуты tip / tipTitle в h() → data-tip; keywords.ts — подсветка ключевых слов в описаниях
   preview.ts    ридаут и штриховка предпросмотра урона в бою (пишет в DOM без перерисовки); diff.ts — дельты к надетому в карточках
@@ -64,6 +64,7 @@ tests/        vitest; sim/bot.ts — умный бот (W — веса оцен�
 - Вся случайность — через `run.rng` / переданный `Rng`. Один сид + герой = тот же забег. Не использовать `Math.random` в движке.
 - UI: наведение (ридаут, штриховка, дельты в плитке) пишет прямо в готовые узлы через preview.ts/diff.ts и ничего не хранит в App — любое действие перерисует экран. `App.render()` считает отпечаток экрана (screen, phase, клетка, число наград, pending) и при его смене глотает клики `SETTLE_MS` (400 мс) в capture-фазе на root — иначе второй клик двойного клика по «Надеть» в награде нажимал «Войти» на карте; в Playwright-скриптах после перехода ждать ≥ 400 мс перед кликом. Второе исключение — слой `.fx-layer` в поле боя: fx.ts вешает в него снаряды и облака, а `App.render()` переносит живой слой в новое дерево, чтобы полёт доигрался.
 - Анимации боя (fx.ts): `App.battleAction` считает план до мутации, применяет действие, играет снаряды и ждёт `impact` мс (`fxTimer`, действия в это время не принимаются), потом render + playEvents. Род анимации выводится из эффектов и типа оружия, переопределение и цвет — поле `fx: FxSpec` у ArtifactDef/PotionDef/Base оружия/EnemyAction. Рядовые враги только наскакивают (`acting`), `fx` ставить лишь элите и боссам. Дебаф → облако, блок → щит, баф/лечение → свечение — из событий боя, в данных не задаются; приём на себя с эффектом block тоже даёт щит. Отладочные циклы в main.ts зовут `battleAction(action, false)` — без ожидания. Кнопки, у которых при недоступности нужен ридаут, делаются без атрибута `disabled` (браузер не шлёт им наведение), а с классом `off`.
+- Лог боя: `log()` в combat.ts пишет всё — раскладку урона героя (`heroAttackDamage` возвращает `why`), судьбу удара через `HitDetail`/`hitTail` (уязвимость, кольчуга, блок, промахи), каждое `addStatus`, `gainBlock` с источником, `healHero`/`healEnemy` с источником. Новые механики обязаны логировать себя. `BattleState.roster` — имена врагов на старте; `finishBattle` кладёт лог в `run.logs` (`BattleLog`). Одна кнопка «Лог боя» / `L` на любом экране: в бою панель на поле, вне боя оверлей (`logOpen`, `toggleLog`).
 - `canXxx(run)` возвращает `string | null` (причина запрета или null), парный `xxx(run)` возвращает boolean/void. UI показывает причину в подсказке.
 - Забег: 3 акта × 10 клеток `['fight','fight','event','fight','fight','event','fight','elite','event','boss']`, после босса лечение `BOSS_HEAL_PCT` и сразу следующая локация (привала между актами нет). Клетка `event` при входе разыгрывает `EventKind` по `EVENT_WEIGHTS` (camp 10, elite 5, shop 25, chest 25, altar 25, forge 10); `run.event` хранит, что выпало (элита из события даёт золото и награду как клетка элиты — `effectiveRoomKind`). Локации 3 из 6 случайно без повторов; числа врагов заданы под «родной» tier локации и приводятся к акту через `enemyScale`.
 - Фазы забега: `map | battle | reward | shop | event | camp | victory | defeat`; `shop` и `camp` — тоже из события; фаза `event` — сундук, алтарь, кузнец (по `run.event.kind`). `run.pending` — артефакт ждёт выбора слота (обрабатывать до всего остального). После боя может быть 2 экрана награды (второй — зелье), поэтому в тестах и ботах награды пропускать циклом `while (run.phase === 'reward')`. В тестах событие нужного вида — `startEvent(run, kind)` после `run.roomIndex = 2`.

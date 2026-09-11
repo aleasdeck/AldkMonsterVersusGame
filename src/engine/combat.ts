@@ -106,6 +106,8 @@ function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: Statu
     c.statuses.push({ id, value, turns });
   }
   state.events.push({ type: 'status', target: ref, status: id, value });
+  const amount = STACKING.includes(id) || id === 'exhaust' ? ` ${value}` : '';
+  log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount} ${turnsText(turns)}`);
 }
 
 /** Конец хода владельца: временные статусы теряют ход. */
@@ -118,8 +120,57 @@ function tickDurations(c: Combatant): void {
 
 function log(state: BattleState, text: string): void {
   state.log.push(text);
-  if (state.log.length > 60) state.log.splice(0, state.log.length - 60);
+  // Лог боя хранится целиком (уходит в логи забега); страховка от бесконечного боя.
+  if (state.log.length > 600) state.log.splice(0, state.log.length - 600);
   state.events.push({ type: 'log', text });
+}
+
+/** Имя бойца для лога: герой, враг или союзник по uid. */
+function nameOf(state: BattleState, ref: EventTarget): string {
+  if (ref === 'hero') return 'Герой';
+  return state.enemies.find((e) => e.uid === ref)?.name ?? state.allies.find((a) => a.uid === ref)?.name ?? '???';
+}
+
+/** «на 2 хода», «до конца боя». */
+function turnsText(turns: number): string {
+  if (turns === -1) return 'до конца боя';
+  return `на ${turns} ${turns === 1 ? 'ход' : turns < 5 ? 'хода' : 'ходов'}`;
+}
+
+/** Прибавка блока любому бойцу: событие для интерфейса и строка лога с источником. */
+function gainBlock(state: BattleState, c: Combatant, ref: EventTarget, amount: number, why?: string): void {
+  if (amount <= 0) return;
+  c.block += amount;
+  state.events.push({ type: 'block', target: ref, amount });
+  log(state, `${nameOf(state, ref)}: +${amount} блока${why ? ` (${why})` : ''}`);
+}
+
+/** Что случилось с ударом по дороге к HP — для строки лога. Заполняется damageEnemy/damageHero. */
+interface HitDetail {
+  /** Съедено блоком. */
+  blocked: number;
+  /** Урон после уязвимости, если она была; 0 — не было. */
+  vuln: number;
+  /** Гашение удара кольчугой. */
+  reduced: number;
+  /** Почему урон не дошёл вовсе: уклонение, неуязвимость, тень, дым. */
+  miss: string;
+}
+
+function newDetail(): HitDetail {
+  return { blocked: 0, vuln: 0, reduced: 0, miss: '' };
+}
+
+/** Хвост строки лога по деталям удара: «→ 4 по HP (уязвимость ×1.25, кольчуга −1, блок −3)». */
+function hitTail(dmg: number, dealt: number, d: HitDetail, pierce = false): string {
+  if (d.miss) return ` → 0 по HP (${d.miss})`;
+  const notes: string[] = [];
+  if (d.vuln) notes.push(`уязвимость ×${VULNERABLE_MULT} = ${d.vuln}`);
+  if (d.reduced) notes.push(`кольчуга −${d.reduced}`);
+  if (d.blocked) notes.push(`блок −${d.blocked}`);
+  if (pierce) notes.push('сквозь блок');
+  if (dealt === dmg && notes.length === 0) return '';
+  return ` → ${dealt} по HP${notes.length ? ` (${notes.join(', ')})` : ''}`;
 }
 
 export function findEnemy(state: BattleState, uid: number): EnemyState | undefined {
@@ -142,13 +193,17 @@ interface HitOpts {
   noThorns?: boolean;
   /** Бьёт союзник, а не герой: шипы отвечают ему. */
   attacker?: AllyState;
+  /** Куда записать, что съел блок и уязвимость — для строки лога. */
+  detail?: HitDetail;
 }
 
 function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, opts: HitOpts = {}): number {
   const crit = opts.crit ?? false;
+  const detail = opts.detail ?? newDetail();
   if (getStatus(e, 'invuln')) {
     state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
-    log(state, `${e.name} неуязвим`);
+    detail.miss = 'неуязвим';
+    if (!opts.detail) log(state, `${e.name} неуязвим`);
     return 0;
   }
   if (kind === 'hit') {
@@ -157,16 +212,21 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
       d.value -= 1;
       if (d.value <= 0) removeStatus(e, 'dodge');
       state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
-      log(state, `${e.name} уворачивается`);
+      detail.miss = 'уклонился';
+      if (!opts.detail) log(state, `${e.name} уворачивается`);
       return 0;
     }
   }
   let rest = Math.max(0, amount);
-  if ((kind === 'hit' || kind === 'spell') && getStatus(e, 'vulnerable')) rest = Math.round(rest * VULNERABLE_MULT);
+  if ((kind === 'hit' || kind === 'spell') && getStatus(e, 'vulnerable')) {
+    rest = Math.round(rest * VULNERABLE_MULT);
+    detail.vuln = rest;
+  }
   if ((kind === 'hit' && !opts.pierce) || kind === 'spell') {
     const b = Math.min(e.block, rest);
     e.block -= b;
     rest -= b;
+    detail.blocked = b;
   }
   e.hp -= rest;
   state.stats.damageDealt += rest;
@@ -184,40 +244,44 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   return rest;
 }
 
-/** `rng` нужен только ударам (`hit`): дымовая завеса решает бросок за каждый удар отдельно. */
-function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false, rng?: Rng): number {
+/**
+ * `rng` нужен только ударам (`hit`): дымовая завеса решает бросок за каждый удар отдельно.
+ * `detail` — куда записать судьбу удара для строки лога; без него промахи пишутся в лог отдельной строкой.
+ */
+function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false, rng?: Rng, detail?: HitDetail): number {
   const h = state.hero;
+  const d = detail ?? newDetail();
+  const miss = (why: string): number => {
+    state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
+    d.miss = why;
+    if (!detail) log(state, `Герой: ${why}`);
+    return 0;
+  };
   let rest = Math.max(0, amount);
   if (kind === 'hit') {
-    if (getStatus(h, 'stealth')) {
-      state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
-      log(state, 'Враг не видит героя');
-      return 0;
+    if (getStatus(h, 'stealth')) return miss('враг не видит героя');
+    if (rng && getStatus(h, 'smoke') && chance(rng, SMOKE_MISS_CHANCE)) return miss('удар уходит в дым');
+    if (getStatus(h, 'invuln')) return miss('неуязвим');
+    const dg = getStatus(h, 'dodge');
+    if (dg) {
+      dg.value -= 1;
+      if (dg.value <= 0) removeStatus(h, 'dodge');
+      return miss('уклонился');
     }
-    if (rng && getStatus(h, 'smoke') && chance(rng, SMOKE_MISS_CHANCE)) {
-      state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
-      log(state, 'Удар уходит в дым');
-      return 0;
+    if (getStatus(h, 'vulnerable')) {
+      rest = Math.round(rest * VULNERABLE_MULT);
+      d.vuln = rest;
     }
-    if (getStatus(h, 'invuln')) {
-      state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
-      return 0;
-    }
-    const d = getStatus(h, 'dodge');
-    if (d) {
-      d.value -= 1;
-      if (d.value <= 0) removeStatus(h, 'dodge');
-      state.events.push({ type: 'damage', target: 'hero', amount: 0, kind: 'blocked' });
-      log(state, 'Герой уклоняется');
-      return 0;
-    }
-    if (getStatus(h, 'vulnerable')) rest = Math.round(rest * VULNERABLE_MULT);
     // Кольца кольчуги гасят часть каждого удара ещё до блока.
-    if (h.stats.hitReduce > 0) rest = Math.max(0, rest - h.stats.hitReduce);
+    if (h.stats.hitReduce > 0) {
+      d.reduced = Math.min(rest, h.stats.hitReduce);
+      rest = Math.max(0, rest - h.stats.hitReduce);
+    }
     if (!pierce) {
       const b = Math.min(h.block, rest);
       h.block -= b;
       rest -= b;
+      d.blocked = b;
     }
   }
   h.hp -= rest;
@@ -238,12 +302,13 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
   return rest;
 }
 
-function healHero(state: BattleState, amount: number): void {
+function healHero(state: BattleState, amount: number, why?: string): void {
   const h = state.hero;
   const healed = Math.min(amount, h.maxHp - h.hp);
   if (healed <= 0) return;
   h.hp += healed;
   state.events.push({ type: 'heal', target: 'hero', amount: healed });
+  log(state, `Герой: +${healed} HP${why ? ` (${why})` : ''}`);
 }
 
 // ─── Союзники ──────────────────────────────────────────────────────────────
@@ -303,14 +368,14 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
         break;
       }
       case 'block':
-        a.block += eff.amount;
-        state.events.push({ type: 'block', target: a.uid, amount: eff.amount });
+        gainBlock(state, a, a.uid, eff.amount);
         break;
       case 'heal': {
         const healed = Math.min(eff.amount, a.maxHp - a.hp);
         if (healed > 0) {
           a.hp += healed;
           state.events.push({ type: 'heal', target: a.uid, amount: healed });
+          log(state, `${a.name}: +${healed} HP`);
         }
         break;
       }
@@ -322,11 +387,12 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
   cleanupDead(state, rng);
 }
 
-function healEnemy(state: BattleState, e: EnemyState, amount: number): void {
+function healEnemy(state: BattleState, e: EnemyState, amount: number, why?: string): void {
   const healed = Math.min(amount, e.maxHp - e.hp);
   if (healed <= 0) return;
   e.hp += healed;
   state.events.push({ type: 'heal', target: e.uid, amount: healed });
+  log(state, `${e.name}: +${healed} HP${why ? ` (${why})` : ''}`);
 }
 
 function cleanupDead(state: BattleState, rng: Rng): void {
@@ -337,7 +403,7 @@ function cleanupDead(state: BattleState, rng: Rng): void {
     log(state, `${e.name} повержен`);
     state.stats.kills += 1;
     // «Кровавый жетон»: глоток жизни за каждого убитого.
-    if (state.hero.stats.onKillHeal > 0 && state.hero.hp > 0) healHero(state, state.hero.stats.onKillHeal);
+    if (state.hero.stats.onKillHeal > 0 && state.hero.hp > 0) healHero(state, state.hero.stats.onKillHeal, 'Кровавый жетон');
   }
   state.enemies = state.enemies.filter((e) => e.hp > 0);
   state.enemyQueue = state.enemyQueue.filter((uid) => state.enemies.some((e) => e.uid === uid));
@@ -389,16 +455,41 @@ function firstHitBonus(state: BattleState): number {
   return state.hero.attacks === 0 ? state.hero.stats.firstHit : 0;
 }
 
-function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false): { dmg: number; crit: boolean } {
+/**
+ * Урон атаки героя и его раскладка для лога: «кубик 4 + Сила 2 + первый удар 1 = 7, усталость ×0.75 = 5, крит ×2 = 10».
+ * Слагаемые с нулём и множители, равные единице, не пишутся.
+ */
+function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false): { dmg: number; crit: boolean; why: string } {
   const h = state.hero;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
   const stealthed = isHidden(h);
+  const parts: string[] = [`кубик ${roll}`];
+  const add = (name: string, v: number) => {
+    if (v > 0) parts.push(`${name} ${v}`);
+  };
+  add('Сила', h.stats.str + statusValue(h, 'strength'));
+  add('приём', bonus);
+  add('первый удар', firstHitBonus(state));
+  add('в спину', stealthed ? h.stats.backstab : 0);
   const flat = h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0);
-  let dmg = Math.floor((roll + flat) * mult * fatigueMult(state));
+  const base = roll + flat;
+  const steps: string[] = [parts.length > 1 ? `${parts.join(' + ')} = ${base}` : parts[0]];
+  const fatigue = fatigueMult(state);
+  let dmg = Math.floor(base * mult * fatigue);
+  if (mult !== 1 || fatigue !== 1) {
+    const m = [mult !== 1 ? `приём ×${mult}` : '', fatigue !== 1 ? `усталость ×${Math.round(fatigue * 100) / 100}` : ''].filter(Boolean).join(', ');
+    steps.push(`${m} = ${dmg}`);
+  }
   const crit = sureCrit || stealthed || (h.stats.crit > 0 && chance(rng, h.stats.crit));
-  if (crit) dmg *= h.stats.critMult;
-  if (getStatus(h, 'weak')) dmg = Math.floor(dmg * 0.75);
-  return { dmg: Math.max(0, dmg), crit };
+  if (crit) {
+    dmg *= h.stats.critMult;
+    steps.push(`крит ×${h.stats.critMult} = ${dmg}`);
+  }
+  if (getStatus(h, 'weak')) {
+    dmg = Math.floor(dmg * 0.75);
+    steps.push(`слабость ×0.75 = ${dmg}`);
+  }
+  return { dmg: Math.max(0, dmg), crit, why: steps.join(', ') };
 }
 
 interface StrikeOpts {
@@ -407,23 +498,28 @@ interface StrikeOpts {
   sureCrit?: boolean;
   /** Одиночный удар: сквозной урон копья уходит следующему врагу. */
   single?: boolean;
+  /** Начало строки лога: «Герой бьёт» у базовой атаки, имя приёма у артефакта. */
+  label?: string;
 }
 
-/** Удар героя по врагу со всеми перками оружия: пробой блока, оглушение критом, кровотечение, блок за удар, сквозной урон. */
+/**
+ * Удар героя по врагу со всеми перками оружия: пробой блока, оглушение критом, кровотечение, блок за удар, сквозной урон.
+ * Строка лога пишется здесь, до побочных статусов: «Герой бьёт Мумия: 10 (кубик 4 + …) → 8 по HP (блок −2)».
+ */
 function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpts = {}): { dmg: number; crit: boolean } {
   const h = state.hero;
-  const { dmg, crit } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit);
-  const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce: h.stats.pierceBlock > 0 });
+  const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit);
+  const detail = newDetail();
+  const pierce = h.stats.pierceBlock > 0;
+  const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce, detail });
+  log(state, `${opts.label ?? 'Герой бьёт'} ${e.name}: ${dmg} (${why})${hitTail(dmg, dealt, detail, pierce && e.block > 0)}`);
   if (dealt > 0 && e.hp > 0) {
     if (h.stats.stunOnHit > 0 && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnHit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
     // «Метка охотника»: первый удар в ходу открывает цель для остальных.
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
   }
-  if (h.stats.blockOnHit > 0) {
-    h.block += h.stats.blockOnHit;
-    state.events.push({ type: 'block', target: 'hero', amount: h.stats.blockOnHit });
-  }
+  if (h.stats.blockOnHit > 0) gainBlock(state, h, 'hero', h.stats.blockOnHit, 'перк оружия');
   if (opts.single && h.stats.splash > 0 && dmg > 0) {
     const next = state.enemies.find((x) => x.uid !== e.uid && x.hp > 0);
     if (next) {
@@ -528,42 +624,34 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'attack': {
       let swung = 0;
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        const { dmg, crit } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy' });
+        const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy', label: 'Удар по' });
         swung += dmg;
-        log(state, `Удар по ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
       }
       // Щитовой удар: блок — доля урона замаха, а не того, что дошло до HP: блок и уклонение врага щит не отменяют.
-      if (eff.blockPct && swung > 0) {
-        const gain = Math.round(swung * eff.blockPct);
-        if (gain > 0) {
-          h.block += gain;
-          state.events.push({ type: 'block', target: 'hero', amount: gain });
-          log(state, `Щит принимает удар: +${gain} блока`);
-        }
-      }
+      if (eff.blockPct && swung > 0) gainBlock(state, h, 'hero', Math.round(swung * eff.blockPct), `${Math.round(eff.blockPct * 100)} % замаха ${swung}`);
       break;
     }
     case 'blockStrike': {
       // Таран: урон от текущего блока, как удар — гасится блоком врага (кроме булавы), отвечает шипами, но без усталости и крита.
       const dmg = Math.floor(h.block * eff.mult);
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        log(state, `Таран по ${e.name}: ${dmg}`);
-        damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0 });
+        const detail = newDetail();
+        const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail });
+        log(state, `Таран по ${e.name}: ${dmg} (блок ${h.block} × ${eff.mult})${hitTail(dmg, dealt, detail)}`);
       }
       break;
     }
     case 'spell': {
       const amount = eff.amount + h.stats.spellPower;
+      const why = h.stats.spellPower > 0 ? `${eff.amount} + сила заклинаний ${h.stats.spellPower}` : '';
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        log(state, `Заклинание по ${e.name}: ${amount}`);
-        damageEnemy(state, e, amount, 'spell');
+        const detail = newDetail();
+        const dealt = damageEnemy(state, e, amount, 'spell', { detail });
+        log(state, `Заклинание по ${e.name}: ${amount}${why ? ` (${why})` : ''}${hitTail(amount, dealt, detail)}`);
       }
-      if (eff.drain) healHero(state, amount);
-      if (h.stats.spellLeech > 0) healHero(state, h.stats.spellLeech);
-      if (h.stats.blockOnSpell > 0) {
-        h.block += h.stats.blockOnSpell;
-        state.events.push({ type: 'block', target: 'hero', amount: h.stats.blockOnSpell });
-      }
+      if (eff.drain) healHero(state, amount, 'осушение');
+      if (h.stats.spellLeech > 0) healHero(state, h.stats.spellLeech, 'перк оружия');
+      if (h.stats.blockOnSpell > 0) gainBlock(state, h, 'hero', h.stats.blockOnSpell, 'перк брони');
       break;
     }
     case 'selfDamage':
@@ -571,11 +659,10 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       damageHero(state, eff.amount, 'dot', undefined, true);
       break;
     case 'block':
-      h.block += eff.amount;
-      state.events.push({ type: 'block', target: 'hero', amount: eff.amount });
+      gainBlock(state, h, 'hero', eff.amount);
       break;
     case 'heal':
-      healHero(state, eff.amount);
+      healHero(state, eff.amount, 'лечение');
       break;
     case 'status':
       if (eff.target === 'self') addStatus(state, h, 'hero', eff.status, eff.value, eff.turns);
@@ -583,10 +670,14 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       break;
     case 'gainSta':
       h.sta += eff.amount;
+      log(state, `Герой: +${eff.amount} STA`);
       break;
-    case 'gainMp':
-      h.mp = Math.min(h.maxMp, h.mp + eff.amount);
+    case 'gainMp': {
+      const gained = Math.min(h.maxMp, h.mp + eff.amount) - h.mp;
+      h.mp += gained;
+      log(state, `Герой: +${gained} MP`);
       break;
+    }
     case 'cleanse': {
       const bad: StatusId[] = ['bleed', 'burn', 'poison', 'weak', 'exhaust', 'vulnerable'];
       const had = h.statuses.filter((s) => bad.includes(s.id)).map((s) => STATUS_NAMES[s.id]);
@@ -607,10 +698,9 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   if (action.type === 'attack') {
     h.sta -= 1;
     const e = findEnemy(state, action.target)!;
-    const { dmg, crit } = heroStrike(state, rng, e, { single: true });
+    heroStrike(state, rng, e, { single: true });
     h.attacks += 1;
-    log(state, `Герой бьёт ${e.name}: ${dmg}${crit ? ' (крит!)' : ''}`);
-    if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal);
+    if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal, 'вампиризм');
     breakStealth(state);
   } else if (action.type === 'defend') {
     h.sta -= 1;
@@ -662,7 +752,7 @@ function startPlayerTurn(state: BattleState): void {
   for (const k of Object.keys(h.cooldowns)) if (h.cooldowns[k] > 0) h.cooldowns[k] -= 1;
   log(state, `— Ход ${state.turn} —`);
   const regen = h.stats.regen + statusValue(h, 'regen');
-  if (regen > 0) healHero(state, regen);
+  if (regen > 0) healHero(state, regen, 'регенерация');
   const dot = statusValue(h, 'bleed') + statusValue(h, 'burn') + statusValue(h, 'poison');
   if (dot > 0) {
     log(state, `Герой теряет ${dot} HP от ран`);
@@ -771,19 +861,17 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
           if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
           continue;
         }
-        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, rng);
-        log(state, `${e.name} атакует: ${dmg} (${dealt} по HP${eff.pierce ? ', сквозь блок' : ''})`);
-        if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
+        const detail = newDetail();
+        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, rng, detail);
+        log(state, `${e.name} атакует: ${dmg}${hitTail(dmg, dealt, detail, !!eff.pierce && h.block > 0)}`);
+        if (eff.drain && dealt > 0) healEnemy(state, e, dealt, 'вампиризм');
       }
       break;
     }
     case 'block': {
       const targets = eff.target === 'allies' ? state.enemies : [e];
       const amt = scaled(e.hpMult, eff.amount);
-      for (const t of targets) {
-        t.block += amt;
-        state.events.push({ type: 'block', target: t.uid, amount: amt });
-      }
+      for (const t of targets) gainBlock(state, t, t.uid, amt);
       break;
     }
     case 'buffStr': {
@@ -803,7 +891,6 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
         break;
       }
       addStatus(state, h, 'hero', eff.status, isDot(eff.status) ? scaled(e.dmgMult, eff.value) : eff.value, eff.turns);
-      log(state, `На героя наложено: ${STATUS_NAMES[eff.status]}`);
       break;
     case 'drainMp': {
       if (getStatus(h, 'stealth')) {
@@ -909,6 +996,7 @@ export function resolveEnemyTurn(state: BattleState, rng: Rng): void {
 export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: string[], rng: Rng, act: number | null = null): BattleState {
   const stats = computeStats(heroDef, hero.weapon, hero.armor);
   const state: BattleState = {
+    roster: enemyIds.map((id) => enemyDef(id).name),
     hero: {
       hp: Math.min(hero.hp, stats.maxHp),
       maxHp: stats.maxHp,
@@ -945,10 +1033,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
   if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
   startPlayerTurn(state);
   // «Плащ странника»: блок в начале боя — после старта хода, иначе сгорит вместе с остальным.
-  if (stats.blockStart > 0) {
-    state.hero.block += stats.blockStart;
-    state.events.push({ type: 'block', target: 'hero', amount: stats.blockStart });
-  }
+  if (stats.blockStart > 0) gainBlock(state, state.hero, 'hero', stats.blockStart, 'в начале боя');
   return state;
 }
 

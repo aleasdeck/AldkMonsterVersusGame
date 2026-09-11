@@ -888,3 +888,33 @@ describe('лимит применений за ход', () => {
     expect(canUseAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid })).toBeNull();
   });
 });
+
+describe('лог боя', () => {
+  it('удар героя пишет раскладку урона и что съел блок, статусы и блок врага — свои строки', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'hex', tier: 1 }] });
+    const bear = first(state);
+    bear.block = 2;
+    performAction(state, { type: 'artifact', artifactId: 'hex' }, rng);
+    expect(state.log.at(-1)).toBe('Медведь: Уязвимость на 2 хода');
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    // меч 5 → уязвимость 6.25 → 6, блок 2 → 4 по HP
+    expect(state.log.at(-1)).toBe('Герой бьёт Медведь: 5 (кубик 5) → 4 по HP (уязвимость ×1.25 = 6, блок −2)');
+    performAction(state, { type: 'defend' }, rng);
+    expect(state.log.at(-1)).toMatch(/^Герой защищается: \+\d+ блока$/);
+  });
+
+  it('удар врага пишет, что гасит кольчуга и блок; лечение и статусы врагов — тоже в логе', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf']);
+    performAction(state, { type: 'defend' }, rng);
+    pass(state, rng);
+    const hit = state.log.find((l) => l.startsWith('Волк атакует:'));
+    expect(hit).toMatch(/кольчуга −1/);
+    expect(hit).toMatch(/блок −/);
+    const t = mkBattle('warrior', ['troll']);
+    const troll = first(t.state);
+    troll.hp = 10;
+    troll.intent = 'regen';
+    pass(t.state, t.rng);
+    expect(t.state.log.some((l) => l.startsWith('Тролль: +') && l.includes('HP'))).toBe(true);
+  });
+});

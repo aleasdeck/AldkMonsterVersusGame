@@ -14,6 +14,7 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
+import { runLogBody } from './runLog';
 
 /** Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы. */
 function badges(c: Combatant, withBlock: boolean, ...extra: Child[]): HTMLElement {
@@ -316,7 +317,7 @@ export function battleScreen(app: App): HTMLElement {
 
   // Лог — выдвижная панель поверх поля, плитки при этом остаются на месте.
   if (app.logOpen) {
-    const logEl = h('div', { class: 'log' }, ...b.log.map((l) => h('div', { class: l.startsWith('—') ? 'log-turn' : '' }, l)));
+    const logEl = h('div', { class: 'log' }, ...runLogBody(run));
     // Прокрутка к последним записям — после вставки в документ, до этого scrollHeight равен нулю.
     requestAnimationFrame(() => {
       logEl.scrollTop = logEl.scrollHeight;

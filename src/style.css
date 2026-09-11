@@ -1975,6 +1975,60 @@ p {
   width: 420px;
   border-color: var(--border);
 }
+/* Журнал забега: панель почти во весь кадр, бои свёрнуты в details, последний раскрыт. */
+.runlog {
+  width: 900px;
+  height: 500px;
+  border-color: var(--border);
+  text-align: left;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+}
+.runlog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: none;
+}
+.runlog-head h2 {
+  margin: 0;
+}
+.runlog-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 6px;
+}
+.runlog-battle {
+  border-top: 1px dotted #33334d;
+  padding: 4px 0;
+}
+.runlog-battle summary {
+  cursor: pointer;
+  font-size: 19px;
+  list-style: none;
+}
+.runlog-battle summary::before {
+  content: '▸ ';
+  color: var(--accent);
+}
+.runlog-battle[open] summary::before {
+  content: '▾ ';
+}
+.runlog-battle.live .runlog-title {
+  color: var(--accent);
+}
+.runlog-lines {
+  padding: 4px 0 4px 18px;
+  overflow: visible;
+}
+.runlog-won {
+  color: var(--good);
+}
+.runlog-lost {
+  color: var(--hp);
+}
 .pause-buttons {
   display: flex;
   flex-direction: column;
