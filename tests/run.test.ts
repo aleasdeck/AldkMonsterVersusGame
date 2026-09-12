@@ -233,29 +233,38 @@ describe('торговец из события', () => {
     expect(run.shop!.gear).not.toBeNull();
   });
 
-  it('переброс обновляет только непроданное, один раз за визит', () => {
+  it('переброс завозит новый товар на все места, включая купленные и лекаря, один раз за визит', () => {
     const run = toShop(35);
     run.gold = 100;
+    run.hero.hp = 5;
     expect(shopBuyGear(run)).toBe(true);
+    expect(shopHeal(run)).toBe(true);
+    expect(run.shop!.gear).toBeNull();
+    expect(run.shop!.healed).toBe(true);
     const gold = run.gold;
     expect(shopReroll(run)).toBe(true);
     expect(run.gold).toBe(gold - REROLL_COST);
     expect(run.shop!.rerolled).toBe(true);
-    expect(run.shop!.gear).toBeNull();
+    // Раскупленное вернулось на прилавок, лекарь снова принимает.
+    expect(run.shop!.gear).not.toBeNull();
     expect(run.shop!.artifact).not.toBeNull();
+    expect(run.shop!.potion).not.toBeNull();
+    expect(run.shop!.healed).toBe(false);
+    expect(canShopHeal(run)).toBeNull();
     expect(canShopReroll(run)).toMatch(/уже/);
     expect(shopReroll(run)).toBe(false);
 
+    // Даже с пустым прилавком переброс имеет смысл — он завозит всё заново.
     const empty = toShop(35);
     empty.gold = 100;
     shopBuyGear(empty);
     shopBuyArtifact(empty);
     if (empty.pending) resolvePending(empty);
-    // Зелье ещё на прилавке — перебрасывать есть что.
+    shopBuyPotion(empty);
     empty.gold = 100;
     expect(canShopReroll(empty)).toBeNull();
-    shopBuyPotion(empty);
-    expect(canShopReroll(empty)).toMatch(/Нечего/);
+    expect(shopReroll(empty)).toBe(true);
+    expect(empty.shop!.potion).not.toBeNull();
   });
 
   it('зелье у торговца: цена, ложится в слот и вытесняет старое, переброс обновляет', () => {

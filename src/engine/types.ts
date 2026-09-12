@@ -440,13 +440,13 @@ export interface HeroPersistent {
 
 export type RunPhase = 'map' | 'battle' | 'reward' | 'shop' | 'event' | 'camp' | 'victory' | 'defeat';
 
-/** Торговец, остановка между элитой и боссом: лекарь, одна случайная экипировка, один случайный артефакт, одно зелье, переброс товаров один раз. */
+/** Торговец, остановка между элитой и боссом: лекарь, одна случайная экипировка, один случайный артефакт, одно зелье, переброс всего прилавка один раз. */
 export interface ShopState {
   /** Товар куплен или не завёзли — null. */
   gear: GearInstance | null;
   artifact: ArtifactInstance | null;
   potion: string | null;
-  /** Лечение уже куплено — один раз за визит. */
+  /** Лечение уже куплено — один раз до переброса (переброс завозит новый товар и снимает флаг). */
   healed: boolean;
   rerolled: boolean;
 }
@@ -511,7 +511,7 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.19.1';
+export const GAME_VERSION = '0.19.2';
 
 export const SAVE_VERSION = 12;
 
