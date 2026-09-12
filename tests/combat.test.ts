@@ -332,34 +332,76 @@ describe('новые механики врагов', () => {
     expect(getStatus(state.hero, 'burn')?.value).toBe(2);
   });
 
-  it('кладка при гибели выпускает двух личинок', () => {
+  it('кладка щетинится, вылупляется на третий ход и не щетинится дважды', () => {
     const { state, rng } = mkBattle('warrior', ['egg_cluster']);
+    const hp0 = state.hero.hp;
+    pass(state, rng); // Щетина: шипы 3, сама не бьёт
+    expect(state.hero.hp).toBe(hp0);
+    expect(getStatus(first(state), 'thorns')?.value).toBe(3);
+    pass(state, rng); // Пульсация: ничего
+    expect(state.enemies.length).toBe(1);
+    pass(state, rng); // Вылупление: две личинки
+    expect(state.enemies.map((e) => e.defId)).toEqual(['egg_cluster', 'larva', 'larva']);
+    // Второй круг: щетина не накладывается поверх своей же — шипы остаются 3.
+    pass(state, rng, 3);
+    expect(getStatus(first(state), 'thorns')?.value).toBe(3);
+  });
+
+  it('разбитая кладка не оставляет ни личинок, ни предсмертия', () => {
+    const { state, rng } = mkBattle('warrior', ['egg_cluster']);
+    state.hero.stats.dmgMin = 99;
+    state.hero.stats.dmgMax = 99;
+    expect(getStatus(first(state), 'doom')).toBeUndefined();
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(state.phase).toBe('won');
+    expect(state.enemies.length).toBe(0);
+  });
+
+  it('споровик при гибели оставляет облако спор', () => {
+    const { state, rng } = mkBattle('warrior', ['sporeling', 'larva']);
     state.hero.stats.dmgMin = 99;
     state.hero.stats.dmgMax = 99;
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(state.phase).toBe('player');
-    expect(state.enemies.map((e) => e.defId)).toEqual(['larva', 'larva']);
+    expect(getStatus(state.hero, 'vulnerable')?.turns).toBe(2);
   });
 
-  it('болотный огонёк при гибели вспыхивает', () => {
-    const { state, rng } = mkBattle('warrior', ['will_o_wisp']);
+  it('щупальце при гибели изнуряет', () => {
+    const { state, rng } = mkBattle('warrior', ['tentacle', 'larva']);
     state.hero.stats.dmgMin = 99;
     state.hero.stats.dmgMax = 99;
     const hp0 = state.hero.hp;
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
-    expect(state.phase).toBe('won');
-    expect(state.hero.hp).toBe(hp0 - 3); // вспышка 4, Кольца кольчуги гасят 1
-    expect(getStatus(state.hero, 'burn')?.value).toBe(2);
+    expect(state.hero.hp).toBe(hp0 - 5); // захват 6, Кольца кольчуги гасят 1
+    expect(getStatus(state.hero, 'exhaust')).toBeTruthy();
+  });
+
+  it('порох мартышки рвётся, если убить её до Подрыва, и только один раз, если она подорвалась сама', () => {
+    const early = mkBattle('warrior', ['powder_monkey']);
+    early.state.hero.stats.dmgMin = 99;
+    early.state.hero.stats.dmgMax = 99;
+    const hp0 = early.state.hero.hp;
+    performAction(early.state, { type: 'attack', target: first(early.state).uid }, early.rng);
+    expect(early.state.phase).toBe('won');
+    expect(early.state.hero.hp).toBe(hp0 - 5); // порох 6, Кольца кольчуги гасят 1
+
+    // Подорвалась сама: считается только её собственный взрыв, onDeath не добавляется.
+    const self = mkBattle('warrior', ['powder_monkey']);
+    first(self.state).intent = 'boom';
+    const hp1 = self.state.hero.hp;
+    pass(self.state, self.rng);
+    expect(self.state.phase).toBe('won');
+    expect(self.state.hero.hp).toBe(hp1 - 19); // подрыв 20, Кольца кольчуги гасят 1
   });
 
   it('метка «Предсмертие» висит только на врагах с эффектом при смерти и расписывает его', () => {
-    const { state } = mkBattle('warrior', ['egg_cluster', 'larva']);
-    const [cluster, larva] = state.enemies;
-    expect(getStatus(cluster, 'doom')).toBeTruthy();
+    const { state } = mkBattle('warrior', ['sporeling', 'larva']);
+    const [spore, larva] = state.enemies;
+    expect(getStatus(spore, 'doom')).toBeTruthy();
     expect(getStatus(larva, 'doom')).toBeUndefined();
-    const info = onDeathInfo(cluster)!;
-    expect(info.name).toBe('Прорыв');
-    expect(info.detail).toBe('Призыв: Личинка ×2');
+    const info = onDeathInfo(spore)!;
+    expect(info.name).toBe('Облако спор');
+    expect(info.detail).toContain('Уязвимость');
     expect(onDeathInfo(larva)).toBeNull();
   });
 

@@ -415,7 +415,8 @@ function cleanupDead(state: BattleState, rng: Rng): void {
   // предсмертные эффекты: деление, взрыв
   for (const e of dead) {
     const def = enemyDef(e.defId);
-    if (!def.onDeath || state.phase === 'lost') continue;
+    // Метка «Предсмертие» здесь и флаг: её гасит тот, кто уже отыграл свой эффект (взрыв себя).
+    if (!def.onDeath || !getStatus(e, 'doom') || state.phase === 'lost') continue;
     log(state, `${e.name}: ${def.onDeath.name}`);
     for (const eff of def.onDeath.effects) applyEnemyEffect(state, e, eff, rng);
   }
@@ -940,6 +941,8 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e, false, rng);
       log(state, `${e.name} взрывается: ${dealt} по HP`);
       if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
+      // Взрыв уже случился: гасим «Предсмертие», иначе тот же порох рванёт второй раз в разборе мёртвых.
+      removeStatus(e, 'doom');
       e.hp = 0;
       break;
     }
