@@ -465,41 +465,32 @@ p {
   margin-left: auto;
   white-space: nowrap;
 }
-/* Умения одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇», подписи серые, иконки — цветом владения или умения. */
-.mastery {
+/* Умения одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇», подписи серые, иконки — цветом владения или умения (skill-yes/skill-no). */
+.skill-line {
   display: flex;
   gap: 6px;
   align-items: baseline;
   flex-wrap: wrap;
   font-size: 15px;
 }
-.mastery .lbl {
+.skill-line .lbl {
   color: var(--dim);
 }
-.mastery .lbl + .lbl,
-.mastery span:not(.lbl) + .lbl {
+.skill-line .lbl + .lbl,
+.skill-line span:not(.lbl) + .lbl {
   margin-left: 8px;
 }
-.mastery span:not(.lbl) {
+.skill-line span:not(.lbl) {
   cursor: help;
 }
-.mastery-master {
-  color: #8ce99a;
-}
-.mastery-trained {
-  color: #ffd166;
-}
-.mastery-foreign {
-  color: #ff8787;
-}
-/* Умение носить броню: два состояния, зелёный умеет, красный нет. */
+/* Владение оружием и умение носить броню: два состояния, зелёный да, красный нет. */
 .skill-yes {
   color: #8ce99a;
 }
 .skill-no {
   color: #ff8787;
 }
-/* Иконка типа оружия или брони рядом с именем; цвет — владение или умение героя (классы mastery-*, skill-*). */
+/* Иконка типа оружия или брони рядом с именем; цвет — владение или умение героя (классы skill-*). */
 .wtype-icon {
   font-size: 15px;
   line-height: 1;
@@ -507,15 +498,6 @@ p {
   cursor: help;
 }
 /* Цвет владения должен перебивать серый по умолчанию. */
-.wtype-icon.mastery-master {
-  color: #8ce99a;
-}
-.wtype-icon.mastery-trained {
-  color: #ffd166;
-}
-.wtype-icon.mastery-foreign {
-  color: #ff8787;
-}
 .wtype-icon.skill-yes {
   color: #8ce99a;
 }

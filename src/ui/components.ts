@@ -10,15 +10,17 @@ import {
   ART_TIER_COLORS,
   GEAR_TIERS,
   WEAPON_TYPE_GLYPHS,
+  WEAPON_TYPE_NAMES,
   armorSkillTitle,
   armorType,
   armorTypeTitle,
   canWearArmor,
+  canWieldWeapon,
   gearPerkText,
   gearStatText,
   hasPerk,
-  masteryTitle,
   weaponDice,
+  weaponSkillTitle,
   weaponType,
   weaponTypeTitle,
 } from '../data/gear';
@@ -196,10 +198,10 @@ export function potionCard(id: string, footer?: Child, note?: string | null): HT
   );
 }
 
-/** Иконка типа оружия у бейджа тира. С героем окрашена по владению: зелёный мастер, жёлтый знаком, красный чужое. */
+/** Иконка типа оружия у бейджа тира. С героем окрашена по владению: зелёный владеет, красный нет. */
 export function weaponTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   const type = weaponType(gear);
-  const cls = def ? `mastery-${def.mastery[type]}` : '';
+  const cls = def ? (canWieldWeapon(def, gear) ? 'skill-yes' : 'skill-no') : '';
   return h('span', { class: `wtype-icon ${cls}`.trim(), tip: weaponTypeTitle(gear, def) }, WEAPON_TYPE_GLYPHS[type]);
 }
 
@@ -213,17 +215,17 @@ export function gearTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   return gear.kind === 'weapon' ? weaponTypeIcon(gear, def) : armorTypeIcon(gear, def);
 }
 
-/** Строка перка базы: название своим цветом, описание после двоеточия. Броня, которую герой не умеет носить, — перк зачёркнут, причина в подсказке. */
+/** Строка перка базы: название своим цветом, описание после двоеточия. Предмет, которым герой не владеет, — перк зачёркнут, причина в подсказке. */
 export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null {
   const perk = gearPerkText(gear);
   if (!perk) return null;
-  if (gear.kind === 'armor' && def && !canWearArmor(def, gear)) {
-    return h(
-      'div',
-      { class: 'card-perk off', tip: `${def.name} не умеет носить ${ARMOR_TYPE_NAMES[armorType(gear)].toLowerCase()} броню: перк не работает` },
-      h('s', null, perk),
-    );
-  }
+  const off =
+    def && gear.kind === 'weapon' && !canWieldWeapon(def, gear)
+      ? `${def.name} не владеет ${WEAPON_TYPE_NAMES[weaponType(gear)].toLowerCase()} оружием: перк не работает`
+      : def && gear.kind === 'armor' && !canWearArmor(def, gear)
+        ? `${def.name} не умеет носить ${ARMOR_TYPE_NAMES[armorType(gear)].toLowerCase()} броню: перк не работает`
+        : null;
+  if (off) return h('div', { class: 'card-perk off', tip: off }, h('s', null, perk));
   const sep = perk.indexOf(':');
   const name = sep > 0 ? perk.slice(0, sep) : perk;
   const text = sep > 0 ? perk.slice(sep + 1) : '';
@@ -241,7 +243,7 @@ export function gearStatInfo(gear: GearInstance, def?: HeroDef): { text: string;
   const d = weaponDice(def, gear);
   const own = d.min !== gear.dmgMin || d.max !== gear.dmgMax;
   const text = gearStatText({ ...gear, dmgMin: d.min, dmgMax: d.max });
-  return own ? { text, tip: `Кубик оружия ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: владение типом оружия` } : { text };
+  return own ? { text, tip: `Кубик оружия ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: герой не владеет этим типом оружия` } : { text };
 }
 
 function gearStatLine(gear: GearInstance, def?: HeroDef): HTMLElement {
@@ -270,7 +272,7 @@ export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Chi
 
 /**
  * Умения героя одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇».
- * Цвет иконки оружия — владение (зелёный мастер, жёлтый знаком, красный чужое), брони — умение носить (зелёный да, красный нет).
+ * Цвет иконки — владение и умение носить: зелёный да, красный нет.
  * Названия, доля кубика и свойство типа — в подсказке при наведении на иконку; карточки предметов этого не повторяют.
  */
 export function skillLine(def: HeroDef): HTMLElement {
@@ -278,9 +280,9 @@ export function skillLine(def: HeroDef): HTMLElement {
   const armors: ArmorType[] = ['heavy', 'medium', 'light'];
   return h(
     'div',
-    { class: 'mastery' },
-    h('span', { class: 'lbl', tip: 'Владение оружием: зелёный мастер, жёлтый знаком, красный чужое. Наведи на иконку' }, 'Оружие:'),
-    ...weapons.map((t) => h('span', { class: `mastery-${def.mastery[t]}`, tip: masteryTitle(t, def.mastery[t]) }, WEAPON_TYPE_GLYPHS[t])),
+    { class: 'skill-line' },
+    h('span', { class: 'lbl', tip: 'Владение оружием: зелёный владеет, красный нет — кубик вдвое и перк базы не работает. Наведи на иконку' }, 'Оружие:'),
+    ...weapons.map((t) => h('span', { class: def.weaponSkill[t] ? 'skill-yes' : 'skill-no', tip: weaponSkillTitle(t, def.weaponSkill[t]) }, WEAPON_TYPE_GLYPHS[t])),
     h('span', { class: 'lbl', tip: 'Умение носить броню: зелёный перк работает, красный нет. Наведи на иконку' }, 'Броня:'),
     ...armors.map((t) => h('span', { class: def.armorSkill[t] ? 'skill-yes' : 'skill-no', tip: armorSkillTitle(t, def.armorSkill[t]) }, ARMOR_TYPE_GLYPHS[t])),
   );

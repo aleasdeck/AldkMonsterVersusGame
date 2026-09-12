@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/engine/rng';
-import { heroDef } from '../src/data/heroes';
-import { WEAPON_BASES, baseDamage, baseOf, makeGear, makeStartingGear, weaponDice, weaponType } from '../src/data/gear';
+import { HERO_LIST, heroDef } from '../src/data/heroes';
+import { WEAPON_BASES, baseDamage, baseOf, makeGear, makeStartingGear, weaponDice, weaponPerkMods, weaponType } from '../src/data/gear';
 import { canUseAction, createBattle, endTurn, getStatus, performAction, previewAttack, resolveEnemyTurn } from '../src/engine/combat';
 import { computeStats, previewGearSwap } from '../src/engine/stats';
 import { REROLL_COST, START_GOLD, goldReward } from '../src/engine/loot';
@@ -59,11 +59,35 @@ describe('типы оружия и владение', () => {
     expect(makeGear(createRng(1), 'weapon', 1).dmgMax).toBeGreaterThanOrEqual(makeGear(createRng(1), 'weapon', 1).dmgMin);
   });
 
-  it('знакомое оружие — 75 % кубика, чужое — 50 %, минимум 1', () => {
+  it('владение — два состояния: своё оружие полный кубик, чужое — половина, минимум 1', () => {
     const archer = heroDef('archer');
     expect(weaponDice(archer, weapon('bow', 8))).toEqual({ min: 8, max: 8 });
-    expect(weaponDice(archer, weapon('sword', 8))).toEqual({ min: 6, max: 6 });
+    expect(weaponDice(archer, weapon('sword', 8))).toEqual({ min: 4, max: 4 });
     expect(weaponDice(archer, weapon('wand', 1))).toEqual({ min: 1, max: 1 });
+    // Каждый герой владеет ровно одним типом: остальные два — чужие.
+    for (const def of HERO_LIST) {
+      const own = (Object.keys(def.weaponSkill) as WeaponType[]).filter((t) => def.weaponSkill[t]);
+      expect(own.length, def.id).toBe(1);
+      expect(weaponType(makeStartingGear(def).weapon), def.id).toBe(own[0]);
+    }
+  });
+
+  it('перк базы работает только у владеющего: свойство типа, аффикс и артефакты остаются', () => {
+    const warrior = heroDef('warrior');
+    const archer = heroDef('archer');
+    const bow = weapon('bow', 6, 3);
+    // Прицел лука на 3 тире — +3 к первому удару в ходу.
+    expect(weaponPerkMods(bow, archer)).toEqual({ thornsImmune: 1, firstHit: 3 });
+    expect(weaponPerkMods(bow, warrior)).toEqual({ thornsImmune: 1 });
+    // Без героя перк считается работающим — для карточек вне забега.
+    expect(weaponPerkMods(bow)).toEqual({ thornsImmune: 1, firstHit: 3 });
+
+    const withAffix = { ...bow, affix: { stat: 'str' as const, value: 2 } };
+    const s = computeStats(warrior, withAffix, makeStartingGear(warrior).armor);
+    expect(s.firstHit).toBe(0);
+    expect(s.thornsImmune).toBe(1);
+    expect(s.str).toBe(2);
+    expect([s.dmgMin, s.dmgMax]).toEqual([3, 3]);
   });
 
   it('магическое оружие: −1 к максимуму и бонус к заклинаниям по тиру', () => {
@@ -71,6 +95,7 @@ describe('типы оружия и владение', () => {
     const staff: GearInstance = { ...weapon('staff', 6, 3), dmgMax: 10 };
     // чужое: 6→3, 10→5, магический тип −1 к максимуму
     expect(weaponDice(warrior, staff)).toEqual({ min: 3, max: 4 });
+    // Свойство типа остаётся и без владения.
     const gear = makeStartingGear(warrior);
     const s = computeStats(warrior, staff, gear.armor);
     expect(s.spellPower).toBe(2);
@@ -81,16 +106,17 @@ describe('типы оружия и владение', () => {
     const gear = makeStartingGear(archer);
     const sword = { ...weapon('sword', 8), affix: { stat: 'str' as const, value: 2 } };
     const s = computeStats(archer, sword, gear.armor);
-    expect([s.dmgMin, s.dmgMax]).toEqual([6, 6]);
+    expect([s.dmgMin, s.dmgMax]).toEqual([4, 4]);
     expect(s.str).toBe(2);
   });
 
-  it('оружие выпадает с учётом владения: лучнику чаще дальнее', () => {
+  it('оружие выпадает с учётом владения: лучнику чаще дальнее, чужие типы поровну', () => {
     const rng = createRng(3);
     const count: Record<WeaponType, number> = { melee: 0, ranged: 0, magic: 0 };
     for (let i = 0; i < 600; i++) count[weaponType(makeGear(rng, 'weapon', 2, heroDef('archer')))]++;
     expect(count.ranged).toBeGreaterThan(count.melee);
-    expect(count.melee).toBeGreaterThan(count.magic);
+    expect(count.ranged).toBeGreaterThan(count.magic);
+    expect(count.melee).toBeGreaterThan(0);
     expect(count.magic).toBeGreaterThan(0);
   });
 

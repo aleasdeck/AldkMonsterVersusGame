@@ -1,4 +1,4 @@
-import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Mastery, StatMods, WeaponType } from '../engine/types';
+import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, StatMods, WeaponType } from '../engine/types';
 import { pick, weighted, type Rng } from '../engine/rng';
 
 type ByTier = [number, number, number, number, number];
@@ -40,25 +40,15 @@ export const WEAPON_TYPE_GLYPHS: Record<WeaponType, string> = {
   magic: '✦',
 };
 
-export const MASTERY_NAMES: Record<Mastery, string> = {
-  master: 'Мастер',
-  trained: 'Знаком',
-  foreign: 'Чужое',
-};
+/** Кубик чужого оружия: вдвое слабее. Сила, аффиксы и артефакты не трогаются. */
+export const UNSKILLED_DICE_MULT = 0.5;
 
-/** Множитель кубика оружия по умению владения. Сила и артефакты не трогаются. */
-export const MASTERY_MULT: Record<Mastery, number> = {
-  master: 1,
-  trained: 0.75,
-  foreign: 0.5,
-};
-
-/** Веса типа при выпадении оружия: мастерское чаще, чужое реже. */
-export const MASTERY_DROP_WEIGHT: Record<Mastery, number> = {
-  master: 50,
-  trained: 30,
-  foreign: 20,
-};
+/**
+ * Веса типа при выпадении оружия: свой тип втрое чаще чужого — 60 % дропа против 25 % и 25 % (v0.20).
+ * Выше, чем у брони (40 против 20): владеет герой ровно одним типом оружия, а носить умеет обычно два типа брони,
+ * и чужое оружие бьёт вдвое слабее, тогда как чужая броня теряет только перк.
+ */
+export const WEAPON_DROP_WEIGHT = { skilled: 60, unskilled: 20 };
 
 /**
  * Вес оружия (v0.15): кубик тира умножается до разброса. Лёгкое (кинжал, стилет, дротики, праща) бьёт слабее,
@@ -413,8 +403,9 @@ export function weaponType(gear: GearInstance): WeaponType {
   return weaponBase(gear).type ?? 'melee';
 }
 
-export function masteryOf(def: HeroDef, gear: GearInstance): Mastery {
-  return def.mastery[weaponType(gear)];
+/** Владеет ли герой этим оружием. Нет — кубик вдвое и перк базы не работает, свойство типа, аффикс и артефакты остаются. */
+export function canWieldWeapon(def: HeroDef, gear: GearInstance): boolean {
+  return def.weaponSkill[weaponType(gear)];
 }
 
 export function armorType(gear: GearInstance): ArmorType {
@@ -433,17 +424,18 @@ export function hasPerk(gear: GearInstance): boolean {
 
 /** Итоговый кубик оружия в руках героя: владение, штраф магического типа. */
 export function weaponDice(def: HeroDef, gear: GearInstance): { min: number; max: number } {
-  const mult = MASTERY_MULT[masteryOf(def, gear)];
+  const mult = canWieldWeapon(def, gear) ? 1 : UNSKILLED_DICE_MULT;
   const min = Math.max(1, Math.floor(gear.dmgMin * mult));
   let max = Math.max(min, Math.floor(gear.dmgMax * mult));
   if (weaponType(gear) === 'magic') max = Math.max(min, max - 1);
   return { min, max };
 }
 
-/** Модификаторы самого оружия: тип + перк базы (без аффикса). */
-export function weaponPerkMods(gear: GearInstance): StatMods {
+/** Модификаторы самого оружия: тип + перк базы (без аффикса). С героем перк пуст, если он не владеет этим типом; свойство типа остаётся. */
+export function weaponPerkMods(gear: GearInstance, def?: HeroDef): StatMods {
   const base = weaponBase(gear);
   const out: StatMods = { ...weaponTypeMods(base.type ?? 'melee', gear.tier) };
+  if (def && !canWieldWeapon(def, gear)) return out;
   const perk = base.perk?.mods(gear.tier) ?? {};
   for (const key of Object.keys(perk) as (keyof DerivedStats)[]) out[key] = (out[key] ?? 0) + (perk[key] ?? 0);
   return out;
@@ -465,11 +457,11 @@ export function gearPerkText(gear: GearInstance): string {
   return base.perk ? `${base.perk.name}: ${base.perk.text(gear.tier)}` : '';
 }
 
-/** Подсказка к иконке типа: «Магическое · Чужое». Проценты и свойство типа — в строке владения героя. */
+/** Подсказка к иконке типа: «Магическое оружие · Не владеет: кубик вдвое, перк не работает». */
 export function weaponTypeTitle(gear: GearInstance, def?: HeroDef): string {
   const type = weaponType(gear);
-  if (!def) return WEAPON_TYPE_NAMES[type];
-  return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[masteryOf(def, gear)]}`;
+  if (!def) return `${WEAPON_TYPE_NAMES[type]} оружие`;
+  return `${WEAPON_TYPE_NAMES[type]} оружие · ${canWieldWeapon(def, gear) ? 'Владеет' : `Не владеет: кубик ${pct(UNSKILLED_DICE_MULT)}, перк не работает`}`;
 }
 
 /** Подсказка к иконке типа брони: «Тяжёлая броня · Умеет носить» или «… · Не умеет: перк не работает». */
@@ -478,6 +470,12 @@ export function armorTypeTitle(gear: GearInstance, def?: HeroDef): string {
   if (!hasPerk(gear)) return `${ARMOR_TYPE_NAMES[type]} броня · без перка`;
   if (!def) return `${ARMOR_TYPE_NAMES[type]} броня`;
   return `${ARMOR_TYPE_NAMES[type]} броня · ${canWearArmor(def, gear) ? 'Умеет носить' : 'Не умеет: перк не работает'}`;
+}
+
+/** Подсказка пункта строки владения оружием. */
+export function weaponSkillTitle(type: WeaponType, skilled: boolean): string {
+  const head = `${WEAPON_TYPE_NAMES[type]} оружие · ${skilled ? 'Владеет: полный кубик и перк базы' : `Не владеет: кубик ${pct(UNSKILLED_DICE_MULT)}, перк базы не работает, аффикс и артефакты остаются`}`;
+  return `${head}\nСвойство типа: ${weaponTypeHint(type)}`;
 }
 
 /** Подсказка пункта строки умений брони. */
@@ -489,11 +487,6 @@ export function armorSkillTitle(type: ArmorType, skilled: boolean): string {
 export function weaponTypeHint(type: WeaponType): string {
   if (type === 'magic') return `−1 к максимуму урона, +${MAGIC_SPELL_POWER[0]}…+${MAGIC_SPELL_POWER[4]} к заклинаниям по тиру`;
   return weaponTypeText(type, 1);
-}
-
-/** Подсказка пункта строки владения: «Дальнее · Мастер: 100 % кубика оружия\nСвойство типа: не боится шипов врага». */
-export function masteryTitle(type: WeaponType, m: Mastery): string {
-  return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[m]}: ${Math.round(MASTERY_MULT[m] * 100)} % кубика оружия\nСвойство типа: ${weaponTypeHint(type)}`;
 }
 
 /** Разброс урона базы на тире: кубик тира × вес (округление к ближайшему), потом ширина. Лёгкий узкий 1 тира — 3–4, тяжёлый широкий — 3–7. */
@@ -611,9 +604,12 @@ export function affixMods(gear: GearInstance): StatMods {
 // ─── Генерация ─────────────────────────────────────────────────────────────
 
 /** База оружия под героя: тип выбирается по весам владения, внутри типа — поровну. */
-function pickWeaponBase(rng: Rng, mastery?: HeroDef['mastery']): Base {
-  if (!mastery) return pick(rng, WEAPON_BASES);
-  const types = (Object.keys(mastery) as WeaponType[]).map((type) => ({ item: type, weight: MASTERY_DROP_WEIGHT[mastery[type]] }));
+function pickWeaponBase(rng: Rng, weaponSkill?: HeroDef['weaponSkill']): Base {
+  if (!weaponSkill) return pick(rng, WEAPON_BASES);
+  const types = (Object.keys(weaponSkill) as WeaponType[]).map((type) => ({
+    item: type,
+    weight: weaponSkill[type] ? WEAPON_DROP_WEIGHT.skilled : WEAPON_DROP_WEIGHT.unskilled,
+  }));
   const type = weighted(rng, types);
   return pick(
     rng,
@@ -638,7 +634,7 @@ function pickArmorBase(rng: Rng, armorSkill?: HeroDef['armorSkill']): Base {
 
 /** Предмет случайной базы. С героем оружие выпадает под его владение, броня — под умение носить. */
 export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, def?: HeroDef): GearInstance {
-  const base = kind === 'weapon' ? pickWeaponBase(rng, def?.mastery) : pickArmorBase(rng, def?.armorSkill);
+  const base = kind === 'weapon' ? pickWeaponBase(rng, def?.weaponSkill) : pickArmorBase(rng, def?.armorSkill);
   const prefix = pick(rng, PREFIXES[tier])[base.g];
   const info = GEAR_TIERS[tier];
   const dmg = baseDamage(base, tier);

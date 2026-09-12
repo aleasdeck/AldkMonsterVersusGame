@@ -12,7 +12,7 @@ import { SMOKE_MISS_CHANCE, VULNERABLE_MULT, canUseAction, defendBlock, endTurn,
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
-import { canWearArmor, upgradeGearTier, weaponDice } from '../../src/data/gear';
+import { canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice } from '../../src/data/gear';
 import { potionDef } from '../../src/data/potions';
 import { findSameArtifact, gearOf, socketRefs, type SocketRef } from '../../src/engine/equipment';
 import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice } from '../../src/engine/loot';
@@ -481,7 +481,7 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
   return Math.max(0, per) * uses;
 }
 
-/** Насколько предмет лучше надетого: тир, кубик в руках героя или защита, аффикс, потеря слотов. */
+/** Насколько предмет лучше надетого: тир, кубик в руках героя или защита, владение, аффикс, потеря слотов. */
 export function gearGain(run: RunState, gear: GearInstance): number {
   const def = heroDef(run.hero.defId);
   const cur = gearOf(run.hero, gear.kind);
@@ -490,6 +490,8 @@ export function gearGain(run: RunState, gear: GearInstance): number {
     const a = weaponDice(def, gear);
     const c = weaponDice(def, cur);
     score += a.min + a.max - c.min - c.max;
+    // Перк базы работает только у владеющего — та же надбавка, что у брони.
+    score += (canWieldWeapon(def, gear) ? 3 : 0) - (canWieldWeapon(def, cur) ? 3 : 0);
   } else {
     score += (gear.def - cur.def) * 2 + (gear.hp - cur.hp) * 0.5;
     score += (canWearArmor(def, gear) ? 3 : 0) - (canWearArmor(def, cur) ? 3 : 0);
