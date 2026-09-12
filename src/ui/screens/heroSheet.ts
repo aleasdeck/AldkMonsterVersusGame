@@ -1,7 +1,7 @@
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { potionDef } from '../../data/potions';
-import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, MASTERY_MULT, MASTERY_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, weaponTypeHint } from '../../data/gear';
+import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, weaponSkillTitle } from '../../data/gear';
 import { defendBlock } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
 import type { ArmorType, DerivedStats, WeaponType } from '../../engine/types';
@@ -33,7 +33,7 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
   return rows.filter((r): r is HTMLElement => !!r);
 }
 
-/** Умения владения оружием и ношения брони — полными названиями, цвет как у иконок. */
+/** Владение оружием и умение носить броню — полными названиями, два состояния, цвет как у иконок. */
 function skills(def: ReturnType<typeof heroDef>): HTMLElement {
   const weapons: WeaponType[] = ['melee', 'ranged', 'magic'];
   const armors: ArmorType[] = ['heavy', 'medium', 'light'];
@@ -42,13 +42,13 @@ function skills(def: ReturnType<typeof heroDef>): HTMLElement {
     { class: 'sheet-skills' },
     h('div', { class: 'sheet-sub' }, 'Оружие'),
     ...weapons.map((t) => {
-      const m = def.mastery[t];
+      const ok = def.weaponSkill[t];
       return h(
         'div',
-        { class: 'skill-row', tip: `Свойство типа: ${weaponTypeHint(t)}` },
-        h('span', { class: `mastery-${m}` }, WEAPON_TYPE_GLYPHS[t]),
+        { class: 'skill-row', tip: weaponSkillTitle(t, ok) },
+        h('span', { class: ok ? 'skill-yes' : 'skill-no' }, WEAPON_TYPE_GLYPHS[t]),
         h('span', null, WEAPON_TYPE_NAMES[t]),
-        h('span', { class: `skill-val mastery-${m}` }, `${MASTERY_NAMES[m]} · ${Math.round(MASTERY_MULT[m] * 100)} %`),
+        h('span', { class: `skill-val ${ok ? 'skill-yes' : 'skill-no'}` }, ok ? 'владеет' : 'не владеет'),
       );
     }),
     h('div', { class: 'sheet-sub' }, 'Броня'),

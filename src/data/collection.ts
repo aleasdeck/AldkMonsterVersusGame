@@ -83,7 +83,11 @@ function gearEntry(kind: GearKind, baseId: string): Collectible {
   const type = base.type ?? 'melee';
   const armorType = base.armorType ?? 'medium';
   const perkLines: string[] = [];
-  if (kind === 'weapon') perkLines.push(`${WEAPON_TYPE_NAMES[type]} оружие: ${weaponTypeText(type, 1)}`);
+  if (kind === 'weapon') {
+    const owners = HERO_LIST.filter((h) => h.weaponSkill[type]).map((h) => h.name);
+    perkLines.push(`${WEAPON_TYPE_NAMES[type]} оружие: ${weaponTypeText(type, 1)}`);
+    perkLines.push(`Перк и полный кубик — только у тех, кто владеет этим типом: ${owners.join(', ')}`);
+  }
   if (kind === 'armor') {
     const wearers = HERO_LIST.filter((h) => h.armorSkill[armorType]).map((h) => h.name);
     perkLines.push(`${ARMOR_TYPE_NAMES[armorType]} броня: перк работает только у тех, кто умеет её носить — ${wearers.join(', ')}`);

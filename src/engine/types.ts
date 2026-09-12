@@ -6,8 +6,6 @@ export type LocationId = 'forest' | 'crypt' | 'caves' | 'swamp' | 'hive' | 'ship
 
 /** Тип оружия: ближнее, дальнее, магическое. */
 export type WeaponType = 'melee' | 'ranged' | 'magic';
-/** Умение героя владеть типом оружия: мастер — полный урон, знаком — 75 %, чужое — 50 %. */
-export type Mastery = 'master' | 'trained' | 'foreign';
 /** Тип брони: тяжёлая, средняя, лёгкая. */
 export type ArmorType = 'heavy' | 'medium' | 'light';
 
@@ -243,8 +241,8 @@ export interface HeroDef {
   crit?: number;
   /** Своя усталость: во сколько раз слабее каждая следующая атака в ходу (по умолчанию 0.75). */
   fatigue?: number;
-  /** Умение владения каждым типом оружия. */
-  mastery: Record<WeaponType, Mastery>;
+  /** Умение владеть типом оружия: владеет — полный кубик и перк базы, не владеет — кубик вдвое и перк не работает. */
+  weaponSkill: Record<WeaponType, boolean>;
   /** Умение носить тип брони: умеет — перк базы работает, не умеет — броня даёт только DEF, HP и аффикс. */
   armorSkill: Record<ArmorType, boolean>;
   weapon: { base: string; name: string; dmgMin: number; dmgMax: number };
@@ -511,9 +509,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.19.2';
+export const GAME_VERSION = '0.20';
 
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
