@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/engine/rng';
 import { heroDef } from '../src/data/heroes';
 import { makeStartingGear } from '../src/data/gear';
-import { ENEMY_LIST } from '../src/data/enemies';
+import { ENEMY_LIST, enemyDef } from '../src/data/enemies';
 import { LOCATIONS } from '../src/data/locations';
 import {
   canUseAction,
   computeAllyIntent,
   computeIntent,
+  INTENT_ICON,
   createBattle,
+  describeAction,
   endTurn,
   enemyStep,
   getStatus,
@@ -355,6 +357,54 @@ describe('новые механики врагов', () => {
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(state.phase).toBe('won');
     expect(state.enemies.length).toBe(0);
+  });
+
+  it('ядовитые приёмы врагов травят, а не ослабляют', () => {
+    const { state, rng } = mkBattle('warrior', ['spider']);
+    first(state).intent = 'bite';
+    const hp0 = state.hero.hp;
+    pass(state, rng);
+    expect(getStatus(state.hero, 'poison')?.value).toBe(1);
+    expect(getStatus(state.hero, 'weak')).toBeUndefined();
+    // Яд капает в начале хода героя и идёт мимо блока.
+    expect(state.hero.hp).toBe(hp0 - 3 - 1); // укус 4, Кольца кольчуги гасят 1, затем яд 1
+  });
+
+  it('проклятие мумии портит урон, а не пускает кровь', () => {
+    const { state, rng } = mkBattle('warrior', ['mummy']);
+    first(state).intent = 'curse';
+    pass(state, rng);
+    expect(getStatus(state.hero, 'weak')?.turns).toBe(3);
+    expect(getStatus(state.hero, 'bleed')).toBeUndefined();
+  });
+
+  it('огонь импа висит на Огненном плевке, а не на Пакости', () => {
+    const { state, rng } = mkBattle('warrior', ['imp']);
+    first(state).intent = 'spit';
+    pass(state, rng);
+    expect(getStatus(state.hero, 'burn')?.value).toBe(3);
+  });
+
+  it('приём «блок + шипы» читается щитом с числом, шипы уходят вторым бейджем', () => {
+    const beetle = enemyDef('beetle');
+    const info = describeAction(beetle, beetle.actions.find((a) => a.id === 'shell')!);
+    expect(info.kind).toBe('defend');
+    expect(info.icon).toBe(INTENT_ICON.defend);
+    expect(info.label).toBe('12');
+    expect(info.kinds).toEqual(['defend', 'buff']);
+    expect(info.selfStatuses).toEqual(['thorns']);
+  });
+
+  it('травяной отвар лечит и снимает все отрицательные эффекты', () => {
+    const { state, rng } = mkBattle('warrior', ['spider'], { extra: [{ id: 'herbal_brew', tier: 1 }] });
+    const h = state.hero;
+    h.hp = h.stats.maxHp - 10;
+    h.statuses.push({ id: 'bleed', value: 3, turns: 3 }, { id: 'poison', value: 2, turns: 3 }, { id: 'weak', value: 1, turns: 2 });
+    performAction(state, { type: 'artifact', artifactId: 'herbal_brew' }, rng);
+    expect(h.hp).toBe(h.stats.maxHp - 7); // отвар тира 1 лечит 3
+    expect(getStatus(h, 'bleed')).toBeUndefined();
+    expect(getStatus(h, 'poison')).toBeUndefined();
+    expect(getStatus(h, 'weak')).toBeUndefined();
   });
 
   it('споровик при гибели оставляет облако спор', () => {
