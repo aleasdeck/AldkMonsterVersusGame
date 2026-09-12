@@ -168,12 +168,15 @@ describe('перки баз в бою', () => {
     expect(b.hp).toBe(12 - 3);
   });
 
-  it('молот критует втрое', () => {
-    const { state, rng } = mkBattle('warrior', ['bear'], weapon('hammer', 5));
+  it('молот добавляет крит. урон: Сокрушение +50 % на 5 тире', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], weapon('hammer', 5, 5));
+    // Воин: свои 150 % + Сокрушение тира 5 (+50) = 200 %
+    expect(state.hero.stats.critDmg).toBe(200);
     state.hero.stats.crit = 1;
     const bear = state.enemies[0];
+    const hp = bear.hp;
     performAction(state, { type: 'attack', target: bear.uid }, rng);
-    expect(bear.hp).toBe(35 - 15);
+    expect(hp - bear.hp).toBe(10);
   });
 
   it('дротики вешают кровотечение на 2 хода', () => {
@@ -366,3 +369,69 @@ describe('предпросмотр смены экипировки', () => {
 function weaponsPerk(base: string, tier: GearTier): string {
   return `${baseOf('weapon', base).perk!.name}: ${baseOf('weapon', base).perk!.text(tier)}`;
 }
+
+describe('крит: шанс и крит. урон', () => {
+  it('у каждого героя свой крит, у Ассасина самый высокий', () => {
+    const stats = (id: string) => computeStats(heroDef(id), makeStartingGear(heroDef(id)).weapon, makeStartingGear(heroDef(id)).armor);
+    const assassin = stats('assassin');
+    expect(assassin.crit).toBe(0.2);
+    expect(assassin.critDmg).toBe(190);
+    for (const id of ['warrior', 'mage', 'paladin', 'berserk', 'archer']) {
+      expect(stats(id).crit).toBeLessThan(assassin.crit);
+      expect(stats(id).critDmg).toBeLessThanOrEqual(assassin.critDmg);
+    }
+    // крит слабее обычного удара не бывает
+    expect(stats('paladin').critDmg).toBeGreaterThanOrEqual(100);
+  });
+
+  it('крит. урон считается в процентах и складывается из героя, перка и аффикса', () => {
+    const def = heroDef('warrior');
+    const hammer: GearInstance = { kind: 'weapon', tier: 3, base: 'hammer', name: 'молот', dmgMin: 5, dmgMax: 5, def: 0, hp: 0, affix: { stat: 'critDmg', value: 25 }, slots: [] };
+    // Воин 150 + Сокрушение тира 3 (+40) + аффикс 25
+    expect(computeStats(def, hammer, makeStartingGear(def).armor).critDmg).toBe(215);
+  });
+
+  it('Азарт копит шанс крита с каждого некрита и обнуляется критом', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], undefined, 1);
+    state.hero.stats.crit = 0;
+    state.hero.stats.critRamp = 0.5;
+    const bear = state.enemies[0];
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(state.hero.critStack).toBe(0.5);
+    // на втором ударе накопленных 50 % хватает, чтобы рано или поздно выпал крит и сбросил счётчик
+    let sawReset = false;
+    for (let i = 0; i < 20 && !sawReset; i++) {
+      performAction(state, { type: 'attack', target: bear.uid }, rng);
+      if (state.hero.critStack === 0) sawReset = true;
+      bear.hp = 999;
+      state.hero.sta = 9;
+    }
+    expect(sawReset).toBe(true);
+  });
+
+  it('Клеймо палача добавляет шанс крита только по раненой цели', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], undefined, 3);
+    state.hero.stats.crit = 0;
+    state.hero.stats.executeCrit = 1;
+    const bear = state.enemies[0];
+    const full = bear.hp;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    const plain = full - bear.hp;
+    // цель ниже 20 % HP: тот же удар критует
+    bear.hp = Math.floor(bear.maxHp * 0.1);
+    const before = bear.hp;
+    state.hero.sta = 9;
+    state.hero.attacks = 0;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(before - bear.hp).toBeGreaterThan(plain);
+  });
+
+  it('Жажда крови лечит за критический удар', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], undefined, 2);
+    state.hero.stats.crit = 1;
+    state.hero.stats.critHeal = 4;
+    state.hero.hp = 10;
+    performAction(state, { type: 'attack', target: state.enemies[0].uid }, rng);
+    expect(state.hero.hp).toBe(14);
+  });
+});

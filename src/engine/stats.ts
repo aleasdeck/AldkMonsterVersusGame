@@ -16,7 +16,8 @@ function applyMods(s: DerivedStats, m: StatMods): void {
 }
 
 export const DEFAULT_FATIGUE = 0.75;
-export const DEFAULT_CRIT_MULT = 2;
+/** Крит. урон по умолчанию, проценты от обычного урона: полтора удара. */
+export const DEFAULT_CRIT_DMG = 150;
 
 /**
  * Статы героя: база героя → кубик оружия в его руках (владение, тип) → перки оружия и брони
@@ -37,11 +38,14 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     lifesteal: 0,
     regen: 0,
     crit: def.crit ?? 0,
+    critDmg: def.critDmg ?? DEFAULT_CRIT_DMG,
+    critRamp: 0,
+    executeCrit: 0,
+    critHeal: 0,
     spellPower: 0,
     firstTurnSta: 0,
     fatigue: def.fatigue ?? DEFAULT_FATIGUE,
     firstHit: 0,
-    critMult: DEFAULT_CRIT_MULT,
     pierceBlock: 0,
     thornsImmune: 0,
     splash: 0,
@@ -69,6 +73,8 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     if (ad?.mods) applyMods(s, ad.mods(a.tier));
   }
   s.crit = Math.min(1, s.crit);
+  // Крит слабее обычного удара не бывает.
+  s.critDmg = Math.max(100, s.critDmg);
   s.fatigue = Math.min(1, s.fatigue);
   return s;
 }

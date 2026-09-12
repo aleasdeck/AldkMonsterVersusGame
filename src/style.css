@@ -1868,10 +1868,6 @@ p {
 .art-row-desc {
   color: var(--text);
 }
-.art-row-next {
-  color: var(--dim);
-  font-size: 14px;
-}
 
 /* ─── Оверлей «Персонаж» и пауза ───────────────────────────────────── */
 
@@ -1924,22 +1920,8 @@ p {
 .sheet-stats .stat {
   cursor: help;
 }
-.sheet-sub {
-  font-size: 15px;
-  color: var(--dim);
-  margin-top: 4px;
-  border-bottom: 1px dotted var(--border);
-}
-.skill-row {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  font-size: 16px;
-  cursor: help;
-}
-.skill-val {
-  margin-left: auto;
-  font-size: 15px;
+.sheet-left .skill-line {
+  margin-top: 6px;
 }
 .sheet-potion {
   margin-top: auto;

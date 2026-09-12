@@ -207,7 +207,7 @@ function tiles(app: App): HTMLElement {
 
   // Из скрытности любая атака — удар в спину: гарантированный крит.
   const stealthed = isHidden(b.hero);
-  const critX = (r: DamageRange) => ({ min: r.min * b.hero.stats.critMult, max: r.max * b.hero.stats.critMult });
+  const critX = (r: DamageRange) => ({ min: Math.floor((r.min * b.hero.stats.critDmg) / 100), max: Math.floor((r.max * b.hero.stats.critDmg) / 100) });
   const fatigue = Math.round((1 - b.hero.stats.fatigue) * 100);
 
   const atk: PlayerAction = { type: 'attack', target };

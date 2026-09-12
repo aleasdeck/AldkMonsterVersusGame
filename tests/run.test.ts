@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_LIST, SIGNATURE_OWNER } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
-import { ACTS, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
+import { ACTS, ACT_DMG_BONUS, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
 import { createRng } from '../src/engine/rng';
 import { canUseAction } from '../src/engine/combat';
@@ -534,6 +534,8 @@ describe('забег', () => {
     run2.roomIndex = 2;
     startEvent(run2, 'altar');
     expect(run2.event?.kind === 'altar' && run2.event.artifact).toBeTruthy();
+    // Артефакт подставляем сам: случайный может оказаться дубликатом стоящего и уйти в апгрейд без выбора слота.
+    if (run2.event?.kind === 'altar') run2.event.artifact = { id: 'thorns', tier: 1 };
     expect(canAltarSacrifice(run2)).toBeNull();
     const max2 = heroStats(run2).maxHp;
     expect(altarSacrifice(run2)).toBe(true);
@@ -729,13 +731,13 @@ describe('забег', () => {
   it('враги масштабируются под акт, а не под родную локацию', () => {
     // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +75 % надбавки акта
     expect(enemyScale(1, 2).hp).toBeCloseTo(2.7);
-    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * 1.75);
+    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * ACT_DMG_BONUS[2]);
     // враг пещер (tier 3) в первом акте — наоборот, тоньше, надбавка первого акта +40 %; боссы растут мягче рядовых
     expect(enemyScale(3, 0).hp).toBeCloseTo(1 / 2.7);
-    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * 1.4);
+    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * ACT_DMG_BONUS[0]);
     expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4);
-    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * 1.75);
-    expect(enemyScale(2, 1).dmg).toBeCloseTo(1.6);
+    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * ACT_DMG_BONUS[2]);
+    expect(enemyScale(2, 1).dmg).toBeCloseTo(ACT_DMG_BONUS[1]);
     const run = newRun('warrior', 3);
     run.locations = ['ship', 'forest', 'swamp'];
     enterRoom(run);

@@ -63,6 +63,9 @@ export const STATUS_HINTS: Record<StatusId, string> = {
  */
 export const VULNERABLE_MULT = 1.25;
 
+/** Ниже этой доли HP цель считается раненой: «Клеймо палача» добавляет шанс крита по ней. */
+export const EXECUTE_HP_PCT = 0.2;
+
 /** Шанс, что удар врага пройдёт мимо героя в дымовой завесе («Дымовая шашка»). */
 export const SMOKE_MISS_CHANCE = 0.8;
 
@@ -459,7 +462,7 @@ function firstHitBonus(state: BattleState): number {
  * Урон атаки героя и его раскладка для лога: «кубик 4 + Сила 2 + первый удар 1 = 7, усталость ×0.75 = 5, крит ×2 = 10».
  * Слагаемые с нулём и множители, равные единице, не пишутся.
  */
-function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false): { dmg: number; crit: boolean; why: string } {
+function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false, target?: EnemyState): { dmg: number; crit: boolean; why: string } {
   const h = state.hero;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
   const stealthed = isHidden(h);
@@ -480,10 +483,13 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
     const m = [mult !== 1 ? `приём ×${mult}` : '', fatigue !== 1 ? `усталость ×${Math.round(fatigue * 100) / 100}` : ''].filter(Boolean).join(', ');
     steps.push(`${m} = ${dmg}`);
   }
-  const crit = sureCrit || stealthed || (h.stats.crit > 0 && chance(rng, h.stats.crit));
+  // Шанс крита: свой стат + накопленное «Азартом» + добивание раненой цели («Клеймо палача»).
+  const wounded = !!target && target.hp <= target.maxHp * EXECUTE_HP_PCT;
+  const critChance = Math.min(1, h.stats.crit + h.critStack + (wounded ? h.stats.executeCrit : 0));
+  const crit = sureCrit || stealthed || (critChance > 0 && chance(rng, critChance));
   if (crit) {
-    dmg *= h.stats.critMult;
-    steps.push(`крит ×${h.stats.critMult} = ${dmg}`);
+    dmg = Math.floor((dmg * h.stats.critDmg) / 100);
+    steps.push(`крит ${h.stats.critDmg} % = ${dmg}`);
   }
   if (getStatus(h, 'weak')) {
     dmg = Math.floor(dmg * 0.75);
@@ -508,7 +514,7 @@ interface StrikeOpts {
  */
 function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpts = {}): { dmg: number; crit: boolean } {
   const h = state.hero;
-  const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit);
+  const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit, e);
   const detail = newDetail();
   const pierce = h.stats.pierceBlock > 0;
   const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce, detail });
@@ -519,6 +525,14 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
     // «Метка охотника»: первый удар в ходу открывает цель для остальных.
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
+  }
+  // «Азарт» копит шанс с каждого промаха мимо крита, крит обнуляет счётчик; «Жажда крови» лечит за крит.
+  if (crit) {
+    h.critStack = 0;
+    if (h.stats.critHeal > 0) healHero(state, h.stats.critHeal, 'жажда крови');
+  } else if (h.stats.critRamp > 0) {
+    h.critStack = Math.min(1, h.critStack + h.stats.critRamp);
+    log(state, `Азарт: шанс крита +${Math.round(h.stats.critRamp * 100)} % (всего +${Math.round(h.critStack * 100)} %)`);
   }
   if (h.stats.blockOnHit > 0) gainBlock(state, h, 'hero', h.stats.blockOnHit, 'перк оружия');
   if (opts.single && h.stats.splash > 0 && dmg > 0) {
@@ -1014,6 +1028,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       potion: hero.potion,
       defended: false,
       attacks: 0,
+      critStack: 0,
     },
     enemies: [],
     act,

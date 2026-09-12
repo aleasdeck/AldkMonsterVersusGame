@@ -407,7 +407,13 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
     v += (m.thorns ?? 0) * 2;
     v += (m.lifesteal ?? 0) * 3;
     v += (m.regen ?? 0) * 5;
-    v += (m.crit ?? 0) * 27;
+    // Крит-статы в «HP врага»: шанс стоит ровно столько, сколько даёт крит. урон сверх обычного, и наоборот.
+    v += (m.crit ?? 0) * avg * (s.critDmg / 100 - 1) * 12;
+    v += ((m.critDmg ?? 0) / 100) * avg * s.crit * 12;
+    // «Азарт» копится весь бой: в среднем работает как половина накопленного шанса на каждом ударе.
+    v += (m.critRamp ?? 0) * avg * (s.critDmg / 100 - 1) * 30;
+    v += (m.executeCrit ?? 0) * avg * (s.critDmg / 100 - 1) * 3;
+    v += (m.critHeal ?? 0) * s.crit * 6;
     v += (m.spellPower ?? 0) * (magic ? 4 : 0);
     v += (m.dmgMax ?? 0) * 2;
     v += (m.onKillHeal ?? 0) * 3;

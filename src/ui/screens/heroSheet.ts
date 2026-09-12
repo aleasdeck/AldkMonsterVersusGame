@@ -1,11 +1,10 @@
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { potionDef } from '../../data/potions';
-import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, weaponSkillTitle } from '../../data/gear';
 import { defendBlock } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
-import type { ArmorType, DerivedStats, WeaponType } from '../../engine/types';
-import { bar, potionChip } from '../components';
+import type { DerivedStats } from '../../engine/types';
+import { bar, potionChip, skillLine } from '../components';
 import { gearTile } from '../gearTile';
 import { spriteImg } from '../sprites';
 import type { App } from '../app';
@@ -21,7 +20,11 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
     row('Стамина', `${s.sta}${s.firstTurnSta ? ` (+${s.firstTurnSta} в первый ход)` : ''}`, 'Очки действий за ход, полностью восстанавливаются в начале хода'),
     s.maxMp ? row('Мана', `${s.maxMp}${s.mpRegen ? ` (+${s.mpRegen} за ход)` : ''}`, 'Мана и реген за ход; полностью — после комнаты') : null,
     row('Усталость', `−${Math.round((1 - s.fatigue) * 100)} %`, 'На столько слабее каждая следующая атака в этом ходу'),
-    s.crit ? row('Крит', `${pct(s.crit)} (×${s.critMult})`, 'Шанс критического удара и его множитель') : null,
+    row('Крит', `${pct(s.crit)}`, 'Шанс критического удара'),
+    row('Крит. урон', `${s.critDmg} %`, 'Сколько процентов обычного урона наносит критический удар'),
+    s.critRamp ? row('Азарт', `+${pct(s.critRamp)}`, 'Столько шанса крита копится с каждого удара без крита; крит сбрасывает') : null,
+    s.executeCrit ? row('Добивание', `+${pct(s.executeCrit)}`, 'Прибавка к шансу крита по врагу ниже 20 % HP') : null,
+    s.critHeal ? row('Крит лечит', `${s.critHeal}`, 'HP за каждый критический удар') : null,
     s.firstHit ? row('Первый удар', `+${s.firstHit}`, 'Бонус урона первого удара в ходу') : null,
     s.spellPower ? row('Сила заклинаний', `+${s.spellPower}`, 'Бонус к урону заклинаний') : null,
     s.thorns ? row('Шипы', `${s.thorns}`, 'Урон атакующему врагу') : null,
@@ -31,38 +34,6 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
     s.blockKeep ? row('Стойкий блок', `${s.blockKeep}`, 'Столько блока переживает начало хода') : null,
   ];
   return rows.filter((r): r is HTMLElement => !!r);
-}
-
-/** Владение оружием и умение носить броню — полными названиями, два состояния, цвет как у иконок. */
-function skills(def: ReturnType<typeof heroDef>): HTMLElement {
-  const weapons: WeaponType[] = ['melee', 'ranged', 'magic'];
-  const armors: ArmorType[] = ['heavy', 'medium', 'light'];
-  return h(
-    'div',
-    { class: 'sheet-skills' },
-    h('div', { class: 'sheet-sub' }, 'Оружие'),
-    ...weapons.map((t) => {
-      const ok = def.weaponSkill[t];
-      return h(
-        'div',
-        { class: 'skill-row', tip: weaponSkillTitle(t, ok) },
-        h('span', { class: ok ? 'skill-yes' : 'skill-no' }, WEAPON_TYPE_GLYPHS[t]),
-        h('span', null, WEAPON_TYPE_NAMES[t]),
-        h('span', { class: `skill-val ${ok ? 'skill-yes' : 'skill-no'}` }, ok ? 'владеет' : 'не владеет'),
-      );
-    }),
-    h('div', { class: 'sheet-sub' }, 'Броня'),
-    ...armors.map((t) => {
-      const ok = def.armorSkill[t];
-      return h(
-        'div',
-        { class: 'skill-row', tip: ok ? 'Умеет носить: перк базы работает' : 'Не умеет: перк базы не работает, DEF, HP и аффикс остаются' },
-        h('span', { class: ok ? 'skill-yes' : 'skill-no' }, ARMOR_TYPE_GLYPHS[t]),
-        h('span', null, ARMOR_TYPE_NAMES[t]),
-        h('span', { class: `skill-val ${ok ? 'skill-yes' : 'skill-no'}` }, ok ? 'умеет' : 'не умеет'),
-      );
-    }),
-  );
 }
 
 /**
@@ -89,7 +60,7 @@ export function heroSheet(app: App): HTMLElement {
         h('div', { class: 'sheet-head' }, spriteImg(def.sprite, def.id, 80, 'bob'), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
         bar('hp', hp, s.maxHp, 'HP'),
         h('div', { class: 'sheet-stats' }, ...statRows(s, hp)),
-        skills(def),
+        skillLine(def),
         h(
           'div',
           { class: 'sheet-potion' },
