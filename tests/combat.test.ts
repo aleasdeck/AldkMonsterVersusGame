@@ -12,6 +12,7 @@ import {
   endTurn,
   enemyStep,
   getStatus,
+  onDeathInfo,
   performAction,
   previewAttack,
   previewOnTarget,
@@ -329,6 +330,37 @@ describe('новые механики врагов', () => {
     expect(state.phase).toBe('won');
     expect(state.hero.hp).toBe(hp0 - 11); // взрыв 12, Кольца кольчуги гасят 1
     expect(getStatus(state.hero, 'burn')?.value).toBe(2);
+  });
+
+  it('кладка при гибели выпускает двух личинок', () => {
+    const { state, rng } = mkBattle('warrior', ['egg_cluster']);
+    state.hero.stats.dmgMin = 99;
+    state.hero.stats.dmgMax = 99;
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(state.phase).toBe('player');
+    expect(state.enemies.map((e) => e.defId)).toEqual(['larva', 'larva']);
+  });
+
+  it('болотный огонёк при гибели вспыхивает', () => {
+    const { state, rng } = mkBattle('warrior', ['will_o_wisp']);
+    state.hero.stats.dmgMin = 99;
+    state.hero.stats.dmgMax = 99;
+    const hp0 = state.hero.hp;
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(state.phase).toBe('won');
+    expect(state.hero.hp).toBe(hp0 - 3); // вспышка 4, Кольца кольчуги гасят 1
+    expect(getStatus(state.hero, 'burn')?.value).toBe(2);
+  });
+
+  it('метка «Предсмертие» висит только на врагах с эффектом при смерти и расписывает его', () => {
+    const { state } = mkBattle('warrior', ['egg_cluster', 'larva']);
+    const [cluster, larva] = state.enemies;
+    expect(getStatus(cluster, 'doom')).toBeTruthy();
+    expect(getStatus(larva, 'doom')).toBeUndefined();
+    const info = onDeathInfo(cluster)!;
+    expect(info.name).toBe('Прорыв');
+    expect(info.detail).toBe('Призыв: Личинка ×2');
+    expect(onDeathInfo(larva)).toBeNull();
   });
 
   it('имп-бомбардир подрывается сам', () => {

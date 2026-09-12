@@ -671,6 +671,14 @@ const list: EnemyDef[] = [
       act('flicker', 'Мерцание', [{ type: 'dodge', value: 1 }]),
     ],
     ai: { type: 'cycle', order: ['scorch', 'flicker'] },
+    // Огонёк не гаснет тихо: лопается вспышкой в лицо тому, кто его погасил.
+    onDeath: {
+      name: 'Вспышка',
+      effects: [
+        { type: 'attack', amount: 4 },
+        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+      ],
+    },
     sprite: blob('#1a2a1a', '#a0ffc0', '#40c080', '#ffffff', 12),
   },
   {
@@ -862,6 +870,8 @@ const list: EnemyDef[] = [
     rank: 'normal',
     actions: [act('pulse', 'Пульсация', [{ type: 'none' }]), act('hatch', 'Вылупление', [{ type: 'summon', enemyId: 'larva', count: 1 }], hasRoom)],
     ai: { type: 'cycle', order: ['pulse', 'hatch'] },
+    // Разбитая кладка выпускает то, что в ней дозрело: убить её «бесплатно» нельзя.
+    onDeath: { name: 'Прорыв', effects: [{ type: 'summon', enemyId: 'larva', count: 2 }] },
     sprite: blob('#1a1020', '#c0b0d0', '#8070a0', '#402060', 14),
   },
   {

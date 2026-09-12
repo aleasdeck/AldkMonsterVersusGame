@@ -1,5 +1,5 @@
 import { button, h, type Child } from './dom';
-import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, GearKind, GearTier, RunState, StatusId } from '../engine/types';
+import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, EnemyState, GearInstance, GearKind, GearTier, RunState, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
@@ -27,7 +27,7 @@ import {
 import type { Collectible } from '../data/collection';
 import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
 import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
-import { STATUS_HINTS, STATUS_NAMES, defendBlock } from '../engine/combat';
+import { STATUS_HINTS, STATUS_NAMES, defendBlock, onDeathInfo } from '../engine/combat';
 import { markKeywords } from './keywords';
 import type { App } from './app';
 
@@ -300,13 +300,19 @@ export function goldBadge(gold: number): HTMLElement {
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
 const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge'];
 
-export function statusIcons(c: Combatant): HTMLElement {
+/**
+ * Статусы бойца. Для врага передаётся он сам: «Предсмертие» тогда расписывает в подсказке
+ * его onDeath с числами под акт («Вспышка: Атака 6, Горение 3 на 2 хода»).
+ */
+export function statusIcons(c: Combatant, enemy?: EnemyState): HTMLElement {
   return h(
     'div',
     { class: 'statuses' },
     ...c.statuses.map((s) => {
       const showValue = VALUE_STATUSES.includes(s.id) && (s.id !== 'dodge' || s.value > 1);
-      const title = `${STATUS_NAMES[s.id]}${showValue ? ` ${s.value}` : ''}${s.turns > 0 ? `, ходов: ${s.turns}` : ''}\n${STATUS_HINTS[s.id]}`;
+      const doom = s.id === 'doom' && enemy ? onDeathInfo(enemy) : null;
+      const hint = doom ? `${doom.name} — ${doom.detail}.\nСработает, когда враг погибнет` : STATUS_HINTS[s.id];
+      const title = `${STATUS_NAMES[s.id]}${showValue ? ` ${s.value}` : ''}${s.turns > 0 ? `, ходов: ${s.turns}` : ''}\n${hint}`;
       return h(
         'span',
         { class: `status status-${s.id}`, tip: title },
