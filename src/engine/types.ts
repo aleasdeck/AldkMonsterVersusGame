@@ -29,7 +29,6 @@ export type StatusId =
   | 'poison' // value урона в начале хода, turns ходов; яд ассасина
   | 'stealth' // враги не видят героя; любая атака — удар в спину (крит) и снимает статус (только герой)
   | 'vulnerable' // получает на 25 % больше урона от ударов и заклинаний (VULNERABLE_MULT), turns ходов
-  | 'smoke' // дымовая завеса: каждый удар врага с шансом SMOKE_MISS_CHANCE проходит мимо; атаки героя её не снимают (только герой)
   | 'doom'; // предсмертие: метка врага с onDeath — сам ничего не делает, но в подсказке видно, что случится после его гибели (только враги)
 
 export interface Status {
@@ -524,9 +523,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.23';
+export const GAME_VERSION = '0.24';
 
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

@@ -36,7 +36,6 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   invuln: 'Неуязвимость',
   poison: 'Яд',
   stealth: 'Скрытность',
-  smoke: 'Дымовая завеса',
   vulnerable: 'Уязвимость',
   doom: 'Предсмертие',
 };
@@ -55,7 +54,6 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   poison: 'N урона в начале хода, игнорирует блок',
   stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит, снимает скрытность',
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
-  smoke: 'Каждый удар врага с шансом 80 % проходит мимо. Атака героя из дыма — удар в спину: крит, снимает завесу',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
 };
 
@@ -67,9 +65,6 @@ export const VULNERABLE_MULT = 1.25;
 
 /** Ниже этой доли HP цель считается раненой: «Клеймо палача» добавляет шанс крита по ней. */
 export const EXECUTE_HP_PCT = 0.2;
-
-/** Шанс, что удар врага пройдёт мимо героя в дымовой завесе («Дымовая шашка»). */
-export const SMOKE_MISS_CHANCE = 0.8;
 
 // ─── Статусы ───────────────────────────────────────────────────────────────
 
@@ -115,10 +110,29 @@ function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: Statu
   log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount} ${turnsText(turns)}`);
 }
 
-/** Конец хода владельца: временные статусы теряют ход. */
-function tickDurations(c: Combatant): void {
-  for (const s of c.statuses) if (s.turns > 0) s.turns--;
+/**
+ * Статусы, которые работают не в свой ход, а в ход противника: скрытность и неуязвимость гасят чужие удары.
+ * Их срок считает ходы противника, поэтому тикает не в конце своего хода (тогда статус, наложенный в свой же ход,
+ * терял бы ход впустую и «2 хода» прикрывали бы только один ход врага), а в начале следующего своего — статус
+ * к этому времени уже отработал ход противника.
+ */
+const OPPONENT_PHASE: StatusId[] = ['stealth', 'invuln'];
+
+/**
+ * Временные статусы теряют ход: обычные — в конце хода владельца (`end`), прикрывающие от чужих ударов —
+ * в начале его следующего хода (`start`), уже отработав ход противника.
+ */
+function tickDurations(c: Combatant, when: 'start' | 'end'): void {
+  for (const s of c.statuses) {
+    if ((OPPONENT_PHASE.includes(s.id) ? 'start' : 'end') !== when) continue;
+    if (s.turns > 0) s.turns--;
+  }
   c.statuses = c.statuses.filter((s) => s.turns !== 0);
+}
+
+/** Доживёт ли статус до хода врага: бессрочный, с запасом ходов или тикающий только в начале своего хода. */
+export function holdsThroughEnemyTurn(s: Status | undefined): boolean {
+  return !!s && (s.turns === -1 || s.turns > 1 || OPPONENT_PHASE.includes(s.id));
 }
 
 // ─── Утилиты ───────────────────────────────────────────────────────────────
@@ -249,11 +263,8 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   return rest;
 }
 
-/**
- * `rng` нужен только ударам (`hit`): дымовая завеса решает бросок за каждый удар отдельно.
- * `detail` — куда записать судьбу удара для строки лога; без него промахи пишутся в лог отдельной строкой.
- */
-function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false, rng?: Rng, detail?: HitDetail): number {
+/** `detail` — куда записать судьбу удара для строки лога; без него промахи пишутся в лог отдельной строкой. */
+function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false, detail?: HitDetail): number {
   const h = state.hero;
   const d = detail ?? newDetail();
   const miss = (why: string): number => {
@@ -265,7 +276,6 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
   let rest = Math.max(0, amount);
   if (kind === 'hit') {
     if (getStatus(h, 'stealth')) return miss('враг не видит героя');
-    if (rng && getStatus(h, 'smoke') && chance(rng, SMOKE_MISS_CHANCE)) return miss('удар уходит в дым');
     if (getStatus(h, 'invuln')) return miss('неуязвим');
     const dg = getStatus(h, 'dodge');
     if (dg) {
@@ -388,7 +398,7 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
         log(state, `${a.name} готовится`);
     }
   }
-  tickDurations(a);
+  tickDurations(a, 'end');
   cleanupDead(state, rng);
 }
 
@@ -428,16 +438,15 @@ function cleanupDead(state: BattleState, rng: Rng): void {
 
 // ─── Герой ─────────────────────────────────────────────────────────────────
 
-/** Герой не виден врагам: в тени или в дымовой завесе. Обе дают удар в спину и спадают после атаки. */
+/** Герой не виден врагам: скрытность даёт удар в спину и спадает после атаки. */
 export function isHidden(h: HeroBattle): boolean {
-  return !!getStatus(h, 'stealth') || !!getStatus(h, 'smoke');
+  return !!getStatus(h, 'stealth');
 }
 
-/** Любой урон от героя выдаёт его: скрытность и дымовая завеса спадают после удара или заклинания. */
+/** Любой урон от героя выдаёт его: скрытность спадает после удара или заклинания. */
 function breakStealth(state: BattleState): void {
   if (!isHidden(state.hero)) return;
   removeStatus(state.hero, 'stealth');
-  removeStatus(state.hero, 'smoke');
   log(state, 'Герой выходит из тени');
 }
 
@@ -757,6 +766,8 @@ function startPlayerTurn(state: BattleState): void {
   const h = state.hero;
   state.turn += 1;
   state.phase = 'player';
+  // Скрытность отработала ход врага — тикает здесь, а не в конце хода героя.
+  tickDurations(h, 'start');
   // Панцирь оставляет часть блока на следующий ход.
   h.block = Math.min(h.block, h.stats.blockKeep);
   h.defended = false;
@@ -780,7 +791,7 @@ function startPlayerTurn(state: BattleState): void {
 
 export function endTurn(state: BattleState): void {
   if (state.phase !== 'player') return;
-  tickDurations(state.hero);
+  tickDurations(state.hero, 'end');
   state.phase = 'enemy';
   state.allyQueue = state.allies.map((a) => a.uid);
   state.enemyQueue = state.enemies.map((e) => e.uid);
@@ -881,7 +892,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
           continue;
         }
         const detail = newDetail();
-        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, rng, detail);
+        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, detail);
         log(state, `${e.name} атакует: ${dmg}${hitTail(dmg, dealt, detail, !!eff.pierce && h.block > 0)}`);
         if (eff.drain && dealt > 0) healEnemy(state, e, dealt, 'вампиризм');
       }
@@ -928,8 +939,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       }
       break;
     case 'invuln':
-      // +1 ход: статус наложен в собственный ход владельца
-      addStatus(state, e, e.uid, 'invuln', 1, 2);
+      addStatus(state, e, e.uid, 'invuln', 1, 1);
       break;
     case 'thorns':
       addStatus(state, e, e.uid, 'thorns', scaled(e.dmgMult, eff.amount), -1);
@@ -938,7 +948,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       addStatus(state, e, e.uid, 'dodge', eff.value, -1);
       break;
     case 'selfDestruct': {
-      const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e, false, rng);
+      const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e, false);
       log(state, `${e.name} взрывается: ${dealt} по HP`);
       if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
       // Взрыв уже случился: гасим «Предсмертие», иначе тот же порох рванёт второй раз в разборе мёртвых.
@@ -955,6 +965,8 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
 function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   const def = enemyDef(e.defId);
   e.block = 0;
+  // Неуязвимость отработала ход героя — снимаем её до действия, а не после.
+  tickDurations(e, 'start');
   const dot = statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison');
   if (dot > 0) {
     log(state, `${e.name} теряет ${dot} HP от ран`);
@@ -965,7 +977,7 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     removeStatus(e, 'stun');
     state.events.push({ type: 'stunned', target: e.uid });
     log(state, `${e.name} оглушён и пропускает ход`);
-    tickDurations(e);
+    tickDurations(e, 'end');
     return;
   }
   const action = enemyAction(def, e.intent);
@@ -981,7 +993,7 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   } else {
     e.cycleIdx = (e.cycleIdx + 1) % def.ai.order.length;
   }
-  tickDurations(e);
+  tickDurations(e, 'end');
   if (state.phase === 'lost' || e.hp <= 0) return;
   chooseIntent(state, e, rng);
 }
@@ -1051,10 +1063,10 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
   for (const id of enemyIds) spawnEnemy(state, id, rng, false);
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
   if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
-  // Тень покрова: герой входит в бой невидимым.
-  if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
   startPlayerTurn(state);
-  // «Плащ странника»: блок в начале боя — после старта хода, иначе сгорит вместе с остальным.
+  // Тень покрова и «Плащ странника» — после старта первого хода: иначе тик начала хода съел бы ход скрытности,
+  // а блок сгорел бы вместе с остальным.
+  if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
   if (stats.blockStart > 0) gainBlock(state, state.hero, 'hero', stats.blockStart, 'в начале боя');
   return state;
 }

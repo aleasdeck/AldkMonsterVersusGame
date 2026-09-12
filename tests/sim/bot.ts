@@ -8,7 +8,7 @@
  */
 import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { SMOKE_MISS_CHANCE, VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
+import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
@@ -148,16 +148,10 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
   const h = b.hero;
   // Враги бьют союзника первым, пока он жив.
   if (b.allies.length > 0) return { hit: 0, dot: 0 };
-  const st = getStatus(h, 'stealth');
-  const hidden = !!st && (st.turns === -1 || st.turns > 1);
-  const inv = getStatus(h, 'invuln');
-  const invuln = !!inv && (inv.turns === -1 || inv.turns > 1);
-  // Дымовая завеса гасит удар с шансом SMOKE_MISS_CHANCE — в ожидании считаем долю урона.
+  const hidden = holdsThroughEnemyTurn(getStatus(h, 'stealth'));
+  const invuln = holdsThroughEnemyTurn(getStatus(h, 'invuln'));
   // Уязвимость на герое: удары сильнее на VULNERABLE_MULT.
-  const vul = getStatus(h, 'vulnerable');
-  const vulMult = vul && (vul.turns === -1 || vul.turns > 1) ? VULNERABLE_MULT : 1;
-  const sm = getStatus(h, 'smoke');
-  const smokeMult = sm && (sm.turns === -1 || sm.turns > 1) ? 1 - SMOKE_MISS_CHANCE : 1;
+  const vulMult = holdsThroughEnemyTurn(getStatus(h, 'vulnerable')) ? VULNERABLE_MULT : 1;
   let dodge = statusValue(h, 'dodge');
   let block = h.block;
   let hit = 0;
@@ -179,7 +173,7 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
             dodge--;
             continue;
           }
-          let rest = Math.max(0, Math.round(Math.round(dmg * smokeMult) * vulMult) - h.stats.hitReduce);
+          let rest = Math.max(0, Math.round(dmg * vulMult) - h.stats.hitReduce);
           if (!pierce) {
             const used = Math.min(block, rest);
             block -= used;
@@ -233,8 +227,7 @@ export function evaluate(b: BattleState): number {
   if (pushing) s += (b.stats.damageDealt - pushBase) * W.pushReward;
   const str = getStatus(h, 'strength');
   if (str) s += str.value * Math.min(3, str.turns === -1 ? 3 : str.turns) * 1.5;
-  const st = getStatus(h, 'stealth') ?? getStatus(h, 'smoke');
-  if (st && (st.turns === -1 || st.turns > 1)) s += 4;
+  if (holdsThroughEnemyTurn(getStatus(h, 'stealth'))) s += 4;
   s += statusValue(h, 'dodge') * 3;
   if (getStatus(h, 'vulnerable')) s -= 4;
   s += h.mp * W.mp;
@@ -464,7 +457,6 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
           if (e.status === 'strength') per += e.value * turns * 1.5;
           else if (e.status === 'dodge') per += 4;
           else if (e.status === 'stealth') per += turns * 4;
-          else if (e.status === 'smoke') per += turns * 3;
           else if (e.status === 'regen') per += e.value * turns;
           else if (e.status === 'exhaust') per -= e.value * avg * W.enemyHp;
           else per += 2;
