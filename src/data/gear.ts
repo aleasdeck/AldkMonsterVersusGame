@@ -221,7 +221,11 @@ export const WEAPON_BASES: Base[] = [
     g: 0,
     spread: 'wide',
     type: 'melee',
-    perk: { name: 'Сокрушение', mods: () => ({ critMult: 1 }), text: () => 'крит бьёт ×3 вместо ×2' },
+    perk: {
+      name: 'Сокрушение',
+      mods: (t) => ({ critDmg: byTier([30, 35, 40, 45, 50])(t) }),
+      text: (t) => `крит бьёт на +${byTier([30, 35, 40, 45, 50])(t)} % урона`,
+    },
   },
   // ── Дальнее ──
   {
@@ -550,6 +554,7 @@ interface AffixDef {
 const WEAPON_AFFIXES: AffixDef[] = [
   { stat: 'str', values: [1, 1, 2, 2, 3] },
   { stat: 'crit', values: [0.05, 0.08, 0.1, 0.12, 0.15] },
+  { stat: 'critDmg', values: [15, 20, 25, 30, 35] },
   { stat: 'lifesteal', values: [1, 1, 2, 2, 3] },
   { stat: 'spellPower', values: [1, 1, 2, 3, 4] },
 ];
@@ -576,6 +581,8 @@ export function affixText(affix: GearAffix): string {
       return `+${v} Сила`;
     case 'crit':
       return `+${Math.round(v * 100)} % крит`;
+    case 'critDmg':
+      return `+${v} % крит. урон`;
     case 'lifesteal':
       return `+${v} вампиризм`;
     case 'spellPower':

@@ -53,8 +53,19 @@ export interface DerivedStats {
   thorns: number;
   lifesteal: number;
   regen: number;
-  /** 0..1 */
+  /** Шанс критического удара, 0..1. */
   crit: number;
+  /**
+   * Крит. урон: сколько процентов обычного урона наносит крит. 150 — полтора урона.
+   * До v0.21 был множителем ×2 у всех; теперь база у каждого героя своя, снаряжение прибавляет проценты.
+   */
+  critDmg: number;
+  /** Прибавка к шансу крита за каждый некритический удар в бою; крит сбрасывает накопленное («Азарт»). */
+  critRamp: number;
+  /** Прибавка к шансу крита по врагу ниже EXECUTE_HP_PCT здоровья («Клеймо палача»). */
+  executeCrit: number;
+  /** Лечение героя за каждый критический удар («Жажда крови»). */
+  critHeal: number;
   spellPower: number;
   firstTurnSta: number;
   /** Во сколько раз слабее каждая следующая атака в ходу. */
@@ -62,8 +73,6 @@ export interface DerivedStats {
   // ── Перки оружия ──
   /** Бонус урона первого удара в ходу. */
   firstHit: number;
-  /** Множитель крита (обычно 2). */
-  critMult: number;
   /** >0 — удары игнорируют блок врага. */
   pierceBlock: number;
   /** >0 — герой не получает урон от шипов врага при ударе. */
@@ -238,7 +247,10 @@ export interface HeroDef {
   mpRegen: number;
   sta: number;
   /** Врождённый шанс крита, 0..1. */
+  /** Шанс крита, 0..1. */
   crit?: number;
+  /** Крит. урон в процентах обычного (150 — полтора урона). */
+  critDmg?: number;
   /** Своя усталость: во сколько раз слабее каждая следующая атака в ходу (по умолчанию 0.75). */
   fatigue?: number;
   /** Умение владеть типом оружия: владеет — полный кубик и перк базы, не владеет — кубик вдвое и перк не работает. */
@@ -343,6 +355,8 @@ export interface HeroBattle extends Combatant {
   defended: boolean;
   /** Сколько атакующих действий сделано в этом ходу — каждое следующее слабее. */
   attacks: number;
+  /** Накопленный «Азартом» шанс крита: растёт с каждого некрита, крит обнуляет. */
+  critStack: number;
 }
 
 export interface EnemyState extends Combatant {
@@ -509,9 +523,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.20';
+export const GAME_VERSION = '0.21';
 
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

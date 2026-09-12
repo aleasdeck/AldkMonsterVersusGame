@@ -17,6 +17,7 @@ const dn = (text: string) => h('span', { class: 'dn' }, `▼ ${text}`);
 /** Статы, разница по которым показывается отдельным пунктом (кроме урона, DEF и HP — те всегда). */
 const EXTRA: { key: keyof DerivedStats; name: string; pct?: boolean }[] = [
   { key: 'crit', name: 'крит', pct: true },
+  { key: 'critDmg', name: '% крит. урона' },
   { key: 'spellPower', name: 'к заклинаниям' },
   { key: 'str', name: 'Сила' },
   { key: 'lifesteal', name: 'вампиризм' },

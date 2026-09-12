@@ -520,8 +520,8 @@ describe('лучник', () => {
     const e = first(state);
     const hp = e.hp;
     performAction(state, { type: 'artifact', artifactId: 'aimed_shot', target: e.uid }, rng);
-    // урон лука зафиксирован на 5, бонус тира 1 — +2, Прицел лука — +2 к первому удару, крит ×2
-    expect(hp - e.hp).toBe(18);
+    // урон лука зафиксирован на 5, бонус тира 1 — +2, Прицел лука — +2 к первому удару; крит Лучника 170 % от 9
+    expect(hp - e.hp).toBe(15);
     expect(state.hero.sta).toBe(1);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'aimed_shot', target: e.uid })).toMatch(/Перезарядка/);
   });
@@ -661,8 +661,8 @@ describe('ассасин: скрытность', () => {
     expect(getStatus(state.hero, 'stealth')?.turns).toBe(1);
     const bear = first(state);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
-    // стилет 3–5 на среднем — 4, Удар в спину +3, крит ×2
-    expect(bear.hp).toBe(35 - 14);
+    // стилет 3–5 на среднем — 4, Удар в спину +3, крит Ассасина 190 % от 7
+    expect(bear.hp).toBe(35 - 13);
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
   });
 
@@ -678,8 +678,8 @@ describe('ассасин: скрытность', () => {
     expect(getStatus(t3.state.hero, 'smoke')?.turns).toBe(3);
     const hp = first(t3.state).hp;
     performAction(t3.state, { type: 'attack', target: first(t3.state).uid }, t3.rng);
-    // стартовый меч воина 4–6 + Сила, крит ×2: не меньше удвоенного минимума
-    expect(hp - first(t3.state).hp).toBeGreaterThanOrEqual(2 * (4 + t3.state.hero.stats.str));
+    // стартовый меч воина 4–6 + Сила, крит Воина 150 %
+    expect(hp - first(t3.state).hp).toBeGreaterThanOrEqual(Math.floor(1.5 * (4 + t3.state.hero.stats.str)));
     expect(getStatus(t3.state.hero, 'smoke')).toBeUndefined();
   });
 
