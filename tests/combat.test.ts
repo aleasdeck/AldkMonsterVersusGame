@@ -334,6 +334,21 @@ describe('новые механики врагов', () => {
     expect(getStatus(state.hero, 'burn')?.value).toBe(2);
   });
 
+  it('враг не копит уклонение поверх непотраченного заряда', () => {
+    const { state, rng } = mkBattle('warrior', ['bat']);
+    // Цикл мыши — Укус / Порхание. Герой не бьёт, так что заряд остаётся непотраченным.
+    pass(state, rng, 2);
+    expect(getStatus(first(state), 'dodge')?.value).toBe(1);
+    // Без условия здесь копилось бы 2, 3, 4… до конца боя: заряды складываются и не спадают.
+    pass(state, rng, 4);
+    expect(getStatus(first(state), 'dodge')?.value).toBe(1);
+    // Заряд съеден ударом — значит на следующем ходу мышь снова может порхнуть.
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(getStatus(first(state), 'dodge')).toBeUndefined();
+    pass(state, rng, 2);
+    expect(getStatus(first(state), 'dodge')?.value).toBe(1);
+  });
+
   it('кладка щетинится, вылупляется на третий ход и не щетинится дважды', () => {
     const { state, rng } = mkBattle('warrior', ['egg_cluster']);
     const hp0 = state.hero.hp;

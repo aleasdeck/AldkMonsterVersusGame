@@ -14,6 +14,8 @@ const minions = (ctx: AiCtx) => ctx.enemies.filter((e) => e.uid !== ctx.self.uid
 const hurt = (ctx: AiCtx) => ctx.self.hp < ctx.self.maxHp;
 /** Шипы складываются и не спадают — второй раз щетиниться нельзя, иначе защита растёт без предела. */
 const noThorns = (ctx: AiCtx) => !ctx.self.statuses.some((st) => st.id === 'thorns');
+/** Уклонение тоже складывается и висит до конца боя: вешать второй заряд поверх непотраченного нельзя — враг станет неубиваемым. */
+const noDodge = (ctx: AiCtx) => !ctx.self.statuses.some((st) => st.id === 'dodge');
 
 const blob = (outline: string, body: string, shade: string, eye: string, size?: number): SpriteSpec => ({
   type: 'blob',
@@ -71,7 +73,7 @@ const list: EnemyDef[] = [
     hp: 9,
     location: 'forest',
     rank: 'normal',
-    actions: [act('bite', 'Укус', [{ type: 'attack', amount: 4, drain: true }]), act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }])],
+    actions: [act('bite', 'Укус', [{ type: 'attack', amount: 4, drain: true }]), act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }], noDodge)],
     ai: { type: 'cycle', order: ['bite', 'flutter'] },
     sprite: blob('#0e0e16', '#3a3a5a', '#2a2a3a', '#ffd166', 14),
   },
@@ -313,7 +315,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     actions: [
       act('bite', 'Укус', [{ type: 'attack', amount: 9, drain: true }]),
-      act('mist', 'Туман', [{ type: 'dodge', value: 1 }]),
+      act('mist', 'Туман', [{ type: 'dodge', value: 1 }], noDodge),
       act('hypnosis', 'Гипноз', [{ type: 'debuff', status: 'weak', value: 1, turns: 2 }]),
     ],
     ai: { type: 'cycle', order: ['bite', 'mist', 'bite', 'hypnosis'] },
@@ -446,7 +448,7 @@ const list: EnemyDef[] = [
         { type: 'attack', amount: 8 },
         { type: 'debuff', status: 'burn', value: 2, turns: 2 },
       ]),
-      act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }]),
+      act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
     ai: { type: 'cycle', order: ['bite', 'flutter'] },
     sprite: blob('#2a0a0a', '#7b1e1e', '#4a0a0a', '#ffe066', 14),
@@ -647,7 +649,7 @@ const list: EnemyDef[] = [
     hp: 10,
     location: 'swamp',
     rank: 'normal',
-    actions: [act('bites', 'Укусы', [{ type: 'attack', amount: 2, hits: 3 }]), act('scatter', 'Рассеяться', [{ type: 'dodge', value: 1 }])],
+    actions: [act('bites', 'Укусы', [{ type: 'attack', amount: 2, hits: 3 }]), act('scatter', 'Рассеяться', [{ type: 'dodge', value: 1 }], noDodge)],
     ai: { type: 'cycle', order: ['bites', 'scatter'] },
     sprite: blob('#0e0e10', '#4a4a3a', '#2a2a22', '#e0e0c0', 14),
   },
@@ -679,7 +681,7 @@ const list: EnemyDef[] = [
         { type: 'attack', amount: 3 },
         { type: 'debuff', status: 'burn', value: 1, turns: 2 },
       ]),
-      act('flicker', 'Мерцание', [{ type: 'dodge', value: 1 }]),
+      act('flicker', 'Мерцание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
     ai: { type: 'cycle', order: ['scorch', 'flicker'] },
     sprite: blob('#1a2a1a', '#a0ffc0', '#40c080', '#ffffff', 12),
@@ -721,7 +723,7 @@ const list: EnemyDef[] = [
     hp: 15,
     location: 'swamp',
     rank: 'normal',
-    actions: [act('trident', 'Трезубец', [{ type: 'attack', amount: 6 }]), act('dive', 'Нырок', [{ type: 'dodge', value: 1 }])],
+    actions: [act('trident', 'Трезубец', [{ type: 'attack', amount: 6 }]), act('dive', 'Нырок', [{ type: 'dodge', value: 1 }], noDodge)],
     ai: { type: 'cycle', order: ['trident', 'trident', 'dive'] },
     sprite: humanoid('plume', { s: '#4a9a8a', h: '#2a6a5a', b: '#2a5a5a', l: '#1a3a3a', w: '#c0c0c0' }),
   },
@@ -815,7 +817,7 @@ const list: EnemyDef[] = [
         { type: 'debuff', status: 'bleed', value: 1, turns: 2 },
       ]),
       act('dive', 'Пикирование', [{ type: 'attack', amount: 9, pierce: true }]),
-      act('buzz', 'Жужжание', [{ type: 'dodge', value: 1 }]),
+      act('buzz', 'Жужжание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
     ai: { type: 'cycle', order: ['sting', 'dive', 'buzz'] },
     sprite: blob('#1a1020', '#d0a020', '#8a6a10', '#ff5050', 14),
@@ -995,7 +997,7 @@ const list: EnemyDef[] = [
         { type: 'debuff', status: 'weak', value: 1, turns: 1 },
         { type: 'drainMp', amount: 2 },
       ]),
-      act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }]),
+      act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
     ai: { type: 'cycle', order: ['peck', 'screech', 'flutter'] },
     sprite: blob('#101010', '#e03030', '#2060c0', '#ffd166', 12),
