@@ -1,11 +1,10 @@
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { potionDef } from '../../data/potions';
-import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, weaponSkillTitle } from '../../data/gear';
 import { defendBlock } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
-import type { ArmorType, DerivedStats, WeaponType } from '../../engine/types';
-import { bar, potionChip } from '../components';
+import type { DerivedStats } from '../../engine/types';
+import { bar, potionChip, skillLine } from '../components';
 import { gearTile } from '../gearTile';
 import { spriteImg } from '../sprites';
 import type { App } from '../app';
@@ -37,38 +36,6 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
   return rows.filter((r): r is HTMLElement => !!r);
 }
 
-/** Владение оружием и умение носить броню — полными названиями, два состояния, цвет как у иконок. */
-function skills(def: ReturnType<typeof heroDef>): HTMLElement {
-  const weapons: WeaponType[] = ['melee', 'ranged', 'magic'];
-  const armors: ArmorType[] = ['heavy', 'medium', 'light'];
-  return h(
-    'div',
-    { class: 'sheet-skills' },
-    h('div', { class: 'sheet-sub' }, 'Оружие'),
-    ...weapons.map((t) => {
-      const ok = def.weaponSkill[t];
-      return h(
-        'div',
-        { class: 'skill-row', tip: weaponSkillTitle(t, ok) },
-        h('span', { class: ok ? 'skill-yes' : 'skill-no' }, WEAPON_TYPE_GLYPHS[t]),
-        h('span', null, WEAPON_TYPE_NAMES[t]),
-        h('span', { class: `skill-val ${ok ? 'skill-yes' : 'skill-no'}` }, ok ? 'владеет' : 'не владеет'),
-      );
-    }),
-    h('div', { class: 'sheet-sub' }, 'Броня'),
-    ...armors.map((t) => {
-      const ok = def.armorSkill[t];
-      return h(
-        'div',
-        { class: 'skill-row', tip: ok ? 'Умеет носить: перк базы работает' : 'Не умеет: перк базы не работает, DEF, HP и аффикс остаются' },
-        h('span', { class: ok ? 'skill-yes' : 'skill-no' }, ARMOR_TYPE_GLYPHS[t]),
-        h('span', null, ARMOR_TYPE_NAMES[t]),
-        h('span', { class: `skill-val ${ok ? 'skill-yes' : 'skill-no'}` }, ok ? 'умеет' : 'не умеет'),
-      );
-    }),
-  );
-}
-
 /**
  * Оверлей «Персонаж»: слева портрет, роль, HP и статы полными словами, умения; справа экипировка с сокетами
  * и описаниями артефактов. Открывается с любого экрана забега, включая бой; в бою статы — боевые.
@@ -93,7 +60,7 @@ export function heroSheet(app: App): HTMLElement {
         h('div', { class: 'sheet-head' }, spriteImg(def.sprite, def.id, 80, 'bob'), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
         bar('hp', hp, s.maxHp, 'HP'),
         h('div', { class: 'sheet-stats' }, ...statRows(s, hp)),
-        skills(def),
+        skillLine(def),
         h(
           'div',
           { class: 'sheet-potion' },
