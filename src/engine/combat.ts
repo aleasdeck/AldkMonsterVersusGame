@@ -38,6 +38,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   stealth: 'Скрытность',
   smoke: 'Дымовая завеса',
   vulnerable: 'Уязвимость',
+  doom: 'Предсмертие',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -55,6 +56,7 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит, снимает скрытность',
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   smoke: 'Каждый удар врага с шансом 80 % проходит мимо. Атака героя из дыма — удар в спину: крит, снимает завесу',
+  doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
 };
 
 /**
@@ -413,7 +415,8 @@ function cleanupDead(state: BattleState, rng: Rng): void {
   // предсмертные эффекты: деление, взрыв
   for (const e of dead) {
     const def = enemyDef(e.defId);
-    if (!def.onDeath || state.phase === 'lost') continue;
+    // Метка «Предсмертие» здесь и флаг: её гасит тот, кто уже отыграл свой эффект (взрыв себя).
+    if (!def.onDeath || !getStatus(e, 'doom') || state.phase === 'lost') continue;
     log(state, `${e.name}: ${def.onDeath.name}`);
     for (const eff of def.onDeath.effects) applyEnemyEffect(state, e, eff, rng);
   }
@@ -841,7 +844,8 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     hp,
     maxHp: hp,
     block: 0,
-    statuses: [],
+    // «Предсмертие» — метка без механики: показывает игроку, что у врага есть эффект при смерти (см. onDeathInfo).
+    statuses: def.onDeath ? [{ id: 'doom', value: 0, turns: -1 }] : [],
     intent: def.actions[0].id,
     cycleIdx: 0,
     uses: {},
@@ -937,6 +941,8 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e, false, rng);
       log(state, `${e.name} взрывается: ${dealt} по HP`);
       if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
+      // Взрыв уже случился: гасим «Предсмертие», иначе тот же порох рванёт второй раз в разборе мёртвых.
+      removeStatus(e, 'doom');
       e.hp = 0;
       break;
     }
@@ -1068,6 +1074,8 @@ export interface ActionInfo {
   label: string;
   name: string;
   text: string;
+  /** Только перечень эффектов, без названия приёма: «Атака 12, Горение 2 на 2 хода». */
+  detail: string;
   kinds: IntentKind[];
   statuses: StatusId[];
 }
@@ -1187,9 +1195,20 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: a.name,
     text: parts.length ? `${a.name}: ${parts.join(', ')}` : a.name,
+    detail: parts.join(', '),
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: statuses.filter((id, i) => statuses.indexOf(id) === i),
   };
+}
+
+/**
+ * Что случится, когда враг погибнет: описание его onDeath с числами под акт и статусы врага.
+ * null — предсмертного эффекта нет. Питает подсказку статуса «Предсмертие».
+ */
+export function onDeathInfo(e: EnemyState): ActionInfo | null {
+  const def = enemyDef(e.defId);
+  if (!def.onDeath) return null;
+  return describeAction(def, def.onDeath, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak') });
 }
 
 export function computeIntent(e: EnemyState): IntentInfo {
@@ -1253,6 +1272,7 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: action.name,
     text: parts.length ? `${action.name}: ${parts.join(', ')}` : action.name,
+    detail: parts.join(', '),
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: [],
     stunned: false,

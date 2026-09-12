@@ -143,6 +143,17 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '..###...',
     '........',
   ],
+  // Череп: пустые глазницы и зубы — метка врага с эффектом при смерти.
+  doom: [
+    '........',
+    '..####..',
+    '.######.',
+    '##.##.##',
+    '########',
+    '.######.',
+    '.#.##.#.',
+    '..####..',
+  ],
 };
 
 export const STATUS_COLORS: Record<StatusId, string> = {
@@ -160,6 +171,7 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   stealth: '#9aa6c8',
   smoke: '#c9c9d6',
   vulnerable: '#ff6b6b',
+  doom: '#d264ff',
 };
 
 const OUTLINE = '#0b0b12';

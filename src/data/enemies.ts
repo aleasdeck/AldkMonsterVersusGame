@@ -12,6 +12,8 @@ const hasRoom = (ctx: AiCtx) => ctx.enemies.length < MAX_ENEMIES;
 const countKind = (ctx: AiCtx, defId: string) => ctx.enemies.filter((e) => e.defId === defId).length;
 const minions = (ctx: AiCtx) => ctx.enemies.filter((e) => e.uid !== ctx.self.uid).length;
 const hurt = (ctx: AiCtx) => ctx.self.hp < ctx.self.maxHp;
+/** Шипы складываются и не спадают — второй раз щетиниться нельзя, иначе защита растёт без предела. */
+const noThorns = (ctx: AiCtx) => !ctx.self.statuses.some((st) => st.id === 'thorns');
 
 const blob = (outline: string, body: string, shade: string, eye: string, size?: number): SpriteSpec => ({
   type: 'blob',
@@ -852,6 +854,8 @@ const list: EnemyDef[] = [
       ]),
     ],
     ai: { type: 'cycle', order: ['spores', 'burst'] },
+    // Лопнувший споровик выдыхает всё, что копил: облако оседает на том, кто его вскрыл.
+    onDeath: { name: 'Облако спор', effects: [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 2 }] },
     sprite: blob('#1a1020', '#8a5aa0', '#5a3a70', '#e0ffa0'),
   },
   {
@@ -860,8 +864,13 @@ const list: EnemyDef[] = [
     hp: 14,
     location: 'hive',
     rank: 'normal',
-    actions: [act('pulse', 'Пульсация', [{ type: 'none' }]), act('hatch', 'Вылупление', [{ type: 'summon', enemyId: 'larva', count: 1 }], hasRoom)],
-    ai: { type: 'cycle', order: ['pulse', 'hatch'] },
+    // Кладка не нападает: щетинится иглами и зреет. Успеешь разбить за два хода — личинок не будет вовсе.
+    actions: [
+      act('bristle', 'Щетина', [{ type: 'thorns', amount: 3 }], noThorns),
+      act('pulse', 'Пульсация', [{ type: 'none' }]),
+      act('hatch', 'Вылупление', [{ type: 'summon', enemyId: 'larva', count: 2 }], hasRoom),
+    ],
+    ai: { type: 'cycle', order: ['bristle', 'pulse', 'hatch'] },
     sprite: blob('#1a1020', '#c0b0d0', '#8070a0', '#402060', 14),
   },
   {
@@ -996,6 +1005,15 @@ const list: EnemyDef[] = [
       act('boom', 'Подрыв', [{ type: 'selfDestruct', amount: 20, burn: 3 }]),
     ],
     ai: { type: 'cycle', order: ['throw', 'boom'] },
+    // Убитая раньше времени мартышка роняет бочонок: порох рвётся сам, слабее её собственного Подрыва.
+    // Если она успела подорваться, второй раз рвать нечему — см. selfDestruct в combat.ts.
+    onDeath: {
+      name: 'Порох рвётся',
+      effects: [
+        { type: 'attack', amount: 6 },
+        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+      ],
+    },
     sprite: blob('#1a1008', '#7a5a3a', '#4a3a20', '#ffe066', 14),
   },
   {
@@ -1029,6 +1047,14 @@ const list: EnemyDef[] = [
       act('submerge', 'Уход под воду', [{ type: 'block', amount: 20 }]),
     ],
     ai: { type: 'cycle', order: ['slam', 'grab', 'submerge'] },
+    // Перерубленное щупальце сжимается в последней судороге — вырваться стоит сил.
+    onDeath: {
+      name: 'Предсмертный захват',
+      effects: [
+        { type: 'attack', amount: 6 },
+        { type: 'debuff', status: 'exhaust', value: 1, turns: 1 },
+      ],
+    },
     sprite: blob('#0a1020', '#6a2a5a', '#401a3a', '#ffd166', 20),
   },
   {

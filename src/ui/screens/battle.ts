@@ -16,9 +16,12 @@ import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
 import { runLogBody } from './runLog';
 
-/** Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы. */
-function badges(c: Combatant, withBlock: boolean, ...extra: Child[]): HTMLElement {
-  return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, ...extra, statusIcons(c));
+/**
+ * Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы.
+ * `enemy` — сам враг: нужен «Предсмертию», чтобы подсказка расписала его эффект при смерти.
+ */
+function badges(c: Combatant, withBlock: boolean, enemy?: EnemyState, ...extra: Child[]): HTMLElement {
+  return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, ...extra, statusIcons(c, enemy));
 }
 
 /**
@@ -85,7 +88,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
       onclick: () => app.selectTarget(e.uid),
     },
     intentPill(app.run!.battle!, e),
-    badges(e, false),
+    badges(e, false, e),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
     h('div', { class: 'name' }, e.name),
     bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
@@ -300,7 +303,7 @@ export function battleScreen(app: App): HTMLElement {
   const heroZone = h(
     'div',
     { class: `hero-zone ${hasAllies ? 'narrow' : ''}` },
-    badges(b.hero, true, fatigueBadge(b)),
+    badges(b.hero, true, undefined, fatigueBadge(b)),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, hasAllies ? 104 : 128, 'bob')),
     h('div', { class: 'name' }, def.name),
   );

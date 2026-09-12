@@ -1283,6 +1283,10 @@ p {
   border-color: var(--good);
   color: var(--good);
 }
+.status-doom {
+  border-color: #d264ff;
+  color: #d264ff;
+}
 
 /* ─── Консоль боя: ридаут и плитки ──────────────────────────────────── */
 
