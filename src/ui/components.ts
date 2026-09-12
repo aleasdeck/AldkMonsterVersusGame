@@ -24,7 +24,7 @@ import {
   weaponType,
   weaponTypeTitle,
 } from '../data/gear';
-import type { Collectible } from '../data/collection';
+import { collectibleLines, type Collectible, type FoundState } from '../data/collection';
 import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
 import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
 import { STATUS_HINTS, STATUS_NAMES, defendBlock, onDeathInfo } from '../engine/combat';
@@ -67,27 +67,24 @@ export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElemen
   );
 }
 
-/** Плитка предмета каталога: в сетке коллекции и в ленте сундука. */
-export function collectibleTile(c: Collectible, locked = false): HTMLElement {
-  if (locked) {
+/**
+ * Плитка каталога. Запись закрыта — «???»; у артефакта в углу три метки тиров: горит тот, что был у героя в забеге.
+ * Описание закрытого тира в подсказке спрятано, сама запись при этом открыта (см. collectibleLines).
+ */
+export function collectibleTile(c: Collectible, st: FoundState): HTMLElement {
+  if (!st.open) {
     return h('div', { class: 'coll-tile locked', tip: 'Ещё не найдено' }, h('span', { class: 'coll-glyph' }, '?'), h('span', { class: 'coll-name' }, '???'));
   }
+  // Метки без своей подсказки: наведение на любую точку плитки должно показывать её описание целиком.
+  const pips = st.tiers.length
+    ? h('span', { class: 'coll-tiers' }, ...st.tiers.map((ok) => h('i', { class: `coll-pip ${ok ? 'on' : ''}`, style: ok ? `background:${c.color}` : '' })))
+    : null;
   return h(
     'div',
-    { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, tip: `${c.name}\n${c.sub}\n${c.desc}` },
+    { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, tip: [c.name, c.sub, ...collectibleLines(c, st)].join('\n') },
+    pips,
     h('span', { class: 'coll-glyph', style: `color:${c.color}` }, c.glyph),
     h('span', { class: 'coll-name' }, c.name),
-  );
-}
-
-/** Крупная карточка находки — показывается после крутки сундука. */
-export function collectibleCard(c: Collectible): HTMLElement {
-  return h(
-    'div',
-    { class: 'card coll-card', style: `border-color:${c.color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph', style: `color:${c.color}` }, c.glyph), h('span', { class: 'card-name' }, c.name)),
-    h('div', { class: 'card-sub', style: `color:${c.color}` }, c.sub),
-    ...c.desc.split('\n').map((line) => h('div', { class: 'card-desc' }, line)),
   );
 }
 
