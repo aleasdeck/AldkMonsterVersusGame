@@ -58,7 +58,7 @@ const SHIELD = '#8ecae6';
 const HEAL = '#80ed99';
 
 /** Дебафы ложатся облаком, остальные статусы — свечением. */
-const DEBUFFS = new Set<StatusId>(['weak', 'bleed', 'burn', 'stun', 'exhaust', 'poison', 'vulnerable', 'smoke']);
+const DEBUFFS = new Set<StatusId>(['weak', 'bleed', 'burn', 'stun', 'exhaust', 'poison', 'vulnerable']);
 
 function emptyPlan(): FxPlan {
   return { shots: [], impact: 0, after: [], lunged: new Set() };

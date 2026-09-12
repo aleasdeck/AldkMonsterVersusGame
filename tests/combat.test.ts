@@ -790,34 +790,35 @@ describe('ассасин: скрытность', () => {
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
   });
 
-  it('дымовая шашка: 3/3/2 STA, завеса на 2/2/3 хода, удар из дыма — крит в спину и снимает завесу', () => {
+  it('дымовая шашка: 3/3/2 STA, скрытность на 2/2/3 хода, удар из тени — крит в спину и снимает скрытность', () => {
     const t1 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
     performAction(t1.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t1.rng);
     expect(t1.state.hero.sta).toBe(0);
-    expect(getStatus(t1.state.hero, 'smoke')?.turns).toBe(2);
-    expect(getStatus(t1.state.hero, 'stealth')).toBeUndefined();
+    expect(getStatus(t1.state.hero, 'stealth')?.turns).toBe(2);
     const t3 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 3 }] });
     performAction(t3.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t3.rng);
     expect(t3.state.hero.sta).toBe(1);
-    expect(getStatus(t3.state.hero, 'smoke')?.turns).toBe(3);
+    expect(getStatus(t3.state.hero, 'stealth')?.turns).toBe(3);
     const hp = first(t3.state).hp;
     performAction(t3.state, { type: 'attack', target: first(t3.state).uid }, t3.rng);
     // стартовый меч воина 4–6 + Сила, крит Воина 150 %
     expect(hp - first(t3.state).hp).toBeGreaterThanOrEqual(Math.floor(1.5 * (4 + t3.state.hero.stats.str)));
-    expect(getStatus(t3.state.hero, 'smoke')).toBeUndefined();
+    expect(getStatus(t3.state.hero, 'stealth')).toBeUndefined();
   });
 
-  it('дымовая завеса гасит около 80 % ударов: на 400 ударах медведя проходит от 40 до 120', () => {
-    let hits = 0;
-    for (let seed = 1; seed <= 400; seed++) {
-      const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 3 }], seed });
-      performAction(state, { type: 'artifact', artifactId: 'smoke_bomb' }, rng);
-      const hp = state.hero.hp;
-      pass(state, rng);
-      if (state.hero.hp < hp) hits += 1;
-    }
-    expect(hits).toBeGreaterThanOrEqual(40);
-    expect(hits).toBeLessThanOrEqual(120);
+  it('скрытность прикрывает столько ходов врага, сколько написано: шашка на 2 хода — два хода мимо, третий в цель', () => {
+    const { state, rng } = mkBattle('warrior', ['rat'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'smoke_bomb' }, rng);
+    const hp = state.hero.hp;
+    // Статус наложен в свой ход и не должен потерять ход на тике конца хода — иначе «2 хода» прикрыли бы один.
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hp);
+    expect(getStatus(state.hero, 'stealth')?.turns).toBe(1);
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hp);
+    expect(getStatus(state.hero, 'stealth')).toBeUndefined();
+    pass(state, rng);
+    expect(state.hero.hp).toBeLessThan(hp);
   });
 
   it('яд тикает в начале хода врага и бросок не выдаёт героя', () => {

@@ -300,8 +300,8 @@ const list: ArtifactDef[] = [
     cost: (tier) => ({ sta: t(3, 3, 2)(tier) }),
     cooldown: () => 3,
     target: 'self',
-    effects: (tier) => [{ type: 'status', target: 'self', status: 'smoke', value: 1, turns: t(2, 2, 3)(tier) }],
-    describe: (tier) => `Дымовая завеса на ${t(2, 2, 3)(tier)} ход(а): удары врагов с шансом 80 % мимо, следующая атака — удар в спину. КД 3`,
+    effects: (tier) => [{ type: 'status', target: 'self', status: 'stealth', value: 1, turns: t(2, 2, 3)(tier) }],
+    describe: (tier) => `Скрытность на ${t(2, 2, 3)(tier)} хода врага: враги не видят героя, следующая атака — удар в спину. КД 3`,
   },
   {
     id: 'poison_vial',
