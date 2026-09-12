@@ -79,7 +79,7 @@ function scaled(mult: number, amount: number): number {
 }
 
 function isDot(id: StatusId): boolean {
-  return id === 'bleed' || id === 'burn';
+  return id === 'bleed' || id === 'burn' || id === 'poison';
 }
 
 function scaleFor(state: BattleState, def: EnemyDef): { hp: number; dmg: number } {
@@ -1078,6 +1078,8 @@ export interface ActionInfo {
   detail: string;
   kinds: IntentKind[];
   statuses: StatusId[];
+  /** Статусы, которые враг вешает на себя (шипы, уклонение): хвост пилюли рисует их иконкой, а не общей стрелкой. */
+  selfStatuses: StatusId[];
 }
 
 export interface IntentInfo extends ActionInfo {
@@ -1107,13 +1109,14 @@ export const INTENT_ICON: Record<IntentKind, string> = {
   special: '✦',
 };
 
-const INTENT_PRIORITY: IntentKind[] = ['attack', 'summon', 'debuff', 'heal', 'buff', 'defend', 'special'];
+const INTENT_PRIORITY: IntentKind[] = ['attack', 'summon', 'debuff', 'heal', 'defend', 'buff', 'special'];
 
 /** Текст приёма (или эффекта при смерти) по его эффектам — общий для намерения в бою и записи бестиария. */
 export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyEffect[] }, s: ActionScale = BASE_SCALE): ActionInfo {
   const parts: string[] = [];
   const kinds: IntentKind[] = [];
   const statuses: StatusId[] = [];
+  const selfStatuses: StatusId[] = [];
   let label = '';
   for (const eff of a.effects) {
     switch (eff.type) {
@@ -1137,6 +1140,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
       case 'dodge':
         parts.push(`Уклонение от ${eff.value} атак(и)`);
         kinds.push('buff');
+        selfStatuses.push('dodge');
         break;
       case 'selfDestruct': {
         const dmg = scaled(s.dmgMult, eff.amount) + s.strength;
@@ -1185,6 +1189,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
       case 'thorns':
         parts.push(`Шипы ${scaled(s.dmgMult, eff.amount)}`);
         kinds.push('buff');
+        selfStatuses.push('thorns');
         break;
     }
   }
@@ -1198,6 +1203,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
     detail: parts.join(', '),
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: statuses.filter((id, i) => statuses.indexOf(id) === i),
+    selfStatuses: selfStatuses.filter((id, i) => selfStatuses.indexOf(id) === i),
   };
 }
 
@@ -1275,6 +1281,7 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     detail: parts.join(', '),
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: [],
+    selfStatuses: [],
     stunned: false,
     target,
   };

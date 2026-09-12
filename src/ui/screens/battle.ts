@@ -46,8 +46,8 @@ function fatigueBadge(b: BattleState): HTMLElement | null {
 }
 
 /**
- * Хвост пилюли: остальные виды эффектов приёма мелкими иконками — дебаф иконкой самого статуса, чтобы «⚔ 7» с Кровотечением
- * или Изнурением читался без подсказки; бафф, лечение, призыв — иконкой вида.
+ * Хвост пилюли: остальные виды эффектов приёма мелкими иконками — дебаф и бафф на себя иконкой самого статуса, чтобы «⚔ 7» с Кровотечением
+ * или «⛨ 12» с Шипами читались без подсказки; лечение и призыв — иконкой вида.
  */
 function intentExtras(intent: IntentInfo): Child[] {
   const out: Child[] = [];
@@ -55,6 +55,9 @@ function intentExtras(intent: IntentInfo): Child[] {
     if (kind === 'debuff') {
       for (const id of intent.statuses) out.push(h('span', { class: 'pill-extra intent-debuff' }, statusIcon(id, 16)));
       if (intent.statuses.length === 0) out.push(h('span', { class: 'pill-extra intent-debuff' }, INTENT_ICON.debuff));
+    } else if (kind === 'buff' && intent.selfStatuses.length) {
+      // «Панцирь» = Блок 12 + Шипы 2: щит с числом уже в голове пилюли, шипы дорисовываем своей иконкой.
+      for (const id of intent.selfStatuses) out.push(h('span', { class: 'pill-extra intent-buff' }, statusIcon(id, 16)));
     } else out.push(h('span', { class: `pill-extra intent-${kind}` }, INTENT_ICON[kind]));
   }
   return out;

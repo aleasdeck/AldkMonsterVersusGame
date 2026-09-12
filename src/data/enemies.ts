@@ -84,7 +84,7 @@ const list: EnemyDef[] = [
     actions: [
       act('bite', 'Ядовитый укус', [
         { type: 'attack', amount: 4 },
-        { type: 'debuff', status: 'weak', value: 1, turns: 1 },
+        { type: 'debuff', status: 'poison', value: 1, turns: 3 },
       ]),
       act('web', 'Паутина', [{ type: 'debuff', status: 'exhaust', value: 1, turns: 1 }]),
     ],
@@ -300,7 +300,7 @@ const list: EnemyDef[] = [
     actions: [
       act('slam', 'Удар', [{ type: 'attack', amount: 8 }]),
       act('wrap', 'Бинты', [{ type: 'block', amount: 12 }]),
-      act('curse', 'Проклятие мумии', [{ type: 'debuff', status: 'bleed', value: 3, turns: 3 }]),
+      act('curse', 'Проклятие мумии', [{ type: 'debuff', status: 'weak', value: 1, turns: 3 }]),
     ],
     ai: { type: 'cycle', order: ['slam', 'wrap', 'curse'] },
     sprite: humanoid('bare', { s: '#d8ccb0', h: '#c8bc9a', b: '#c8bc9a', l: '#b8ac8a', w: '#8a7a5a' }),
@@ -406,7 +406,16 @@ const list: EnemyDef[] = [
     hp: 28,
     location: 'caves',
     rank: 'normal',
-    actions: [act('spit', 'Огненный плевок', [{ type: 'attack', amount: 9 }]), act('mischief', 'Пакость', [{ type: 'debuff', status: 'burn', value: 3, turns: 3 }])],
+    actions: [
+      act('spit', 'Огненный плевок', [
+        { type: 'attack', amount: 7 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 3 },
+      ]),
+      act('mischief', 'Пакость', [
+        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+        { type: 'drainMp', amount: 1 },
+      ]),
+    ],
     ai: { type: 'cycle', order: ['spit', 'mischief'] },
     sprite: blob('#2a0a0a', '#c0392b', '#7b1e1e', '#ffe066'),
   },
@@ -653,7 +662,7 @@ const list: EnemyDef[] = [
       act('puff', 'Раздуться', [{ type: 'block', amount: 6 }]),
       act('spit', 'Ядовитый плевок', [
         { type: 'attack', amount: 4 },
-        { type: 'debuff', status: 'weak', value: 1, turns: 1 },
+        { type: 'debuff', status: 'poison', value: 2, turns: 2 },
       ]),
     ],
     ai: { type: 'cycle', order: ['tongue', 'puff', 'spit'] },
@@ -725,7 +734,7 @@ const list: EnemyDef[] = [
     actions: [
       act('maws', 'Три пасти', [{ type: 'attack', amount: 3, hits: 3 }]),
       act('regrow', 'Отрастить головы', [{ type: 'heal', amount: 6, target: 'self' }], hurt),
-      act('miasma', 'Ядовитое облако', [{ type: 'debuff', status: 'bleed', value: 2, turns: 3 }]),
+      act('miasma', 'Ядовитое облако', [{ type: 'debuff', status: 'poison', value: 2, turns: 3 }]),
     ],
     ai: { type: 'cycle', order: ['maws', 'regrow', 'maws', 'miasma'] },
     sprite: blob('#0f1a10', '#3a7a4a', '#245a30', '#ffd166', 22),
@@ -741,7 +750,7 @@ const list: EnemyDef[] = [
       act('puff', 'Раздуться', [{ type: 'block', amount: 8 }]),
       withFx({ kind: 'flask', color: '#7ddc5a' }, act('spit', 'Ядовитый плевок', [
         { type: 'attack', amount: 6 },
-        { type: 'debuff', status: 'weak', value: 1, turns: 1 },
+        { type: 'debuff', status: 'poison', value: 3, turns: 2 },
       ])),
       act('spawn', 'Икра', [{ type: 'summon', enemyId: 'toad', count: 1 }], hasRoom),
     ],
@@ -1103,7 +1112,7 @@ const list: EnemyDef[] = [
       act('all_hands', 'Свистать всех наверх', [{ type: 'summon', enemyId: 'pirate', count: 1 }]),
       act('aim', 'Наводит пушки', [{ type: 'none' }]),
       withFx({ kind: 'orb', color: '#ff7b00' }, act('broadside', 'Бортовой залп', [{ type: 'attack', amount: 28 }])),
-      act('curse', 'Проклятие', [{ type: 'debuff', status: 'bleed', value: 4, turns: 3 }]),
+      act('curse', 'Проклятие', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 3 }]),
     ],
     ai: {
       type: 'boss',

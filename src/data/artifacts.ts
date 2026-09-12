@@ -165,6 +165,20 @@ const list: ArtifactDef[] = [
     describe: (tier) => `Атака +${t(6, 9, 12)(tier)} урона по цели`,
   },
   {
+    id: 'herbal_brew',
+    fx: { color: '#7ddc5a' },
+    name: 'Травяной отвар',
+    glyph: '⚱',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 2 },
+    cooldown: () => 3,
+    target: 'self',
+    // Лечит мало — ценность в том, что снимает всё разом: кровь, огонь, яд, слабость, изнурение, уязвимость.
+    effects: (tier) => [{ type: 'heal', amount: t(3, 4, 5)(tier) }, { type: 'cleanse' }],
+    describe: (tier) => `Восстанавливает ${t(3, 4, 5)(tier)} HP и снимает все отрицательные эффекты. КД 3`,
+  },
+  {
     id: 'whirlwind',
     fx: { color: '#ffffff' },
     name: 'Вихрь',
