@@ -1,7 +1,8 @@
 /**
  * Monster Versus — приёмник статистики забегов.
  *
- * Живёт внутри Google Таблицы (Расширения → Apps Script) и опубликован как веб-приложение с доступом «Все».
+ * Живёт внутри Google Таблицы (Расширения → Apps Script) или отдельным проектом на script.google.com с id таблицы
+ * в SPREADSHEET_ID; опубликован как веб-приложение с доступом «Все» (кто может прислать запись; таблицу видит только владелец).
  * Игра шлёт POST с JSON одной записи (поля — src/engine/report.ts плюс touch/screen/lang из src/ui/telemetry.ts),
  * каждая запись — строка листа «runs», колонка на поле, первая колонка ts — время приёма.
  * Ключ, которого в шапке нет, добавляет колонку справа; старые колонки не двигаются, так что записи разных
@@ -9,6 +10,8 @@
  * Как поставить, обновить и проверить — docs/statistika.md.
  */
 const SHEET_NAME = 'runs';
+/** id таблицы из её адреса: docs.google.com/spreadsheets/d/<id>/edit. Пусто — скрипт живёт внутри таблицы и пишет в неё. */
+const SPREADSHEET_ID = '';
 
 function doPost(e) {
   // Записи могут прийти одновременно — шапку и строку правит один за раз.
@@ -44,7 +47,7 @@ function appendReport_(report) {
 }
 
 function sheet_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
   return ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
 }
 
