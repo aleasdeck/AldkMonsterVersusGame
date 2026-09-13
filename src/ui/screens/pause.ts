@@ -26,7 +26,7 @@ export function pauseMenu(app: App): HTMLElement {
         button('Бросить забег', () => app.abandonRun(), { class: 'big danger' }),
       ),
       h('div', { class: 'pause-seed' }, h('span', { class: 'dim' }, 'Сид: '), h('span', { class: 'seed-value' }, `${run.seed}`), seedBtn),
-      h('div', { class: 'pause-keys dim' }, '1–9 приёмы · Space конец хода · C персонаж · L лог · Esc пауза'),
+      h('div', { class: 'pause-keys dim' }, '1–9 приём · Enter цель · Tab другая цель · Space конец хода · C персонаж · L лог · Esc снять выбор / пауза'),
     ),
   );
 }

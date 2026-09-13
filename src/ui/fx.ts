@@ -97,7 +97,7 @@ function planEffects(
   selfColor: string,
   potion: boolean,
 ): void {
-  const hostile = effects.find((e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status') && e.target !== 'self');
+  const hostile = effects.find((e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status' || e.type === 'pull') && e.target !== 'self');
   if (!hostile || !('target' in hostile)) {
     // Приём на себя: зелье — глоток, блок — щит перед героем, остальное — свечение.
     const kind = potion ? 'drink' : effects.some((e) => e.type === 'block') ? 'shield' : 'glow';
@@ -129,7 +129,8 @@ export function planHeroFx(run: RunState, action: PlayerAction): FxPlan {
   const all = b.enemies.map((e) => e.uid);
   const weapon = weaponShot(run);
   if (action.type === 'attack') {
-    addShots(plan, weapon.kind, weapon.color, blade, 'hero', [action.target]);
+    // Плеть хлещет весь ряд: взмах по каждому врагу.
+    addShots(plan, weapon.kind, weapon.color, blade, 'hero', b.hero.stats.sweep > 0 ? all : [action.target]);
   } else if (action.type === 'artifact') {
     const def = artifactDef(action.artifactId);
     const inst = b.hero.artifacts.find((a) => a.id === def.id);

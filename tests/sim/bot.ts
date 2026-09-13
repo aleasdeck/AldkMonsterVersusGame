@@ -12,7 +12,7 @@ import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsTh
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
-import { canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
+import { SWEEP_MULT, canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
 import { potionDef } from '../../src/data/potions';
 import { findSameArtifact, gearOf, socketRefs, type SocketRef } from '../../src/engine/equipment';
 import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice } from '../../src/engine/loot';
@@ -258,9 +258,12 @@ function candidates(b: BattleState, prev: PlayerAction | undefined): PlayerActio
   const out: PlayerAction[] = [];
   const first = b.enemies[0]?.uid;
   const minIdx = prev?.type === 'attack' ? b.enemies.findIndex((e) => e.uid === prev.target) : 0;
-  b.enemies.forEach((e, i) => {
-    if (i >= minIdx) out.push({ type: 'attack', target: e.uid });
-  });
+  // Плеть бьёт весь ряд — цель не важна, один вариант.
+  if (b.hero.stats.sweep > 0) out.push({ type: 'attack', target: first ?? -1 });
+  else
+    b.enemies.forEach((e, i) => {
+      if (i >= minIdx) out.push({ type: 'attack', target: e.uid });
+    });
   out.push({ type: 'defend' });
   for (const inst of b.hero.artifacts) {
     const def = artifactDef(inst.id);
@@ -463,6 +466,10 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
       case 'cleanse':
         per += 2;
         break;
+      case 'pull':
+        // Вытянуть стрелка под удар стоит примерно одного лишнего удара по нужной цели; дальнобойному не нужно.
+        per += weaponFar ? 0.5 : avg * W.enemyHp * 1.5;
+        break;
       case 'status': {
         const turns = e.turns === -1 ? 3 : e.turns;
         if (e.target === 'self') {
@@ -497,9 +504,12 @@ export function gearGain(run: RunState, gear: GearInstance): number {
   const cur = gearOf(run.hero, gear.kind);
   let score = (gear.tier - cur.tier) * 10;
   if (gear.kind === 'weapon') {
-    const a = weaponDice(def, gear);
-    const c = weaponDice(def, cur);
-    score += a.min + a.max - c.min - c.max;
+    // Плеть бьёт всех на долю урона: кубик считаем как против двух врагов (тот же коэффициент, что у приёмов по всем).
+    const dice = (g: GearInstance) => {
+      const d = weaponDice(def, g);
+      return (d.min + d.max) * (weaponReach(g) === 'row' ? SWEEP_MULT * 1.8 : 1);
+    };
+    score += dice(gear) - dice(cur);
     // Перк базы работает только у владеющего — та же надбавка, что у брони.
     score += (canWieldWeapon(def, gear) ? 3 : 0) - (canWieldWeapon(def, cur) ? 3 : 0);
     // Оружие через ряд (лук, копьё, посох) против оружия в упор: свобода выбора цели стоит очков.

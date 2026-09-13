@@ -1,4 +1,4 @@
-import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Reach, StatMods, WeaponType } from '../engine/types';
+import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, StatMods, WeaponReach, WeaponType } from '../engine/types';
 import { pick, weighted, type Rng } from '../engine/rng';
 
 type ByTier = [number, number, number, number, number];
@@ -66,6 +66,12 @@ export const HEFT_NAMES: Record<Heft, string> = {
   light: 'лёгкое',
   heavy: 'тяжёлое',
 };
+
+/**
+ * Доля урона, которую плеть наносит каждому врагу в ряду одним ударом (v0.26). Вихрь даёт 50 % за 2 STA;
+ * плеть — оружие, а не приём, поэтому чуть щедрее, но против одиночки бьёт на треть слабее меча.
+ */
+export const SWEEP_MULT = 0.65;
 
 /** Бонус к заклинаниям, встроенный в магическое оружие, по тиру. */
 export const MAGIC_SPELL_POWER: [number, number, number, number, number] = [1, 1, 2, 3, 4];
@@ -145,8 +151,11 @@ export interface Base {
   heft?: Heft;
   /** Только у оружия. */
   type?: WeaponType;
-  /** Только у ближнего оружия: 'any' — достаёт любого врага в ряду, как дальнее (копьё). Свойство древка, а не владения: работает и в чужих руках. */
-  reach?: Reach;
+  /**
+   * Только у ближнего оружия: 'any' — достаёт любого врага в ряду, как дальнее (копьё); 'row' — удар хлещет по всему ряду
+   * на SWEEP_MULT урона (плеть). Свойство древка, а не владения: работает и в чужих руках.
+   */
+  reach?: WeaponReach;
   /** Только у брони. */
   armorType?: ArmorType;
   perk?: Perk;
@@ -216,6 +225,20 @@ export const WEAPON_BASES: Base[] = [
       name: 'Сквозной удар',
       mods: (t) => ({ splash: byTier([0.3, 0.3, 0.4, 0.4, 0.5])(t) }),
       text: (t) => `${pct(byTier([0.3, 0.3, 0.4, 0.4, 0.5])(t))} урона удара достаётся следующему врагу`,
+    },
+  },
+  {
+    id: 'whip',
+    name: 'плеть',
+    g: 1,
+    spread: 'wide',
+    type: 'melee',
+    // Оружие против толпы (v0.26): удар хлещет по всему ряду на долю урона, против одиночки слабее меча.
+    reach: 'row',
+    perk: {
+      name: 'Укрощение',
+      mods: (t) => ({ weakOnHit: byTier([1, 1, 1, 2, 2])(t) }),
+      text: (t) => `каждый задетый враг получает Слабость на ${byTier([1, 1, 1, 2, 2])(t)} ход${byTier([1, 1, 1, 2, 2])(t) === 1 ? '' : 'а'}`,
     },
   },
   {
@@ -411,15 +434,17 @@ export function weaponType(gear: GearInstance): WeaponType {
   return weaponBase(gear).type ?? 'melee';
 }
 
-/** Дальность оружия: дальнее, магическое и копьё достают любого врага в ряду, остальное ближнее — только первого. Владение не участвует. */
-export function weaponReach(gear: GearInstance): Reach {
+/** Дальность оружия: дальнее, магическое и копьё достают любого врага в ряду, плеть хлещет весь ряд, остальное ближнее — только первого. Владение не участвует. */
+export function weaponReach(gear: GearInstance): WeaponReach {
   const base = weaponBase(gear);
-  return base.type === 'melee' && base.reach !== 'any' ? 'melee' : 'any';
+  if (base.type !== 'melee') return 'any';
+  return base.reach ?? 'melee';
 }
 
-export const REACH_NAMES: Record<Reach, string> = {
+export const REACH_NAMES: Record<WeaponReach, string> = {
   melee: 'только первый в ряду',
   any: 'любая цель',
+  row: `весь ряд на ${Math.round(SWEEP_MULT * 100)} %`,
 };
 
 /** Владеет ли герой этим оружием. Нет — кубик вдвое и перк базы не работает, свойство типа, аффикс и артефакты остаются. */
@@ -455,6 +480,7 @@ export function weaponPerkMods(gear: GearInstance, def?: HeroDef): StatMods {
   const base = weaponBase(gear);
   const out: StatMods = { ...weaponTypeMods(base.type ?? 'melee', gear.tier) };
   if (base.reach === 'any') out.reachAny = 1;
+  if (base.reach === 'row') out.sweep = 1;
   if (def && !canWieldWeapon(def, gear)) return out;
   const perk = base.perk?.mods(gear.tier) ?? {};
   for (const key of Object.keys(perk) as (keyof DerivedStats)[]) out[key] = (out[key] ?? 0) + (perk[key] ?? 0);
@@ -772,8 +798,9 @@ export function gearStatText(g: GearInstance, def?: HeroDef): string {
       if (d.min !== g.dmgMin || d.max !== g.dmgMax) text += ` → ${d.min}–${d.max}`;
     }
     parts.push(text);
-    // Ближнее оружие, которое достаёт через ряд, — редкость: копьё пишет это прямо в характеристиках.
+    // Ближнее оружие, которое достаёт через ряд, — редкость: копьё и плеть пишут это прямо в характеристиках.
     if (weaponType(g) === 'melee' && weaponReach(g) === 'any') parts.push('достаёт любого в ряду');
+    if (weaponReach(g) === 'row') parts.push(`удар хлещет весь ряд на ${Math.round(SWEEP_MULT * 100)} %`);
   } else {
     if (g.def) parts.push(`+${g.def} DEF`);
     if (g.hp) parts.push(`+${g.hp} HP`);

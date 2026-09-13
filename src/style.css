@@ -1084,16 +1084,29 @@ p {
 .enemy:hover {
   border-color: #55557a;
 }
-.enemy.selected {
+/* Выбор цели (v0.26): досягаемые для выбранного или наведённого приёма враги — зелёная рамка, остальные тускнеют;
+   наведённая цель, цель под предпросмотром и выбранная Tab — жёлтая рамка. */
+.enemy.ok {
+  border-color: var(--good);
+  cursor: crosshair;
+}
+.enemy.ok:hover,
+.enemy.preview,
+.enemy.aim {
   border-color: var(--accent);
   background: #ffd16608;
 }
-/* Вне досягаемости ближнего боя (v0.26): имя тускнеет, спрайт чуть темнее; причина — в подсказке. */
+.enemy.far {
+  cursor: not-allowed;
+}
+.enemy.far:hover {
+  border-color: transparent;
+}
 .enemy.far .name {
   color: var(--dim);
 }
 .enemy.far .sprite-wrap {
-  filter: brightness(0.8);
+  filter: brightness(0.7);
 }
 .enemy .bar {
   width: 140px;
@@ -1363,6 +1376,14 @@ p {
 .tile.off {
   opacity: 0.4;
   cursor: default;
+}
+/* Выбранный приём ждёт цель: жёлтая рамка с ободом, пока не применён или не снят. */
+.tile.armed {
+  border-color: var(--accent);
+  background: #ffd16618;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    2px 2px 0 #000;
 }
 .tile.off.cooling {
   opacity: 0.85;

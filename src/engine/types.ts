@@ -15,6 +15,9 @@ export type ArmorType = 'heavy' | 'medium' | 'light';
  */
 export type Reach = 'melee' | 'any';
 
+/** Дальность базы оружия: как у действия, плюс 'row' — удар хлещет по всему ряду (плеть). */
+export type WeaponReach = Reach | 'row';
+
 export const MAX_ENEMIES = 3;
 /** Союзников рядом с героем. */
 export const MAX_ALLIES = 2;
@@ -116,6 +119,10 @@ export interface DerivedStats {
   markOnHit: number;
   /** >0 — оружие достаёт любого врага в ряду (дальнее, магическое, копьё); 0 — только первого. */
   reachAny: number;
+  /** >0 — базовый удар хлещет по всему ряду на SWEEP_MULT урона (плеть); приёмы бьют как ближнее оружие. */
+  sweep: number;
+  /** Каждый удар героя вешает Слабость на N ходов («Укрощение» плети). */
+  weakOnHit: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -162,7 +169,9 @@ export type Effect =
   | { type: 'selfDamage'; amount: number }
   | { type: 'gainMp'; amount: number }
   /** Снять с героя раны и проклятия: кровотечение, горение, яд, слабость, изнурение. */
-  | { type: 'cleanse' };
+  | { type: 'cleanse' }
+  /** Притянуть цель в первый ряд (Крюк-кошка): она встаёт под удар ближнего боя, остальные сдвигаются назад. */
+  | { type: 'pull'; target: 'enemy' };
 
 export interface ArtifactCost {
   sta?: number | 'all';

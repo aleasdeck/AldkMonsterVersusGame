@@ -38,6 +38,8 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return 'снимает раны';
       case 'status':
         return e.target === 'self' ? 'бафф' : 'дебафф';
+      case 'pull':
+        return 'в первый ряд';
       default:
         continue;
     }
