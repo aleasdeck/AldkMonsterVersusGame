@@ -216,6 +216,8 @@ const list: ArtifactDef[] = [
     school: 'physical',
     cost: { sta: 1 },
     target: 'enemy',
+    // Порез — клинком в упор, каким бы ни было оружие.
+    reach: 'melee',
     effects: (tier) => [{ type: 'status', target: 'enemy', status: 'bleed', value: t(3, 4, 5)(tier), turns: 3 }],
     describe: (tier) => `Кровотечение ${t(3, 4, 5)(tier)} на 3 хода (стакается)`,
   },
@@ -312,6 +314,8 @@ const list: ArtifactDef[] = [
     school: 'physical',
     cost: { sta: 1 },
     target: 'enemy',
+    // Склянка летит через ряд: достаёт любого, даже в руках ближнего бойца.
+    reach: 'any',
     effects: (tier) => [{ type: 'status', target: 'enemy', status: 'poison', value: t(2, 3, 4)(tier), turns: 4 }],
     describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода (стакается). Бросок не снимает скрытность`,
   },
@@ -326,6 +330,8 @@ const list: ArtifactDef[] = [
     cost: { sta: 1 },
     cooldown: () => 2,
     target: 'enemy',
+    // Щитом бьют в упор — и с луком в другой руке тоже.
+    reach: 'melee',
     // Блок — доля урона, а не плоские +3/4/5 (v0.18): с оружием третьего акта плоский блок не гасил и половины удара.
     effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', mult: 0.75, blockPct: t(0.6, 0.8, 1)(tier) }],
     describe: (tier) => `Атака на 75 % урона; ${t(60, 80, 100)(tier)} % нанесённого урона становится Блоком. КД 2`,
@@ -340,6 +346,7 @@ const list: ArtifactDef[] = [
     cost: { sta: 1 },
     cooldown: () => 2,
     target: 'enemy',
+    reach: 'melee',
     effects: (tier) => [{ type: 'blockStrike', mult: t(1, 1.5, 2)(tier), target: 'enemy' }],
     describe: (tier) => `Удар щитом: ${t(100, 150, 200)(tier)} % текущего Блока героя уроном по цели. Оружие и усталость не участвуют, блок не тратится. КД 2`,
   },
@@ -354,6 +361,8 @@ const list: ArtifactDef[] = [
     // Первая версия (+2/3/4, лечение 3/4/5, КД 2) давала Паладину 72 % у бота; эта — 58 %.
     cooldown: () => 3,
     target: 'enemy',
+    // Молот света летит через ряд (v0.26): единственный приём Паладина, который достаёт стрелка за спиной у брута.
+    reach: 'any',
     effects: (tier) => [
       { type: 'attack', bonus: t(1, 2, 3)(tier), target: 'enemy' },
       { type: 'heal', amount: t(2, 3, 4)(tier) },

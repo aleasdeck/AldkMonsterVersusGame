@@ -77,10 +77,11 @@ describe('типы оружия и владение', () => {
     const archer = heroDef('archer');
     const bow = weapon('bow', 6, 3);
     // Прицел лука на 3 тире — +3 к первому удару в ходу.
-    expect(weaponPerkMods(bow, archer)).toEqual({ thornsImmune: 1, firstHit: 3 });
-    expect(weaponPerkMods(bow, warrior)).toEqual({ thornsImmune: 1 });
+    // Свойства типа (шипы, дальность) — у всех, перк — только у владеющего.
+    expect(weaponPerkMods(bow, archer)).toEqual({ thornsImmune: 1, reachAny: 1, firstHit: 3 });
+    expect(weaponPerkMods(bow, warrior)).toEqual({ thornsImmune: 1, reachAny: 1 });
     // Без героя перк считается работающим — для карточек вне забега.
-    expect(weaponPerkMods(bow)).toEqual({ thornsImmune: 1, firstHit: 3 });
+    expect(weaponPerkMods(bow)).toEqual({ thornsImmune: 1, reachAny: 1, firstHit: 3 });
 
     const withAffix = { ...bow, affix: { stat: 'str' as const, value: 2 } };
     const s = computeStats(warrior, withAffix, makeStartingGear(warrior).armor);

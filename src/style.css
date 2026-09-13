@@ -1088,6 +1088,13 @@ p {
   border-color: var(--accent);
   background: #ffd16608;
 }
+/* Вне досягаемости ближнего боя (v0.26): имя тускнеет, спрайт чуть темнее; причина — в подсказке. */
+.enemy.far .name {
+  color: var(--dim);
+}
+.enemy.far .sprite-wrap {
+  filter: brightness(0.8);
+}
 .enemy .bar {
   width: 140px;
 }

@@ -2,7 +2,7 @@ import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { INTENT_ICON, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, canReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction } from '../../engine/types';
@@ -83,11 +83,14 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
   const size = spriteSize(def.sprite);
   const px = size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5);
   const selected = app.currentTarget() === e.uid;
+  // Вне досягаемости удара (v0.26): ближнее оружие бьёт только первого в ряду — имя тускнеет, причина в подсказке.
+  const far = !canReach(app.run!.battle!, { type: 'attack', target: e.uid }, e.uid);
   return h(
     'div',
     {
-      class: `enemy rank-${def.rank} ${selected ? 'selected' : ''}`,
+      class: `enemy rank-${def.rank} ${selected ? 'selected' : ''} ${far ? 'far' : ''}`,
       'data-uid': e.uid,
+      tip: far ? 'Ближним боем не достать: удар и физические приёмы бьют только первого в ряду. Заклинания, склянки и копьё достают любого' : null,
       onclick: () => app.selectTarget(e.uid),
     },
     intentPill(app.run!.battle!, e),
@@ -216,6 +219,10 @@ function tiles(app: App): HTMLElement {
   const critX = (r: DamageRange) => ({ min: Math.floor((r.min * b.hero.stats.critDmg) / 100), max: Math.floor((r.max * b.hero.stats.critDmg) / 100) });
   const fatigue = Math.round((1 - b.hero.stats.fatigue) * 100);
 
+  // Дальность приёма — строкой в ридауте (v0.26); по недосягаемой цели штриховки и «останется N HP» нет — только причина.
+  const reachText = (action: PlayerAction) => (actionReach(b, action) === 'any' ? 'любая цель' : 'первый в ряду');
+  const reachable = (action: PlayerAction) => canReach(b, action, target);
+
   const atk: PlayerAction = { type: 'attack', target };
   const atkRange = stealthed ? critX(previewAttack(b)) : previewAttack(b);
   specs.push({
@@ -227,8 +234,8 @@ function tiles(app: App): HTMLElement {
     onclick: () => app.battleAction(atk),
     preview: () => ({
       title: stealthed ? 'Удар в спину' : 'Ударить',
-      parts: ['1 STA', `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}`, `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`],
-      target,
+      parts: ['1 STA', `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}`, reachText(atk), `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`],
+      target: reachable(atk) ? target : undefined,
       range: atkRange,
     }),
   });
@@ -282,8 +289,8 @@ function tiles(app: App): HTMLElement {
       onclick: () => app.battleAction(action),
       preview: () => ({
         title: `${ad.name} · тир ${inst.tier}`,
-        parts: [artifactCostText(ad, inst.tier), ad.describe(inst.tier), total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
-        target: range ? target : undefined,
+        parts: [artifactCostText(ad, inst.tier), ad.describe(inst.tier), ad.target === 'enemy' ? reachText(action) : '', total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
+        target: range && (ad.target !== 'enemy' || reachable(action)) ? target : undefined,
         range: range ?? undefined,
         kind,
       }),

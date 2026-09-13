@@ -1,4 +1,4 @@
-import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, StatMods, WeaponType } from '../engine/types';
+import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Reach, StatMods, WeaponType } from '../engine/types';
 import { pick, weighted, type Rng } from '../engine/rng';
 
 type ByTier = [number, number, number, number, number];
@@ -70,26 +70,26 @@ export const HEFT_NAMES: Record<Heft, string> = {
 /** Бонус к заклинаниям, встроенный в магическое оружие, по тиру. */
 export const MAGIC_SPELL_POWER: [number, number, number, number, number] = [1, 1, 2, 3, 4];
 
-/** Что даёт сам тип, помимо перка базы. */
+/** Что даёт сам тип, помимо перка базы. Дальнее и магическое оружие достаёт любого врага в ряду, ближнее — только первого (v0.26). */
 export function weaponTypeMods(type: WeaponType, tier: GearTier): StatMods {
   switch (type) {
     case 'melee':
       return {};
     case 'ranged':
-      return { thornsImmune: 1 };
+      return { thornsImmune: 1, reachAny: 1 };
     case 'magic':
-      return { spellPower: MAGIC_SPELL_POWER[tier - 1] };
+      return { spellPower: MAGIC_SPELL_POWER[tier - 1], reachAny: 1 };
   }
 }
 
 export function weaponTypeText(type: WeaponType, tier: GearTier): string {
   switch (type) {
     case 'melee':
-      return 'полный урон в упор';
+      return 'бьёт только первого в ряду';
     case 'ranged':
-      return 'не боится шипов врага';
+      return 'любая цель, не боится шипов врага';
     case 'magic':
-      return `−1 к максимуму урона, +${MAGIC_SPELL_POWER[tier - 1]} к заклинаниям`;
+      return `любая цель, −1 к максимуму урона, +${MAGIC_SPELL_POWER[tier - 1]} к заклинаниям`;
   }
 }
 
@@ -145,6 +145,8 @@ export interface Base {
   heft?: Heft;
   /** Только у оружия. */
   type?: WeaponType;
+  /** Только у ближнего оружия: 'any' — достаёт любого врага в ряду, как дальнее (копьё). Свойство древка, а не владения: работает и в чужих руках. */
+  reach?: Reach;
   /** Только у брони. */
   armorType?: ArmorType;
   perk?: Perk;
@@ -208,6 +210,8 @@ export const WEAPON_BASES: Base[] = [
     name: 'копьё',
     g: 2,
     type: 'melee',
+    // Единственное ближнее оружие, которое достаёт через ряд (v0.26): ответ ближнего бойца стрелкам и шаманам за спинами.
+    reach: 'any',
     perk: {
       name: 'Сквозной удар',
       mods: (t) => ({ splash: byTier([0.3, 0.3, 0.4, 0.4, 0.5])(t) }),
@@ -407,6 +411,17 @@ export function weaponType(gear: GearInstance): WeaponType {
   return weaponBase(gear).type ?? 'melee';
 }
 
+/** Дальность оружия: дальнее, магическое и копьё достают любого врага в ряду, остальное ближнее — только первого. Владение не участвует. */
+export function weaponReach(gear: GearInstance): Reach {
+  const base = weaponBase(gear);
+  return base.type === 'melee' && base.reach !== 'any' ? 'melee' : 'any';
+}
+
+export const REACH_NAMES: Record<Reach, string> = {
+  melee: 'только первый в ряду',
+  any: 'любая цель',
+};
+
 /** Владеет ли герой этим оружием. Нет — кубик вдвое и перк базы не работает, свойство типа, аффикс и артефакты остаются. */
 export function canWieldWeapon(def: HeroDef, gear: GearInstance): boolean {
   return def.weaponSkill[weaponType(gear)];
@@ -439,6 +454,7 @@ export function weaponDice(def: HeroDef, gear: GearInstance): { min: number; max
 export function weaponPerkMods(gear: GearInstance, def?: HeroDef): StatMods {
   const base = weaponBase(gear);
   const out: StatMods = { ...weaponTypeMods(base.type ?? 'melee', gear.tier) };
+  if (base.reach === 'any') out.reachAny = 1;
   if (def && !canWieldWeapon(def, gear)) return out;
   const perk = base.perk?.mods(gear.tier) ?? {};
   for (const key of Object.keys(perk) as (keyof DerivedStats)[]) out[key] = (out[key] ?? 0) + (perk[key] ?? 0);
@@ -756,6 +772,8 @@ export function gearStatText(g: GearInstance, def?: HeroDef): string {
       if (d.min !== g.dmgMin || d.max !== g.dmgMax) text += ` → ${d.min}–${d.max}`;
     }
     parts.push(text);
+    // Ближнее оружие, которое достаёт через ряд, — редкость: копьё пишет это прямо в характеристиках.
+    if (weaponType(g) === 'melee' && weaponReach(g) === 'any') parts.push('достаёт любого в ряду');
   } else {
     if (g.def) parts.push(`+${g.def} DEF`);
     if (g.hp) parts.push(`+${g.hp} HP`);
