@@ -6,13 +6,14 @@
 - `README.md` — запуск, все debug-параметры URL (`?hero=…&seed=…&phase=…`), объект `mv` в консоли.
 - `docs/GDD.md` — дизайн-документ: числа героев/врагов/предметов, правила боя, §8 «Экраны и интерфейс» (раскладка кадра, плитки, оверлеи, клавиши), §12 «Принятые решения», §13 «Статус» (история версий с цифрами бота).
 - `docs/adr/` — разборы отложенных решений: что выяснено, какие варианты рассмотрены и почему пока не делаем. Сейчас там `0001-obshchie-sidy.md` (почему один сид не даёт одинаковый забег и как это чинить) и `0002-sunduki-posle-zabega.md` (как были устроены сундуки за забег и как их вернуть).
+- `docs/statistika.md` — статистика забегов: что уходит в Google Таблицу, когда не уходит, как подключить и проверить таблицу.
 - Этот файл — карта кода, рабочие соглашения и ловушки.
 
 ## Команды
 
 ```bash
 npm run dev                                          # http://localhost:5173
-npx vitest run                                       # тесты движка (~2 с, 208 тестов)
+npx vitest run                                       # тесты движка (~2 с, 212 тестов)
 node node_modules/typescript/bin/tsc --noEmit -p .   # typecheck — ТОЛЬКО так (см. ловушки)
 node node_modules/vite/bin/vite.js build             # сборка в dist/
 SIM=1 npx vitest run tests/balance-sim.test.ts       # бот-симулятор баланса, все герои, 60 забегов
@@ -34,6 +35,7 @@ src/engine/   чистая логика, без DOM, покрыта тестам
   equipment.ts  слоты, addArtifact/replaceArtifact/equipGear, апгрейд дубликатом
   loot.ts       константы экономики (золото, цены, шанс зелья, цена кузнеца) и генерация наград/магазина/событий (rollEventKind)
   run.ts        машина состояний забега: enterRoom → startEvent | startBattle → finishBattle (лог боя → run.logs с battleTitle) → reward → advanceRoom …; события: takeChest, altarPray/altarSacrifice, forgeUpgrade, leaveEvent
+  report.ts     runReport(run, ctx) — запись статистики забега (RunReport: плоское поле = колонка таблицы, detail — JSON со снаряжением и боями); чистая, тесты в run.test.ts
 src/data/     типизированные таблицы; каждый файл экспортирует list-based Record + xxxDef(id)
   heroes.ts     6 героев (warrior, mage, assassin, paladin, berserk, archer), weaponSkill/armorSkill — владение оружием и бронёй (два состояния), signature — персональный артефакт, SIGNATURE_OWNER
   enemies.ts    67 врагов по локациям (секции ═══), хелпер act(), ai: cycle | boss-rules
@@ -54,10 +56,12 @@ src/ui/       рендер и клики
   fx.ts         типовые анимации боя: planHeroFx/planEnemyFx (план до применения действия), playShots (снаряды на старом поле, возвращает impact), playAfter/eventFx (облако дебафа, свечение бафа, щит блока перед бойцом, глоток); спрайты снарядов процедурные
   hotkeys.ts    1–9, Space, C, L, Esc
   sprites.ts, backgrounds.ts, icons.ts   процедурная пиксель-графика (data URL)
-  save.ts       localStorage: забег (mv_run_v1, сброс при смене SAVE_VERSION) и профиль (mv_profile_v1, переживает версии; статистика, коллекция, бестиарий — recordFinds/recordEnemies из App.render())
+  save.ts       localStorage: забег (mv_run_v1, сброс при смене SAVE_VERSION) и профиль (mv_profile_v1, переживает версии; статистика, коллекция, бестиарий — recordFinds/recordEnemies из App.render()); playerId — анонимный id для статистики
+  telemetry.ts  reportRun(run, event, profile): STATS_URL (адрес веб-приложения Apps Script, пусто — не шлём), отсечка localhost/домашней сети (кроме &stats=1), пометка debug, fetch no-cors keepalive
 src/main.ts   монтирование, масштаб кадра 960×540, разбор debug-параметров URL
 src/style.css один файл, секции /* ─── … */
 tests/        vitest; sim/bot.ts — умный бот (W — веса оценки, planTurn, playRun, chooseReward)
+tools/apps-script/Code.gs   приёмник статистики: скрипт внутри Google Таблицы, лист runs, колонки по ключам записи (новый ключ — новая колонка справа)
 ```
 
 Ключевые инварианты:
@@ -73,6 +77,7 @@ tests/        vitest; sim/bot.ts — умный бот (W — веса оцен�
 - Фазы забега: `map | battle | reward | shop | event | camp | victory | defeat`; `shop` и `camp` — тоже из события; фаза `event` — сундук, алтарь, кузнец (по `run.event.kind`). `run.pending` — артефакт ждёт выбора слота (обрабатывать до всего остального). После боя может быть 2 экрана награды (второй — зелье), поэтому в тестах и ботах награды пропускать циклом `while (run.phase === 'reward')`. В тестах событие нужного вида — `startEvent(run, kind)` после `run.roomIndex = 2`.
 - Срок статуса (`turns`) по умолчанию сгорает в конце хода владельца и считает его собственные ходы («Слабость на 2 хода» = две порченые атаки). Статусы из `OPPONENT_PHASE` (combat.ts: `stealth`, `invuln`) работают в чужой ход, поэтому тикают в начале следующего своего хода, уже отработав ход противника: `tickDurations(c, 'start' | 'end')`, для героя — из `startPlayerTurn` и `endTurn`, для врага — в начале и в конце `actEnemy`. Новый статус, который гасит чужие удары, добавлять в `OPPONENT_PHASE`, иначе наложенный в свой же ход он потеряет ход впустую (так «завеса на 2 хода» прикрывала один ход врага до v0.24). Аналитическим прикидкам (бот) вместо `turns > 1` использовать `holdsThroughEnemyTurn(status)`. Что-то, что вешается до `startPlayerTurn` (createBattle), ставить после него.
 - Бой: STA — очки действий, полностью в начале хода; MP — только реген в начале хода, полностью после комнаты; блок сгорает в начале хода (кроме `blockKeep`); каждая следующая атака в ходу слабее в `fatigue` раз; «Защититься» даёт `ceil(DEF × DEFEND_MULT)`. Скрытность (Дымовая шашка, Тень покрова): проверять через `isHidden(h)`; праща — `stunOnCrit` (шанс оглушить, бросок только после критического удара). Крит (v0.21): пара статов — `crit` (шанс 0..1) и `critDmg` (проценты обычного урона, база у каждого героя своя, минимум 100); снаряжение прибавляет проценты (`critDmg: 40`), а не множит. Крит-статы сверх пары: `critRamp` («Азарт», копит `hero.critStack`, крит обнуляет), `executeCrit` («Клеймо палача», цель ниже `EXECUTE_HP_PCT`), `critHeal` («Жажда крови»). Статус `vulnerable`: `VULNERABLE_MULT` 1.25 к ударам и заклинаниям в `damageEnemy`/`damageHero`/`previewOnTarget`, округление `Math.round` (вниз — съедает бонус при уроне 3–7). Новые статы `onKillHeal`, `blockStart`, `markOnHit`. Эффект `attack.blockPct` — доля урона замаха (dmg, не дошедшего до HP) в блок героя (Щитовой удар); эффект `blockStrike` — урон = текущий блок × mult как удар без кубика, усталости и крита, `canUseAction` даёт «Нет блока» (Таран). Лимит применений за ход: `ArtifactDef.usesPerTurn`, счётчик `hero.uses` (сброс в `startPlayerTurn`, проверка в `canUseAction`).
+- Статистика забегов (v0.27): `App.afterPhaseChange` шлёт победу/гибель до `recordResult` (в записи — число законченных забегов «до этого»), `App.dropRun` — брошенный забег (из `newRun` и `abandonRun`). `RunState.debug` ставит `App.newRun(…, true)` из `?hero=` в main.ts; `debug` в записи = `run.debug || localhost`. Новое поле — в `RunReport` (report.ts), тест в run.test.ts и таблицу в docs/statistika.md; скрипт таблицы колонку добавит сам. Отладочный `phase=end` забег не заканчивает и ничего не шлёт.
 
 ## Как добавлять контент
 

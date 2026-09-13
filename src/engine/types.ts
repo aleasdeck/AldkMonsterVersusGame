@@ -543,13 +543,15 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.26.1';
+export const GAME_VERSION = '0.27';
 
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
   seed: number;
+  /** Забег начат отладочным параметром `?hero=`: в статистику (report.ts) уходит с пометкой debug и в общие цифры не идёт. */
+  debug: boolean;
   rng: { state: number };
   hero: HeroPersistent;
   /** Золото: капает за бои, тратится на переброс наград. */

@@ -5,6 +5,7 @@ import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/co
 import { enemyDef } from '../data/enemies';
 import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type FxPlan } from './fx';
 import { clearRun, loadProfile, loadRun, recordEnemies, recordFinds, recordResult, saveRun, type Profile } from './save';
+import { reportRun } from './telemetry';
 import { loadoutFinds } from '../data/collection';
 import { HERO_LIST } from '../data/heroes';
 import { menuScreen } from './screens/menu';
@@ -256,6 +257,8 @@ export class App {
       if (!this.resultRecorded) {
         this.resultRecorded = true;
         this.run.stats.finishedAt = Date.now();
+        // Статистика уходит до записи в профиль: в ней число законченных забегов игрока «до этого».
+        reportRun(this.run, this.run.phase === 'victory' ? 'victory' : 'defeat', this.profile);
         this.profile = recordResult(this.run);
       }
       clearRun();
@@ -307,8 +310,11 @@ export class App {
     this.render();
   }
 
-  newRun(heroId: string, seed?: number): void {
+  /** `debug` — забег начат отладочным параметром URL: в статистику уйдёт с пометкой. */
+  newRun(heroId: string, seed?: number, debug = false): void {
+    this.dropRun();
     this.run = R.newRun(heroId, seed);
+    this.run.debug = debug;
     this.armed = null;
     this.resultRecorded = false;
     this.screen = 'run';
@@ -328,9 +334,15 @@ export class App {
     this.stopStepping();
     this.sheetOpen = false;
     this.pauseOpen = false;
+    this.dropRun();
     clearRun();
     this.run = null;
     this.showMenu();
+  }
+
+  /** Незаконченный забег уходит в статистику как брошенный — перед тем как его заменят новым или сотрут. */
+  private dropRun(): void {
+    if (this.run && !R.isRunOver(this.run)) reportRun(this.run, 'abandoned', this.profile);
   }
 
   // ─── Комнаты ─────────────────────────────────────────────────────────────

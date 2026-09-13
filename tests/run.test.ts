@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_LIST, SIGNATURE_OWNER } from '../src/data/heroes';
+import { HERO_LIST, SIGNATURE_OWNER, heroDef } from '../src/data/heroes';
+import { runReport } from '../src/engine/report';
+import { GAME_VERSION } from '../src/engine/types';
 import { artifactDef } from '../src/data/artifacts';
 import { ACTS, ACT_DMG_BONUS, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
@@ -828,5 +830,88 @@ describe('журнал забега', () => {
     expect(run.logs.length).toBe(1);
     expect(run.logs[0].result).toBe('lost');
     expect(run.logs[0].lines.some((l) => l.includes('Герой пал'))).toBe(true);
+  });
+});
+
+describe('статистика забега (report.ts)', () => {
+  const ctx = { player: 'p-1', playerRuns: 3, debug: false, now: 5_000_000 };
+
+  it('победа: акт 3, клетка босса, длительность по отметкам, бои без строк лога', () => {
+    const run = newRun('warrior', 11, 1_000_000);
+    playRun(run, true);
+    run.stats.finishedAt = 1_000_000 + 754_400; // 12 мин 34 с
+    const r = runReport(run, { ...ctx, event: 'victory' });
+    expect(r.event).toBe('victory');
+    expect(r.version).toBe(GAME_VERSION);
+    expect(r.debug).toBe(false);
+    expect(r.player).toBe('p-1');
+    expect(r.playerRuns).toBe(3);
+    expect(r.hero).toBe('warrior');
+    expect(r.seed).toBe(11);
+    expect(r.phase).toBe('victory');
+    expect(r.act).toBe(3);
+    expect(r.room).toBe(ROOMS_PER_LOCATION);
+    expect(r.roomKind).toBe('boss');
+    expect(r.location).toBe(run.locations[2]);
+    expect(r.locations).toBe(run.locations.join(','));
+    expect(r.duration).toBe(754);
+    expect(r.roomsCleared).toBe(run.stats.roomsCleared);
+    expect(r.kills).toBe(run.stats.kills);
+    expect(r.battles).toBe(run.logs.length);
+    expect(r.lastBattle).toBe(run.logs.at(-1)!.title);
+    expect(r.detail.battles).toHaveLength(run.logs.length);
+    expect(r.detail.battles.some((b) => 'lines' in b)).toBe(false);
+    expect(r.detail.stats).toBe(run.stats);
+  });
+
+  it('гибель: клетка и состав боя, снаряжение и артефакты строками', () => {
+    const run = newRun('mage', 5, 1_000_000);
+    enterRoom(run);
+    run.battle!.phase = 'lost';
+    finishBattle(run);
+    run.stats.finishedAt = 1_000_000 + 30_000;
+    const r = runReport(run, { ...ctx, event: 'defeat' });
+    expect(r.event).toBe('defeat');
+    expect(r.phase).toBe('defeat');
+    expect(r.act).toBe(1);
+    expect(r.room).toBe(1);
+    expect(r.roomKind).toBe('fight');
+    expect(r.location).toBe(run.locations[0]);
+    expect(r.lastBattle).toContain(LOCATIONS.find((l) => l.id === run.locations[0])!.name);
+    expect(r.lastBattle).toContain('Бой 1');
+    expect(r.battles).toBe(1);
+    expect(r.hp).toBe(0);
+    expect(r.maxHp).toBe(heroStats(run).maxHp);
+    expect(r.weapon).toBe(`${run.hero.weapon.base}@${run.hero.weapon.tier}`);
+    expect(r.armor).toBe(`${run.hero.armor.base}@${run.hero.armor.tier}`);
+    expect(r.artifacts).toBe(`${heroDef('mage').signature}@1`);
+    expect(r.potion).toBe('');
+    expect(r.duration).toBe(30);
+    expect(r.detail.hero).toBe(run.hero);
+    expect(r.detail.event).toBeNull();
+  });
+
+  it('брошенный: фаза и клетка на момент записи, длительность до `now`, пометка debug', () => {
+    const run = newRun('archer', 7, 1_000_000);
+    run.roomIndex = 2;
+    startEvent(run, 'shop');
+    run.hero.weapon.affix = { stat: 'crit', value: 0.05 };
+    const r = runReport(run, { ...ctx, event: 'abandoned', now: 1_000_000 + 90_400, debug: true });
+    expect(r.event).toBe('abandoned');
+    expect(r.phase).toBe('shop');
+    expect(r.room).toBe(3);
+    expect(r.roomKind).toBe('event:shop');
+    expect(r.detail.event).toBe('shop');
+    expect(r.duration).toBe(90);
+    expect(r.debug).toBe(true);
+    expect(r.gold).toBe(run.gold);
+    expect(r.weapon).toBe(`${run.hero.weapon.base}@${run.hero.weapon.tier} +crit`);
+  });
+
+  it('новый забег не отладочный — пометка живёт в состоянии и переживает сохранение', () => {
+    const run = newRun('warrior', 1);
+    expect(run.debug).toBe(false);
+    run.debug = true;
+    expect((JSON.parse(JSON.stringify(run)) as RunState).debug).toBe(true);
   });
 });
