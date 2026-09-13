@@ -20,6 +20,8 @@ SIM=1 npx vitest run tests/balance-sim.test.ts       # бот-симулятор
 SIM=1 SIM_HERO=berserk SIM_N=300 npx vitest run tests/balance-sim.test.ts   # один герой; 300 забегов на всех — ~15 с
 SIM_DEBUG=1 SIM_HERO=warrior SIM_SEED=3 SIM_FIGHTS=4 npx vitest run tests/sim-debug.test.ts   # лог первых боёв бота
 SIM_DEBUG=stall SIM_HERO=paladin npx vitest run tests/sim-debug.test.ts                     # найти пат
+SIM=1 SIM_N=150 npx vitest run tests/sim-profile.test.ts                                   # профиль бота в метриках статистики игрока: ходы и урон на бой по актам, тиры сборки в победах
+SIM_DEATH=L2R10 SIM_HERO=warrior SIM_SHOW=2 npx vitest run tests/sim-death.test.ts         # гибели бота в клетке: сборка и хвост лога последнего боя
 ```
 
 Перед коммитом: tsc из node_modules + `npx vitest run`. После правки любых чисел баланса — SIM на 300 забегах.
