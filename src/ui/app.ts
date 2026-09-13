@@ -1,7 +1,7 @@
 import { h } from './dom';
 import type { BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RunState } from '../engine/types';
 import * as R from '../engine/run';
-import { STATUS_NAMES, canUseAction } from '../engine/combat';
+import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
 import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type FxPlan } from './fx';
 import { clearRun, loadProfile, loadRun, recordEnemies, recordFinds, recordResult, saveRun, type Profile } from './save';
@@ -10,7 +10,7 @@ import { HERO_LIST } from '../data/heroes';
 import { menuScreen } from './screens/menu';
 import { heroSelectScreen } from './screens/heroSelect';
 import { mapScreen } from './screens/map';
-import { battleScreen } from './screens/battle';
+import { actionSpecs, battleScreen, type TileSpec } from './screens/battle';
 import { rewardScreen } from './screens/reward';
 import { eventScreen } from './screens/event';
 import { shopScreen } from './screens/shop';
@@ -24,6 +24,7 @@ import { heroSheet } from './screens/heroSheet';
 import { pauseMenu } from './screens/pause';
 import { logOverlay } from './screens/runLog';
 import { installHotkeys } from './hotkeys';
+import { showPreview } from './preview';
 
 const ENEMY_STEP_MS = 600;
 const FLOAT_MS = 900;
@@ -37,8 +38,13 @@ export class App {
   root: HTMLElement;
   run: RunState | null = null;
   screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'bestiary' = 'menu';
-  /** Выбранная цель в бою (uid врага). */
-  target: number | null = null;
+  /**
+   * Выбранный приём в бою (v0.26): 'attack' или id артефакта; null — не выбран. Сначала приём, потом цель: клик по врагу
+   * применяет его. Гибрид: приём остаётся выбранным, пока его можно применить, в начале хода не выбрано ничего.
+   */
+  armed: string | null = null;
+  /** Цель, выбранная клавишей Tab (uid врага); живёт до следующей перерисовки. */
+  aim: number | null = null;
   /** Идёт ход врагов — кнопки заблокированы. */
   busy = false;
   /** Лог боя раскрыт вместо плиток приёмов. Сбрасывается по концу боя. */
@@ -107,6 +113,8 @@ export class App {
     this.noteFinds();
     // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
     const r = this.run;
+    this.settleArmed();
+    this.aim = null;
     const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending].join('|');
     if (key !== this.screenKey) {
       this.screenKey = key;
@@ -223,12 +231,13 @@ export class App {
     this.toggleLog();
   }
 
-  /** Esc: закрыть верхний слой, а если слоёв нет — открыть паузу. */
+  /** Esc: закрыть верхний слой, снять выбор приёма, а если ни того ни другого нет — открыть паузу. */
   escape(): void {
     if (this.sheetOpen) this.toggleSheet();
     else if (this.logOpen) this.toggleLog();
     else if (this.pauseOpen) this.togglePause();
     else if (this.run && R.isRunOver(this.run)) return;
+    else if (this.armed) this.arm(null);
     else this.togglePause();
   }
 
@@ -300,7 +309,7 @@ export class App {
 
   newRun(heroId: string, seed?: number): void {
     this.run = R.newRun(heroId, seed);
-    this.target = null;
+    this.armed = null;
     this.resultRecorded = false;
     this.screen = 'run';
     this.commit();
@@ -329,22 +338,86 @@ export class App {
   enterRoom(): void {
     if (!this.run) return;
     R.enterRoom(this.run);
-    this.target = null;
+    this.armed = null;
     this.commit();
   }
 
-  // ─── Бой ─────────────────────────────────────────────────────────────────
+  // ─── Бой: выбор приёма и цели ───────────────────────────────────────────
 
-  currentTarget(): number {
-    const b = this.run?.battle;
-    if (!b) return -1;
-    if (this.target !== null && b.enemies.some((e) => e.uid === this.target)) return this.target;
-    return b.enemies[0]?.uid ?? -1;
+  /** Плитка выбранного приёма; null — не выбран. */
+  armedSpec(): TileSpec | null {
+    if (!this.armed || this.run?.phase !== 'battle' || !this.run.battle) return null;
+    return actionSpecs(this).find((s) => s.key === this.armed) ?? null;
   }
 
-  selectTarget(uid: number): void {
-    this.target = uid;
+  /** Кого достанет выбранный приём; null — приём не выбран, подсветки нет. */
+  armedTargets(): number[] | null {
+    return this.armedSpec()?.targets ?? null;
+  }
+
+  /** Имя и дальность выбранного приёма для ридаута в покое. */
+  armedInfo(): { name: string; reach: string } | null {
+    const spec = this.armedSpec();
+    const b = this.run?.battle;
+    if (!spec || !b) return null;
+    const r = actionReach(b, spec.action(b.enemies[0]?.uid ?? -1));
+    return { name: spec.name, reach: r === 'any' ? 'любая цель' : r === 'row' ? 'весь ряд' : 'первый в ряду' };
+  }
+
+  /** Выбрать приём (повторно — снять выбор). */
+  arm(key: string | null): void {
+    this.armed = this.armed === key ? null : key;
     this.render();
+  }
+
+  /** Клик по врагу: применить выбранный приём; нельзя — причина в ридауте без перерисовки. */
+  applyArmed(uid: number): void {
+    const b = this.run?.battle;
+    if (!b || b.phase !== 'player' || this.busy) return;
+    const spec = this.armedSpec();
+    if (!spec) {
+      showPreview(this, { title: findEnemy(b, uid)?.name ?? '', parts: [], err: 'Сначала выберите приём' });
+      return;
+    }
+    const action = spec.action(uid);
+    const err = canUseAction(b, action);
+    if (err) {
+      showPreview(this, { ...spec.preview(uid), err });
+      return;
+    }
+    this.battleAction(action);
+  }
+
+  /** Enter или повторный номер приёма: применить к цели, выбранной Tab, иначе к первой, по которой приём применим (Крюк первого не тянет). */
+  applyAim(): void {
+    const spec = this.armedSpec();
+    const b = this.run?.battle;
+    if (!spec || !b) return;
+    const target = this.aim ?? spec.targets.find((uid) => canUseAction(b, spec.action(uid)) === null) ?? spec.targets[0];
+    if (target !== undefined) this.applyArmed(target);
+  }
+
+  /** Tab: перебрать цели выбранного приёма; рамка и ридаут — как при наведении, без перерисовки. */
+  aimNext(): void {
+    const spec = this.armedSpec();
+    if (!spec || spec.targets.length === 0) return;
+    const i = this.aim === null ? -1 : spec.targets.indexOf(this.aim);
+    this.aim = spec.targets[(i + 1) % spec.targets.length];
+    for (const el of this.root.querySelectorAll('.enemy.aim')) el.classList.remove('aim');
+    this.root.querySelector(`.enemy[data-uid="${this.aim}"]`)?.classList.add('aim');
+    showPreview(this, spec.preview(this.aim));
+  }
+
+  /** Гибрид: выбор держится, пока приём применим хоть по кому-то; кончилась стамина, ушёл в перезарядку, бой кончился — снимается сам. */
+  private settleArmed(): void {
+    if (!this.armed) return;
+    const b = this.run?.battle;
+    if (this.run?.phase !== 'battle' || !b || b.phase !== 'player' || this.busy) {
+      this.armed = null;
+      return;
+    }
+    const spec = actionSpecs(this).find((s) => s.key === this.armed);
+    if (!spec || spec.err) this.armed = null;
   }
 
   /**
@@ -379,6 +452,7 @@ export class App {
     const run = this.run;
     if (!run?.battle || this.busy || this.fxTimer !== null || run.battle.phase !== 'player') return;
     R.battleEndTurn(run);
+    this.armed = null;
     this.busy = true;
     this.render();
     this.scheduleStep();
@@ -441,7 +515,7 @@ export class App {
   finishBattle(): void {
     if (!this.run) return;
     R.finishBattle(this.run);
-    this.target = null;
+    this.armed = null;
     this.logOpen = false;
     this.afterPhaseChange();
   }

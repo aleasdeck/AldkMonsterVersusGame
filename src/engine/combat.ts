@@ -12,14 +12,17 @@ import type {
   HeroDef,
   HeroPersistent,
   PlayerAction,
+  Reach,
   Status,
   StatusId,
+  WeaponReach,
 } from './types';
 import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
+import { SWEEP_MULT } from '../data/gear';
 import { potionDef } from '../data/potions';
 import { computeStats, socketedArtifacts } from './stats';
 
@@ -65,6 +68,52 @@ export const VULNERABLE_MULT = 1.25;
 
 /** Ниже этой доли HP цель считается раненой: «Клеймо палача» добавляет шанс крита по ней. */
 export const EXECUTE_HP_PCT = 0.2;
+
+// ─── Дальность ─────────────────────────────────────────────────────────────
+
+/**
+ * Дальность (v0.26): ближний бой достаёт только первого в ряду — ближайшего к герою врага. Дальнее и магическое оружие,
+ * копьё, заклинания, брошенные склянки и приёмы по всем врагам достают любого; плеть хлещет весь ряд одним ударом.
+ * Модель двух рядов со строем врагов измерена и отвергнута (GDD §12.25): для бота почти бесплатна, для игрока незаметна.
+ */
+export const REACH_ERR = 'Только первый в ряду';
+
+/**
+ * Призванный или отделившийся враг встаёт вперёд и заслоняет призывателя. С призывом в хвост ряда Лич, Капитан и Вожак
+ * прятали свиту за спиной, и бот терял на ближних героях 8–11 пунктов; с призывом вперёд — 2–5 (GDD §13, v0.26).
+ */
+export const SUMMON_FRONT = true;
+
+/** Кого достаёт удар такой дальности: ближний — первого в ряду, любой и удар по ряду — всех. */
+export function reachableEnemies(state: BattleState, reach: WeaponReach): EnemyState[] {
+  return reach === 'melee' ? state.enemies.slice(0, 1) : state.enemies.slice();
+}
+
+/**
+ * Дальность действия героя: своя у приёма, у заклинаний — любая цель, у ударов и физических приёмов — как у оружия в руках;
+ * базовый удар плетью — по всему ряду ('row'), её приёмы бьют как ближнее оружие.
+ */
+export function actionReach(state: BattleState, action: PlayerAction): WeaponReach {
+  const weapon: Reach = state.hero.stats.reachAny > 0 ? 'any' : 'melee';
+  switch (action.type) {
+    case 'attack':
+      return state.hero.stats.sweep > 0 ? 'row' : weapon;
+    case 'artifact': {
+      const def = artifactDef(action.artifactId);
+      return def.reach ?? (def.school === 'magic' ? 'any' : weapon);
+    }
+    case 'potion':
+      // Зелье во врага — брошенная склянка.
+      return 'any';
+    case 'defend':
+      return 'melee';
+  }
+}
+
+/** Достаёт ли действие героя до этого врага. */
+export function canReach(state: BattleState, action: PlayerAction, uid: number): boolean {
+  return reachableEnemies(state, actionReach(state, action)).some((e) => e.uid === uid);
+}
 
 // ─── Статусы ───────────────────────────────────────────────────────────────
 
@@ -370,6 +419,7 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
         let dmg = eff.amount + statusValue(a, 'strength');
         if (getStatus(a, 'weak')) dmg = Math.floor(dmg * 0.75);
         for (let i = 0; i < (eff.hits ?? 1); i++) {
+          // Союзник дальности не знает: зверь прыгает на самого раненого. Ограничение «как ближний бой» стоило Магу и Лучнику по 2 пункта (v0.26).
           const target = state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
           if (!target) break;
           log(state, `${a.name} атакует ${target.name}: ${dmg}`);
@@ -535,6 +585,8 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     // Праща: оглушает только критом, и то не каждым — бросок делается лишь после крита, чтобы не тратить RNG на обычных ударах.
     if (h.stats.stunOnCrit > 0 && crit && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnCrit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
+    // «Укрощение» плети: задетый враг бьёт слабее.
+    if (h.stats.weakOnHit > 0) addStatus(state, e, e.uid, 'weak', 1, h.stats.weakOnHit);
     // «Метка охотника»: первый удар в ходу открывает цель для остальных.
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
   }
@@ -605,6 +657,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
     case 'attack':
       if (h.sta < 1) return 'Нет стамины';
       if (!findEnemy(state, action.target)) return 'Нет цели';
+      if (!canReach(state, action, action.target)) return REACH_ERR;
       return null;
     case 'defend':
       if (h.defended) return 'Защита — раз за ход';
@@ -623,10 +676,12 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if (cost.sta === 'all' ? h.sta < Math.max(1, h.maxSta) : (cost.sta ?? 0) > h.sta) return cost.sta === 'all' ? 'Нужна вся стамина' : 'Нет стамины';
       if ((cost.mp ?? 0) > h.mp) return 'Нет маны';
       if (def.target === 'enemy' && !findEnemy(state, action.target ?? -1)) return 'Нет цели';
+      if (def.target === 'enemy' && !canReach(state, action, action.target ?? -1)) return REACH_ERR;
       if (state.allies.length >= MAX_ALLIES && def.effects?.(inst.tier).some((e) => e.type === 'summon')) return 'Рядом нет места';
       for (const eff of def.effects?.(inst.tier) ?? []) {
         if (eff.type === 'selfDamage' && h.hp <= eff.amount) return 'Слишком мало HP';
         if (eff.type === 'blockStrike' && h.block <= 0) return 'Нет блока';
+        if (eff.type === 'pull' && state.enemies[0]?.uid === action.target) return 'Уже первый в ряду';
       }
       return null;
     }
@@ -715,6 +770,16 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'summon':
       if (state.allies.length < MAX_ALLIES) spawnAlly(state, eff.enemyId, eff.hpBonus);
       break;
+    case 'pull':
+      // Крюк-кошка: цель встаёт первой, остальные сдвигаются назад в прежнем порядке.
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        const idx = state.enemies.indexOf(e);
+        if (idx <= 0) continue;
+        state.enemies.splice(idx, 1);
+        state.enemies.unshift(e);
+        log(state, `${e.name} вытянут в первый ряд`);
+      }
+      break;
   }
 }
 
@@ -724,8 +789,12 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   const h = state.hero;
   if (action.type === 'attack') {
     h.sta -= 1;
-    const e = findEnemy(state, action.target)!;
-    heroStrike(state, rng, e, { single: true });
+    if (h.stats.sweep > 0) {
+      // Плеть: один замах хлещет по всему ряду на долю урона; сквозного удара копья у неё нет.
+      for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, label: 'Герой хлещет' });
+    } else {
+      heroStrike(state, rng, findEnemy(state, action.target)!, { single: true });
+    }
     h.attacks += 1;
     if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal, 'вампиризм');
     breakStealth(state);
@@ -844,6 +913,12 @@ function chooseIntent(state: BattleState, e: EnemyState, rng: Rng): void {
   );
 }
 
+/** Место нового врага в ряду: стартовый состав — по порядку встречи, призванный — вперёд (SUMMON_FRONT), заслоняя призывателя. */
+function placeEnemy(state: BattleState, e: EnemyState, summoned: boolean): void {
+  if (summoned && SUMMON_FRONT) state.enemies.unshift(e);
+  else state.enemies.push(e);
+}
+
 function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boolean): EnemyState {
   const def = enemyDef(defId);
   const sc = scaleFor(state, def);
@@ -866,7 +941,7 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     hpMult: sc.hp,
     dmgMult: sc.dmg,
   };
-  state.enemies.push(e);
+  placeEnemy(state, e, announce);
   chooseIntent(state, e, rng);
   if (announce) {
     state.events.push({ type: 'summon', target: e.uid });

@@ -357,11 +357,12 @@ describe('новые механики врагов', () => {
     expect(getStatus(first(state), 'thorns')?.value).toBe(3);
     pass(state, rng); // Пульсация: ничего
     expect(state.enemies.length).toBe(1);
-    pass(state, rng); // Вылупление: две личинки
-    expect(state.enemies.map((e) => e.defId)).toEqual(['egg_cluster', 'larva', 'larva']);
+    pass(state, rng); // Вылупление: две личинки — вперёд, заслоняя кладку (v0.26)
+    expect(state.enemies.map((e) => e.defId)).toEqual(['larva', 'larva', 'egg_cluster']);
+    const egg = state.enemies.find((e) => e.defId === 'egg_cluster')!;
     // Второй круг: щетина не накладывается поверх своей же — шипы остаются 3.
     pass(state, rng, 3);
-    expect(getStatus(first(state), 'thorns')?.value).toBe(3);
+    expect(getStatus(egg, 'thorns')?.value).toBe(3);
   });
 
   it('разбитая кладка не оставляет ни личинок, ни предсмертия', () => {
@@ -605,12 +606,11 @@ describe('боссы', () => {
     expect(state.enemies.length).toBe(3);
   });
 
-  it('вожак призывает волка, если есть место', () => {
+  it('вожак призывает волка, если есть место; волк встаёт вперёд', () => {
     const { state, rng } = mkBattle('warrior', ['alpha_wolf']);
     first(state).intent = 'howl';
     pass(state, rng);
-    expect(state.enemies.length).toBe(2);
-    expect(state.enemies[1].defId).toBe('wolf');
+    expect(state.enemies.map((e) => e.defId)).toEqual(['wolf', 'alpha_wolf']);
   });
 
   it('рёв дракона используется не больше двух раз', () => {
@@ -677,14 +677,14 @@ describe('лучник', () => {
 });
 
 describe('призыв волка', () => {
-  it('волк появляется рядом, после хода героя кусает самого раненого врага, а враги бьют волка вместо героя', () => {
+  it('волк появляется рядом, после хода героя кусает самого раненого врага (дальность союзника не держит), а враги бьют волка вместо героя', () => {
     const { state, rng } = mkBattle('mage', ['wolf', 'rat'], { extra: [{ id: 'wolf_whistle', tier: 1 }] });
     performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
     expect(state.allies.map((a) => a.name)).toEqual(['Волк']);
     expect(state.allies[0].hp).toBe(12);
     const heroHp = state.hero.hp;
     pass(state, rng);
-    // укус 5 по крысе (7 HP) — самому раненому
+    // укус 5 по крысе (7 HP) — самому раненому, хотя она стоит второй
     expect(state.enemies.find((e) => e.defId === 'rat')!.hp).toBe(2);
     // волк 5 + крыса 3 пришлись на союзника
     expect(state.hero.hp).toBe(heroHp);

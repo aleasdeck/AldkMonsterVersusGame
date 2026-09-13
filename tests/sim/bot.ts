@@ -12,7 +12,7 @@ import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsTh
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
-import { canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice } from '../../src/data/gear';
+import { SWEEP_MULT, canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
 import { potionDef } from '../../src/data/potions';
 import { findSameArtifact, gearOf, socketRefs, type SocketRef } from '../../src/engine/equipment';
 import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice } from '../../src/engine/loot';
@@ -77,6 +77,14 @@ export const W = {
   finalists: 5,
   rollouts: 2,
   maxDepth: 6,
+  /**
+   * Дальность (v0.26): надбавки ближнему бойцу за приём, который бьёт любого (заклинание, склянка, Молот света), — во столько раз,
+   * и за оружие через ряд (лук, копьё, посох) — столько очков. Измерено на 600 забегах: ×1.3 и +4 стоили ближним героям 3–8 пунктов
+   * (бот гнался за луками с половиной кубика и за заклинаниями вместо ударов), поэтому по умолчанию надбавок нет — тактику
+   * дальности бот и так учитывает перебором ходов, а статическая цена реальной пользы не отражает.
+   */
+  reachArt: 1,
+  reachGear: 0,
 };
 
 /** Счётчик применений приёмов и зелий — печатается симулятором. */
@@ -250,9 +258,12 @@ function candidates(b: BattleState, prev: PlayerAction | undefined): PlayerActio
   const out: PlayerAction[] = [];
   const first = b.enemies[0]?.uid;
   const minIdx = prev?.type === 'attack' ? b.enemies.findIndex((e) => e.uid === prev.target) : 0;
-  b.enemies.forEach((e, i) => {
-    if (i >= minIdx) out.push({ type: 'attack', target: e.uid });
-  });
+  // Плеть бьёт весь ряд — цель не важна, один вариант.
+  if (b.hero.stats.sweep > 0) out.push({ type: 'attack', target: first ?? -1 });
+  else
+    b.enemies.forEach((e, i) => {
+      if (i >= minIdx) out.push({ type: 'attack', target: e.uid });
+    });
   out.push({ type: 'defend' });
   for (const inst of b.hero.artifacts) {
     const def = artifactDef(inst.id);
@@ -416,11 +427,15 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
   }
   const cost = artifactCost(def, inst.tier);
   if ((cost.mp ?? 0) > s.maxMp) return 0.3;
+  // Ближний боец с приёмом через ряд выбирает цель сам — стрелка или шамана за спиной брута; остальным дальность ничего не добавляет.
+  const weaponFar = weaponReach(run.hero.weapon) === 'any';
+  const artFar = (def.reach ?? (def.school === 'magic' ? 'any' : weaponReach(run.hero.weapon))) === 'any';
+  const far = !weaponFar && artFar ? W.reachArt : 1;
   let per = 0;
   for (const e of def.effects?.(inst.tier) ?? []) {
     switch (e.type) {
       case 'attack':
-        per += (avg * (e.mult ?? 1) + e.bonus) * (e.sureCrit ? 2 : 1) * (e.target === 'allEnemies' ? 1.8 : 1) * W.enemyHp;
+        per += (avg * (e.mult ?? 1) + e.bonus) * (e.sureCrit ? 2 : 1) * (e.target === 'allEnemies' ? 1.8 : far) * W.enemyHp;
         if (e.blockPct) per += avg * (e.mult ?? 1) * e.blockPct * 0.8;
         break;
       case 'blockStrike':
@@ -428,7 +443,7 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
         per += defendBlock(s) * e.mult * W.enemyHp;
         break;
       case 'spell':
-        per += (e.amount + s.spellPower) * (e.target === 'allEnemies' ? 1.8 : 1) * W.enemyHp + (e.drain ? e.amount * 0.7 : 0);
+        per += (e.amount + s.spellPower) * (e.target === 'allEnemies' ? 1.8 : far) * W.enemyHp + (e.drain ? e.amount * 0.7 : 0);
         break;
       case 'block':
         per += e.amount * 0.8;
@@ -451,6 +466,10 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
       case 'cleanse':
         per += 2;
         break;
+      case 'pull':
+        // Вытянуть стрелка под удар стоит примерно одного лишнего удара по нужной цели; дальнобойному не нужно.
+        per += weaponFar ? 0.5 : avg * W.enemyHp * 1.5;
+        break;
       case 'status': {
         const turns = e.turns === -1 ? 3 : e.turns;
         if (e.target === 'self') {
@@ -461,7 +480,7 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
           else if (e.status === 'exhaust') per -= e.value * avg * W.enemyHp;
           else per += 2;
         } else {
-          const many = e.target === 'allEnemies' ? 1.8 : 1;
+          const many = e.target === 'allEnemies' ? 1.8 : far;
           if (e.status === 'stun') per += 6 * many;
           else if (e.status === 'vulnerable') per += turns * avg * (VULNERABLE_MULT - 1) * many;
           else if (e.status === 'weak') per += turns * 2 * many;
@@ -485,11 +504,16 @@ export function gearGain(run: RunState, gear: GearInstance): number {
   const cur = gearOf(run.hero, gear.kind);
   let score = (gear.tier - cur.tier) * 10;
   if (gear.kind === 'weapon') {
-    const a = weaponDice(def, gear);
-    const c = weaponDice(def, cur);
-    score += a.min + a.max - c.min - c.max;
+    // Плеть бьёт всех на долю урона: кубик считаем как против двух врагов (тот же коэффициент, что у приёмов по всем).
+    const dice = (g: GearInstance) => {
+      const d = weaponDice(def, g);
+      return (d.min + d.max) * (weaponReach(g) === 'row' ? SWEEP_MULT * 1.8 : 1);
+    };
+    score += dice(gear) - dice(cur);
     // Перк базы работает только у владеющего — та же надбавка, что у брони.
     score += (canWieldWeapon(def, gear) ? 3 : 0) - (canWieldWeapon(def, cur) ? 3 : 0);
+    // Оружие через ряд (лук, копьё, посох) против оружия в упор: свобода выбора цели стоит очков.
+    score += (weaponReach(gear) === 'any' ? W.reachGear : 0) - (weaponReach(cur) === 'any' ? W.reachGear : 0);
   } else {
     score += (gear.def - cur.def) * 2 + (gear.hp - cur.hp) * 0.5;
     score += (canWearArmor(def, gear) ? 3 : 0) - (canWearArmor(def, cur) ? 3 : 0);

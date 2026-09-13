@@ -9,6 +9,15 @@ export type WeaponType = 'melee' | 'ranged' | 'magic';
 /** Тип брони: тяжёлая, средняя, лёгкая. */
 export type ArmorType = 'heavy' | 'medium' | 'light';
 
+/**
+ * Дальность удара героя (v0.26): ближний бой достаёт только первого в ряду врага — ближайшего к герою,
+ * дальний — любого. Заклинания, брошенные склянки и приёмы по всем врагам дальности не знают.
+ */
+export type Reach = 'melee' | 'any';
+
+/** Дальность базы оружия: как у действия, плюс 'row' — удар хлещет по всему ряду (плеть). */
+export type WeaponReach = Reach | 'row';
+
 export const MAX_ENEMIES = 3;
 /** Союзников рядом с героем. */
 export const MAX_ALLIES = 2;
@@ -108,6 +117,12 @@ export interface DerivedStats {
   blockStart: number;
   /** Первый удар героя в ходу вешает Уязвимость на N ходов («Метка охотника»). */
   markOnHit: number;
+  /** >0 — оружие достаёт любого врага в ряду (дальнее, магическое, копьё); 0 — только первого. */
+  reachAny: number;
+  /** >0 — базовый удар хлещет по всему ряду на SWEEP_MULT урона (плеть); приёмы бьют как ближнее оружие. */
+  sweep: number;
+  /** Каждый удар героя вешает Слабость на N ходов («Укрощение» плети). */
+  weakOnHit: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -154,7 +169,9 @@ export type Effect =
   | { type: 'selfDamage'; amount: number }
   | { type: 'gainMp'; amount: number }
   /** Снять с героя раны и проклятия: кровотечение, горение, яд, слабость, изнурение. */
-  | { type: 'cleanse' };
+  | { type: 'cleanse' }
+  /** Притянуть цель в первый ряд (Крюк-кошка): она встаёт под удар ближнего боя, остальные сдвигаются назад. */
+  | { type: 'pull'; target: 'enemy' };
 
 export interface ArtifactCost {
   sta?: number | 'all';
@@ -173,6 +190,11 @@ export interface ArtifactDef {
   /** Не больше N применений за ход (Волшебная стрела: без перезарядки, но не бесконечно). */
   usesPerTurn?: (tier: ArtTier) => number;
   target?: TargetKind;
+  /**
+   * Своя дальность приёма по цели. Без поля: заклинания достают любого врага, физические приёмы бьют как оружие в руках.
+   * Щит и порез — всегда ближний бой, брошенный флакон — любая цель.
+   */
+  reach?: Reach;
   effects?: (tier: ArtTier) => Effect[];
   mods?: (tier: ArtTier) => StatMods;
   describe: (tier: ArtTier) => string;
@@ -523,9 +545,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.25';
+export const GAME_VERSION = '0.26';
 
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
