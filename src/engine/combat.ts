@@ -585,8 +585,6 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     // Праща: оглушает только критом, и то не каждым — бросок делается лишь после крита, чтобы не тратить RNG на обычных ударах.
     if (h.stats.stunOnCrit > 0 && crit && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnCrit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
-    // «Укрощение» плети: задетый враг бьёт слабее.
-    if (h.stats.weakOnHit > 0) addStatus(state, e, e.uid, 'weak', 1, h.stats.weakOnHit);
     // «Метка охотника»: первый удар в ходу открывает цель для остальных.
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
   }
