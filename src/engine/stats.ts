@@ -15,7 +15,7 @@ function applyMods(s: DerivedStats, m: StatMods): void {
   }
 }
 
-export const DEFAULT_FATIGUE = 0.75;
+export const DEFAULT_FATIGUE = 0.7;
 /** Крит. урон по умолчанию, проценты от обычного урона: полтора удара. */
 export const DEFAULT_CRIT_DMG = 150;
 

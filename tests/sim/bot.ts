@@ -395,6 +395,10 @@ function hasMagicActive(hero: HeroPersistent, except?: string): boolean {
 
 /** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. */
 export function artifactValue(run: RunState, inst: ArtifactInstance): number {
+  if (inst.id === heroDef(run.hero.defId).signature) return artifactValueRaw(run, inst) * 2;
+  return artifactValueRaw(run, inst);
+}
+function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
   const def = artifactDef(inst.id);
   const s = heroStats(run);
   const avg = (s.dmgMin + s.dmgMax) / 2 + s.str;
@@ -475,7 +479,7 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
         if (e.target === 'self') {
           if (e.status === 'strength') per += e.value * turns * 1.5;
           else if (e.status === 'dodge') per += 4;
-          else if (e.status === 'stealth') per += turns * 4;
+          else if (e.status === 'stealth') per += turns * 10;
           else if (e.status === 'regen') per += e.value * turns;
           else if (e.status === 'exhaust') per -= e.value * avg * W.enemyHp;
           else per += 2;
@@ -502,7 +506,7 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
 export function gearGain(run: RunState, gear: GearInstance): number {
   const def = heroDef(run.hero.defId);
   const cur = gearOf(run.hero, gear.kind);
-  let score = (gear.tier - cur.tier) * 10;
+  let score = (gear.tier - cur.tier) * 4;
   if (gear.kind === 'weapon') {
     // Плеть бьёт всех на долю урона: кубик считаем как против полутора врагов — примерно как меч. Коэффициент 1.8 (как у приёмов по всем)
     // заставлял бота брать плеть вместо меча и стоил ближним героям 2 пункта: сосредоточенный урон убивает быстрее размазанного.
@@ -512,7 +516,7 @@ export function gearGain(run: RunState, gear: GearInstance): number {
     };
     score += dice(gear) - dice(cur);
     // Перк базы работает только у владеющего — та же надбавка, что у брони.
-    score += (canWieldWeapon(def, gear) ? 3 : 0) - (canWieldWeapon(def, cur) ? 3 : 0);
+    score += (canWieldWeapon(def, gear) ? 3 : -8) - (canWieldWeapon(def, cur) ? 3 : -8);
     // Оружие через ряд (лук, копьё, посох) против оружия в упор: свобода выбора цели стоит очков.
     score += (weaponReach(gear) === 'any' ? W.reachGear : 0) - (weaponReach(cur) === 'any' ? W.reachGear : 0);
   } else {

@@ -93,7 +93,7 @@ describe('базовые действия', () => {
   it('берсерк выдыхается медленнее остальных', () => {
     const w = mkBattle('warrior', ['bear']);
     const b = mkBattle('berserk', ['bear']);
-    expect(w.state.hero.stats.fatigue).toBe(0.75);
+    expect(w.state.hero.stats.fatigue).toBe(0.7);
     expect(b.state.hero.stats.fatigue).toBeCloseTo(0.9);
   });
 
@@ -551,7 +551,7 @@ describe('мана и артефакты', () => {
   it('кулдаун убывает по ходам', () => {
     const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'second_wind', tier: 1 }] });
     performAction(state, { type: 'artifact', artifactId: 'second_wind' }, rng);
-    expect(state.hero.sta).toBe(5);
+    expect(state.hero.sta).toBe(4); // +1 STA на первом тире
     expect(canUseAction(state, { type: 'artifact', artifactId: 'second_wind' })).toMatch(/Перезарядка/);
     pass(state, rng, 4);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'second_wind' })).toBeNull();
@@ -805,15 +805,15 @@ describe('ассасин: скрытность', () => {
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
   });
 
-  it('дымовая шашка: 3/3/2 STA, скрытность на 2/2/3 хода, удар из тени — крит в спину и снимает скрытность', () => {
+  it('дымовая шашка: 3/3/2 STA, скрытность на 1/2/2 хода, удар из тени — крит в спину и снимает скрытность', () => {
     const t1 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
     performAction(t1.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t1.rng);
     expect(t1.state.hero.sta).toBe(0);
-    expect(getStatus(t1.state.hero, 'stealth')?.turns).toBe(2);
+    expect(getStatus(t1.state.hero, 'stealth')?.turns).toBe(1);
     const t3 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 3 }] });
     performAction(t3.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t3.rng);
     expect(t3.state.hero.sta).toBe(1);
-    expect(getStatus(t3.state.hero, 'stealth')?.turns).toBe(3);
+    expect(getStatus(t3.state.hero, 'stealth')?.turns).toBe(2);
     const hp = first(t3.state).hp;
     performAction(t3.state, { type: 'attack', target: first(t3.state).uid }, t3.rng);
     // стартовый меч воина 4–6 + Сила, крит Воина 150 %
@@ -822,7 +822,8 @@ describe('ассасин: скрытность', () => {
   });
 
   it('скрытность прикрывает столько ходов врага, сколько написано: шашка на 2 хода — два хода мимо, третий в цель', () => {
-    const { state, rng } = mkBattle('warrior', ['rat'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
+    // Второй тир: на первом шашка с v0.28 даёт один ход, а проверяем именно «два хода мимо, третий в цель».
+    const { state, rng } = mkBattle('warrior', ['rat'], { extra: [{ id: 'smoke_bomb', tier: 2 }] });
     performAction(state, { type: 'artifact', artifactId: 'smoke_bomb' }, rng);
     const hp = state.hero.hp;
     // Статус наложен в свой ход и не должен потерять ход на тике конца хода — иначе «2 хода» прикрыли бы один.
