@@ -147,7 +147,7 @@ describe('перки баз в статах', () => {
     const b = heroDef('berserk');
     const s = computeStats(b, weapon('axe', 5, 5), armorOf('berserk'));
     expect(s.fatigue).toBeLessThanOrEqual(1);
-    expect(s.fatigue).toBeCloseTo(0.95);
+    expect(s.fatigue).toBeCloseTo(0.9); // своя 0.8 + топор 5 тира 0.1
   });
 });
 

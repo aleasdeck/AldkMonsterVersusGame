@@ -94,7 +94,7 @@ describe('базовые действия', () => {
     const w = mkBattle('warrior', ['bear']);
     const b = mkBattle('berserk', ['bear']);
     expect(w.state.hero.stats.fatigue).toBe(0.7);
-    expect(b.state.hero.stats.fatigue).toBeCloseTo(0.9);
+    expect(b.state.hero.stats.fatigue).toBeCloseTo(0.85); // своя 0.8 + перк топора
   });
 
   it('защита даёт 80 % от DEF героя + DEF брони, округление вверх; блок съедает урон врага', () => {
