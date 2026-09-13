@@ -504,10 +504,11 @@ export function gearGain(run: RunState, gear: GearInstance): number {
   const cur = gearOf(run.hero, gear.kind);
   let score = (gear.tier - cur.tier) * 10;
   if (gear.kind === 'weapon') {
-    // Плеть бьёт всех на долю урона: кубик считаем как против двух врагов (тот же коэффициент, что у приёмов по всем).
+    // Плеть бьёт всех на долю урона: кубик считаем как против полутора врагов — примерно как меч. Коэффициент 1.8 (как у приёмов по всем)
+    // заставлял бота брать плеть вместо меча и стоил ближним героям 2 пункта: сосредоточенный урон убивает быстрее размазанного.
     const dice = (g: GearInstance) => {
       const d = weaponDice(def, g);
-      return (d.min + d.max) * (weaponReach(g) === 'row' ? SWEEP_MULT * 1.8 : 1);
+      return (d.min + d.max) * (weaponReach(g, def) === 'row' ? SWEEP_MULT * 1.5 : 1);
     };
     score += dice(gear) - dice(cur);
     // Перк базы работает только у владеющего — та же надбавка, что у брони.

@@ -38,13 +38,16 @@ describe('дальность оружия', () => {
     expect(computeStats(warrior, weapon('staff', 5), armor).reachAny).toBe(1);
     expect(computeStats(warrior, weapon('spear', 5), armor).reachAny).toBe(1);
     expect(computeStats(warrior, weapon('whip', 5), armor).sweep).toBe(1);
-    // Дальность — свойство древка, а не владения: копьё в руках лучника тоже достаёт через ряд, плеть хлещет и у мага.
+    // Дальность копья — свойство древка, а не владения: в руках лучника тоже достаёт через ряд. Хлёст плети — перк: у мага его нет.
     expect(computeStats(heroDef('archer'), weapon('spear', 5), armor).reachAny).toBe(1);
-    expect(computeStats(heroDef('mage'), weapon('whip', 5), armor).sweep).toBe(1);
+    expect(computeStats(heroDef('mage'), weapon('whip', 5), armor).sweep).toBe(0);
     expect(weaponReach(weapon('spear', 5))).toBe('any');
     expect(weaponReach(weapon('mace', 5))).toBe('melee');
     expect(weaponReach(weapon('sling', 5))).toBe('any');
     expect(weaponReach(weapon('whip', 5))).toBe('row');
+    expect(weaponReach(weapon('whip', 5), warrior)).toBe('row');
+    expect(weaponReach(weapon('whip', 5), heroDef('mage'))).toBe('melee');
+    expect(weaponReach(weapon('spear', 5), heroDef('mage'))).toBe('any');
   });
 
   it('меч: удар по второму в ряду недоступен, после смерти первого второй становится первым', () => {
@@ -99,13 +102,20 @@ describe('плеть', () => {
     expect(state.hero.attacks).toBe(1);
   });
 
-  it('Укрощение: каждый задетый враг получает Слабость, приёмы плетью бьют только первого', () => {
-    const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], weapon('whip', 10, 4, [{ id: 'heavy_strike', tier: 1 }]));
-    performAction(state, { type: 'attack', target: state.enemies[0].uid }, rng);
-    for (const e of state.enemies) expect(getStatus(e, 'weak')).toEqual({ id: 'weak', value: 1, turns: 2 });
+  it('Хлёст — перк: приёмы плетью бьют только первого, а у не владеющего и удар бьёт только первого', () => {
+    const { state } = mkBattle('warrior', ['wolf', 'wolf'], weapon('whip', 10, 4, [{ id: 'heavy_strike', tier: 1 }]));
     const far = state.enemies[1];
     expect(actionReach(state, { type: 'artifact', artifactId: 'heavy_strike', target: far.uid })).toBe('melee');
     expect(canUseAction(state, { type: 'artifact', artifactId: 'heavy_strike', target: far.uid })).toBe(REACH_ERR);
+
+    const mage = mkBattle('mage', ['wolf', 'wolf'], weapon('whip', 10));
+    expect(mage.state.hero.stats.sweep).toBe(0);
+    expect(actionReach(mage.state, { type: 'attack', target: mage.state.enemies[1].uid })).toBe('melee');
+    expect(canUseAction(mage.state, { type: 'attack', target: mage.state.enemies[1].uid })).toBe(REACH_ERR);
+    performAction(mage.state, { type: 'attack', target: mage.state.enemies[0].uid }, mage.rng);
+    // Чужое оружие: половина кубика, один удар по первому.
+    expect(mage.state.enemies[0].hp).toBe(12 - 5);
+    expect(mage.state.enemies[1].hp).toBe(12);
   });
 
   it('из скрытности плеть бьёт в спину всех сразу и выдаёт героя один раз', () => {

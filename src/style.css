@@ -504,6 +504,28 @@ p {
 .wtype-icon.skill-no {
   color: #ff8787;
 }
+/* Маркер дальности оружия: три точки — ряд врагов; горят те, кого оружие достаёт (ближнее — первую, остальное — все). */
+.reach-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  flex: none;
+  cursor: help;
+  padding: 2px 0;
+}
+.reach-dots i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  background: #2a2a44;
+  box-shadow: 0 0 0 1px #000;
+}
+.reach-dots i.on {
+  background: var(--accent);
+}
+.reach-dots.reach-row i.on {
+  background: #ffab40;
+}
 .card-perk {
   font-size: 15px;
   color: #b8c0ff;

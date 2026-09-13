@@ -21,6 +21,8 @@ import {
   hasPerk,
   weaponDice,
   weaponSkillTitle,
+  weaponReach,
+  weaponReachTitle,
   weaponType,
   weaponTypeTitle,
 } from '../data/gear';
@@ -212,6 +214,17 @@ export function gearTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   return gear.kind === 'weapon' ? weaponTypeIcon(gear, def) : armorTypeIcon(gear, def);
 }
 
+/**
+ * Маркер дальности оружия (v0.26): три точки — ряд врагов. Ближнее оружие красит первую (достаёт только первого),
+ * дальнее, магическое, копьё и плеть — все три. С героем — в его руках: плеть у не владеющего красит одну.
+ */
+export function reachDots(gear: GearInstance, def?: HeroDef): HTMLElement | null {
+  if (gear.kind !== 'weapon') return null;
+  const reach = weaponReach(gear, def);
+  const lit = reach === 'melee' ? 1 : 3;
+  return h('span', { class: `reach-dots reach-${reach}`, tip: weaponReachTitle(gear, def) }, ...[0, 1, 2].map((i) => h('i', { class: i < lit ? 'on' : '' })));
+}
+
 /** Строка перка базы: название своим цветом, описание после двоеточия. Предмет, которым герой не владеет, — перк зачёркнут, причина в подсказке. */
 export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null {
   const perk = gearPerkText(gear);
@@ -259,7 +272,7 @@ export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Chi
   return h(
     'div',
     { class: 'card gear-card', style: `border-color:${info.color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'card-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def)),
+    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'card-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), reachDots(gear, def)),
     gearStatLine(gear, def),
     ...(deltas ?? []),
     perkLine(gear, def),

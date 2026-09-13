@@ -2,7 +2,7 @@ import { h } from './dom';
 import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef } from '../engine/types';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { ART_TIER_COLORS, GEAR_TIERS, gearPerkText } from '../data/gear';
-import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, tierTip } from './components';
+import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, reachDots, tierTip } from './components';
 import { markKeywords } from './keywords';
 
 /**
@@ -93,7 +93,7 @@ export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, opts
   return h(
     'div',
     { class: `gear-tile ${isWeapon ? 'weapon' : 'armor'}`, style: `border-color:${info.color}` },
-    h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), stats),
+    h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), reachDots(gear, def), stats),
     perk,
     opts.expanded
       ? h('div', { class: 'art-list' }, ...gear.slots.map((a) => (a ? artifactRow(a, s) : h('div', { class: 'art-row empty' }, artifactChip(null), h('span', { class: 'dim' }, 'свободный сокет')))))
