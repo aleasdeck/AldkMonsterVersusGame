@@ -34,6 +34,8 @@ export interface Profile {
   collection: string[];
   /** id врагов, которые хоть раз показались в бою — открытые записи бестиария. */
   bestiary: string[];
+  /** Анонимный id игрока для статистики забегов (telemetry.ts): случайная строка, ставится один раз при первом чтении профиля. */
+  playerId: string;
 }
 
 function emptyProfile(): Profile {
@@ -51,6 +53,7 @@ function emptyProfile(): Profile {
     chests: 0,
     collection: [],
     bestiary: [],
+    playerId: '',
   };
 }
 
@@ -93,6 +96,26 @@ export function clearRun(): void {
 }
 
 export function loadProfile(): Profile {
+  const p = readProfile();
+  // id ставится один раз и сразу пишется, чтобы все чтения профиля до первого сохранения видели один и тот же
+  if (!p.playerId) {
+    p.playerId = newPlayerId();
+    saveProfile(p);
+  }
+  return p;
+}
+
+/** UUID, где он есть (https и localhost), иначе время и случайный хвост. */
+function newPlayerId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  } catch {
+    /* нет crypto — ниже */
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function readProfile(): Profile {
   const p = emptyProfile();
   try {
     const raw = storage()?.getItem(PROFILE_KEY);
