@@ -10,7 +10,7 @@ import type { Profile } from './save';
  * Адрес веб-приложения Apps Script: `https://script.google.com/macros/s/…/exec`.
  * Пустая строка — статистика не отправляется вовсе (форки и локальные сборки ничего никуда не шлют).
  */
-export const STATS_URL = '';
+export const STATS_URL = 'https://script.google.com/macros/s/AKfycbyquae97wKxUt1Cte1nppAUSwIt2vYxQtSmY1zCon1aMnSPjh-HMs-j3p8g3FjBcswYPg/exec';
 
 /** Хосты разработчика: dev-сервер, localhost, домашняя сеть с телефона. Отсюда записи не уходят — кроме `&stats=1`. */
 const LOCAL_HOST = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/;
