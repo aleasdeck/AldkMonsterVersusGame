@@ -10,8 +10,8 @@ const list: ArtifactDef[] = [
     name: 'Камень силы',
     glyph: 'ᚢ',
     kind: 'passive',
-    mods: (tier) => ({ str: t(2, 4, 6)(tier) }),
-    describe: (tier) => `+${t(2, 4, 6)(tier)} к Силе`,
+    mods: (tier) => ({ str: t(2, 3, 4)(tier) }),
+    describe: (tier) => `+${t(2, 3, 4)(tier)} к Силе`,
   },
   {
     id: 'troll_heart',
@@ -245,10 +245,10 @@ const list: ArtifactDef[] = [
     effects: (tier) => [
       // Цена крови 2/1/1 (v0.14): с одной Яростью на старте и без Клича при 3/2/2 Берсерк давал 34 % у бота, с 2/1/1 — 47 %.
       { type: 'selfDamage', amount: t(2, 1, 1)(tier) },
-      { type: 'gainSta', amount: t(3, 3, 3)(tier) },
+      { type: 'gainSta', amount: t(2, 2, 3)(tier) },
       { type: 'status', target: 'self', status: 'strength', value: t(1, 2, 3)(tier), turns: 1 },
     ],
-    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(3, 3, 3)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
+    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(2, 2, 3)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
   },
   {
     id: 'second_wind',
@@ -260,8 +260,8 @@ const list: ArtifactDef[] = [
     cost: { sta: 0 },
     cooldown: () => 4,
     target: 'self',
-    effects: (tier) => [{ type: 'gainSta', amount: t(2, 3, 4)(tier) }],
-    describe: (tier) => `+${t(2, 3, 4)(tier)} стамины. КД 4`,
+    effects: (tier) => [{ type: 'gainSta', amount: t(1, 2, 3)(tier) }],
+    describe: (tier) => `+${t(1, 2, 3)(tier)} стамины. КД 4`,
   },
   {
     id: 'aimed_shot',
@@ -302,8 +302,8 @@ const list: ArtifactDef[] = [
     cost: (tier) => ({ sta: t(3, 3, 2)(tier) }),
     cooldown: () => 3,
     target: 'self',
-    effects: (tier) => [{ type: 'status', target: 'self', status: 'stealth', value: 1, turns: t(2, 2, 3)(tier) }],
-    describe: (tier) => `Скрытность на ${t(2, 2, 3)(tier)} хода врага: враги не видят героя, следующая атака — удар в спину. КД 3`,
+    effects: (tier) => [{ type: 'status', target: 'self', status: 'stealth', value: 1, turns: t(1, 2, 2)(tier) }],
+    describe: (tier) => `Скрытность на ${t(1, 2, 2)(tier)} хода врага: враги не видят героя, следующая атака — удар в спину. КД 3`,
   },
   {
     id: 'poison_vial',
@@ -529,8 +529,8 @@ const list: ArtifactDef[] = [
     // Без перезарядки, но не бесконечно: с 10 маны и без лимита Маг выносил бои за ход — «имба» по отзыву пользователя.
     usesPerTurn: (tier) => t(2, 3, 4)(tier),
     target: 'enemy',
-    effects: (tier) => [{ type: 'spell', amount: t(4, 5, 6)(tier), target: 'enemy' }],
-    describe: (tier) => `${t(4, 5, 6)(tier)} урона заклинанием. До ${t(2, 3, 4)(tier)} раз за ход`,
+    effects: (tier) => [{ type: 'spell', amount: t(3, 4, 5)(tier), target: 'enemy' }],
+    describe: (tier) => `${t(3, 4, 5)(tier)} урона заклинанием. До ${t(2, 3, 4)(tier)} раз за ход`,
   },
   {
     id: 'spark',
@@ -556,10 +556,10 @@ const list: ArtifactDef[] = [
     kind: 'active',
     school: 'magic',
     cost: { mp: 1 },
-    cooldown: () => 2,
+    cooldown: () => 3,
     target: 'allEnemies',
     effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'vulnerable', value: 1, turns: t(2, 3, 3)(tier) }],
-    describe: (tier) => `Уязвимость всем врагам на ${t(2, 3, 3)(tier)} ход(а). КД 2`,
+    describe: (tier) => `Уязвимость всем врагам на ${t(2, 3, 3)(tier)} ход(а). КД 3`,
   },
 ];
 

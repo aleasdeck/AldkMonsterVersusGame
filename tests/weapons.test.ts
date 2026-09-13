@@ -136,7 +136,7 @@ describe('перки баз в статах', () => {
   it('меч — защита, топор — усталость, посох — мана, жезл — реген, сфера — шипы', () => {
     const w = heroDef('warrior');
     expect(computeStats(w, weapon('sword', 5), armorOf('warrior')).def).toBe(6 + 1 + 1);
-    expect(computeStats(w, weapon('axe', 5), armorOf('warrior')).fatigue).toBeCloseTo(0.8);
+    expect(computeStats(w, weapon('axe', 5), armorOf('warrior')).fatigue).toBeCloseTo(0.75); // база 0.7 + перк топора
     const m = heroDef('mage');
     expect(computeStats(m, weapon('staff', 5), armorOf('mage')).maxMp).toBe(5 + 2);
     expect(computeStats(m, weapon('wand', 5), armorOf('mage')).mpRegen).toBe(3);
@@ -147,7 +147,7 @@ describe('перки баз в статах', () => {
     const b = heroDef('berserk');
     const s = computeStats(b, weapon('axe', 5, 5), armorOf('berserk'));
     expect(s.fatigue).toBeLessThanOrEqual(1);
-    expect(s.fatigue).toBeCloseTo(0.95);
+    expect(s.fatigue).toBeCloseTo(0.9); // своя 0.8 + топор 5 тира 0.1
   });
 });
 
@@ -255,7 +255,7 @@ describe('ярость берсерка', () => {
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
     expect(state.hero.hp).toBe(hp0 - 2);
-    expect(state.hero.sta).toBe(6);
+    expect(state.hero.sta).toBe(5); // +2 STA на первом тире
     expect(getStatus(state.hero, 'strength')?.value).toBe(1);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'rage' })).toMatch(/Перезарядка/);
     endTurn(state);

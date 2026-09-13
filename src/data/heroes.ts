@@ -114,7 +114,7 @@ const list: HeroDef[] = [
     mp: 0,
     mpRegen: 0,
     sta: 3,
-    fatigue: 0.85,
+    fatigue: 0.8,
     weaponSkill: { melee: true, ranged: false, magic: false },
     // Броню не носит вовсе: любая для него — только DEF, HP, аффикс и слоты. Стартовая шкура поэтому без перка.
     armorSkill: { heavy: false, medium: false, light: false },

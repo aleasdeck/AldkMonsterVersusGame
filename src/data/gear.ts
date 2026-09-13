@@ -606,10 +606,10 @@ interface AffixDef {
 }
 
 const WEAPON_AFFIXES: AffixDef[] = [
-  { stat: 'str', values: [1, 1, 2, 2, 3] },
-  { stat: 'crit', values: [0.05, 0.08, 0.1, 0.12, 0.15] },
-  { stat: 'critDmg', values: [15, 20, 25, 30, 35] },
-  { stat: 'lifesteal', values: [1, 1, 2, 2, 3] },
+  { stat: 'str', values: [1, 1, 1, 2, 2] },
+  { stat: 'crit', values: [0.04, 0.06, 0.08, 0.1, 0.12] },
+  { stat: 'critDmg', values: [10, 15, 20, 25, 30] },
+  { stat: 'lifesteal', values: [1, 1, 1, 2, 2] },
   { stat: 'spellPower', values: [1, 1, 2, 3, 4] },
 ];
 
