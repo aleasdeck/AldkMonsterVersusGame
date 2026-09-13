@@ -4,10 +4,9 @@ import * as R from '../engine/run';
 import { STATUS_NAMES, canUseAction } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
 import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type FxPlan } from './fx';
-import { claimChest, clearRun, loadProfile, loadRun, recordEnemies, recordResult, saveRun, type Profile } from './save';
-import { rollCollectible } from '../data/collection';
+import { clearRun, loadProfile, loadRun, recordEnemies, recordFinds, recordResult, saveRun, type Profile } from './save';
+import { loadoutFinds } from '../data/collection';
 import { HERO_LIST } from '../data/heroes';
-import { createRng } from '../engine/rng';
 import { menuScreen } from './screens/menu';
 import { heroSelectScreen } from './screens/heroSelect';
 import { mapScreen } from './screens/map';
@@ -19,7 +18,6 @@ import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
 import { bestiaryScreen } from './screens/bestiary';
-import { SPIN_MS, buildStrip, chestScreen, type ChestState } from './screens/chest';
 import { hideTooltip, installTooltips } from './tooltip';
 import { formatClock } from './topbar';
 import { heroSheet } from './screens/heroSheet';
@@ -38,7 +36,7 @@ const SETTLE_MS = 400;
 export class App {
   root: HTMLElement;
   run: RunState | null = null;
-  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'bestiary' | 'chest' = 'menu';
+  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'bestiary' = 'menu';
   /** Выбранная цель в бою (uid врага). */
   target: number | null = null;
   /** Идёт ход врагов — кнопки заблокированы. */
@@ -50,8 +48,6 @@ export class App {
   /** Открыта пауза. */
   pauseOpen = false;
   profile: Profile;
-  /** Состояние крутки сундука; null — сундук ещё не открыт. */
-  chest: ChestState | null = null;
   /** Герой, подсвеченный в сетке выбора: справа показано его превью. */
   heroPick: string = HERO_LIST[0].id;
   /** Текст поля «Сид» на экране выбора — переживает перерисовку при клике по плитке. */
@@ -64,7 +60,6 @@ export class App {
   private fxTimer: number | null = null;
   /** Тикает раз в секунду и пишет время забега в топбар напрямую, без перерисовки. */
   private clockTimer: number | null = null;
-  private spinTimer: number | null = null;
   private resultRecorded = false;
   /** Отпечаток экрана и момент его смены: клики в первые SETTLE_MS после смены глотаются (см. SETTLE_MS). */
   private screenKey = '';
@@ -109,6 +104,7 @@ export class App {
 
   render(): void {
     this.noteEnemies();
+    this.noteFinds();
     // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
     const r = this.run;
     const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending].join('|');
@@ -120,7 +116,6 @@ export class App {
     if (this.screen === 'heroSelect') el = heroSelectScreen(this);
     else if (this.screen === 'collection') el = collectionScreen(this);
     else if (this.screen === 'bestiary') el = bestiaryScreen(this);
-    else if (this.screen === 'chest') el = chestScreen(this);
     else if (this.screen === 'menu' || !this.run) el = menuScreen(this);
     else {
       switch (this.run.phase) {
@@ -173,6 +168,16 @@ export class App {
     if (!enemies) return;
     const fresh = enemies.map((e) => e.defId).filter((id, i, all) => !this.profile.bestiary.includes(id) && all.indexOf(id) === i);
     if (fresh.length) this.profile = recordEnemies(fresh);
+  }
+
+  /**
+   * Коллекция открывается тем, что попало герою в руки: обе базы экипировки, артефакты в сокетах со своими тирами
+   * и зелье в слоте. Как и бестиарий, проверяется при каждой перерисовке — любая выдача предмета кончается render().
+   */
+  private noteFinds(): void {
+    if (!this.run) return;
+    const fresh = loadoutFinds(this.run.hero).filter((key, i, all) => !this.profile.collection.includes(key) && all.indexOf(key) === i);
+    if (fresh.length) this.profile = recordFinds(fresh);
   }
 
   // ─── Таймер забега ───────────────────────────────────────────────────────
@@ -255,8 +260,6 @@ export class App {
 
   showMenu(): void {
     this.stopStepping();
-    this.stopSpin();
-    this.chest = null;
     this.sheetOpen = false;
     this.pauseOpen = false;
     this.logOpen = false;
@@ -267,8 +270,6 @@ export class App {
 
   showHeroSelect(): void {
     this.stopStepping();
-    this.stopSpin();
-    this.chest = null;
     this.sheetOpen = false;
     this.logOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
@@ -282,15 +283,11 @@ export class App {
   }
 
   showCollection(): void {
-    this.stopSpin();
-    this.chest = null;
     this.screen = 'collection';
     this.render();
   }
 
   showBestiary(loc?: LocationId): void {
-    this.stopSpin();
-    this.chest = null;
     if (loc) this.bestiaryLoc = loc;
     this.screen = 'bestiary';
     this.render();
@@ -301,49 +298,7 @@ export class App {
     this.render();
   }
 
-  showChest(): void {
-    this.stopSpin();
-    this.chest = null;
-    this.screen = 'chest';
-    this.render();
-  }
-
-  /** Списывает сундук, сразу записывает находку и запускает прокрутку ленты. */
-  openChest(): void {
-    if (this.profile.chests <= 0) return;
-    const rng = createRng(R.randomSeed());
-    const prize = rollCollectible(rng, this.profile.collection);
-    if (!prize) return;
-    this.stopSpin();
-    this.profile = claimChest(prize);
-    this.chest = buildStrip(rng, prize);
-    this.screen = 'chest';
-    this.render();
-    this.spinTimer = window.setTimeout(() => {
-      this.spinTimer = null;
-      this.finishSpin();
-    }, SPIN_MS);
-  }
-
-  skipSpin(): void {
-    this.stopSpin();
-    this.finishSpin();
-  }
-
-  private finishSpin(): void {
-    if (!this.chest || this.chest.phase === 'done') return;
-    this.chest.phase = 'done';
-    this.render();
-  }
-
-  private stopSpin(): void {
-    if (this.spinTimer !== null) window.clearTimeout(this.spinTimer);
-    this.spinTimer = null;
-  }
-
   newRun(heroId: string, seed?: number): void {
-    this.stopSpin();
-    this.chest = null;
     this.run = R.newRun(heroId, seed);
     this.target = null;
     this.resultRecorded = false;

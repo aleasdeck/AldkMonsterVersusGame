@@ -2,7 +2,7 @@ import { App } from './ui/app';
 import { EVENT_WEIGHTS, LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locations';
 import { startEvent } from './engine/run';
 import type { EventKind, LocationId } from './engine/types';
-import { COLLECTIBLE_IDS } from './data/collection';
+import { ART_TIERS, COLLECTIBLES, findKey } from './data/collection';
 import { ENEMY_LIST } from './data/enemies';
 import { loadProfile, saveProfile } from './ui/save';
 
@@ -28,7 +28,7 @@ app.start();
 // &phase=event&event=chest|altar|forge|elite|shop|camp — заданное событие в третьей клетке.
 const params = new URLSearchParams(window.location.search);
 
-// &mock=1 — демо-профиль: статистика, сундуки, часть коллекции и половина бестиария (для отладки экранов)
+// &mock=1 — демо-профиль: статистика, часть коллекции (у артефактов — часть тиров) и половина бестиария (для отладки экранов)
 if (params.get('mock')) {
   saveProfile({
     ...loadProfile(),
@@ -42,8 +42,8 @@ if (params.get('mock')) {
     damageTaken: 3187,
     heroRuns: { warrior: 4, assassin: 5, mage: 3 },
     heroWins: { assassin: 2, warrior: 1 },
-    chests: 3,
-    collection: COLLECTIBLE_IDS.filter((_, i) => i % 3 === 0),
+    // Каждая третья запись; у артефактов открыты не все тиры — видно метки в углу плитки.
+    collection: COLLECTIBLES.filter((_, i) => i % 3 === 0).flatMap((c, i) => (c.tiers ? ART_TIERS.slice(0, (i % 3) + 1).map((t) => findKey(c.id, t)) : [c.id])),
     bestiary: ENEMY_LIST.filter((_, i) => i % 2 === 0).map((e) => e.id),
   });
   app.profile = loadProfile();
@@ -108,14 +108,12 @@ if (heroParam) {
     app.render();
   }
 } else {
-  // ?screen=select|collection|bestiary|chest — сразу нужный экран вне забега; &loc=crypt — вкладка бестиария
+  // ?screen=select|collection|bestiary — сразу нужный экран вне забега; &loc=crypt — вкладка бестиария
   const screen = params.get('screen');
   const locParam = params.get('loc');
   if (screen === 'select') app.showHeroSelect();
   else if (screen === 'collection') app.showCollection();
   else if (screen === 'bestiary') app.showBestiary(locParam && locParam in LOCATION_BY_ID ? (locParam as LocationId) : undefined);
-  else if (screen === 'chest') app.showChest();
-  else if (screen === 'spin') app.openChest();
 }
 
 // &sheet=1 — открыть оверлей «Персонаж», &pause=1 — паузу (на любом экране забега)

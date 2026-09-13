@@ -1,5 +1,5 @@
 import { button, h } from '../dom';
-import { COLLECTIBLES, type CollectibleKind } from '../../data/collection';
+import { ART_TIERS, COLLECTIBLES, foundState, type CollectibleKind } from '../../data/collection';
 import { collectibleTile } from '../components';
 import type { App } from '../app';
 
@@ -12,16 +12,19 @@ const SECTIONS: { kind: CollectibleKind; title: string }[] = [
 
 export function collectionScreen(app: App): HTMLElement {
   const have = new Set(app.profile.collection);
-  const found = COLLECTIBLES.filter((c) => have.has(c.id)).length;
+  const states = COLLECTIBLES.map((c) => ({ c, st: foundState(have, c) }));
+  const found = states.filter((s) => s.st.open).length;
 
   const sections = SECTIONS.map(({ kind, title }) => {
-    const items = COLLECTIBLES.filter((c) => c.kind === kind);
-    const open = items.filter((c) => have.has(c.id)).length;
+    const items = states.filter((s) => s.c.kind === kind);
+    const open = items.filter((s) => s.st.open).length;
+    // У артефактов тиры открываются по отдельности, поэтому в шапке раздела ещё и счётчик тиров.
+    const tiers = kind === 'artifact' ? ` · тиров ${items.reduce((n, s) => n + s.st.tiers.filter(Boolean).length, 0)}/${items.length * ART_TIERS.length}` : '';
     return h(
       'div',
       { class: 'coll-section' },
-      h('div', { class: 'coll-head' }, h('span', null, title), h('span', { class: 'dim' }, `${open}/${items.length}`)),
-      h('div', { class: 'coll-grid' }, ...items.map((c) => collectibleTile(c, !have.has(c.id)))),
+      h('div', { class: 'coll-head' }, h('span', null, title), h('span', { class: 'dim' }, `${open}/${items.length}${tiers}`)),
+      h('div', { class: 'coll-grid' }, ...items.map((s) => collectibleTile(s.c, s.st))),
     );
   });
 
@@ -33,14 +36,13 @@ export function collectionScreen(app: App): HTMLElement {
       { class: 'topbar' },
       button('← Меню', () => app.showMenu(), { class: 'small' }),
       h('span', { class: 'title-sm' }, 'Коллекция'),
-      h('span', { class: 'dim' }, `${found}/${COLLECTIBLES.length} найдено · сундуков: ${app.profile.chests}`),
+      h('span', { class: 'dim' }, `${found}/${COLLECTIBLES.length} найдено`),
     ),
     h('div', { class: 'coll-body' }, ...sections),
     h(
       'div',
       { class: 'coll-foot' },
-      app.profile.chests > 0 ? button(`Открыть сундук (${app.profile.chests})`, () => app.showChest(), { class: 'primary' }) : null,
-      h('span', { class: 'hint' }, 'Предметы находятся в сундуках за пройденные забеги. На сам забег коллекция не влияет.'),
+      h('span', { class: 'hint' }, 'Запись открывается, когда предмет достался герою в забеге. У артефакта открывается тот тир, каким он был у героя, — метки в углу плитки. На сам забег коллекция не влияет.'),
     ),
   );
 }

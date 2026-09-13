@@ -1,6 +1,4 @@
-import type { GearKind } from '../engine/types';
-import type { Rng } from '../engine/rng';
-import { pick } from '../engine/rng';
+import type { ArtTier, GearKind, HeroPersistent } from '../engine/types';
 import { ARTIFACT_IDS, artifactCostText, artifactDef } from './artifacts';
 import { POTION_IDS, potionDef } from './potions';
 import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, HEFT_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseArmorStats, baseDamage, baseTitle, dropBases, gearBases, weaponTypeText } from './gear';
@@ -8,7 +6,8 @@ import { HERO_LIST, SIGNATURE_OWNER, heroDef } from './heroes';
 
 /**
  * Каталог всего, что встречается в приключениях: артефакты, базы экипировки и зелья.
- * Коллекция — альбом находок, на сам забег она не влияет.
+ * Коллекция — альбом находок: запись открывается тем, что герой держал в руках в забеге (см. loadoutFinds),
+ * артефакт — отдельно по каждому тиру. На сам забег коллекция не влияет.
  */
 
 export type CollectibleKind = 'artifact' | 'weapon' | 'armor' | 'potion';
@@ -22,9 +21,14 @@ export interface Collectible {
   color: string;
   /** Подпись под названием. */
   sub: string;
-  /** Что предмет делает — для карточки в коллекции. */
+  /** Что предмет делает — для подсказки в коллекции. У артефакта пусто: его описание разложено по тирам. */
   desc: string;
+  /** Описания по тирам 1–3 (только артефакты): каждый тир открывается отдельно. */
+  tiers?: string[];
 }
+
+/** Тиры артефакта: открываются по отдельности, в том виде, в каком артефакт был у героя. */
+export const ART_TIERS: ArtTier[] = [1, 2, 3];
 
 const KIND_COLORS: Record<CollectibleKind, string> = {
   artifact: '#c77dff',
@@ -64,7 +68,8 @@ function artifactEntry(id: string): Collectible {
     glyph: def.glyph,
     color: KIND_COLORS.artifact,
     sub: `Артефакт · ${school}${cost}${SIGNATURE_OWNER[id] ? ` · персональный: ${heroDef(SIGNATURE_OWNER[id]).name}` : ''}`,
-    desc: `Тир 1: ${def.describe(1)}\nТир 2: ${def.describe(2)}\nТир 3: ${def.describe(3)}`,
+    desc: '',
+    tiers: ART_TIERS.map((t) => def.describe(t)),
   };
 }
 
@@ -119,25 +124,59 @@ export function collectible(id: string): Collectible | null {
   return BY_ID[id] ?? null;
 }
 
-/** Ещё не найденные предметы. */
-export function lockedIds(unlocked: readonly string[]): string[] {
-  const have = new Set(unlocked);
-  return COLLECTIBLE_IDS.filter((id) => !have.has(id));
+// ─── Находки: что профиль помнит о забегах ─────────────────────────────────
+
+/** Ключ находки в профиле: артефакт запоминается вместе с тиром («art:fireball@2»), остальное — целиком. */
+export function findKey(id: string, tier?: ArtTier): string {
+  return tier ? `${id}@${tier}` : id;
 }
 
-/** Приз из сундука: равномерно из ненайденного. Всё собрано — null. */
-export function rollCollectible(rng: Rng, unlocked: readonly string[]): string | null {
-  const pool = lockedIds(unlocked);
-  return pool.length ? pick(rng, pool) : null;
+/**
+ * Что герой держит в руках прямо сейчас — ключи находок для коллекции: обе базы экипировки,
+ * артефакты в их сокетах со своими тирами и зелье в слоте. Стартовое снаряжение считается наравне с добытым.
+ * Проверка через каталог: «Шкура» Берсерка в него не входит (startOnly) и записи не открывает.
+ */
+export function loadoutFinds(hero: HeroPersistent): string[] {
+  const keys: string[] = [];
+  const add = (id: string, tier?: ArtTier) => {
+    if (BY_ID[id]) keys.push(findKey(id, tier));
+  };
+  for (const gear of [hero.weapon, hero.armor]) {
+    add(`${gear.kind}:${gear.base}`);
+    for (const slot of gear.slots) if (slot) add(`art:${slot.id}`, slot.tier);
+  }
+  if (hero.potion) add(`potion:${hero.potion}`);
+  return keys;
 }
 
-/** Длина ленты сундука и место приза: приз стоит далеко, чтобы лента успела разогнаться. */
-export const STRIP_LEN = 44;
-export const PRIZE_INDEX = 38;
+/** Что открыто в записи: сама запись и найденные тиры (у артефакта — три флага, у остальных пусто). */
+export interface FoundState {
+  open: boolean;
+  tiers: boolean[];
+}
 
-/** Лента случайных предметов, где на фиксированном месте стоит выигрыш. */
-export function buildChestStrip(rng: Rng, prize: string): string[] {
-  const strip = Array.from({ length: STRIP_LEN }, () => pick(rng, COLLECTIBLE_IDS));
-  strip[PRIZE_INDEX] = prize;
-  return strip;
+export function foundState(found: ReadonlySet<string>, c: Collectible): FoundState {
+  if (!c.tiers) return { open: found.has(c.id), tiers: [] };
+  const tiers = ART_TIERS.map((t) => found.has(findKey(c.id, t)));
+  return { open: tiers.some(Boolean), tiers };
+}
+
+/** Строки записи для подсказки: у артефакта закрытые тиры спрятаны за «???». */
+export function collectibleLines(c: Collectible, st: FoundState): string[] {
+  const lines = c.desc ? c.desc.split('\n') : [];
+  c.tiers?.forEach((text, i) => lines.push(`Тир ${i + 1}: ${st.tiers[i] ? text : '???'}`));
+  return lines;
+}
+
+/**
+ * Старый профиль: сундук за забег открывал запись артефакта целиком, без тиров.
+ * Такие ключи (без «@») раскладываем на все три тира, чтобы собранное до v0.25 не закрылось обратно.
+ */
+export function migrateFinds(keys: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const key of keys) {
+    const art = key.startsWith('art:') && !key.includes('@') ? ART_TIERS.map((t) => findKey(key, t)) : [key];
+    for (const k of art) if (!out.includes(k)) out.push(k);
+  }
+  return out;
 }
