@@ -30,10 +30,10 @@ describe('артефакты и слоты', () => {
     expect(HERO_LIST.filter((d) => artifactDef(d.signature).slot === 'armor').map((d) => d.id)).toEqual(['assassin']);
   });
 
-  it('типы артефактов: 28 оружейных и 24 бронных, у каждого тип задан', () => {
+  it('типы артефактов: 27 оружейных и 25 бронных, у каждого тип задан', () => {
     const ids = Object.keys(ARTIFACTS);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(28);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(24);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(27);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(25);
   });
 
   it('сокет своего типа не принимает чужой артефакт, универсальный принимает любой', () => {
