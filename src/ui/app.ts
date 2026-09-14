@@ -6,6 +6,7 @@ import { enemyDef } from '../data/enemies';
 import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
 import { clearRun, loadProfile, loadRun, recordEnemies, recordFinds, recordResult, saveRun, type Profile } from './save';
 import { reportRun } from './telemetry';
+import type { RunReportEvent } from '../engine/report';
 import { loadoutFinds } from '../data/collection';
 import { HERO_LIST } from '../data/heroes';
 import { menuScreen } from './screens/menu';
@@ -110,6 +111,7 @@ export class App {
   }
 
   render(): void {
+    this.noteOutcome();
     this.noteEnemies();
     this.noteFinds();
     // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
@@ -251,14 +253,43 @@ export class App {
     this.render();
   }
 
+  /**
+   * Одна запись о забеге в статистику: отметка `run.reported` лежит в самом забеге и переживает перезагрузку,
+   * поэтому гибель, отправленная в момент падения героя, не уйдёт второй раз по кнопке «К итогам».
+   */
+  private report(event: RunReportEvent): void {
+    const run = this.run;
+    if (!run || run.reported) return;
+    run.reported = true;
+    // Забег ещё в сохранении (гибель до кнопки «К итогам») — отметку надо сохранить вместе с ним.
+    if (!R.isRunOver(run)) saveRun(run);
+    reportRun(run, event, this.profile);
+  }
+
+  /**
+   * Исход уходит в статистику в тот момент, когда он решён, а не когда игрок дощёлкал до экрана итогов: герой пал —
+   * запись уже в пути. Раньше гибель отправлял только `finishBattle`, и закрытая на плашке «Герой пал» вкладка
+   * (или уход в меню) не оставляли о забеге ни строчки. Вызывается из render(), отметка держит одну запись на забег.
+   */
+  private noteOutcome(): void {
+    const run = this.run;
+    if (!run || run.reported) return;
+    if (run.phase === 'victory') this.report('victory');
+    else if (run.phase === 'defeat' || run.battle?.phase === 'lost') {
+      // Время забега тоже останавливается здесь: на плашке гибели часы уже не идут.
+      run.stats.finishedAt = run.stats.finishedAt || Date.now();
+      this.report('defeat');
+    }
+  }
+
   /** Забег закончился — записать результат, снести сохранение. */
   private afterPhaseChange(): void {
     if (this.run && R.isRunOver(this.run)) {
       if (!this.resultRecorded) {
         this.resultRecorded = true;
-        this.run.stats.finishedAt = Date.now();
+        this.run.stats.finishedAt = this.run.stats.finishedAt || Date.now();
         // Статистика уходит до записи в профиль: в ней число законченных забегов игрока «до этого».
-        reportRun(this.run, this.run.phase === 'victory' ? 'victory' : 'defeat', this.profile);
+        this.report(this.run.phase === 'victory' ? 'victory' : 'defeat');
         this.profile = recordResult(this.run);
       }
       clearRun();
@@ -342,7 +373,10 @@ export class App {
 
   /** Незаконченный забег уходит в статистику как брошенный — перед тем как его заменят новым или сотрут. */
   private dropRun(): void {
-    if (this.run && !R.isRunOver(this.run)) reportRun(this.run, 'abandoned', this.profile);
+    const run = this.run;
+    if (!run || R.isRunOver(run)) return;
+    // Герой пал, но игрок ушёл в меню, не нажав «К итогам»: это гибель, а не брошенный забег (обычно уже отправлена).
+    this.report(run.battle?.phase === 'lost' ? 'defeat' : 'abandoned');
   }
 
   // ─── Комнаты ─────────────────────────────────────────────────────────────
