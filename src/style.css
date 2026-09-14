@@ -2561,10 +2561,15 @@ p {
   gap: 4px;
   flex: none;
 }
-.gs-tab {
+/* Шесть вкладок в 460 px: тоньше рамка и тень, узкие поля — .btn.small перебиваем по специфичности. */
+.gs-tabs .btn.gs-tab {
   flex: 1;
-  padding: 2px 4px;
-  font-size: 15px;
+  min-width: 0;
+  padding: 2px 2px;
+  font-size: 14px;
+  border-width: 2px;
+  box-shadow: 2px 2px 0 #000;
+  white-space: nowrap;
 }
 .gs-tab.selected {
   border-color: var(--accent);
