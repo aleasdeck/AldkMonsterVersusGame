@@ -100,6 +100,8 @@ function collectRuns_() {
 
 function sheet_() {
   const ss = SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
+  // Отдельный проект без id таблицы: getActiveSpreadsheet() отдаёт null — объясняем, а не падаем на getSheetByName.
+  if (!ss) throw new Error('скрипт не привязан к таблице: впишите id таблицы в SPREADSHEET_ID (docs.google.com/spreadsheets/d/<id>/edit) или перенесите код в Apps Script самой таблицы');
   return ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
 }
 
