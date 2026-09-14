@@ -97,6 +97,111 @@ function forgeCards(app: App): HTMLElement[] {
   });
 }
 
+/** Итог боя с вором: удрал с кошельком — сухая сводка потери; убит — золото и, если повезло, артефакт из мешка. */
+function gnomeCards(app: App, ev: EventState & { kind: 'gnome' }): HTMLElement[] {
+  const run = app.run!;
+  if (ev.result === 'fled') {
+    return [
+      h(
+        'div',
+        { class: 'card event-card' },
+        h('div', { class: 'glyph big' }, '➜'),
+        h('div', { class: 'card-name' }, 'Только пятки сверкали'),
+        h(
+          'div',
+          { class: 'card-desc' },
+          ev.gold > 0 ? h('span', null, `Гном унёс ${ev.gold} `, coin(), `, осталось ${run.gold}.`) : 'Красть было нечего: кошель и так пуст.',
+        ),
+        h('div', { class: 'note' }, ...markKeywords('Бей раньше: каждый срезанный кошель тянет вора вниз и сбивает ему уворот, а раны бьют мимо уворота.')),
+      ),
+    ];
+  }
+  const art = ev.artifact;
+  const def = art ? artifactDef(art.id) : null;
+  const loot =
+    art && def
+      ? h(
+          'div',
+          { class: 'event-loot' },
+          h('div', { class: 'slots' }, artifactChip(art)),
+          h('div', { class: 'card-sub' }, def.name),
+          h('div', { class: 'note' }, ...markKeywords(def.describe(art.tier))),
+        )
+      : h('div', { class: 'note' }, 'Кроме монет в мешке ничего не нашлось.');
+  const card = h(
+    'div',
+    { class: 'card event-card' },
+    h('div', { class: 'glyph big' }, '⛁'),
+    h('div', { class: 'card-name' }, 'Мешок вора'),
+    h('div', { class: 'card-desc' }, h('span', null, `Отбито и добыто: ${ev.gold} `, coin(), ` (всего ${run.gold}).`)),
+    loot,
+    art ? h('div', { class: 'card-foot' }, button('Забрать артефакт', () => app.gnomeTakeLoot(), { class: 'primary', disabled: !!run.pending })) : null,
+  );
+  return [art && !run.pending ? pickable(card, () => app.gnomeTakeLoot()) : card];
+}
+
+/** Итог боя с вещекрадом: удрал — вещь вырвана из сокета навсегда; убит — она осталась при герое. */
+function snatcherCards(app: App, ev: EventState & { kind: 'gnome_art' }): HTMLElement[] {
+  const run = app.run!;
+  const art = ev.artifact;
+  const def = art ? artifactDef(art.id) : null;
+  const lost = ev.result === 'fled';
+  const loot =
+    art && def
+      ? h(
+          'div',
+          { class: 'event-loot' },
+          h('div', { class: 'slots' }, artifactChip(art)),
+          h('div', { class: 'card-sub' }, def.name),
+          h('div', { class: 'note' }, ...markKeywords(def.describe(art.tier))),
+        )
+      : h('div', { class: 'note' }, lost ? 'Красть было нечего: сокеты пусты.' : 'Вор ушёл ни с чем — брать у героя было нечего.');
+  const found = ev.loot;
+  const foundDef = found ? artifactDef(found.id) : null;
+  const lootCard =
+    found && foundDef
+      ? h(
+          'div',
+          { class: 'card event-card' },
+          h('div', { class: 'glyph big' }, '⛁'),
+          h('div', { class: 'card-name' }, 'Чужое добро'),
+          h('div', { class: 'card-desc' }, 'В мешке нашлась вещь с прошлых жертв.'),
+          h(
+            'div',
+            { class: 'event-loot' },
+            h('div', { class: 'slots' }, artifactChip(found)),
+            h('div', { class: 'card-sub' }, foundDef.name),
+            h('div', { class: 'note' }, ...markKeywords(foundDef.describe(found.tier))),
+          ),
+          h('div', { class: 'card-foot' }, button('Забрать артефакт', () => app.gnomeTakeLoot(), { class: 'primary', disabled: !!run.pending })),
+        )
+      : null;
+  return [
+    h(
+      'div',
+      { class: 'card event-card' },
+      h('div', { class: 'glyph big' }, lost ? '➜' : '⛨'),
+      h('div', { class: 'card-name' }, lost ? (art ? 'Вещь уплыла' : 'Только пятки сверкали') : art ? 'Вещь при герое' : 'Вор ушёл ни с чем'),
+      h(
+        'div',
+        { class: 'card-desc' },
+        lost && art
+          ? 'Сокет опустел: артефакт ушёл с вором навсегда.'
+          : art
+            ? 'Мешок вспорот, артефакт вернулся в свой сокет.'
+            : ev.gold > 0
+              ? h('span', null, `За труды нашлось ${ev.gold} `, coin(), ` (всего ${run.gold}).`)
+              : 'Ни вещей, ни монет.',
+      ),
+      loot,
+      lost
+        ? h('div', { class: 'note' }, ...markKeywords('Вещекрад тянет вещь первым же ходом и удирает на пятом: раны бьют мимо уворота, а после кражи он и сам становится медленнее.'))
+        : null,
+    ),
+    lootCard,
+  ].filter((el): el is HTMLElement => el !== null);
+}
+
 export function eventScreen(app: App): HTMLElement {
   const run = app.run!;
   const loc = currentLocation(run);
@@ -112,13 +217,29 @@ export function eventScreen(app: App): HTMLElement {
   } else if (ev?.kind === 'forge') {
     cards = forgeCards(app);
     head = HEADS.forge;
+  } else if (ev?.kind === 'gnome_art') {
+    cards = snatcherCards(app, ev);
+    head =
+      ev.result === 'fled'
+        ? ['Вор ушёл', 'Гном-вещекрад удрал вместе с добычей.']
+        : ['Вор повержен', 'Гном-вещекрад больше ни у кого ничего не стянет.'];
+  } else if (ev?.kind === 'gnome') {
+    cards = gnomeCards(app, ev);
+    head =
+      ev.result === 'fled'
+        ? ['Вор ушёл', 'Гном-деньгокрад удрал вместе с добычей.']
+        : ['Вор повержен', 'Гном-деньгокрад больше никого не обчистит.'];
   }
   const center = h(
     'div',
     { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
     h('div', { class: 'title-row' }, h('h2', null, head[0]), h('p', { class: 'dim' }, head[1])),
     h('div', { class: `cards ${cards.length === 1 ? 'single' : ''}` }, ...cards),
-    h('div', { class: 'row' }, button(ev?.kind === 'chest' ? 'Оставить' : 'Уйти', () => app.leaveEvent(), { disabled: !!run.pending })),
+    h(
+      'div',
+      { class: 'row' },
+      button(ev?.kind === 'chest' ? 'Оставить' : ev?.kind === 'gnome' || ev?.kind === 'gnome_art' ? 'Дальше' : 'Уйти', () => app.leaveEvent(), { disabled: !!run.pending }),
+    ),
   );
   return runFrame(app, { cls: `event event-${ev?.kind ?? 'none'}`, center, mid: hubGear(app), overlays: [pendingModal(app)] });
 }

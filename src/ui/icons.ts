@@ -144,6 +144,16 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '.#.##.#.',
     '..####..',
   ],
+  evade: [
+    '........',
+    '..##....',
+    '.##.##..',
+    '##...##.',
+    '.....##.',
+    '...####.',
+    '..##....',
+    '........',
+  ],
 };
 
 export const STATUS_COLORS: Record<StatusId, string> = {
@@ -154,6 +164,7 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   stun: '#e0e0e0',
   exhaust: '#b388ff',
   dodge: '#ffd166',
+  evade: '#7ddc5a',
   thorns: '#c0c0c0',
   regen: '#80ed99',
   invuln: '#ffd166',
