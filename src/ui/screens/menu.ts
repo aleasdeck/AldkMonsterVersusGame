@@ -66,6 +66,7 @@ export function menuScreen(app: App): HTMLElement {
         button('Новый забег', () => app.showHeroSelect(), { class: hasSave ? 'big' : 'primary big' }),
         button('Коллекция', () => app.showCollection(), { class: 'big' }),
         button('Бестиарий', () => app.showBestiary(), { class: 'big' }),
+        button('Статистика', () => app.showStats(), { class: 'big' }),
       ),
       p.runs ? statsPanel(p) : h('div', { class: 'menu-stats empty dim' }, 'Ещё ни одного забега.\nВсё, что достанется герою в забеге, открывается в коллекции.'),
     ),

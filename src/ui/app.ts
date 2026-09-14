@@ -5,7 +5,7 @@ import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/co
 import { enemyDef } from '../data/enemies';
 import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
 import { clearRun, loadProfile, loadRun, recordEnemies, recordFinds, recordResult, saveRun, type Profile } from './save';
-import { reportRun } from './telemetry';
+import { fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
 import { loadoutFinds } from '../data/collection';
 import { HERO_LIST } from '../data/heroes';
@@ -20,6 +20,8 @@ import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
 import { bestiaryScreen } from './screens/bestiary';
+import { statsScreen } from './screens/stats';
+import type { RunsFeed } from '../engine/globalStats';
 import { hideTooltip, installTooltips } from './tooltip';
 import { formatClock } from './topbar';
 import { heroSheet } from './screens/heroSheet';
@@ -39,7 +41,7 @@ const SETTLE_MS = 400;
 export class App {
   root: HTMLElement;
   run: RunState | null = null;
-  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'bestiary' = 'menu';
+  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'bestiary' | 'stats' = 'menu';
   /**
    * Выбранный приём в бою (v0.26): 'attack' или id артефакта; null — не выбран. Сначала приём, потом цель: клик по врагу
    * применяет его. Гибрид: приём остаётся выбранным, пока его можно применить, в начале хода не выбрано ничего.
@@ -63,6 +65,11 @@ export class App {
   /** Вкладка-локация и выбранная запись в бестиарии. */
   bestiaryLoc: LocationId = 'forest';
   bestiaryPick: string | null = null;
+  /** Экран «Статистика»: ответ таблицы (null — не загружен), идёт ли загрузка, текст ошибки. `&mock=1` подсовывает демо-ответ. */
+  statsFeed: RunsFeed | null = null;
+  statsLoading = false;
+  statsError: string | null = null;
+  statsMock: RunsFeed | null = null;
   private stepTimer: number | null = null;
   /** Снаряд героя в полёте: перерисовка и числа ждут попадания, новые действия не принимаются. */
   private fxTimer: number | null = null;
@@ -127,6 +134,7 @@ export class App {
     if (this.screen === 'heroSelect') el = heroSelectScreen(this);
     else if (this.screen === 'collection') el = collectionScreen(this);
     else if (this.screen === 'bestiary') el = bestiaryScreen(this);
+    else if (this.screen === 'stats') el = statsScreen(this);
     else if (this.screen === 'menu' || !this.run) el = menuScreen(this);
     else {
       switch (this.run.phase) {
@@ -327,6 +335,29 @@ export class App {
 
   showCollection(): void {
     this.screen = 'collection';
+    this.render();
+  }
+
+  /** Открыть статистику и подтянуть общую: из кэша сразу, иначе — запрос, экран перерисуется по ответу. `force` — мимо кэша. */
+  showStats(force = false): void {
+    this.screen = 'stats';
+    if (this.statsMock) this.statsFeed = this.statsMock;
+    else if ((!this.statsFeed || force) && !this.statsLoading) {
+      this.statsLoading = true;
+      this.statsError = null;
+      fetchRuns(force)
+        .then((feed) => {
+          this.statsFeed = feed;
+        })
+        .catch((err: unknown) => {
+          this.statsFeed = null;
+          this.statsError = `Не удалось загрузить: ${err instanceof Error ? err.message : String(err)}`;
+        })
+        .finally(() => {
+          this.statsLoading = false;
+          if (this.screen === 'stats') this.render();
+        });
+    }
     this.render();
   }
 
