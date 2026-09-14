@@ -168,15 +168,16 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Chil
   return h(
     'div',
     { class: `card art-card ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''}`, style: `border-color:${color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, def.glyph), h('span', { class: 'card-name' }, def.name)),
-    // Тир не пишем: его показывает цвет рамки и подписи. Персональный — с пометкой, чей.
     h(
       'div',
-      { class: 'card-sub', style: `color:${color}` },
-      `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''} · `,
-      // Тип сокета — только значком, словами — в подсказке (решение пользователя).
-      h('span', { class: `slot-kind k-${def.slot}`, tip: `${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет` }, SLOT_KIND_GLYPH[def.slot]),
+      { class: 'card-head' },
+      h('span', { class: 'glyph' }, def.glyph),
+      h('span', { class: 'card-name' }, def.name),
+      // Тип сокета — значком в правом верхнем углу, как тип оружия и брони у экипировки; словами — в подсказке (решение пользователя).
+      h('span', { class: `wtype-icon slot-kind k-${def.slot}`, tip: `${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет` }, SLOT_KIND_GLYPH[def.slot]),
     ),
+    // Тир не пишем: его показывает цвет рамки и подписи. Персональный — с пометкой, чей.
+    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''}`),
     h('div', { class: 'card-desc' }, ...markKeywords(def.describe(inst.tier))),
     def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
     note ?? null,

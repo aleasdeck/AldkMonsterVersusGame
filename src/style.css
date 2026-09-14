@@ -798,8 +798,9 @@ p {
 .gear-card {
   max-width: none;
 }
-/* Иконка типа в шапке карточки экипировки — у правого края. Тир — цветом рамки и в подсказке к имени. */
-.gear-card .card-head .wtype-icon {
+/* Иконка типа в шапке карточки экипировки и типа сокета у артефакта — у правого края. Тир — цветом рамки и в подсказке к имени. */
+.gear-card .card-head .wtype-icon,
+.art-card .card-head .wtype-icon {
   margin-left: auto;
   font-size: 18px;
   flex: none;
