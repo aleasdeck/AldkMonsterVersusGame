@@ -312,7 +312,8 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     rest = Math.round(rest * VULNERABLE_MULT);
     detail.vuln = rest;
   }
-  if ((kind === 'hit' && !opts.pierce) || kind === 'spell') {
+  // Шипы — такой же физический ответ, как удар: блок их держит (v0.30.1). Раны (dot) блок не трогает.
+  if ((kind === 'hit' && !opts.pierce) || kind === 'spell' || kind === 'thorns') {
     const b = Math.min(e.block, rest);
     e.block -= b;
     rest -= b;
@@ -369,6 +370,13 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
       rest -= b;
       d.blocked = b;
     }
+  }
+  // Шипы врага тоже упираются в блок героя, но мимо уклонения, уязвимости и колец кольчуги.
+  if (kind === 'thorns') {
+    const b = Math.min(h.block, rest);
+    h.block -= b;
+    rest -= b;
+    d.blocked = b;
   }
   h.hp -= rest;
   state.stats.damageTaken += rest;
@@ -607,6 +615,8 @@ interface StrikeOpts {
   sureCrit?: boolean;
   /** Одиночный удар: сквозной урон копья уходит следующему врагу. */
   single?: boolean;
+  /** Своя доля сквозного урона у приёма: берётся большая из неё и splash оружия, чтобы копьё и щит не складывались. */
+  splash?: number;
   /** Начало строки лога: «Герой бьёт» у базовой атаки, имя приёма у артефакта. */
   label?: string;
 }
@@ -638,10 +648,11 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     log(state, `Азарт: шанс крита +${Math.round(h.stats.critRamp * 100)} % (всего +${Math.round(h.critStack * 100)} %)`);
   }
   if (h.stats.blockOnHit > 0) gainBlock(state, h, 'hero', h.stats.blockOnHit, 'перк оружия');
-  if (opts.single && h.stats.splash > 0 && dmg > 0) {
+  const splash = Math.max(h.stats.splash, opts.splash ?? 0);
+  if (opts.single && splash > 0 && dmg > 0) {
     const next = state.enemies.find((x) => x.uid !== e.uid && x.hp > 0);
     if (next) {
-      const part = Math.floor(dmg * h.stats.splash);
+      const part = Math.floor(dmg * splash);
       if (part > 0) {
         log(state, `Сквозной удар по ${next.name}: ${part}`);
         damageEnemy(state, next, part, 'hit', { pierce: h.stats.pierceBlock > 0, noThorns: true, rng });
@@ -745,7 +756,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'attack': {
       let swung = 0;
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy', label: 'Удар по' });
+        const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, splash: eff.splashPct, single: eff.target === 'enemy', label: 'Удар по' });
         swung += dmg;
       }
       // Щитовой удар: блок — доля урона замаха, а не того, что дошло до HP: блок и уклонение врага щит не отменяют.
