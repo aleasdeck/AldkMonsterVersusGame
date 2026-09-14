@@ -37,6 +37,13 @@ function spotList(title: string, spots: SpotSummary[], empty: string): HTMLEleme
   );
 }
 
+/** Блок урона: всего и в среднем за законченный забег — в обеих колонках одинаково. */
+function damageBlock(dealt: number, taken: number, runs: number): HTMLElement {
+  const line = (name: string, total: number) =>
+    h('div', { class: 'gs-spot' }, h('span', { class: 'gs-spot-label' }, name), h('span', { class: 'gs-num' }, `${total}`, h('span', { class: 'dim' }, runs ? ` · ${Math.round(total / runs)} за забег` : '')));
+  return h('div', { class: 'gs-block' }, h('div', { class: 'coll-head' }, h('span', null, 'Урон')), h('div', { class: 'gs-spots' }, line('Нанесено', dealt), line('Получено', taken)));
+}
+
 function everyone(app: App): HTMLElement {
   const head = h('div', { class: 'coll-head' }, h('span', null, 'Все игроки'), h('span', { class: 'dim' }, app.statsFeed ? `${app.statsFeed.rows.length} записей` : ''));
   if (app.statsLoading) return h('div', { class: 'gs-panel' }, head, h('div', { class: 'dim' }, 'Загружаем…'));
@@ -60,6 +67,7 @@ function everyone(app: App): HTMLElement {
     head,
     heroTable(s.heroes, s),
     h('div', { class: 'gs-note dim' }, `${avg}${s.abandoned ? ` · брошено ${s.abandoned}` : ''}`),
+    damageBlock(s.damageDealt, s.damageTaken, s.runs),
     spotList('Где гибнут', s.deathSpots, 'Гибелей ещё не было.'),
     spotList('Кто убивает', s.killers, 'Гибелей ещё не было.'),
   );
@@ -73,6 +81,7 @@ function mine(app: App): HTMLElement {
     { class: 'gs-panel' },
     h('div', { class: 'coll-head' }, h('span', null, 'Ты'), h('span', { class: 'dim' }, p.runs ? `${p.runs} забегов` : '')),
     p.runs ? heroTable(rows, { runs: p.runs, wins: p.victories }) : h('div', { class: 'dim' }, 'Ещё ни одного забега.'),
+    p.runs ? damageBlock(p.damageDealt, p.damageTaken, p.runs) : null,
     h('div', { class: 'gs-note dim' }, `Доля считается от ${MIN_RUNS_FOR_RATE} забегов героем. Брошенные забеги не считаются ни у кого.`),
   );
 }

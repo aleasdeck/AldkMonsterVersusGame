@@ -173,7 +173,7 @@ function mockRuns(): RunsFeed {
     const event = r < 0.3 ? 'victory' : r < 0.9 ? 'defeat' : 'abandoned';
     const act = event === 'victory' ? 3 : 1 + Math.floor(next(rng) * 3);
     const room = event === 'victory' ? 10 : next(rng) < 0.5 ? 10 : 1 + Math.floor(next(rng) * 9);
-    rows.push([new Date().toISOString(), event, hero, act, locs[Math.floor(next(rng) * locs.length)], room, 30 + Math.floor(next(rng) * 60), 400 + Math.floor(next(rng) * 900), killers[Math.floor(next(rng) * killers.length)]]);
+    rows.push([new Date().toISOString(), event, hero, act, locs[Math.floor(next(rng) * locs.length)], room, 30 + Math.floor(next(rng) * 60), 400 + Math.floor(next(rng) * 900), killers[Math.floor(next(rng) * killers.length)], 200 + Math.floor(next(rng) * 600), 150 + Math.floor(next(rng) * 400)]);
   }
-  return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle'], rows };
+  return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken'], rows };
 }

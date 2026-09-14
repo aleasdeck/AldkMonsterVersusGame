@@ -34,6 +34,9 @@ export interface GlobalSummary {
   /** Клетки и убийцы по числу гибелей, самые частые первыми. */
   deathSpots: SpotSummary[];
   killers: SpotSummary[];
+  /** Урон за все законченные забеги: нанесённый героями и полученный ими. */
+  damageDealt: number;
+  damageTaken: number;
 }
 
 export interface SummarizeOpts {
@@ -75,6 +78,8 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
   const cAct = col(feed, 'act');
   const cRoom = col(feed, 'room');
   const cLast = col(feed, 'lastBattle');
+  const cDealt = col(feed, 'damageDealt');
+  const cTaken = col(feed, 'damageTaken');
   const top = opts.top ?? 5;
   const heroes = new Map<string, HeroSummary>(opts.heroes.map((id) => [id, { hero: id, runs: 0, wins: 0 }]));
   let runs = 0;
@@ -82,6 +87,8 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
   let abandoned = 0;
   let winSeconds = 0;
   let winTurns = 0;
+  let dealt = 0;
+  let taken = 0;
   const spots = new Map<string, number>();
   const killers = new Map<string, number>();
   for (const row of feed.rows) {
@@ -92,6 +99,8 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
     }
     if (event !== 'victory' && event !== 'defeat') continue;
     runs += 1;
+    if (cDealt >= 0) dealt += num(row[cDealt]);
+    if (cTaken >= 0) taken += num(row[cTaken]);
     const hero = cHero >= 0 ? str(row[cHero]) : '';
     const h = heroes.get(hero);
     if (h) h.runs += 1;
@@ -123,6 +132,8 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
     winTurns: wins ? Math.round(winTurns / wins) : 0,
     deathSpots: topOf(spots, deaths, top),
     killers: topOf(killers, deaths, top),
+    damageDealt: dealt,
+    damageTaken: taken,
   };
 }
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { durationText, summarize, type RunsFeed } from '../src/engine/globalStats';
 
-const KEYS = ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle'];
-const row = (event: string, hero: string, act = 1, location = 'forest', room = 10, turns = 40, duration = 600, last = 'Вожак стаи') => [
+const KEYS = ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken'];
+const row = (event: string, hero: string, act = 1, location = 'forest', room = 10, turns = 40, duration = 600, last = 'Вожак стаи', dealt = 100, taken = 50) => [
   '2026-09-14T10:00:00Z',
   event,
   hero,
@@ -12,6 +12,8 @@ const row = (event: string, hero: string, act = 1, location = 'forest', room = 1
   turns,
   duration,
   last,
+  dealt,
+  taken,
 ];
 
 const HEROES = ['warrior', 'mage', 'assassin'];
@@ -41,6 +43,9 @@ describe('общая статистика (globalStats.ts)', () => {
     // Средний победный: (900 + 700) / 2 секунд, (60 + 40) / 2 ходов.
     expect(s.winDuration).toBe(800);
     expect(s.winTurns).toBe(50);
+    // Урон — по четырём законченным забегам, брошенный не считается.
+    expect(s.damageDealt).toBe(400);
+    expect(s.damageTaken).toBe(200);
   });
 
   it('гибели: клетки с именем локации и убийцы, самые частые первыми, доля от гибелей', () => {
