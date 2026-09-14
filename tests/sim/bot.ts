@@ -450,6 +450,11 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
     v += (m.onKillHeal ?? 0) * 3;
     v += (m.blockStart ?? 0) * 1.5;
     v += (m.markOnHit ?? 0) * avg * 0.3;
+    // Бронные пассивки v0.31.1: единица с каждого удара — около двух ударов за ход врага; промах первой атаки — средний удар врага.
+    v += (m.hitReduce ?? 0) * 5;
+    v += (m.defendBonus ?? 0) * 2.5;
+    v += (m.blockKeep ?? 0) * 1.5;
+    v += (m.dodgeStart ?? 0) * 5;
     return v;
   }
   const cost = artifactCost(def, inst.tier);

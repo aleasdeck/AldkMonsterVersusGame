@@ -172,6 +172,43 @@ const list: ArtifactDef[] = [
     mods: (tier) => ({ markOnHit: t(1, 2, 2)(tier) }),
     describe: (tier) => `Первый удар героя в ходу вешает Уязвимость на ${t(1, 2, 2)(tier)} ход(а)`,
   },
+  // Четыре бронные пассивки v0.31.1 — на статах перков брони (Кольца, Стойкость, Панцирь, Тень), чтобы выровнять 28/19 после типов сокетов.
+  {
+    id: 'stone_hide',
+    name: 'Каменная кожа',
+    glyph: '▣',
+    kind: 'passive',
+    slot: 'armor',
+    mods: (tier) => ({ hitReduce: t(1, 1, 2)(tier) }),
+    describe: (tier) => `Каждый удар по герою слабее на ${t(1, 1, 2)(tier)}`,
+  },
+  {
+    id: 'steadfast_seal',
+    name: 'Печать стойкости',
+    glyph: '⛉',
+    kind: 'passive',
+    slot: 'armor',
+    mods: (tier) => ({ defendBonus: t(2, 3, 4)(tier) }),
+    describe: (tier) => `«Защититься» даёт +${t(2, 3, 4)(tier)} Блока`,
+  },
+  {
+    id: 'carapace_charm',
+    name: 'Оберег панциря',
+    glyph: '◍',
+    kind: 'passive',
+    slot: 'armor',
+    mods: (tier) => ({ blockKeep: t(2, 3, 4)(tier) }),
+    describe: (tier) => `До ${t(2, 3, 4)(tier)} Блока не сгорает в начале хода`,
+  },
+  {
+    id: 'evasion_amulet',
+    name: 'Амулет уклонения',
+    glyph: '⤨',
+    kind: 'passive',
+    slot: 'armor',
+    mods: (tier) => ({ dodgeStart: t(1, 1, 2)(tier) }),
+    describe: (tier) => (t(1, 1, 2)(tier) === 1 ? 'Первая атака врага в бою промахивается' : 'Первые 2 атаки врага в бою промахиваются'),
+  },
   // ─── Активные физические (STA) ───────────────────────────────────────────
   {
     id: 'heavy_strike',
@@ -452,6 +489,23 @@ const list: ArtifactDef[] = [
       { type: 'status', target: 'self', status: 'exhaust', value: 1, turns: 2 },
     ],
     describe: (tier) => `+${t(1, 1, 2)(tier)} STA сейчас, Изнурение 1 на следующем ходу. КД 3`,
+  },
+  {
+    id: 'deaf_defense',
+    name: 'Глухая оборона',
+    glyph: '▩',
+    kind: 'active',
+    slot: 'armor',
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 2,
+    target: 'self',
+    // Физический аналог Магического щита для героев без маны (v0.31.1); снимает только то, что мешает обороняться.
+    effects: (tier) => [
+      { type: 'block', amount: t(3, 5, 7)(tier) },
+      { type: 'cleanse', statuses: ['weak', 'exhaust'] },
+    ],
+    describe: (tier) => `+${t(3, 5, 7)(tier)} Блока и снимает Слабость и Изнурение. КД 2`,
   },
   // ─── Активные магические (MP) ────────────────────────────────────────────
   {
