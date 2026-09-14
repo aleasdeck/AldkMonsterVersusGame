@@ -291,7 +291,8 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     const ev = statusValue(e, 'evade');
     if (ev > 0 && opts.rng && chance(opts.rng, ev / 100)) {
       state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
-      log(state, `${e.name} уворачивается (${ev} %)`);
+      detail.miss = `уворот ${ev} %`;
+      if (!opts.detail) log(state, `${e.name} уворачивается (${ev} %)`);
       return 0;
     }
   }
@@ -737,7 +738,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       const dmg = Math.floor(h.block * eff.mult);
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const detail = newDetail();
-        const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail });
+        const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
         log(state, `Таран по ${e.name}: ${dmg} (блок ${h.block} × ${eff.mult})${hitTail(dmg, dealt, detail)}`);
       }
       break;
@@ -1105,11 +1106,17 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
  */
 function stripArtifactMods(state: BattleState, art: ArtifactInstance): void {
   const def = artifactDef(art.id);
-  if (def.kind !== 'passive' || !def.mods) return;
   const h = state.hero;
+  // Активный приём: его плитка пропала, следы в кулдаунах и лимите за ход больше не нужны.
+  delete h.cooldowns[art.id];
+  delete h.uses[art.id];
+  if (def.kind !== 'passive' || !def.mods) return;
   const mods = def.mods(art.tier);
   for (const key of Object.keys(mods) as (keyof DerivedStats)[]) h.stats[key] -= mods[key] ?? 0;
-  h.stats.crit = Math.max(0, h.stats.crit);
+  // Те же границы, что в computeStats: шанс крита 0..1, крит-урон не ниже 100 %, усталость не выше 1.
+  h.stats.crit = Math.min(1, Math.max(0, h.stats.crit));
+  h.stats.critDmg = Math.max(100, h.stats.critDmg);
+  h.stats.fatigue = Math.min(1, h.stats.fatigue);
   h.maxHp = h.stats.maxHp;
   h.maxMp = h.stats.maxMp;
   h.maxSta = h.stats.sta;

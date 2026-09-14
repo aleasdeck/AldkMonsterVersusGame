@@ -566,7 +566,8 @@ export interface RunStats {
 export interface BattleLog {
   /** «Акт 1 · Лес · Бой 2: Волк, Волк». */
   title: string;
-  result: 'won' | 'lost';
+  /** `fled` — враг сбежал (вор): поле пусто, но добыча ушла с ним. */
+  result: 'won' | 'lost' | 'fled';
   turns: number;
   lines: string[];
 }
