@@ -437,13 +437,22 @@ export function canPendingPlace(run: RunState, kind: GearKind, index: number): s
   return canPlaceArtifact(run.hero, kind, index, art.id);
 }
 
-/** Поставить ожидающий артефакт в слот (пустой или вместо стоящего). Неподходящий сокет — ничего не делает. */
+/**
+ * Поставить ожидающий артефакт в слот (пустой или вместо стоящего). Неподходящий сокет — ничего не делает.
+ * Вытесненный артефакт встаёт в конец очереди (v0.31): его можно переставить в другой сокет или выбросить.
+ * После первой вставки отменить уже нельзя — награда потрачена, а очередь закрывается только «Выбросить».
+ */
 export function pendingPlace(run: RunState, kind: GearKind, index: number): boolean {
   const p = run.pending;
   if (!p || p.artifacts.length === 0 || canPendingPlace(run, kind, index)) return false;
   const before = heroStats(run).maxHp;
   const art = p.artifacts.shift()!;
-  replaceArtifact(run.hero, kind, index, art);
+  const removed = replaceArtifact(run.hero, kind, index, art);
+  if (removed && removed.id !== art.id) {
+    p.artifacts.push(removed);
+    p.displaced = [...(p.displaced ?? []), removed.id];
+  }
+  p.cancellable = false;
   syncMaxHp(run, before);
   finishPendingStep(run);
   return true;

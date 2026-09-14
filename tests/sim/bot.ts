@@ -594,13 +594,22 @@ export function artifactGain(run: RunState, art: ArtifactInstance): number {
 
 // ─── Решения вне боя ───────────────────────────────────────────────────────
 
-/** Ожидающий артефакт: в свободный слот, иначе вместо самого слабого, если он слабее; иначе выбросить. */
+/**
+ * Ожидающий артефакт: в свободный слот, иначе вместо самого слабого, если он слабее; иначе выбросить.
+ * Вытесненный «Заменить» артефакт (v0.31) сам никого не вытесняет — только свободный сокет или выброс:
+ * ценности зависят от статов героя и после перестановки меняются, и пара артефактов вытесняла друг друга без конца (паты 1 → 67 у Воина).
+ */
 export function resolvePending(run: RunState): void {
-  const art = run.pending?.artifacts[0];
-  if (!art) return;
+  const p = run.pending;
+  const art = p?.artifacts[0];
+  if (!p || !art) return;
   const free = freeSocketFor(run.hero, art.id);
   if (free) {
     pendingPlace(run, free.kind, free.index);
+    return;
+  }
+  if (p.displaced?.includes(art.id)) {
+    pendingDiscard(run);
     return;
   }
   const weakest = weakestSocket(run, art.id);

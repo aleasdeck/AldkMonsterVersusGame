@@ -393,12 +393,13 @@ export function pendingModal(app: App): HTMLElement | null {
   const slot = artifactDef(art.id).slot;
   const fitting = socketRefs(run.hero).filter((s) => slotAccepts(s.slot, slot));
   const hasFree = fitting.some((s) => !s.art);
+  const displaced = !!p.displaced?.includes(art.id);
   const hint =
     fitting.length === 0
       ? `Подходящих сокетов нет: ${ARTIFACT_SLOT_NAME[slot]} артефакт встаёт только в ${ARTIFACT_SLOT_NAME[slot]} или универсальный сокет.`
       : hasFree
-        ? 'Клик по сокету. Занятый сокет — замена, старый артефакт пропадёт.'
-        : 'Свободных подходящих сокетов нет: выберите, какой артефакт заменить.';
+        ? 'Клик по сокету. Занятый сокет — замена, вытесненный артефакт спросит, куда его деть.'
+        : 'Свободных подходящих сокетов нет: выберите, какой артефакт заменить, — вытесненный спросит, куда его деть.';
   const group = (kind: GearKind) => {
     const gear = gearOf(run.hero, kind);
     const info = GEAR_TIERS[gear.tier];
@@ -419,7 +420,7 @@ export function pendingModal(app: App): HTMLElement | null {
             'button',
             {
               class: `sock pm-sock k-${sk} ${a ? '' : 'empty'} ${off ? 'off' : ''}`,
-              tip: why ?? (a ? `${artifactTitle(a)}\n— заменить: старый артефакт пропадёт` : `${slotKindTip(sk)}\n— вставить сюда`),
+              tip: why ?? (a ? `${artifactTitle(a)}\n— заменить: вытесненный встанет в очередь` : `${slotKindTip(sk)}\n— вставить сюда`),
               onclick: () => {
                 if (!off) app.pendingPlace(kind, index);
               },
@@ -438,7 +439,7 @@ export function pendingModal(app: App): HTMLElement | null {
     h(
       'div',
       { class: 'panel modal' },
-      h('h2', null, 'Куда вставить артефакт?'),
+      h('h2', null, displaced ? 'Вытесненный артефакт: куда переставить?' : 'Куда вставить артефакт?'),
       h('p', { class: 'dim' }, hint),
       h('div', { class: 'pm-body' }, artifactCard(art), h('div', { class: 'pm-gears' }, group('weapon'), group('armor'))),
       h(
