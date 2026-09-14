@@ -1,5 +1,5 @@
 import { button, h, type Child } from './dom';
-import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, EnemyState, GearInstance, GearKind, GearTier, RunState, StatusId } from '../engine/types';
+import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, EnemyState, GearInstance, GearKind, GearTier, RunState, SlotKind, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
@@ -28,7 +28,7 @@ import {
 } from '../data/gear';
 import { collectibleLines, type Collectible, type FoundState } from '../data/collection';
 import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
-import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
+import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, canPlaceArtifact, findSameArtifact, gearOf, slotAccepts, slotKindAt, socketRefs } from '../engine/equipment';
 import { STATUS_HINTS, STATUS_NAMES, defendBlock, onDeathInfo } from '../engine/combat';
 import { markKeywords } from './keywords';
 import type { App } from './app';
@@ -115,6 +115,7 @@ export function artifactTitle(inst: ArtifactInstance): string {
   const lines = [`${def.name} (тир ${inst.tier})`, def.describe(inst.tier)];
   if (def.kind === 'active') lines.push(`Цена: ${artifactCostText(def, inst.tier)}`);
   else lines.push('Пассивный');
+  lines.push(`${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет`);
   if (inst.tier < 3) lines.push(`Следующий тир: ${def.describe((inst.tier + 1) as ArtTier)}`);
   return lines.join('\n');
 }
@@ -123,6 +124,24 @@ export function artifactTitle(inst: ArtifactInstance): string {
 export function signatureNote(id: string): string {
   const owner = SIGNATURE_OWNER[id];
   return owner ? `Персональный артефакт: ${heroDef(owner).name}` : '';
+}
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ─── Типы сокетов (v0.31) ──────────────────────────────────────────────────
+
+/** Значок типа сокета: оружейный, бронный, универсальный. */
+export const SLOT_KIND_GLYPH: Record<SlotKind, string> = { weapon: '⚔', armor: '⛨', any: '◇' };
+
+/** Подсказка к сокету по типу: что в него встаёт. */
+export function slotKindTip(kind: SlotKind): string {
+  if (kind === 'any') return 'Универсальный сокет: принимает любой артефакт';
+  return `${cap(SLOT_KIND_NAME[kind])} сокет: принимает только ${ARTIFACT_SLOT_NAME[kind]} артефакты`;
+}
+
+/** Пустой чип сокета с его типом — в подвале карточки экипировки. */
+export function socketChip(kind: SlotKind): HTMLElement {
+  return h('div', { class: `chip chip-empty k-${kind}`, tip: slotKindTip(kind) }, SLOT_KIND_GLYPH[kind]);
 }
 
 export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: () => void; selected?: boolean } = {}): HTMLElement {
@@ -151,7 +170,12 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Chil
     { class: `card art-card ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''}`, style: `border-color:${color}` },
     h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, def.glyph), h('span', { class: 'card-name' }, def.name)),
     // Тир не пишем: его показывает цвет рамки и подписи. Персональный — с пометкой, чей.
-    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''}`),
+    h(
+      'div',
+      { class: 'card-sub', style: `color:${color}` },
+      `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''} · `,
+      h('span', { class: `slot-kind k-${def.slot}`, tip: `Встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет` }, `${SLOT_KIND_GLYPH[def.slot]} ${ARTIFACT_SLOT_NAME[def.slot]}`),
+    ),
     h('div', { class: 'card-desc' }, ...markKeywords(def.describe(inst.tier))),
     def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
     note ?? null,
@@ -159,8 +183,9 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Chil
   );
 }
 
+/** Сокеты предмета чипами: стоящий артефакт или пустой чип с типом сокета. */
 export function slotsRow(gear: GearInstance): HTMLElement {
-  return h('div', { class: 'slots' }, ...gear.slots.map((s) => artifactChip(s)));
+  return h('div', { class: 'slots' }, ...gear.slots.map((s, i) => (s ? artifactChip(s) : socketChip(slotKindAt(gear, i)))));
 }
 
 // ─── Зелья ─────────────────────────────────────────────────────────────────
@@ -364,7 +389,15 @@ export function pendingModal(app: App): HTMLElement | null {
   const art = p?.artifacts[0];
   if (!run || !p || !art) return null;
   const same = findSameArtifact(run.hero, art.id);
-  const hasFree = socketRefs(run.hero).some((s) => !s.art);
+  const slot = artifactDef(art.id).slot;
+  const fitting = socketRefs(run.hero).filter((s) => slotAccepts(s.slot, slot));
+  const hasFree = fitting.some((s) => !s.art);
+  const hint =
+    fitting.length === 0
+      ? `Подходящих сокетов нет: ${ARTIFACT_SLOT_NAME[slot]} артефакт встаёт только в ${ARTIFACT_SLOT_NAME[slot]} или универсальный сокет.`
+      : hasFree
+        ? 'Клик по сокету. Занятый сокет — замена, старый артефакт пропадёт.'
+        : 'Свободных подходящих сокетов нет: выберите, какой артефакт заменить.';
   const group = (kind: GearKind) => {
     const gear = gearOf(run.hero, kind);
     const info = GEAR_TIERS[gear.tier];
@@ -377,17 +410,22 @@ export function pendingModal(app: App): HTMLElement | null {
         { class: 'gt-sockets' },
         ...gear.slots.map((a, index) => {
           const isSame = !!same && same.kind === kind && same.index === index;
+          const sk = slotKindAt(gear, index);
+          // Сокет чужого типа — без disabled, а классом off: подсказка с причиной должна показываться (см. CLAUDE.md).
+          const why = canPlaceArtifact(run.hero, kind, index, art.id);
+          const off = isSame || !!why;
           return h(
             'button',
             {
-              class: `sock pm-sock ${a ? '' : 'empty'} ${isSame ? 'off' : ''}`,
-              disabled: isSame,
-              tip: a ? `${artifactTitle(a)}\n— заменить: старый артефакт пропадёт` : 'Свободный сокет: вставить сюда',
-              onclick: () => app.pendingPlace(kind, index),
+              class: `sock pm-sock k-${sk} ${a ? '' : 'empty'} ${off ? 'off' : ''}`,
+              tip: why ?? (a ? `${artifactTitle(a)}\n— заменить: старый артефакт пропадёт` : `${slotKindTip(sk)}\n— вставить сюда`),
+              onclick: () => {
+                if (!off) app.pendingPlace(kind, index);
+              },
             },
             artifactChip(a),
-            h('span', { class: 'sock-name' }, a ? `${artifactDef(a.id).name} · ${a.tier}` : 'свободный сокет'),
-            h('span', { class: 'pm-act' }, a ? 'Заменить' : 'Вставить'),
+            h('span', { class: 'sock-name' }, a ? `${artifactDef(a.id).name} · ${a.tier}` : SLOT_KIND_NAME[sk]),
+            h('span', { class: 'pm-act' }, why ? 'Нельзя' : a ? 'Заменить' : 'Вставить'),
           );
         }),
       ),
@@ -400,7 +438,7 @@ export function pendingModal(app: App): HTMLElement | null {
       'div',
       { class: 'panel modal' },
       h('h2', null, 'Куда вставить артефакт?'),
-      h('p', { class: 'dim' }, hasFree ? 'Клик по сокету. Занятый сокет — замена, старый артефакт пропадёт.' : 'Свободных сокетов нет: выберите, какой артефакт заменить.'),
+      h('p', { class: 'dim' }, hint),
       h('div', { class: 'pm-body' }, artifactCard(art), h('div', { class: 'pm-gears' }, group('weapon'), group('armor'))),
       h(
         'div',

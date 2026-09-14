@@ -6,7 +6,7 @@ import { makeStartingGear, upgradeGearTier } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, ROOM_NAMES, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
-import { addArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs } from './equipment';
+import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs } from './equipment';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
@@ -430,15 +430,23 @@ function finishPendingStep(run: RunState): void {
   continueAfterPending(run);
 }
 
-/** Поставить ожидающий артефакт в слот (пустой или вместо стоящего). */
-export function pendingPlace(run: RunState, kind: GearKind, index: number): void {
+/** Почему ожидающий артефакт нельзя поставить в этот сокет; null — можно. */
+export function canPendingPlace(run: RunState, kind: GearKind, index: number): string | null {
+  const art = run.pending?.artifacts[0];
+  if (!art) return 'Нечего ставить';
+  return canPlaceArtifact(run.hero, kind, index, art.id);
+}
+
+/** Поставить ожидающий артефакт в слот (пустой или вместо стоящего). Неподходящий сокет — ничего не делает. */
+export function pendingPlace(run: RunState, kind: GearKind, index: number): boolean {
   const p = run.pending;
-  if (!p || p.artifacts.length === 0) return;
+  if (!p || p.artifacts.length === 0 || canPendingPlace(run, kind, index)) return false;
   const before = heroStats(run).maxHp;
   const art = p.artifacts.shift()!;
   replaceArtifact(run.hero, kind, index, art);
   syncMaxHp(run, before);
   finishPendingStep(run);
+  return true;
 }
 
 /** Выбросить ожидающий артефакт. */

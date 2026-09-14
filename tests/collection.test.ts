@@ -63,6 +63,7 @@ describe('открытие записей забегом', () => {
 
   it('артефакт открывает ровно тот тир, каким он был у героя', () => {
     const run = newRun('warrior', 3);
+    run.hero.armor.slotKinds = ['any']; // стартовый сокет брони бронный, шар — оружейный
     addArtifact(run.hero, { id: 'fireball', tier: 2 });
     const keys = loadoutFinds(run.hero);
     expect(keys).toContain('art:fireball@2');

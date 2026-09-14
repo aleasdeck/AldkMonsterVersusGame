@@ -688,6 +688,33 @@ p {
   gap: 6px;
   flex-wrap: wrap;
 }
+/* Типы сокетов (v0.31): оружейный — красноватый, бронный — голубой, универсальный — золотой. Цвет несут кромка ячейки и значок пустого чипа. */
+:root {
+  --slot-weapon: #ff8c7a;
+  --slot-armor: #7fb8ff;
+  --slot-any: #ffd166;
+}
+.chip-empty.k-weapon {
+  color: var(--slot-weapon);
+  border-color: var(--slot-weapon);
+  opacity: 0.7;
+}
+.chip-empty.k-armor {
+  color: var(--slot-armor);
+  border-color: var(--slot-armor);
+  opacity: 0.7;
+}
+.chip-empty.k-any {
+  color: var(--slot-any);
+  border-color: var(--slot-any);
+  opacity: 0.7;
+}
+.slot-kind.k-weapon {
+  color: var(--slot-weapon);
+}
+.slot-kind.k-armor {
+  color: var(--slot-armor);
+}
 /* Зелье: зелёный чип без точек тира; в панели героя — одна строка «Зелье: [чип] Название». */
 .chip.potion .chip-glyph {
   color: #6fd97a;
@@ -1856,12 +1883,15 @@ p {
   cursor: pointer;
   text-align: left;
 }
-.pm-sock:hover:not([disabled]) {
+.pm-sock:hover:not(.off) {
   border-color: var(--accent);
 }
 .pm-sock.off {
   opacity: 0.45;
   cursor: default;
+}
+.pm-sock.off .pm-act {
+  color: var(--bad);
 }
 .pm-act {
   margin-left: auto;
@@ -1965,6 +1995,28 @@ p {
 }
 .sock.empty .sock-name {
   color: #666;
+}
+/* Тип сокета — левая кромка ячейки; у пустого сокета ещё и подпись его цветом. */
+.sock.k-weapon {
+  border-left: 4px solid var(--slot-weapon);
+}
+.sock.k-armor {
+  border-left: 4px solid var(--slot-armor);
+}
+.sock.k-any {
+  border-left: 4px solid var(--slot-any);
+}
+.sock.empty.k-weapon .sock-name {
+  color: var(--slot-weapon);
+  opacity: 0.75;
+}
+.sock.empty.k-armor .sock-name {
+  color: var(--slot-armor);
+  opacity: 0.75;
+}
+.sock.empty.k-any .sock-name {
+  color: var(--slot-any);
+  opacity: 0.75;
 }
 /* Полный список артефактов в оверлее: чип, имя с тиром и ценой, описание, следующий тир. */
 .art-list {

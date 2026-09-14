@@ -9,7 +9,7 @@ import type { ArmorType, GearInstance, GearTier, HeroPersistent } from '../src/e
 
 /** Броня нужной базы и тира без аффикса и слотов. */
 function armor(base: string, tier: GearTier = 1): GearInstance {
-  return { kind: 'armor', tier, base, name: base, dmgMin: 0, dmgMax: 0, def: 2, hp: 5, affix: null, slots: [] };
+  return { kind: 'armor', tier, base, name: base, dmgMin: 0, dmgMax: 0, def: 2, hp: 5, affix: null, slots: [], slotKinds: [] };
 }
 
 function mkBattle(heroId: string, a: GearInstance, enemies: string[]) {

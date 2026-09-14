@@ -10,7 +10,7 @@ import type { GearInstance, GearTier, HeroPersistent, RunState, WeaponType } fro
 
 /** Оружие с фиксированным уроном, без аффикса и слотов. */
 function weapon(base: string, dmg: number, tier: GearTier = 1): GearInstance {
-  return { kind: 'weapon', tier, base, name: base, dmgMin: dmg, dmgMax: dmg, def: 0, hp: 0, affix: null, slots: [] };
+  return { kind: 'weapon', tier, base, name: base, dmgMin: dmg, dmgMax: dmg, def: 0, hp: 0, affix: null, slots: [], slotKinds: [] };
 }
 
 function mkBattle(heroId: string, enemies: string[], w?: GearInstance, seed = 1) {
@@ -362,7 +362,7 @@ describe('предпросмотр смены экипировки', () => {
   it('оружие: урон, сокеты, перк и переезд артефактов считаются на копии героя', () => {
     const run = newRun('warrior', 1);
     const def = heroDef('warrior');
-    const hammer: GearInstance = { kind: 'weapon', tier: 4, base: 'mace', name: 'Рунная булава', dmgMin: 7, dmgMax: 12, def: 0, hp: 0, affix: null, slots: [null, null, null] };
+    const hammer: GearInstance = { kind: 'weapon', tier: 4, base: 'mace', name: 'Рунная булава', dmgMin: 7, dmgMax: 12, def: 0, hp: 0, affix: null, slots: [null, null, null], slotKinds: [] };
     const p = previewGearSwap(def, run.hero, hammer);
     expect(p.after.dmgMax).toBeGreaterThan(p.before.dmgMax);
     expect(p.slotsBefore).toBe(1);
@@ -381,7 +381,7 @@ describe('предпросмотр смены экипировки', () => {
     const def = heroDef('mage');
     run.hero.armor.slots = [{ id: 'troll_heart', tier: 1 }];
     run.hero.armor.slots.push({ id: 'luck_talisman', tier: 1 });
-    const plate: GearInstance = { kind: 'armor', tier: 3, base: 'plate', name: 'Латы', dmgMin: 0, dmgMax: 0, def: 3, hp: 7, affix: null, slots: [null] };
+    const plate: GearInstance = { kind: 'armor', tier: 3, base: 'plate', name: 'Латы', dmgMin: 0, dmgMax: 0, def: 3, hp: 7, affix: null, slots: [null], slotKinds: [] };
     const p = previewGearSwap(def, run.hero, plate);
     expect(p.after.def - p.before.def).toBe(3 - run.hero.armor.def);
     expect(p.moved.length).toBe(1);
@@ -411,7 +411,7 @@ describe('крит: шанс и крит. урон', () => {
 
   it('крит. урон считается в процентах и складывается из героя, перка и аффикса', () => {
     const def = heroDef('warrior');
-    const hammer: GearInstance = { kind: 'weapon', tier: 3, base: 'hammer', name: 'молот', dmgMin: 5, dmgMax: 5, def: 0, hp: 0, affix: { stat: 'critDmg', value: 25 }, slots: [] };
+    const hammer: GearInstance = { kind: 'weapon', tier: 3, base: 'hammer', name: 'молот', dmgMin: 5, dmgMax: 5, def: 0, hp: 0, affix: { stat: 'critDmg', value: 25 }, slots: [], slotKinds: [] };
     // Воин 150 + Сокрушение тира 3 (+40) + аффикс 25
     expect(computeStats(def, hammer, makeStartingGear(def).armor).critDmg).toBe(215);
   });
