@@ -14,7 +14,7 @@ import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
 import { SWEEP_MULT, canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
 import { potionDef } from '../../src/data/potions';
-import { equipGear, findSameArtifact, freeSocketFor, gearOf, slotAccepts, socketRefs, type SocketRef } from '../../src/engine/equipment';
+import { equipGear, findSameArtifact, freeSocketFor, gearOf, slotAccepts, slotKindAt, socketRefs, type SocketRef } from '../../src/engine/equipment';
 import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice } from '../../src/engine/loot';
 import {
   altarHealAmount,
@@ -89,6 +89,15 @@ export const W = {
   /** Вор: монета срезанного золота в HP (лечение у торговца: 20 % HP за SHOP_HEAL_COST) и потеря артефакта из сокета в HP. */
   goldHp: 0.5,
   stolenArt: 15,
+  /**
+   * Типы сокетов (v0.31). anySocket — очки за каждый свободный универсальный сокет предмета сверх нынешнего: в него встанет находка любого
+   * типа. reseatOverflow — при оценке предмета считать, что не поместившийся артефакт переедет во второй предмет (свободный сокет или
+   * замена более слабого), как позволяет игра, а не пропадёт. displacedReplace — вытесненный «Заменить» артефакт может сам вытеснить
+   * более слабый, если тот ещё не был вытеснен в этой очереди (иначе пара артефактов крутилась без конца).
+   */
+  anySocket: 0,
+  reseatOverflow: true,
+  displacedReplace: true,
 };
 
 /** Счётчик применений приёмов и зелий — печатается симулятором. */
@@ -541,7 +550,27 @@ export function gearGain(run: RunState, gear: GearInstance): number {
   // Артефакты, которым не найдётся подходящего сокета, пропадут: переезд считаем теми же правилами, что и игра (типы сокетов, v0.31).
   const copy: HeroPersistent = { ...run.hero, weapon: structuredClone(run.hero.weapon), armor: structuredClone(run.hero.armor) };
   const overflow = equipGear(copy, gear);
-  if (overflow.length > 0) score -= overflow.reduce((a, x) => a + artifactValue(run, x), 0) + 2 * overflow.length;
+  for (const x of overflow) {
+    if (W.reseatOverflow) {
+      // Игра предложит выбор слота: свободный подходящий сокет второго предмета — артефакт цел; занятый более слабым — теряем слабого.
+      const free = freeSocketFor(copy, x.id);
+      if (free) {
+        gearOf(copy, free.kind).slots[free.index] = { ...x };
+        continue;
+      }
+      const weakest = weakestSocketOf(run, copy, x.id);
+      if (weakest && artifactValue(run, x) > weakest.value + 1) {
+        score -= weakest.value + 2;
+        gearOf(copy, weakest.ref.kind).slots[weakest.ref.index] = { ...x };
+        continue;
+      }
+    }
+    score -= artifactValue(run, x) + 2;
+  }
+  if (W.anySocket) {
+    const freeAny = (g: GearInstance) => g.slots.filter((a, i) => !a && slotKindAt(g, i) === 'any').length;
+    score += (freeAny(gear) - freeAny(cur)) * W.anySocket;
+  }
   return score;
 }
 
@@ -565,12 +594,15 @@ function potionGain(run: RunState, id: string): number {
   return potionValue(run, id) - (run.hero.potion ? potionValue(run, run.hero.potion) + 1 : 0);
 }
 
-/** Самый слабый вставленный артефакт в сокете, куда встанет новый, — кандидат на замену. */
-function weakestSocket(run: RunState, forId: string): { ref: SocketRef; value: number } | null {
+/** Самый слабый вставленный артефакт в сокете, куда встанет новый, — кандидат на замену. `skip` — id, которые трогать нельзя. */
+function weakestSocket(run: RunState, forId: string, skip: string[] = []): { ref: SocketRef; value: number } | null {
+  return weakestSocketOf(run, run.hero, forId, skip);
+}
+function weakestSocketOf(run: RunState, hero: HeroPersistent, forId: string, skip: string[] = []): { ref: SocketRef; value: number } | null {
   const slot = artifactDef(forId).slot;
   let best: { ref: SocketRef; value: number } | null = null;
-  for (const ref of socketRefs(run.hero)) {
-    if (!ref.art || !slotAccepts(ref.slot, slot)) continue;
+  for (const ref of socketRefs(hero)) {
+    if (!ref.art || !slotAccepts(ref.slot, slot) || skip.includes(ref.art.id)) continue;
     const value = artifactValue(run, ref.art);
     if (!best || value < best.value) best = { ref, value };
   }
@@ -608,11 +640,13 @@ export function resolvePending(run: RunState): void {
     pendingPlace(run, free.kind, free.index);
     return;
   }
-  if (p.displaced?.includes(art.id)) {
+  // Вытесненный может вытеснить только того, кого в этой очереди ещё не вытесняли: цепочка конечна, качели A ↔ B невозможны.
+  const displaced = !!p.displaced?.includes(art.id);
+  if (displaced && !W.displacedReplace) {
     pendingDiscard(run);
     return;
   }
-  const weakest = weakestSocket(run, art.id);
+  const weakest = weakestSocket(run, art.id, displaced ? p.displaced : []);
   if (weakest && artifactValue(run, art) > weakest.value + 1) pendingPlace(run, weakest.ref.kind, weakest.ref.index);
   else pendingDiscard(run);
 }
