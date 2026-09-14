@@ -40,7 +40,7 @@ src/engine/   чистая логика, без DOM, покрыта тестам
   loot.ts       константы экономики (золото, цены, шанс зелья, цена кузнеца) и генерация наград/магазина/событий (rollEventKind)
   run.ts        машина состояний забега: enterRoom → startEvent | startBattle → finishBattle (лог боя → run.logs с battleTitle) → reward → advanceRoom …; события: takeChest, altarPray/altarSacrifice, forgeUpgrade, gnomeTakeLoot, leaveEvent; бой с вором закрывают finishGnome/finishSnatcher (фаза `event` с итогом)
   report.ts     runReport(run, ctx) — запись статистики забега (RunReport: плоское поле = колонка таблицы, detail — JSON со снаряжением и боями); чистая, тесты в run.test.ts
-  globalStats.ts summarize(feed, opts) — сводка по ответу таблицы ?data=runs для экрана «Статистика» (забеги/победы по героям, средний победный забег, топ клеток гибели и убийц); чистая, tests/globalStats.test.ts
+  globalStats.ts summarize(feed, opts) — сводка по ответу таблицы ?data=runs для экрана «Статистика» (забеги/победы по героям, средний победный забег, урон, топ «клетка — убийца»); чистая, tests/globalStats.test.ts
 src/data/     типизированные таблицы; каждый файл экспортирует list-based Record + xxxDef(id)
   heroes.ts     6 героев (warrior, mage, assassin, paladin, berserk, archer), weaponSkill/armorSkill — владение оружием и бронёй (два состояния), signature — персональный артефакт, SIGNATURE_OWNER
   enemies.ts    69 врагов по локациям (секции ═══; два гнома-вора числятся за лесом, но приходят событием любого акта), хелпер act(), ai: cycle | boss-rules; evade — процентный уворот с порога, spriteScale — размер спрайта; фазы боссов: phase2 + условия p1/p2 в правилах, второе тело через onDeath: summon + aura

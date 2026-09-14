@@ -16,7 +16,7 @@ export interface HeroSummary {
   wins: number;
 }
 
-/** Строка «где гибнут»: локация и клетка или последний бой, доля от всех гибелей. */
+/** Строка «где гибнут»: локация, клетка и последний бой (он и есть убийца), доля от всех гибелей. */
 export interface SpotSummary {
   label: string;
   count: number;
@@ -31,9 +31,8 @@ export interface GlobalSummary {
   /** Победный забег в среднем: секунды и ходы. 0 — побед нет. */
   winDuration: number;
   winTurns: number;
-  /** Клетки и убийцы по числу гибелей, самые частые первыми. */
+  /** Клетка и убийца по числу гибелей, самые частые первыми. */
   deathSpots: SpotSummary[];
-  killers: SpotSummary[];
   /** Урон за все законченные забеги: нанесённый героями и полученный ими. */
   damageDealt: number;
   damageTaken: number;
@@ -44,7 +43,7 @@ export interface SummarizeOpts {
   heroes: string[];
   /** Имя локации по id для подписи клетки; без него — id как есть. */
   locationName?: (id: string) => string;
-  /** Сколько строк «где гибнут» и «кто убивает». */
+  /** Сколько строк «где гибнут». */
   top?: number;
 }
 
@@ -68,7 +67,7 @@ function topOf(counts: Map<string, number>, total: number, top: number): SpotSum
     .map(([label, count]) => ({ label, count, share: total ? count / total : 0 }));
 }
 
-/** Сводка по записям: забеги и победы по героям, средний победный забег, где и от кого гибнут. */
+/** Сводка по записям: забеги и победы по героям, средний победный забег, урон, где и от кого гибнут. */
 export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
   const cEvent = col(feed, 'event');
   const cHero = col(feed, 'hero');
@@ -90,7 +89,6 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
   let dealt = 0;
   let taken = 0;
   const spots = new Map<string, number>();
-  const killers = new Map<string, number>();
   for (const row of feed.rows) {
     const event = cEvent >= 0 ? str(row[cEvent]) : '';
     if (event === 'abandoned') {
@@ -111,15 +109,16 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
       if (cTurns >= 0) winTurns += num(row[cTurns]);
       continue;
     }
-    // Гибель: клетка и последний бой — он и есть убийца.
+    // Гибель: клетка и последний бой одной строкой — он и есть убийца.
+    const parts: string[] = [];
     if (cLocation >= 0 && cAct >= 0 && cRoom >= 0) {
       const loc = str(row[cLocation]);
-      const label = `${opts.locationName?.(loc) ?? loc}, акт ${num(row[cAct])} · клетка ${num(row[cRoom])}`;
-      spots.set(label, (spots.get(label) ?? 0) + 1);
+      parts.push(`${opts.locationName?.(loc) ?? loc}, акт ${num(row[cAct])} · клетка ${num(row[cRoom])}`);
     }
-    if (cLast >= 0) {
-      const last = str(row[cLast]);
-      if (last) killers.set(last, (killers.get(last) ?? 0) + 1);
+    if (cLast >= 0 && str(row[cLast])) parts.push(str(row[cLast]));
+    if (parts.length) {
+      const label = parts.join(' — ');
+      spots.set(label, (spots.get(label) ?? 0) + 1);
     }
   }
   const deaths = runs - wins;
@@ -131,7 +130,6 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
     winDuration: wins ? Math.round(winSeconds / wins) : 0,
     winTurns: wins ? Math.round(winTurns / wins) : 0,
     deathSpots: topOf(spots, deaths, top),
-    killers: topOf(killers, deaths, top),
     damageDealt: dealt,
     damageTaken: taken,
   };

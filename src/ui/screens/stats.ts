@@ -32,7 +32,7 @@ function spotList(title: string, spots: SpotSummary[], empty: string): HTMLEleme
     { class: 'gs-block' },
     h('div', { class: 'coll-head' }, h('span', null, title)),
     spots.length
-      ? h('div', { class: 'gs-spots' }, ...spots.map((s) => h('div', { class: 'gs-spot' }, h('span', { class: 'gs-spot-label' }, s.label), h('span', { class: 'gs-num dim' }, `${s.count} · ${Math.round(s.share * 100)} %`))))
+      ? h('div', { class: 'gs-spots' }, ...spots.map((s) => h('div', { class: 'gs-spot' }, h('span', { class: 'gs-spot-label', tip: s.label }, s.label), h('span', { class: 'gs-num dim' }, `${s.count} · ${Math.round(s.share * 100)} %`))))
       : h('div', { class: 'dim' }, empty),
   );
 }
@@ -69,7 +69,6 @@ function everyone(app: App): HTMLElement {
     h('div', { class: 'gs-note dim' }, `${avg}${s.abandoned ? ` · брошено ${s.abandoned}` : ''}`),
     damageBlock(s.damageDealt, s.damageTaken, s.runs),
     spotList('Где гибнут', s.deathSpots, 'Гибелей ещё не было.'),
-    spotList('Кто убивает', s.killers, 'Гибелей ещё не было.'),
   );
 }
 
