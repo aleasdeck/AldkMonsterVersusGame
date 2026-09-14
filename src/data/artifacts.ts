@@ -313,11 +313,13 @@ const list: ArtifactDef[] = [
     kind: 'active',
     school: 'physical',
     cost: { sta: 1 },
+    // Яд стакается и держится 4 хода: три броска за ход давали 24 урона за 3 STA (v0.30.1).
+    usesPerTurn: (tier) => t(1, 2, 2)(tier),
     target: 'enemy',
     // Склянка летит через ряд: достаёт любого, даже в руках ближнего бойца.
     reach: 'any',
     effects: (tier) => [{ type: 'status', target: 'enemy', status: 'poison', value: t(2, 3, 4)(tier), turns: 4 }],
-    describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода (стакается). Бросок не снимает скрытность`,
+    describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода (стакается). До ${t(1, 2, 2)(tier)} раз за ход. Бросок не снимает скрытность`,
   },
 
   {
@@ -473,7 +475,7 @@ const list: ArtifactDef[] = [
     glyph: 'ϟ',
     kind: 'active',
     school: 'magic',
-    cost: { mp: 4 },
+    cost: { mp: 3 },
     cooldown: () => 2,
     target: 'allEnemies',
     effects: (tier) => [{ type: 'spell', amount: t(4, 6, 8)(tier), target: 'allEnemies' }],
@@ -543,10 +545,10 @@ const list: ArtifactDef[] = [
     cooldown: () => 1,
     target: 'enemy',
     effects: (tier) => [
-      { type: 'spell', amount: t(4, 6, 8)(tier), target: 'enemy' },
+      { type: 'spell', amount: t(3, 5, 6)(tier), target: 'enemy' },
       { type: 'status', target: 'enemy', status: 'burn', value: t(1, 2, 3)(tier), turns: 2 },
     ],
-    describe: (tier) => `${t(4, 6, 8)(tier)} урона заклинанием и Горение ${t(1, 2, 3)(tier)} на 2 хода. Раз в ход`,
+    describe: (tier) => `${t(3, 5, 6)(tier)} урона заклинанием и Горение ${t(1, 2, 3)(tier)} на 2 хода. Раз в ход`,
   },
   {
     id: 'hex',

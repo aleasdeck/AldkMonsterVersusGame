@@ -271,6 +271,19 @@ describe('статусы', () => {
     expect(first(state).hp).toBe(12 - 2);
   });
 
+  // Обратная сторона (шипы героя против блока врага) в игре недостижима: блок врага сгорает в начале его хода,
+  // а шипы отвечают на его же удар — к этому моменту блока у него нет. Симметрию в damageEnemy оставили на будущее.
+  it('шипы врага упираются в блок героя, но не тратят уклонение', () => {
+    const { state, rng } = mkBattle('warrior', ['beetle']);
+    const beetle = first(state);
+    beetle.statuses.push({ id: 'thorns', value: 3, turns: -1 });
+    state.hero.block = 2; // шипы 3: двойку съест блок, единица дойдёт до HP
+    const hp0 = state.hero.hp;
+    performAction(state, { type: 'attack', target: beetle.uid }, rng);
+    expect(state.hero.block).toBe(0);
+    expect(state.hero.hp).toBe(hp0 - 1);
+  });
+
   it('вампирский клык лечит при базовой атаке', () => {
     const { state, rng } = mkBattle('berserk', ['boar'], { extra: [{ id: 'vampire_fang', tier: 1 }] });
     state.hero.hp = state.hero.maxHp - 10;

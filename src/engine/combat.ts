@@ -312,7 +312,8 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     rest = Math.round(rest * VULNERABLE_MULT);
     detail.vuln = rest;
   }
-  if ((kind === 'hit' && !opts.pierce) || kind === 'spell') {
+  // Шипы — такой же физический ответ, как удар: блок их держит (v0.30.1). Раны (dot) блок не трогает.
+  if ((kind === 'hit' && !opts.pierce) || kind === 'spell' || kind === 'thorns') {
     const b = Math.min(e.block, rest);
     e.block -= b;
     rest -= b;
@@ -369,6 +370,13 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
       rest -= b;
       d.blocked = b;
     }
+  }
+  // Шипы врага тоже упираются в блок героя, но мимо уклонения, уязвимости и колец кольчуги.
+  if (kind === 'thorns') {
+    const b = Math.min(h.block, rest);
+    h.block -= b;
+    rest -= b;
+    d.blocked = b;
   }
   h.hp -= rest;
   state.stats.damageTaken += rest;
