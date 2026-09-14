@@ -1,17 +1,17 @@
 import { h } from './dom';
 import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RunState } from '../engine/types';
 import * as R from '../engine/run';
-import { STATUS_NAMES, canUseAction } from '../engine/combat';
+import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
 import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
-import { claimChest, clearRun, loadProfile, loadRun, recordEnemies, recordResult, saveRun, type Profile } from './save';
-import { rollCollectible } from '../data/collection';
+import { clearRun, loadProfile, loadRun, recordEnemies, recordFinds, recordResult, saveRun, type Profile } from './save';
+import { reportRun } from './telemetry';
+import { loadoutFinds } from '../data/collection';
 import { HERO_LIST } from '../data/heroes';
-import { createRng } from '../engine/rng';
 import { menuScreen } from './screens/menu';
 import { heroSelectScreen } from './screens/heroSelect';
 import { mapScreen } from './screens/map';
-import { battleScreen } from './screens/battle';
+import { actionSpecs, battleScreen, type TileSpec } from './screens/battle';
 import { rewardScreen } from './screens/reward';
 import { eventScreen } from './screens/event';
 import { shopScreen } from './screens/shop';
@@ -19,13 +19,13 @@ import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
 import { bestiaryScreen } from './screens/bestiary';
-import { SPIN_MS, buildStrip, chestScreen, type ChestState } from './screens/chest';
 import { hideTooltip, installTooltips } from './tooltip';
 import { formatClock } from './topbar';
 import { heroSheet } from './screens/heroSheet';
 import { pauseMenu } from './screens/pause';
 import { logOverlay } from './screens/runLog';
 import { installHotkeys } from './hotkeys';
+import { showPreview } from './preview';
 
 const ENEMY_STEP_MS = 600;
 const FLOAT_MS = 900;
@@ -38,9 +38,14 @@ const SETTLE_MS = 400;
 export class App {
   root: HTMLElement;
   run: RunState | null = null;
-  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'bestiary' | 'chest' = 'menu';
-  /** Выбранная цель в бою (uid врага). */
-  target: number | null = null;
+  screen: 'menu' | 'heroSelect' | 'run' | 'collection' | 'bestiary' = 'menu';
+  /**
+   * Выбранный приём в бою (v0.26): 'attack' или id артефакта; null — не выбран. Сначала приём, потом цель: клик по врагу
+   * применяет его. Гибрид: приём остаётся выбранным, пока его можно применить, в начале хода не выбрано ничего.
+   */
+  armed: string | null = null;
+  /** Цель, выбранная клавишей Tab (uid врага); живёт до следующей перерисовки. */
+  aim: number | null = null;
   /** Идёт ход врагов — кнопки заблокированы. */
   busy = false;
   /** Лог боя раскрыт вместо плиток приёмов. Сбрасывается по концу боя. */
@@ -50,8 +55,6 @@ export class App {
   /** Открыта пауза. */
   pauseOpen = false;
   profile: Profile;
-  /** Состояние крутки сундука; null — сундук ещё не открыт. */
-  chest: ChestState | null = null;
   /** Герой, подсвеченный в сетке выбора: справа показано его превью. */
   heroPick: string = HERO_LIST[0].id;
   /** Текст поля «Сид» на экране выбора — переживает перерисовку при клике по плитке. */
@@ -64,7 +67,6 @@ export class App {
   private fxTimer: number | null = null;
   /** Тикает раз в секунду и пишет время забега в топбар напрямую, без перерисовки. */
   private clockTimer: number | null = null;
-  private spinTimer: number | null = null;
   private resultRecorded = false;
   /** Отпечаток экрана и момент его смены: клики в первые SETTLE_MS после смены глотаются (см. SETTLE_MS). */
   private screenKey = '';
@@ -109,8 +111,11 @@ export class App {
 
   render(): void {
     this.noteEnemies();
+    this.noteFinds();
     // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
     const r = this.run;
+    this.settleArmed();
+    this.aim = null;
     const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending].join('|');
     if (key !== this.screenKey) {
       this.screenKey = key;
@@ -120,7 +125,6 @@ export class App {
     if (this.screen === 'heroSelect') el = heroSelectScreen(this);
     else if (this.screen === 'collection') el = collectionScreen(this);
     else if (this.screen === 'bestiary') el = bestiaryScreen(this);
-    else if (this.screen === 'chest') el = chestScreen(this);
     else if (this.screen === 'menu' || !this.run) el = menuScreen(this);
     else {
       switch (this.run.phase) {
@@ -175,6 +179,16 @@ export class App {
     if (fresh.length) this.profile = recordEnemies(fresh);
   }
 
+  /**
+   * Коллекция открывается тем, что попало герою в руки: обе базы экипировки, артефакты в сокетах со своими тирами
+   * и зелье в слоте. Как и бестиарий, проверяется при каждой перерисовке — любая выдача предмета кончается render().
+   */
+  private noteFinds(): void {
+    if (!this.run) return;
+    const fresh = loadoutFinds(this.run.hero).filter((key, i, all) => !this.profile.collection.includes(key) && all.indexOf(key) === i);
+    if (fresh.length) this.profile = recordFinds(fresh);
+  }
+
   // ─── Таймер забега ───────────────────────────────────────────────────────
 
   /** Сколько идёт забег, мс. Законченный — до момента конца. */
@@ -218,12 +232,13 @@ export class App {
     this.toggleLog();
   }
 
-  /** Esc: закрыть верхний слой, а если слоёв нет — открыть паузу. */
+  /** Esc: закрыть верхний слой, снять выбор приёма, а если ни того ни другого нет — открыть паузу. */
   escape(): void {
     if (this.sheetOpen) this.toggleSheet();
     else if (this.logOpen) this.toggleLog();
     else if (this.pauseOpen) this.togglePause();
     else if (this.run && R.isRunOver(this.run)) return;
+    else if (this.armed) this.arm(null);
     else this.togglePause();
   }
 
@@ -242,6 +257,8 @@ export class App {
       if (!this.resultRecorded) {
         this.resultRecorded = true;
         this.run.stats.finishedAt = Date.now();
+        // Статистика уходит до записи в профиль: в ней число законченных забегов игрока «до этого».
+        reportRun(this.run, this.run.phase === 'victory' ? 'victory' : 'defeat', this.profile);
         this.profile = recordResult(this.run);
       }
       clearRun();
@@ -255,8 +272,6 @@ export class App {
 
   showMenu(): void {
     this.stopStepping();
-    this.stopSpin();
-    this.chest = null;
     this.sheetOpen = false;
     this.pauseOpen = false;
     this.logOpen = false;
@@ -267,8 +282,6 @@ export class App {
 
   showHeroSelect(): void {
     this.stopStepping();
-    this.stopSpin();
-    this.chest = null;
     this.sheetOpen = false;
     this.logOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
@@ -282,15 +295,11 @@ export class App {
   }
 
   showCollection(): void {
-    this.stopSpin();
-    this.chest = null;
     this.screen = 'collection';
     this.render();
   }
 
   showBestiary(loc?: LocationId): void {
-    this.stopSpin();
-    this.chest = null;
     if (loc) this.bestiaryLoc = loc;
     this.screen = 'bestiary';
     this.render();
@@ -301,51 +310,12 @@ export class App {
     this.render();
   }
 
-  showChest(): void {
-    this.stopSpin();
-    this.chest = null;
-    this.screen = 'chest';
-    this.render();
-  }
-
-  /** Списывает сундук, сразу записывает находку и запускает прокрутку ленты. */
-  openChest(): void {
-    if (this.profile.chests <= 0) return;
-    const rng = createRng(R.randomSeed());
-    const prize = rollCollectible(rng, this.profile.collection);
-    if (!prize) return;
-    this.stopSpin();
-    this.profile = claimChest(prize);
-    this.chest = buildStrip(rng, prize);
-    this.screen = 'chest';
-    this.render();
-    this.spinTimer = window.setTimeout(() => {
-      this.spinTimer = null;
-      this.finishSpin();
-    }, SPIN_MS);
-  }
-
-  skipSpin(): void {
-    this.stopSpin();
-    this.finishSpin();
-  }
-
-  private finishSpin(): void {
-    if (!this.chest || this.chest.phase === 'done') return;
-    this.chest.phase = 'done';
-    this.render();
-  }
-
-  private stopSpin(): void {
-    if (this.spinTimer !== null) window.clearTimeout(this.spinTimer);
-    this.spinTimer = null;
-  }
-
-  newRun(heroId: string, seed?: number): void {
-    this.stopSpin();
-    this.chest = null;
+  /** `debug` — забег начат отладочным параметром URL: в статистику уйдёт с пометкой. */
+  newRun(heroId: string, seed?: number, debug = false): void {
+    this.dropRun();
     this.run = R.newRun(heroId, seed);
-    this.target = null;
+    this.run.debug = debug;
+    this.armed = null;
     this.resultRecorded = false;
     this.screen = 'run';
     this.commit();
@@ -364,9 +334,15 @@ export class App {
     this.stopStepping();
     this.sheetOpen = false;
     this.pauseOpen = false;
+    this.dropRun();
     clearRun();
     this.run = null;
     this.showMenu();
+  }
+
+  /** Незаконченный забег уходит в статистику как брошенный — перед тем как его заменят новым или сотрут. */
+  private dropRun(): void {
+    if (this.run && !R.isRunOver(this.run)) reportRun(this.run, 'abandoned', this.profile);
   }
 
   // ─── Комнаты ─────────────────────────────────────────────────────────────
@@ -379,22 +355,86 @@ export class App {
     // Отладка (&events=kind): клетка события всегда разыгрывает заданный вид — живой забег, но нужное событие.
     if (this.forcedEvent && this.run.phase === 'map' && R.currentRoomKind(this.run) === 'event') R.startEvent(this.run, this.forcedEvent);
     else R.enterRoom(this.run);
-    this.target = null;
+    this.armed = null;
     this.commit();
   }
 
-  // ─── Бой ─────────────────────────────────────────────────────────────────
+  // ─── Бой: выбор приёма и цели ───────────────────────────────────────────
 
-  currentTarget(): number {
-    const b = this.run?.battle;
-    if (!b) return -1;
-    if (this.target !== null && b.enemies.some((e) => e.uid === this.target)) return this.target;
-    return b.enemies[0]?.uid ?? -1;
+  /** Плитка выбранного приёма; null — не выбран. */
+  armedSpec(): TileSpec | null {
+    if (!this.armed || this.run?.phase !== 'battle' || !this.run.battle) return null;
+    return actionSpecs(this).find((s) => s.key === this.armed) ?? null;
   }
 
-  selectTarget(uid: number): void {
-    this.target = uid;
+  /** Кого достанет выбранный приём; null — приём не выбран, подсветки нет. */
+  armedTargets(): number[] | null {
+    return this.armedSpec()?.targets ?? null;
+  }
+
+  /** Имя и дальность выбранного приёма для ридаута в покое. */
+  armedInfo(): { name: string; reach: string } | null {
+    const spec = this.armedSpec();
+    const b = this.run?.battle;
+    if (!spec || !b) return null;
+    const r = actionReach(b, spec.action(b.enemies[0]?.uid ?? -1));
+    return { name: spec.name, reach: r === 'any' ? 'любая цель' : r === 'row' ? 'весь ряд' : 'первый в ряду' };
+  }
+
+  /** Выбрать приём (повторно — снять выбор). */
+  arm(key: string | null): void {
+    this.armed = this.armed === key ? null : key;
     this.render();
+  }
+
+  /** Клик по врагу: применить выбранный приём; нельзя — причина в ридауте без перерисовки. */
+  applyArmed(uid: number): void {
+    const b = this.run?.battle;
+    if (!b || b.phase !== 'player' || this.busy) return;
+    const spec = this.armedSpec();
+    if (!spec) {
+      showPreview(this, { title: findEnemy(b, uid)?.name ?? '', parts: [], err: 'Сначала выберите приём' });
+      return;
+    }
+    const action = spec.action(uid);
+    const err = canUseAction(b, action);
+    if (err) {
+      showPreview(this, { ...spec.preview(uid), err });
+      return;
+    }
+    this.battleAction(action);
+  }
+
+  /** Enter или повторный номер приёма: применить к цели, выбранной Tab, иначе к первой, по которой приём применим (Крюк первого не тянет). */
+  applyAim(): void {
+    const spec = this.armedSpec();
+    const b = this.run?.battle;
+    if (!spec || !b) return;
+    const target = this.aim ?? spec.targets.find((uid) => canUseAction(b, spec.action(uid)) === null) ?? spec.targets[0];
+    if (target !== undefined) this.applyArmed(target);
+  }
+
+  /** Tab: перебрать цели выбранного приёма; рамка и ридаут — как при наведении, без перерисовки. */
+  aimNext(): void {
+    const spec = this.armedSpec();
+    if (!spec || spec.targets.length === 0) return;
+    const i = this.aim === null ? -1 : spec.targets.indexOf(this.aim);
+    this.aim = spec.targets[(i + 1) % spec.targets.length];
+    for (const el of this.root.querySelectorAll('.enemy.aim')) el.classList.remove('aim');
+    this.root.querySelector(`.enemy[data-uid="${this.aim}"]`)?.classList.add('aim');
+    showPreview(this, spec.preview(this.aim));
+  }
+
+  /** Гибрид: выбор держится, пока приём применим хоть по кому-то; кончилась стамина, ушёл в перезарядку, бой кончился — снимается сам. */
+  private settleArmed(): void {
+    if (!this.armed) return;
+    const b = this.run?.battle;
+    if (this.run?.phase !== 'battle' || !b || b.phase !== 'player' || this.busy) {
+      this.armed = null;
+      return;
+    }
+    const spec = actionSpecs(this).find((s) => s.key === this.armed);
+    if (!spec || spec.err) this.armed = null;
   }
 
   /**
@@ -429,6 +469,7 @@ export class App {
     const run = this.run;
     if (!run?.battle || this.busy || this.fxTimer !== null || run.battle.phase !== 'player') return;
     R.battleEndTurn(run);
+    this.armed = null;
     this.busy = true;
     this.render();
     this.scheduleStep();
@@ -491,7 +532,7 @@ export class App {
   finishBattle(): void {
     if (!this.run) return;
     R.finishBattle(this.run);
-    this.target = null;
+    this.armed = null;
     this.logOpen = false;
     this.afterPhaseChange();
   }

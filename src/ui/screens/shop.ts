@@ -24,7 +24,7 @@ function soldCard(what: string): HTMLElement {
 
 /**
  * Торговец после элиты: лекарь, одна экипировка, один артефакт, одно зелье. Покупка — только кнопкой, клик по карточке
- * ничего не тратит. Переброс обновляет непроданные товары, один раз за визит.
+ * ничего не тратит. Переброс обновляет весь прилавок, включая купленное и лекаря, один раз за визит.
  */
 export function shopScreen(app: App): HTMLElement {
   const run = app.run!;
@@ -80,7 +80,7 @@ export function shopScreen(app: App): HTMLElement {
       button('Уйти', () => app.leaveShop(), { class: 'primary', disabled: !!run.pending }),
       button(h('span', null, `Перебросить за ${REROLL_COST} `, coin()), () => app.shopReroll(), {
         disabled: !!rerollErr,
-        tip: rerollErr ?? 'Заменить непроданные товары на новые. Один раз за визит.',
+        tip: rerollErr ?? 'Завезти новый товар: обновятся все три места, даже раскупленные, и лекарь снова примет. Один раз за визит.',
       }),
     ),
   );

@@ -14,14 +14,17 @@ import type {
   HeroDef,
   HeroPersistent,
   PlayerAction,
+  Reach,
   Status,
   StatusId,
+  WeaponReach,
 } from './types';
 import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, pick, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
+import { SWEEP_MULT } from '../data/gear';
 import { potionDef } from '../data/potions';
 import { computeStats, socketedArtifacts } from './stats';
 
@@ -38,8 +41,8 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   invuln: 'Неуязвимость',
   poison: 'Яд',
   stealth: 'Скрытность',
-  smoke: 'Дымовая завеса',
   vulnerable: 'Уязвимость',
+  doom: 'Предсмертие',
   evade: 'Уворот',
 };
 
@@ -57,8 +60,8 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   poison: 'N урона в начале хода, игнорирует блок',
   stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит, снимает скрытность',
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
-  smoke: 'Каждый удар врага с шансом 80 % проходит мимо. Атака героя из дыма — удар в спину: крит, снимает завесу',
-  evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) бьют всегда',
+  doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
+  evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
 };
 
 /**
@@ -67,8 +70,54 @@ export const STATUS_HINTS: Record<StatusId, string> = {
  */
 export const VULNERABLE_MULT = 1.25;
 
-/** Шанс, что удар врага пройдёт мимо героя в дымовой завесе («Дымовая шашка»). */
-export const SMOKE_MISS_CHANCE = 0.8;
+/** Ниже этой доли HP цель считается раненой: «Клеймо палача» добавляет шанс крита по ней. */
+export const EXECUTE_HP_PCT = 0.2;
+
+// ─── Дальность ─────────────────────────────────────────────────────────────
+
+/**
+ * Дальность (v0.26): ближний бой достаёт только первого в ряду — ближайшего к герою врага. Дальнее и магическое оружие,
+ * копьё, заклинания, брошенные склянки и приёмы по всем врагам достают любого; плеть хлещет весь ряд одним ударом.
+ * Модель двух рядов со строем врагов измерена и отвергнута (GDD §12.25): для бота почти бесплатна, для игрока незаметна.
+ */
+export const REACH_ERR = 'Только первый в ряду';
+
+/**
+ * Призванный или отделившийся враг встаёт вперёд и заслоняет призывателя. С призывом в хвост ряда Лич, Капитан и Вожак
+ * прятали свиту за спиной, и бот терял на ближних героях 8–11 пунктов; с призывом вперёд — 2–5 (GDD §13, v0.26).
+ */
+export const SUMMON_FRONT = true;
+
+/** Кого достаёт удар такой дальности: ближний — первого в ряду, любой и удар по ряду — всех. */
+export function reachableEnemies(state: BattleState, reach: WeaponReach): EnemyState[] {
+  return reach === 'melee' ? state.enemies.slice(0, 1) : state.enemies.slice();
+}
+
+/**
+ * Дальность действия героя: своя у приёма, у заклинаний — любая цель, у ударов и физических приёмов — как у оружия в руках;
+ * базовый удар плетью — по всему ряду ('row'), её приёмы бьют как ближнее оружие.
+ */
+export function actionReach(state: BattleState, action: PlayerAction): WeaponReach {
+  const weapon: Reach = state.hero.stats.reachAny > 0 ? 'any' : 'melee';
+  switch (action.type) {
+    case 'attack':
+      return state.hero.stats.sweep > 0 ? 'row' : weapon;
+    case 'artifact': {
+      const def = artifactDef(action.artifactId);
+      return def.reach ?? (def.school === 'magic' ? 'any' : weapon);
+    }
+    case 'potion':
+      // Зелье во врага — брошенная склянка.
+      return 'any';
+    case 'defend':
+      return 'melee';
+  }
+}
+
+/** Достаёт ли действие героя до этого врага. */
+export function canReach(state: BattleState, action: PlayerAction, uid: number): boolean {
+  return reachableEnemies(state, actionReach(state, action)).some((e) => e.uid === uid);
+}
 
 /**
  * На сколько процентных пунктов падает уворот вора за каждый срезанный кошель: набитый мешок тянет к земле.
@@ -84,7 +133,7 @@ function scaled(mult: number, amount: number): number {
 }
 
 function isDot(id: StatusId): boolean {
-  return id === 'bleed' || id === 'burn';
+  return id === 'bleed' || id === 'burn' || id === 'poison';
 }
 
 function scaleFor(state: BattleState, def: EnemyDef): { hp: number; dmg: number } {
@@ -120,10 +169,29 @@ function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: Statu
   log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount} ${turnsText(turns)}`);
 }
 
-/** Конец хода владельца: временные статусы теряют ход. */
-function tickDurations(c: Combatant): void {
-  for (const s of c.statuses) if (s.turns > 0) s.turns--;
+/**
+ * Статусы, которые работают не в свой ход, а в ход противника: скрытность и неуязвимость гасят чужие удары.
+ * Их срок считает ходы противника, поэтому тикает не в конце своего хода (тогда статус, наложенный в свой же ход,
+ * терял бы ход впустую и «2 хода» прикрывали бы только один ход врага), а в начале следующего своего — статус
+ * к этому времени уже отработал ход противника.
+ */
+const OPPONENT_PHASE: StatusId[] = ['stealth', 'invuln'];
+
+/**
+ * Временные статусы теряют ход: обычные — в конце хода владельца (`end`), прикрывающие от чужих ударов —
+ * в начале его следующего хода (`start`), уже отработав ход противника.
+ */
+function tickDurations(c: Combatant, when: 'start' | 'end'): void {
+  for (const s of c.statuses) {
+    if ((OPPONENT_PHASE.includes(s.id) ? 'start' : 'end') !== when) continue;
+    if (s.turns > 0) s.turns--;
+  }
   c.statuses = c.statuses.filter((s) => s.turns !== 0);
+}
+
+/** Доживёт ли статус до хода врага: бессрочный, с запасом ходов или тикающий только в начале своего хода. */
+export function holdsThroughEnemyTurn(s: Status | undefined): boolean {
+  return !!s && (s.turns === -1 || s.turns > 1 || OPPONENT_PHASE.includes(s.id));
 }
 
 // ─── Утилиты ───────────────────────────────────────────────────────────────
@@ -203,10 +271,10 @@ interface HitOpts {
   noThorns?: boolean;
   /** Бьёт союзник, а не герой: шипы отвечают ему. */
   attacker?: AllyState;
-  /** Нужен цели с процентным уворотом (`evade`): бросок делается на каждый удар и каждое заклинание отдельно. */
-  rng?: Rng;
   /** Куда записать, что съел блок и уязвимость — для строки лога. */
   detail?: HitDetail;
+  /** Нужен цели с процентным уворотом (`evade`): бросок делается на каждый удар и каждое заклинание отдельно. */
+  rng?: Rng;
 }
 
 function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, opts: HitOpts = {}): number {
@@ -223,7 +291,8 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     const ev = statusValue(e, 'evade');
     if (ev > 0 && opts.rng && chance(opts.rng, ev / 100)) {
       state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
-      log(state, `${e.name} уворачивается (${ev} %)`);
+      detail.miss = `уворот ${ev} %`;
+      if (!opts.detail) log(state, `${e.name} уворачивается (${ev} %)`);
       return 0;
     }
   }
@@ -265,11 +334,8 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   return rest;
 }
 
-/**
- * `rng` нужен только ударам (`hit`): дымовая завеса решает бросок за каждый удар отдельно.
- * `detail` — куда записать судьбу удара для строки лога; без него промахи пишутся в лог отдельной строкой.
- */
-function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false, rng?: Rng, detail?: HitDetail): number {
+/** `detail` — куда записать судьбу удара для строки лога; без него промахи пишутся в лог отдельной строкой. */
+function damageHero(state: BattleState, amount: number, kind: DamageKind, source?: EnemyState, pierce = false, detail?: HitDetail): number {
   const h = state.hero;
   const d = detail ?? newDetail();
   const miss = (why: string): number => {
@@ -281,7 +347,6 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
   let rest = Math.max(0, amount);
   if (kind === 'hit') {
     if (getStatus(h, 'stealth')) return miss('враг не видит героя');
-    if (rng && getStatus(h, 'smoke') && chance(rng, SMOKE_MISS_CHANCE)) return miss('удар уходит в дым');
     if (getStatus(h, 'invuln')) return miss('неуязвим');
     const dg = getStatus(h, 'dodge');
     if (dg) {
@@ -376,6 +441,7 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
         let dmg = eff.amount + statusValue(a, 'strength');
         if (getStatus(a, 'weak')) dmg = Math.floor(dmg * 0.75);
         for (let i = 0; i < (eff.hits ?? 1); i++) {
+          // Союзник дальности не знает: зверь прыгает на самого раненого. Ограничение «как ближний бой» стоило Магу и Лучнику по 2 пункта (v0.26).
           const target = state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
           if (!target) break;
           log(state, `${a.name} атакует ${target.name}: ${dmg}`);
@@ -404,7 +470,7 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
         log(state, `${a.name} готовится`);
     }
   }
-  tickDurations(a);
+  tickDurations(a, 'end');
   cleanupDead(state, rng);
 }
 
@@ -450,7 +516,8 @@ function cleanupDead(state: BattleState, rng: Rng): void {
   // предсмертные эффекты: деление, взрыв
   for (const e of dead) {
     const def = enemyDef(e.defId);
-    if (!def.onDeath || state.phase === 'lost') continue;
+    // Метка «Предсмертие» здесь и флаг: её гасит тот, кто уже отыграл свой эффект (взрыв себя).
+    if (!def.onDeath || !getStatus(e, 'doom') || state.phase === 'lost') continue;
     log(state, `${e.name}: ${def.onDeath.name}`);
     for (const eff of def.onDeath.effects) applyEnemyEffect(state, e, eff, rng);
   }
@@ -462,16 +529,15 @@ function cleanupDead(state: BattleState, rng: Rng): void {
 
 // ─── Герой ─────────────────────────────────────────────────────────────────
 
-/** Герой не виден врагам: в тени или в дымовой завесе. Обе дают удар в спину и спадают после атаки. */
+/** Герой не виден врагам: скрытность даёт удар в спину и спадает после атаки. */
 export function isHidden(h: HeroBattle): boolean {
-  return !!getStatus(h, 'stealth') || !!getStatus(h, 'smoke');
+  return !!getStatus(h, 'stealth');
 }
 
-/** Любой урон от героя выдаёт его: скрытность и дымовая завеса спадают после удара или заклинания. */
+/** Любой урон от героя выдаёт его: скрытность спадает после удара или заклинания. */
 function breakStealth(state: BattleState): void {
   if (!isHidden(state.hero)) return;
   removeStatus(state.hero, 'stealth');
-  removeStatus(state.hero, 'smoke');
   log(state, 'Герой выходит из тени');
 }
 
@@ -499,7 +565,7 @@ function firstHitBonus(state: BattleState): number {
  * Урон атаки героя и его раскладка для лога: «кубик 4 + Сила 2 + первый удар 1 = 7, усталость ×0.75 = 5, крит ×2 = 10».
  * Слагаемые с нулём и множители, равные единице, не пишутся.
  */
-function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false): { dmg: number; crit: boolean; why: string } {
+function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false, target?: EnemyState): { dmg: number; crit: boolean; why: string } {
   const h = state.hero;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
   const stealthed = isHidden(h);
@@ -520,10 +586,13 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
     const m = [mult !== 1 ? `приём ×${mult}` : '', fatigue !== 1 ? `усталость ×${Math.round(fatigue * 100) / 100}` : ''].filter(Boolean).join(', ');
     steps.push(`${m} = ${dmg}`);
   }
-  const crit = sureCrit || stealthed || (h.stats.crit > 0 && chance(rng, h.stats.crit));
+  // Шанс крита: свой стат + накопленное «Азартом» + добивание раненой цели («Клеймо палача»).
+  const wounded = !!target && target.hp <= target.maxHp * EXECUTE_HP_PCT;
+  const critChance = Math.min(1, h.stats.crit + h.critStack + (wounded ? h.stats.executeCrit : 0));
+  const crit = sureCrit || stealthed || (critChance > 0 && chance(rng, critChance));
   if (crit) {
-    dmg *= h.stats.critMult;
-    steps.push(`крит ×${h.stats.critMult} = ${dmg}`);
+    dmg = Math.floor((dmg * h.stats.critDmg) / 100);
+    steps.push(`крит ${h.stats.critDmg} % = ${dmg}`);
   }
   if (getStatus(h, 'weak')) {
     dmg = Math.floor(dmg * 0.75);
@@ -548,16 +617,25 @@ interface StrikeOpts {
  */
 function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpts = {}): { dmg: number; crit: boolean } {
   const h = state.hero;
-  const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit);
+  const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit, e);
   const detail = newDetail();
   const pierce = h.stats.pierceBlock > 0;
   const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce, detail, rng });
   log(state, `${opts.label ?? 'Герой бьёт'} ${e.name}: ${dmg} (${why})${hitTail(dmg, dealt, detail, pierce && e.block > 0)}`);
   if (dealt > 0 && e.hp > 0) {
-    if (h.stats.stunOnHit > 0 && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnHit)) addStatus(state, e, e.uid, 'stun', 1, -1);
+    // Праща: оглушает только критом, и то не каждым — бросок делается лишь после крита, чтобы не тратить RNG на обычных ударах.
+    if (h.stats.stunOnCrit > 0 && crit && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnCrit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
     // «Метка охотника»: первый удар в ходу открывает цель для остальных.
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
+  }
+  // «Азарт» копит шанс с каждого промаха мимо крита, крит обнуляет счётчик; «Жажда крови» лечит за крит.
+  if (crit) {
+    h.critStack = 0;
+    if (h.stats.critHeal > 0) healHero(state, h.stats.critHeal, 'жажда крови');
+  } else if (h.stats.critRamp > 0) {
+    h.critStack = Math.min(1, h.critStack + h.stats.critRamp);
+    log(state, `Азарт: шанс крита +${Math.round(h.stats.critRamp * 100)} % (всего +${Math.round(h.critStack * 100)} %)`);
   }
   if (h.stats.blockOnHit > 0) gainBlock(state, h, 'hero', h.stats.blockOnHit, 'перк оружия');
   if (opts.single && h.stats.splash > 0 && dmg > 0) {
@@ -618,6 +696,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
     case 'attack':
       if (h.sta < 1) return 'Нет стамины';
       if (!findEnemy(state, action.target)) return 'Нет цели';
+      if (!canReach(state, action, action.target)) return REACH_ERR;
       return null;
     case 'defend':
       if (h.defended) return 'Защита — раз за ход';
@@ -636,10 +715,12 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if (cost.sta === 'all' ? h.sta < Math.max(1, h.maxSta) : (cost.sta ?? 0) > h.sta) return cost.sta === 'all' ? 'Нужна вся стамина' : 'Нет стамины';
       if ((cost.mp ?? 0) > h.mp) return 'Нет маны';
       if (def.target === 'enemy' && !findEnemy(state, action.target ?? -1)) return 'Нет цели';
+      if (def.target === 'enemy' && !canReach(state, action, action.target ?? -1)) return REACH_ERR;
       if (state.allies.length >= MAX_ALLIES && def.effects?.(inst.tier).some((e) => e.type === 'summon')) return 'Рядом нет места';
       for (const eff of def.effects?.(inst.tier) ?? []) {
         if (eff.type === 'selfDamage' && h.hp <= eff.amount) return 'Слишком мало HP';
         if (eff.type === 'blockStrike' && h.block <= 0) return 'Нет блока';
+        if (eff.type === 'pull' && state.enemies[0]?.uid === action.target) return 'Уже первый в ряду';
       }
       return null;
     }
@@ -676,7 +757,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       const dmg = Math.floor(h.block * eff.mult);
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const detail = newDetail();
-        const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail });
+        const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
         log(state, `Таран по ${e.name}: ${dmg} (блок ${h.block} × ${eff.mult})${hitTail(dmg, dealt, detail)}`);
       }
       break;
@@ -728,6 +809,16 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'summon':
       if (state.allies.length < MAX_ALLIES) spawnAlly(state, eff.enemyId, eff.hpBonus);
       break;
+    case 'pull':
+      // Крюк-кошка: цель встаёт первой, остальные сдвигаются назад в прежнем порядке.
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        const idx = state.enemies.indexOf(e);
+        if (idx <= 0) continue;
+        state.enemies.splice(idx, 1);
+        state.enemies.unshift(e);
+        log(state, `${e.name} вытянут в первый ряд`);
+      }
+      break;
   }
 }
 
@@ -737,8 +828,12 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   const h = state.hero;
   if (action.type === 'attack') {
     h.sta -= 1;
-    const e = findEnemy(state, action.target)!;
-    heroStrike(state, rng, e, { single: true });
+    if (h.stats.sweep > 0) {
+      // Плеть: один замах хлещет по всему ряду на долю урона; сквозного удара копья у неё нет.
+      for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, label: 'Герой хлещет' });
+    } else {
+      heroStrike(state, rng, findEnemy(state, action.target)!, { single: true });
+    }
     h.attacks += 1;
     if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal, 'вампиризм');
     breakStealth(state);
@@ -779,6 +874,8 @@ function startPlayerTurn(state: BattleState): void {
   const h = state.hero;
   state.turn += 1;
   state.phase = 'player';
+  // Скрытность отработала ход врага — тикает здесь, а не в конце хода героя.
+  tickDurations(h, 'start');
   // Панцирь оставляет часть блока на следующий ход.
   h.block = Math.min(h.block, h.stats.blockKeep);
   h.defended = false;
@@ -802,7 +899,7 @@ function startPlayerTurn(state: BattleState): void {
 
 export function endTurn(state: BattleState): void {
   if (state.phase !== 'player') return;
-  tickDurations(state.hero);
+  tickDurations(state.hero, 'end');
   state.phase = 'enemy';
   state.allyQueue = state.allies.map((a) => a.uid);
   state.enemyQueue = state.enemies.map((e) => e.uid);
@@ -855,6 +952,12 @@ function chooseIntent(state: BattleState, e: EnemyState, rng: Rng): void {
   );
 }
 
+/** Место нового врага в ряду: стартовый состав — по порядку встречи, призванный — вперёд (SUMMON_FRONT), заслоняя призывателя. */
+function placeEnemy(state: BattleState, e: EnemyState, summoned: boolean): void {
+  if (summoned && SUMMON_FRONT) state.enemies.unshift(e);
+  else state.enemies.push(e);
+}
+
 function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boolean): EnemyState {
   const def = enemyDef(defId);
   const sc = scaleFor(state, def);
@@ -866,7 +969,8 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     hp,
     maxHp: hp,
     block: 0,
-    statuses: [],
+    // «Предсмертие» — метка без механики: показывает игроку, что у врага есть эффект при смерти (см. onDeathInfo).
+    statuses: def.onDeath ? [{ id: 'doom', value: 0, turns: -1 }] : [],
     intent: def.actions[0].id,
     cycleIdx: 0,
     uses: {},
@@ -877,7 +981,7 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     dmgMult: sc.dmg,
     phase: 1,
   };
-  state.enemies.push(e);
+  placeEnemy(state, e, announce);
   // Процентный уворот вора: висит статусом, чтобы игрок видел текущий шанс промаха прямо на плитке врага.
   if (def.evade) addStatus(state, e, e.uid, 'evade', def.evade, -1);
   chooseIntent(state, e, rng);
@@ -910,7 +1014,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
           continue;
         }
         const detail = newDetail();
-        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, rng, detail);
+        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, detail);
         log(state, `${e.name} атакует: ${dmg}${hitTail(dmg, dealt, detail, !!eff.pierce && h.block > 0)}`);
         if (eff.drain && dealt > 0) healEnemy(state, e, dealt, 'вампиризм');
       }
@@ -957,8 +1061,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       }
       break;
     case 'invuln':
-      // +1 ход: статус наложен в собственный ход владельца
-      addStatus(state, e, e.uid, 'invuln', 1, 2);
+      addStatus(state, e, e.uid, 'invuln', 1, 1);
       break;
     case 'thorns':
       addStatus(state, e, e.uid, 'thorns', scaled(e.dmgMult, eff.amount), -1);
@@ -967,9 +1070,11 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       addStatus(state, e, e.uid, 'dodge', eff.value, -1);
       break;
     case 'selfDestruct': {
-      const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e, false, rng);
+      const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e, false);
       log(state, `${e.name} взрывается: ${dealt} по HP`);
       if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
+      // Взрыв уже случился: гасим «Предсмертие», иначе тот же порох рванёт второй раз в разборе мёртвых.
+      removeStatus(e, 'doom');
       e.hp = 0;
       break;
     }
@@ -1026,11 +1131,17 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
  */
 function stripArtifactMods(state: BattleState, art: ArtifactInstance): void {
   const def = artifactDef(art.id);
-  if (def.kind !== 'passive' || !def.mods) return;
   const h = state.hero;
+  // Активный приём: его плитка пропала, следы в кулдаунах и лимите за ход больше не нужны.
+  delete h.cooldowns[art.id];
+  delete h.uses[art.id];
+  if (def.kind !== 'passive' || !def.mods) return;
   const mods = def.mods(art.tier);
   for (const key of Object.keys(mods) as (keyof DerivedStats)[]) h.stats[key] -= mods[key] ?? 0;
-  h.stats.crit = Math.max(0, h.stats.crit);
+  // Те же границы, что в computeStats: шанс крита 0..1, крит-урон не ниже 100 %, усталость не выше 1.
+  h.stats.crit = Math.min(1, Math.max(0, h.stats.crit));
+  h.stats.critDmg = Math.max(100, h.stats.critDmg);
+  h.stats.fatigue = Math.min(1, h.stats.fatigue);
   h.maxHp = h.stats.maxHp;
   h.maxMp = h.stats.maxMp;
   h.maxSta = h.stats.sta;
@@ -1055,6 +1166,8 @@ function fleeEnemy(state: BattleState, e: EnemyState): void {
 function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   const def = enemyDef(e.defId);
   e.block = 0;
+  // Неуязвимость отработала ход героя — снимаем её до действия, а не после.
+  tickDurations(e, 'start');
   const dot = statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison');
   if (dot > 0) {
     log(state, `${e.name} теряет ${dot} HP от ран`);
@@ -1065,7 +1178,7 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     removeStatus(e, 'stun');
     state.events.push({ type: 'stunned', target: e.uid });
     log(state, `${e.name} оглушён и пропускает ход`);
-    tickDurations(e);
+    tickDurations(e, 'end');
     return;
   }
   const action = enemyAction(def, e.intent);
@@ -1081,7 +1194,7 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   } else {
     e.cycleIdx = (e.cycleIdx + 1) % def.ai.order.length;
   }
-  tickDurations(e);
+  tickDurations(e, 'end');
   if (state.phase === 'lost' || e.hp <= 0) return;
   chooseIntent(state, e, rng);
 }
@@ -1134,6 +1247,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       potion: hero.potion,
       defended: false,
       attacks: 0,
+      critStack: 0,
     },
     enemies: [],
     act,
@@ -1153,10 +1267,10 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
   for (const id of enemyIds) spawnEnemy(state, id, rng, false);
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
   if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
-  // Тень покрова: герой входит в бой невидимым.
-  if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
   startPlayerTurn(state);
-  // «Плащ странника»: блок в начале боя — после старта хода, иначе сгорит вместе с остальным.
+  // Тень покрова и «Плащ странника» — после старта первого хода: иначе тик начала хода съел бы ход скрытности,
+  // а блок сгорел бы вместе с остальным.
+  if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
   if (stats.blockStart > 0) gainBlock(state, state.hero, 'hero', stats.blockStart, 'в начале боя');
   return state;
 }
@@ -1176,8 +1290,12 @@ export interface ActionInfo {
   label: string;
   name: string;
   text: string;
+  /** Только перечень эффектов, без названия приёма: «Атака 12, Горение 2 на 2 хода». */
+  detail: string;
   kinds: IntentKind[];
   statuses: StatusId[];
+  /** Статусы, которые враг вешает на себя (шипы, уклонение): хвост пилюли рисует их иконкой, а не общей стрелкой. */
+  selfStatuses: StatusId[];
 }
 
 export interface IntentInfo extends ActionInfo {
@@ -1207,13 +1325,14 @@ export const INTENT_ICON: Record<IntentKind, string> = {
   special: '✦',
 };
 
-const INTENT_PRIORITY: IntentKind[] = ['attack', 'summon', 'debuff', 'heal', 'buff', 'defend', 'special'];
+const INTENT_PRIORITY: IntentKind[] = ['attack', 'summon', 'debuff', 'heal', 'defend', 'buff', 'special'];
 
 /** Текст приёма (или эффекта при смерти) по его эффектам — общий для намерения в бою и записи бестиария. */
 export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyEffect[] }, s: ActionScale = BASE_SCALE): ActionInfo {
   const parts: string[] = [];
   const kinds: IntentKind[] = [];
   const statuses: StatusId[] = [];
+  const selfStatuses: StatusId[] = [];
   let label = '';
   for (const eff of a.effects) {
     switch (eff.type) {
@@ -1237,6 +1356,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
       case 'dodge':
         parts.push(`Уклонение от ${eff.value} атак(и)`);
         kinds.push('buff');
+        selfStatuses.push('dodge');
         break;
       case 'selfDestruct': {
         const dmg = scaled(s.dmgMult, eff.amount) + s.strength;
@@ -1301,6 +1421,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
       case 'thorns':
         parts.push(`Шипы ${scaled(s.dmgMult, eff.amount)}`);
         kinds.push('buff');
+        selfStatuses.push('thorns');
         break;
     }
   }
@@ -1311,9 +1432,21 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: a.name,
     text: parts.length ? `${a.name}: ${parts.join(', ')}` : a.name,
+    detail: parts.join(', '),
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: statuses.filter((id, i) => statuses.indexOf(id) === i),
+    selfStatuses: selfStatuses.filter((id, i) => selfStatuses.indexOf(id) === i),
   };
+}
+
+/**
+ * Что случится, когда враг погибнет: описание его onDeath с числами под акт и статусы врага.
+ * null — предсмертного эффекта нет. Питает подсказку статуса «Предсмертие».
+ */
+export function onDeathInfo(e: EnemyState): ActionInfo | null {
+  const def = enemyDef(e.defId);
+  if (!def.onDeath) return null;
+  return describeAction(def, def.onDeath, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak') });
 }
 
 /**
@@ -1396,8 +1529,10 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: action.name,
     text: parts.length ? `${action.name}: ${parts.join(', ')}` : action.name,
+    detail: parts.join(', '),
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: [],
+    selfStatuses: [],
     stunned: false,
     target,
   };

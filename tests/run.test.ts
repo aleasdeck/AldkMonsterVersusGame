@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_LIST, SIGNATURE_OWNER } from '../src/data/heroes';
+import { HERO_LIST, SIGNATURE_OWNER, heroDef } from '../src/data/heroes';
+import { runReport } from '../src/engine/report';
+import { GAME_VERSION } from '../src/engine/types';
 import { artifactDef } from '../src/data/artifacts';
-import { ACTS, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
+import { ACTS, ACT_DMG_BONUS, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
 import { createRng } from '../src/engine/rng';
 import { canUseAction } from '../src/engine/combat';
@@ -233,29 +235,38 @@ describe('торговец из события', () => {
     expect(run.shop!.gear).not.toBeNull();
   });
 
-  it('переброс обновляет только непроданное, один раз за визит', () => {
+  it('переброс завозит новый товар на все места, включая купленные и лекаря, один раз за визит', () => {
     const run = toShop(35);
     run.gold = 100;
+    run.hero.hp = 5;
     expect(shopBuyGear(run)).toBe(true);
+    expect(shopHeal(run)).toBe(true);
+    expect(run.shop!.gear).toBeNull();
+    expect(run.shop!.healed).toBe(true);
     const gold = run.gold;
     expect(shopReroll(run)).toBe(true);
     expect(run.gold).toBe(gold - REROLL_COST);
     expect(run.shop!.rerolled).toBe(true);
-    expect(run.shop!.gear).toBeNull();
+    // Раскупленное вернулось на прилавок, лекарь снова принимает.
+    expect(run.shop!.gear).not.toBeNull();
     expect(run.shop!.artifact).not.toBeNull();
+    expect(run.shop!.potion).not.toBeNull();
+    expect(run.shop!.healed).toBe(false);
+    expect(canShopHeal(run)).toBeNull();
     expect(canShopReroll(run)).toMatch(/уже/);
     expect(shopReroll(run)).toBe(false);
 
+    // Даже с пустым прилавком переброс имеет смысл — он завозит всё заново.
     const empty = toShop(35);
     empty.gold = 100;
     shopBuyGear(empty);
     shopBuyArtifact(empty);
     if (empty.pending) resolvePending(empty);
-    // Зелье ещё на прилавке — перебрасывать есть что.
+    shopBuyPotion(empty);
     empty.gold = 100;
     expect(canShopReroll(empty)).toBeNull();
-    shopBuyPotion(empty);
-    expect(canShopReroll(empty)).toMatch(/Нечего/);
+    expect(shopReroll(empty)).toBe(true);
+    expect(empty.shop!.potion).not.toBeNull();
   });
 
   it('зелье у торговца: цена, ложится в слот и вытесняет старое, переброс обновляет', () => {
@@ -525,6 +536,8 @@ describe('забег', () => {
     run2.roomIndex = 2;
     startEvent(run2, 'altar');
     expect(run2.event?.kind === 'altar' && run2.event.artifact).toBeTruthy();
+    // Артефакт подставляем сам: случайный может оказаться дубликатом стоящего и уйти в апгрейд без выбора слота.
+    if (run2.event?.kind === 'altar') run2.event.artifact = { id: 'thorns', tier: 1 };
     expect(canAltarSacrifice(run2)).toBeNull();
     const max2 = heroStats(run2).maxHp;
     expect(altarSacrifice(run2)).toBe(true);
@@ -720,13 +733,13 @@ describe('забег', () => {
   it('враги масштабируются под акт, а не под родную локацию', () => {
     // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +65 % надбавки акта
     expect(enemyScale(1, 2).hp).toBeCloseTo(2.7);
-    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * 1.65);
-    // враг пещер (tier 3) в первом акте — наоборот, тоньше, надбавка первого акта +30 %; боссы растут мягче рядовых
+    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * ACT_DMG_BONUS[2]);
+    // враг пещер (tier 3) в первом акте — наоборот, тоньше, надбавка первого акта +40 %; боссы растут мягче рядовых
     expect(enemyScale(3, 0).hp).toBeCloseTo(1 / 2.7);
-    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * 1.3);
+    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * ACT_DMG_BONUS[0]);
     expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4);
-    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * 1.65);
-    expect(enemyScale(2, 1).dmg).toBeCloseTo(1.5);
+    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * ACT_DMG_BONUS[2]);
+    expect(enemyScale(2, 1).dmg).toBeCloseTo(ACT_DMG_BONUS[1]);
     const run = newRun('warrior', 3);
     run.locations = ['ship', 'forest', 'swamp'];
     enterRoom(run);
@@ -817,5 +830,88 @@ describe('журнал забега', () => {
     expect(run.logs.length).toBe(1);
     expect(run.logs[0].result).toBe('lost');
     expect(run.logs[0].lines.some((l) => l.includes('Герой пал'))).toBe(true);
+  });
+});
+
+describe('статистика забега (report.ts)', () => {
+  const ctx = { player: 'p-1', playerRuns: 3, debug: false, now: 5_000_000 };
+
+  it('победа: акт 3, клетка босса, длительность по отметкам, бои без строк лога', () => {
+    const run = newRun('warrior', 11, 1_000_000);
+    playRun(run, true);
+    run.stats.finishedAt = 1_000_000 + 754_400; // 12 мин 34 с
+    const r = runReport(run, { ...ctx, event: 'victory' });
+    expect(r.event).toBe('victory');
+    expect(r.version).toBe(GAME_VERSION);
+    expect(r.debug).toBe(false);
+    expect(r.player).toBe('p-1');
+    expect(r.playerRuns).toBe(3);
+    expect(r.hero).toBe('warrior');
+    expect(r.seed).toBe(11);
+    expect(r.phase).toBe('victory');
+    expect(r.act).toBe(3);
+    expect(r.room).toBe(ROOMS_PER_LOCATION);
+    expect(r.roomKind).toBe('boss');
+    expect(r.location).toBe(run.locations[2]);
+    expect(r.locations).toBe(run.locations.join(','));
+    expect(r.duration).toBe(754);
+    expect(r.roomsCleared).toBe(run.stats.roomsCleared);
+    expect(r.kills).toBe(run.stats.kills);
+    expect(r.battles).toBe(run.logs.length);
+    expect(r.lastBattle).toBe(run.logs.at(-1)!.title);
+    expect(r.detail.battles).toHaveLength(run.logs.length);
+    expect(r.detail.battles.some((b) => 'lines' in b)).toBe(false);
+    expect(r.detail.stats).toBe(run.stats);
+  });
+
+  it('гибель: клетка и состав боя, снаряжение и артефакты строками', () => {
+    const run = newRun('mage', 5, 1_000_000);
+    enterRoom(run);
+    run.battle!.phase = 'lost';
+    finishBattle(run);
+    run.stats.finishedAt = 1_000_000 + 30_000;
+    const r = runReport(run, { ...ctx, event: 'defeat' });
+    expect(r.event).toBe('defeat');
+    expect(r.phase).toBe('defeat');
+    expect(r.act).toBe(1);
+    expect(r.room).toBe(1);
+    expect(r.roomKind).toBe('fight');
+    expect(r.location).toBe(run.locations[0]);
+    expect(r.lastBattle).toContain(LOCATIONS.find((l) => l.id === run.locations[0])!.name);
+    expect(r.lastBattle).toContain('Бой 1');
+    expect(r.battles).toBe(1);
+    expect(r.hp).toBe(0);
+    expect(r.maxHp).toBe(heroStats(run).maxHp);
+    expect(r.weapon).toBe(`${run.hero.weapon.base}@${run.hero.weapon.tier}`);
+    expect(r.armor).toBe(`${run.hero.armor.base}@${run.hero.armor.tier}`);
+    expect(r.artifacts).toBe(`${heroDef('mage').signature}@1`);
+    expect(r.potion).toBe('');
+    expect(r.duration).toBe(30);
+    expect(r.detail.hero).toBe(run.hero);
+    expect(r.detail.event).toBeNull();
+  });
+
+  it('брошенный: фаза и клетка на момент записи, длительность до `now`, пометка debug', () => {
+    const run = newRun('archer', 7, 1_000_000);
+    run.roomIndex = 2;
+    startEvent(run, 'shop');
+    run.hero.weapon.affix = { stat: 'crit', value: 0.05 };
+    const r = runReport(run, { ...ctx, event: 'abandoned', now: 1_000_000 + 90_400, debug: true });
+    expect(r.event).toBe('abandoned');
+    expect(r.phase).toBe('shop');
+    expect(r.room).toBe(3);
+    expect(r.roomKind).toBe('event:shop');
+    expect(r.detail.event).toBe('shop');
+    expect(r.duration).toBe(90);
+    expect(r.debug).toBe(true);
+    expect(r.gold).toBe(run.gold);
+    expect(r.weapon).toBe(`${run.hero.weapon.base}@${run.hero.weapon.tier} +crit`);
+  });
+
+  it('новый забег не отладочный — пометка живёт в состоянии и переживает сохранение', () => {
+    const run = newRun('warrior', 1);
+    expect(run.debug).toBe(false);
+    run.debug = true;
+    expect((JSON.parse(JSON.stringify(run)) as RunState).debug).toBe(true);
   });
 });

@@ -133,15 +133,16 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '...##...',
     '........',
   ],
-  smoke: [
+  // Череп: пустые глазницы и зубы — метка врага с эффектом при смерти.
+  doom: [
     '........',
-    '...##...',
     '..####..',
     '.######.',
-    '##.####.',
-    '.###.##.',
-    '..###...',
-    '........',
+    '##.##.##',
+    '########',
+    '.######.',
+    '.#.##.#.',
+    '..####..',
   ],
   evade: [
     '........',
@@ -169,8 +170,8 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   invuln: '#ffd166',
   poison: '#7ddc5a',
   stealth: '#9aa6c8',
-  smoke: '#c9c9d6',
   vulnerable: '#ff6b6b',
+  doom: '#d264ff',
 };
 
 const OUTLINE = '#0b0b12';
@@ -201,46 +202,5 @@ export function statusIcon(id: StatusId, px = 20): HTMLImageElement {
   img.className = 'sprite status-icon';
   img.alt = id;
   img.draggable = false;
-  return img;
-}
-
-/** Пиксельный сундук 16×16 для экрана находок. */
-const CHEST_ROWS = [
-  '................',
-  '................',
-  '...oooooooooo...',
-  '..owwwwwwwwwwo..',
-  '.owwwwwwwwwwwwo.',
-  '.owwwwwmmwwwwwo.',
-  '.ommmmmmmmmmmmo.',
-  '.oddddddddddddo.',
-  '.oddddmllmddddo.',
-  '.oddddmllmddddo.',
-  '.oddddddddddddo.',
-  '.oddddddddddddo.',
-  '.ommmmmmmmmmmmo.',
-  '.oddddddddddddo.',
-  '..oooooooooooo..',
-  '................',
-];
-
-const CHEST_COLORS: Record<string, string> = {
-  o: '#2a1a0e',
-  w: '#9c6b33',
-  d: '#6f4520',
-  m: '#c9a227',
-  l: '#ffd166',
-};
-
-let chestUrl = '';
-
-export function chestIcon(px = 96): HTMLImageElement {
-  if (!chestUrl) chestUrl = drawGrid(16, 16, (x, y) => CHEST_COLORS[CHEST_ROWS[y]?.[x] ?? '.'] ?? null);
-  const img = document.createElement('img');
-  img.src = chestUrl;
-  img.width = px;
-  img.height = px;
-  img.className = 'sprite';
-  img.alt = 'сундук';
   return img;
 }

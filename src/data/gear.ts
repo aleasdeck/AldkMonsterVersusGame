@@ -1,4 +1,4 @@
-import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, Mastery, StatMods, WeaponType } from '../engine/types';
+import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, StatMods, WeaponReach, WeaponType } from '../engine/types';
 import { pick, weighted, type Rng } from '../engine/rng';
 
 type ByTier = [number, number, number, number, number];
@@ -40,25 +40,15 @@ export const WEAPON_TYPE_GLYPHS: Record<WeaponType, string> = {
   magic: '✦',
 };
 
-export const MASTERY_NAMES: Record<Mastery, string> = {
-  master: 'Мастер',
-  trained: 'Знаком',
-  foreign: 'Чужое',
-};
+/** Кубик чужого оружия: вдвое слабее. Сила, аффиксы и артефакты не трогаются. */
+export const UNSKILLED_DICE_MULT = 0.5;
 
-/** Множитель кубика оружия по умению владения. Сила и артефакты не трогаются. */
-export const MASTERY_MULT: Record<Mastery, number> = {
-  master: 1,
-  trained: 0.75,
-  foreign: 0.5,
-};
-
-/** Веса типа при выпадении оружия: мастерское чаще, чужое реже. */
-export const MASTERY_DROP_WEIGHT: Record<Mastery, number> = {
-  master: 50,
-  trained: 30,
-  foreign: 20,
-};
+/**
+ * Веса типа при выпадении оружия: свой тип втрое чаще чужого — 60 % дропа против 25 % и 25 % (v0.20).
+ * Выше, чем у брони (40 против 20): владеет герой ровно одним типом оружия, а носить умеет обычно два типа брони,
+ * и чужое оружие бьёт вдвое слабее, тогда как чужая броня теряет только перк.
+ */
+export const WEAPON_DROP_WEIGHT = { skilled: 60, unskilled: 20 };
 
 /**
  * Вес оружия (v0.15): кубик тира умножается до разброса. Лёгкое (кинжал, стилет, дротики, праща) бьёт слабее,
@@ -77,29 +67,35 @@ export const HEFT_NAMES: Record<Heft, string> = {
   heavy: 'тяжёлое',
 };
 
+/**
+ * Доля урона, которую плеть наносит каждому врагу в ряду одним ударом (v0.26). Вихрь даёт 50 % за 2 STA;
+ * плеть — оружие, а не приём, поэтому чуть щедрее, но против одиночки бьёт на треть слабее меча.
+ */
+export const SWEEP_MULT = 0.65;
+
 /** Бонус к заклинаниям, встроенный в магическое оружие, по тиру. */
 export const MAGIC_SPELL_POWER: [number, number, number, number, number] = [1, 1, 2, 3, 4];
 
-/** Что даёт сам тип, помимо перка базы. */
+/** Что даёт сам тип, помимо перка базы. Дальнее и магическое оружие достаёт любого врага в ряду, ближнее — только первого (v0.26). */
 export function weaponTypeMods(type: WeaponType, tier: GearTier): StatMods {
   switch (type) {
     case 'melee':
       return {};
     case 'ranged':
-      return { thornsImmune: 1 };
+      return { thornsImmune: 1, reachAny: 1 };
     case 'magic':
-      return { spellPower: MAGIC_SPELL_POWER[tier - 1] };
+      return { spellPower: MAGIC_SPELL_POWER[tier - 1], reachAny: 1 };
   }
 }
 
 export function weaponTypeText(type: WeaponType, tier: GearTier): string {
   switch (type) {
     case 'melee':
-      return 'полный урон в упор';
+      return 'бьёт только первого в ряду';
     case 'ranged':
-      return 'не боится шипов врага';
+      return 'любая цель, не боится шипов врага';
     case 'magic':
-      return `−1 к максимуму урона, +${MAGIC_SPELL_POWER[tier - 1]} к заклинаниям`;
+      return `любая цель, −1 к максимуму урона, +${MAGIC_SPELL_POWER[tier - 1]} к заклинаниям`;
   }
 }
 
@@ -155,6 +151,12 @@ export interface Base {
   heft?: Heft;
   /** Только у оружия. */
   type?: WeaponType;
+  /**
+   * Только у ближнего оружия: 'any' — достаёт любого врага в ряду, как дальнее (копьё) — свойство древка, работает и в чужих
+   * руках; 'row' — удар хлещет весь ряд (плеть) — это её перк, поэтому сам замах включает перк (`sweep`), а здесь — только
+   * пометка для маркера дальности.
+   */
+  reach?: WeaponReach;
   /** Только у брони. */
   armorType?: ArmorType;
   perk?: Perk;
@@ -218,10 +220,27 @@ export const WEAPON_BASES: Base[] = [
     name: 'копьё',
     g: 2,
     type: 'melee',
+    // Единственное ближнее оружие, которое достаёт через ряд (v0.26): ответ ближнего бойца стрелкам и шаманам за спинами.
+    reach: 'any',
     perk: {
       name: 'Сквозной удар',
       mods: (t) => ({ splash: byTier([0.3, 0.3, 0.4, 0.4, 0.5])(t) }),
       text: (t) => `${pct(byTier([0.3, 0.3, 0.4, 0.4, 0.5])(t))} урона удара достаётся следующему врагу`,
+    },
+  },
+  {
+    id: 'whip',
+    name: 'плеть',
+    g: 1,
+    spread: 'wide',
+    type: 'melee',
+    // Оружие против толпы (v0.26): удар хлещет по всему ряду на долю урона, против одиночки слабее меча. Это и есть её перк —
+    // у не владеющего плеть бьёт как обычное ближнее оружие, первого.
+    reach: 'row',
+    perk: {
+      name: 'Хлёст',
+      mods: () => ({ sweep: 1 }),
+      text: () => `удар хлещет весь ряд на ${Math.round(SWEEP_MULT * 100)} % урона каждому`,
     },
   },
   {
@@ -231,7 +250,11 @@ export const WEAPON_BASES: Base[] = [
     g: 0,
     spread: 'wide',
     type: 'melee',
-    perk: { name: 'Сокрушение', mods: () => ({ critMult: 1 }), text: () => 'крит бьёт ×3 вместо ×2' },
+    perk: {
+      name: 'Сокрушение',
+      mods: (t) => ({ critDmg: byTier([30, 35, 40, 45, 50])(t) }),
+      text: (t) => `крит бьёт на +${byTier([30, 35, 40, 45, 50])(t)} % урона`,
+    },
   },
   // ── Дальнее ──
   {
@@ -260,7 +283,7 @@ export const WEAPON_BASES: Base[] = [
     g: 1,
     spread: 'wide',
     type: 'ranged',
-    perk: { name: 'Оглушающий камень', mods: () => ({ stunOnHit: 0.5 }), text: () => 'каждый удар с шансом 50 % оглушает цель' },
+    perk: { name: 'Оглушающий камень', mods: () => ({ stunOnCrit: 0.3 }), text: () => 'критический удар с шансом 30 % оглушает цель' },
   },
   {
     id: 'darts',
@@ -385,7 +408,7 @@ export const ARMOR_BASES: Base[] = [
     perk: {
       name: 'Тень',
       mods: (t) => ({ stealthStart: byTier([2, 2, 2, 3, 3])(t) }),
-      text: (t) => `бой начинается в скрытности на ${byTier([2, 2, 2, 3, 3])(t)} хода`,
+      text: (t) => `бой начинается в скрытности на ${byTier([2, 2, 2, 3, 3])(t)} хода врага`,
     },
   },
 ];
@@ -413,8 +436,33 @@ export function weaponType(gear: GearInstance): WeaponType {
   return weaponBase(gear).type ?? 'melee';
 }
 
-export function masteryOf(def: HeroDef, gear: GearInstance): Mastery {
-  return def.mastery[weaponType(gear)];
+/**
+ * Дальность оружия: дальнее, магическое и копьё достают любого врага в ряду, плеть хлещет весь ряд, остальное ближнее — только первого.
+ * С героем — в его руках: удар по ряду у плети — перк, у не владеющего его нет.
+ */
+export function weaponReach(gear: GearInstance, def?: HeroDef): WeaponReach {
+  const base = weaponBase(gear);
+  if (base.type !== 'melee') return 'any';
+  if (base.reach === 'row' && def && !canWieldWeapon(def, gear)) return 'melee';
+  return base.reach ?? 'melee';
+}
+
+export const REACH_NAMES: Record<WeaponReach, string> = {
+  melee: 'только первый в ряду',
+  any: 'любая цель в ряду',
+  row: `весь ряд одним ударом, ${Math.round(SWEEP_MULT * 100)} % урона каждому`,
+};
+
+/** Подсказка к маркеру дальности: что достаёт оружие, а у плети в чужих руках — почему только первого. */
+export function weaponReachTitle(gear: GearInstance, def?: HeroDef): string {
+  const reach = weaponReach(gear, def);
+  const lost = def && weaponReach(gear) === 'row' && reach === 'melee' ? ` (перк «Хлёст» не работает: ${def.name} не владеет ближним оружием)` : '';
+  return `Дальность: ${REACH_NAMES[reach]}${lost}`;
+}
+
+/** Владеет ли герой этим оружием. Нет — кубик вдвое и перк базы не работает, свойство типа, аффикс и артефакты остаются. */
+export function canWieldWeapon(def: HeroDef, gear: GearInstance): boolean {
+  return def.weaponSkill[weaponType(gear)];
 }
 
 export function armorType(gear: GearInstance): ArmorType {
@@ -433,17 +481,19 @@ export function hasPerk(gear: GearInstance): boolean {
 
 /** Итоговый кубик оружия в руках героя: владение, штраф магического типа. */
 export function weaponDice(def: HeroDef, gear: GearInstance): { min: number; max: number } {
-  const mult = MASTERY_MULT[masteryOf(def, gear)];
+  const mult = canWieldWeapon(def, gear) ? 1 : UNSKILLED_DICE_MULT;
   const min = Math.max(1, Math.floor(gear.dmgMin * mult));
   let max = Math.max(min, Math.floor(gear.dmgMax * mult));
   if (weaponType(gear) === 'magic') max = Math.max(min, max - 1);
   return { min, max };
 }
 
-/** Модификаторы самого оружия: тип + перк базы (без аффикса). */
-export function weaponPerkMods(gear: GearInstance): StatMods {
+/** Модификаторы самого оружия: тип + перк базы (без аффикса). С героем перк пуст, если он не владеет этим типом; свойство типа остаётся. */
+export function weaponPerkMods(gear: GearInstance, def?: HeroDef): StatMods {
   const base = weaponBase(gear);
   const out: StatMods = { ...weaponTypeMods(base.type ?? 'melee', gear.tier) };
+  if (base.reach === 'any') out.reachAny = 1;
+  if (def && !canWieldWeapon(def, gear)) return out;
   const perk = base.perk?.mods(gear.tier) ?? {};
   for (const key of Object.keys(perk) as (keyof DerivedStats)[]) out[key] = (out[key] ?? 0) + (perk[key] ?? 0);
   return out;
@@ -465,11 +515,11 @@ export function gearPerkText(gear: GearInstance): string {
   return base.perk ? `${base.perk.name}: ${base.perk.text(gear.tier)}` : '';
 }
 
-/** Подсказка к иконке типа: «Магическое · Чужое». Проценты и свойство типа — в строке владения героя. */
+/** Подсказка к иконке типа: «Магическое оружие · Не владеет: кубик вдвое, перк не работает». */
 export function weaponTypeTitle(gear: GearInstance, def?: HeroDef): string {
   const type = weaponType(gear);
-  if (!def) return WEAPON_TYPE_NAMES[type];
-  return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[masteryOf(def, gear)]}`;
+  if (!def) return `${WEAPON_TYPE_NAMES[type]} оружие`;
+  return `${WEAPON_TYPE_NAMES[type]} оружие · ${canWieldWeapon(def, gear) ? 'Владеет' : `Не владеет: кубик ${pct(UNSKILLED_DICE_MULT)}, перк не работает`}`;
 }
 
 /** Подсказка к иконке типа брони: «Тяжёлая броня · Умеет носить» или «… · Не умеет: перк не работает». */
@@ -478,6 +528,12 @@ export function armorTypeTitle(gear: GearInstance, def?: HeroDef): string {
   if (!hasPerk(gear)) return `${ARMOR_TYPE_NAMES[type]} броня · без перка`;
   if (!def) return `${ARMOR_TYPE_NAMES[type]} броня`;
   return `${ARMOR_TYPE_NAMES[type]} броня · ${canWearArmor(def, gear) ? 'Умеет носить' : 'Не умеет: перк не работает'}`;
+}
+
+/** Подсказка пункта строки владения оружием. */
+export function weaponSkillTitle(type: WeaponType, skilled: boolean): string {
+  const head = `${WEAPON_TYPE_NAMES[type]} оружие · ${skilled ? 'Владеет: полный кубик и перк базы' : `Не владеет: кубик ${pct(UNSKILLED_DICE_MULT)}, перк базы не работает, аффикс и артефакты остаются`}`;
+  return `${head}\nСвойство типа: ${weaponTypeHint(type)}`;
 }
 
 /** Подсказка пункта строки умений брони. */
@@ -489,11 +545,6 @@ export function armorSkillTitle(type: ArmorType, skilled: boolean): string {
 export function weaponTypeHint(type: WeaponType): string {
   if (type === 'magic') return `−1 к максимуму урона, +${MAGIC_SPELL_POWER[0]}…+${MAGIC_SPELL_POWER[4]} к заклинаниям по тиру`;
   return weaponTypeText(type, 1);
-}
-
-/** Подсказка пункта строки владения: «Дальнее · Мастер: 100 % кубика оружия\nСвойство типа: не боится шипов врага». */
-export function masteryTitle(type: WeaponType, m: Mastery): string {
-  return `${WEAPON_TYPE_NAMES[type]} · ${MASTERY_NAMES[m]}: ${Math.round(MASTERY_MULT[m] * 100)} % кубика оружия\nСвойство типа: ${weaponTypeHint(type)}`;
 }
 
 /** Разброс урона базы на тире: кубик тира × вес (округление к ближайшему), потом ширина. Лёгкий узкий 1 тира — 3–4, тяжёлый широкий — 3–7. */
@@ -555,9 +606,10 @@ interface AffixDef {
 }
 
 const WEAPON_AFFIXES: AffixDef[] = [
-  { stat: 'str', values: [1, 1, 2, 2, 3] },
-  { stat: 'crit', values: [0.05, 0.08, 0.1, 0.12, 0.15] },
-  { stat: 'lifesteal', values: [1, 1, 2, 2, 3] },
+  { stat: 'str', values: [1, 1, 1, 2, 2] },
+  { stat: 'crit', values: [0.04, 0.06, 0.08, 0.1, 0.12] },
+  { stat: 'critDmg', values: [10, 15, 20, 25, 30] },
+  { stat: 'lifesteal', values: [1, 1, 1, 2, 2] },
   { stat: 'spellPower', values: [1, 1, 2, 3, 4] },
 ];
 
@@ -583,6 +635,8 @@ export function affixText(affix: GearAffix): string {
       return `+${v} Сила`;
     case 'crit':
       return `+${Math.round(v * 100)} % крит`;
+    case 'critDmg':
+      return `+${v} % крит. урон`;
     case 'lifesteal':
       return `+${v} вампиризм`;
     case 'spellPower':
@@ -611,9 +665,12 @@ export function affixMods(gear: GearInstance): StatMods {
 // ─── Генерация ─────────────────────────────────────────────────────────────
 
 /** База оружия под героя: тип выбирается по весам владения, внутри типа — поровну. */
-function pickWeaponBase(rng: Rng, mastery?: HeroDef['mastery']): Base {
-  if (!mastery) return pick(rng, WEAPON_BASES);
-  const types = (Object.keys(mastery) as WeaponType[]).map((type) => ({ item: type, weight: MASTERY_DROP_WEIGHT[mastery[type]] }));
+function pickWeaponBase(rng: Rng, weaponSkill?: HeroDef['weaponSkill']): Base {
+  if (!weaponSkill) return pick(rng, WEAPON_BASES);
+  const types = (Object.keys(weaponSkill) as WeaponType[]).map((type) => ({
+    item: type,
+    weight: weaponSkill[type] ? WEAPON_DROP_WEIGHT.skilled : WEAPON_DROP_WEIGHT.unskilled,
+  }));
   const type = weighted(rng, types);
   return pick(
     rng,
@@ -638,7 +695,7 @@ function pickArmorBase(rng: Rng, armorSkill?: HeroDef['armorSkill']): Base {
 
 /** Предмет случайной базы. С героем оружие выпадает под его владение, броня — под умение носить. */
 export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, def?: HeroDef): GearInstance {
-  const base = kind === 'weapon' ? pickWeaponBase(rng, def?.mastery) : pickArmorBase(rng, def?.armorSkill);
+  const base = kind === 'weapon' ? pickWeaponBase(rng, def?.weaponSkill) : pickArmorBase(rng, def?.armorSkill);
   const prefix = pick(rng, PREFIXES[tier])[base.g];
   const info = GEAR_TIERS[tier];
   const dmg = baseDamage(base, tier);
@@ -753,6 +810,8 @@ export function gearStatText(g: GearInstance, def?: HeroDef): string {
       if (d.min !== g.dmgMin || d.max !== g.dmgMax) text += ` → ${d.min}–${d.max}`;
     }
     parts.push(text);
+    // Ближнее оружие, которое достаёт через ряд, — редкость: копьё пишет это прямо в характеристиках (у плети то же говорит перк).
+    if (weaponType(g) === 'melee' && weaponReach(g) === 'any') parts.push('достаёт любого в ряду');
   } else {
     if (g.def) parts.push(`+${g.def} DEF`);
     if (g.hp) parts.push(`+${g.hp} HP`);

@@ -1,8 +1,8 @@
 import { h } from './dom';
-import type { ArtTier, ArtifactInstance, DerivedStats, GearInstance, HeroDef } from '../engine/types';
+import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef } from '../engine/types';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { ART_TIER_COLORS, GEAR_TIERS, gearPerkText } from '../data/gear';
-import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, tierTip } from './components';
+import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, reachDots, tierTip } from './components';
 import { markKeywords } from './keywords';
 
 /**
@@ -38,6 +38,8 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return 'снимает раны';
       case 'status':
         return e.target === 'self' ? 'бафф' : 'дебафф';
+      case 'pull':
+        return 'в первый ряд';
       default:
         continue;
     }
@@ -52,11 +54,13 @@ function socketCell(inst: ArtifactInstance | null, s: DerivedStats): HTMLElement
   return h('div', { class: 'sock' }, artifactChip(inst), h('span', { class: 'sock-name' }, def.name), h('span', { class: 'sock-val' }, artifactShort(inst, s)));
 }
 
-/** Строка артефакта в оверлее: чип, имя с тиром, описание и что даст следующий тир. */
+/**
+ * Строка артефакта в оверлее: чип, имя с тиром и описание. Следующий тир не пишем — в панели мало места.
+ * Число в шапке только у активных: у пассивных artifactShort() отдаёт то же описание, что и строкой ниже.
+ */
 function artifactRow(inst: ArtifactInstance, s: DerivedStats): HTMLElement {
   const def = artifactDef(inst.id);
   const color = ART_TIER_COLORS[inst.tier];
-  const next = inst.tier < 3 ? def.describe((inst.tier + 1) as ArtTier) : null;
   return h(
     'div',
     { class: 'art-row' },
@@ -64,9 +68,8 @@ function artifactRow(inst: ArtifactInstance, s: DerivedStats): HTMLElement {
     h(
       'div',
       { class: 'art-row-body' },
-      h('div', { class: 'art-row-head' }, h('span', { class: 'art-row-name', style: `color:${color}` }, def.name), h('span', { class: 'dim' }, ` · тир ${inst.tier}`), def.kind === 'active' ? h('span', { class: 'card-cost' }, ` · ${artifactCostText(def, inst.tier)}`) : h('span', { class: 'dim' }, ' · пассивный'), h('span', { class: 'sock-val' }, ` · ${artifactShort(inst, s)}`)),
+      h('div', { class: 'art-row-head' }, h('span', { class: 'art-row-name', style: `color:${color}` }, def.name), h('span', { class: 'dim' }, ` · тир ${inst.tier}`), def.kind === 'active' ? h('span', { class: 'card-cost' }, ` · ${artifactCostText(def, inst.tier)}`) : h('span', { class: 'dim' }, ' · пассивный'), def.kind === 'active' ? h('span', { class: 'sock-val' }, ` · ${artifactShort(inst, s)}`) : null),
       h('div', { class: 'art-row-desc' }, ...markKeywords(def.describe(inst.tier))),
-      next ? h('div', { class: 'art-row-next' }, `Тир ${inst.tier + 1}: `, ...markKeywords(next)) : null,
     ),
   );
 }
@@ -90,7 +93,7 @@ export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, opts
   return h(
     'div',
     { class: `gear-tile ${isWeapon ? 'weapon' : 'armor'}`, style: `border-color:${info.color}` },
-    h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), stats),
+    h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), reachDots(gear, def), stats),
     perk,
     opts.expanded
       ? h('div', { class: 'art-list' }, ...gear.slots.map((a) => (a ? artifactRow(a, s) : h('div', { class: 'art-row empty' }, artifactChip(null), h('span', { class: 'dim' }, 'свободный сокет')))))

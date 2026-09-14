@@ -20,7 +20,8 @@ function potionLine(app: App): HTMLElement {
   }
   const def = potionDef(id);
   if (b) {
-    const act: PlayerAction = { type: 'potion', target: app.currentTarget() };
+    // Зелья во врага сейчас только по всем — цель не выбирается, пьётся сразу.
+    const act: PlayerAction = { type: 'potion', target: b.enemies[0]?.uid ?? -1 };
     const err = app.busy ? 'Ход врагов' : canUseAction(b, act);
     // Без атрибута disabled: браузер не шлёт наведение выключенной кнопке, а ридаут должен показать причину.
     const el = h(

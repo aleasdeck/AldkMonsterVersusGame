@@ -8,7 +8,8 @@ function logLines(lines: string[]): HTMLElement[] {
 }
 
 function pastBattle(entry: BattleLog, open: boolean): HTMLElement {
-  const badge = entry.result === 'won' ? h('span', { class: 'runlog-won' }, 'победа') : h('span', { class: 'runlog-lost' }, 'поражение');
+  const badge =
+    entry.result === 'won' ? h('span', { class: 'runlog-won' }, 'победа') : entry.result === 'fled' ? h('span', { class: 'dim' }, 'вор удрал') : h('span', { class: 'runlog-lost' }, 'поражение');
   const details = h(
     'details',
     { class: 'runlog-battle' },

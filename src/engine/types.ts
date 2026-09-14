@@ -6,10 +6,17 @@ export type LocationId = 'forest' | 'crypt' | 'caves' | 'swamp' | 'hive' | 'ship
 
 /** Тип оружия: ближнее, дальнее, магическое. */
 export type WeaponType = 'melee' | 'ranged' | 'magic';
-/** Умение героя владеть типом оружия: мастер — полный урон, знаком — 75 %, чужое — 50 %. */
-export type Mastery = 'master' | 'trained' | 'foreign';
 /** Тип брони: тяжёлая, средняя, лёгкая. */
 export type ArmorType = 'heavy' | 'medium' | 'light';
+
+/**
+ * Дальность удара героя (v0.26): ближний бой достаёт только первого в ряду врага — ближайшего к герою,
+ * дальний — любого. Заклинания, брошенные склянки и приёмы по всем врагам дальности не знают.
+ */
+export type Reach = 'melee' | 'any';
+
+/** Дальность базы оружия: как у действия, плюс 'row' — удар хлещет по всему ряду (плеть). */
+export type WeaponReach = Reach | 'row';
 
 export const MAX_ENEMIES = 3;
 /** Союзников рядом с героем. */
@@ -31,8 +38,8 @@ export type StatusId =
   | 'poison' // value урона в начале хода, turns ходов; яд ассасина
   | 'stealth' // враги не видят героя; любая атака — удар в спину (крит) и снимает статус (только герой)
   | 'vulnerable' // получает на 25 % больше урона от ударов и заклинаний (VULNERABLE_MULT), turns ходов
-  | 'smoke' // дымовая завеса: каждый удар врага с шансом SMOKE_MISS_CHANCE проходит мимо; атаки героя её не снимают (только герой)
-  | 'evade'; // процентный уворот: удар или заклинание по владельцу с шансом value % мимо; раны (DoT) бьют всегда (только враги)
+  | 'doom' // предсмертие: метка врага с onDeath — сам ничего не делает, но в подсказке видно, что случится после его гибели (только враги)
+  | 'evade'; // процентный уворот: удар или заклинание по владельцу с шансом value % мимо; раны (DoT) и шипы бьют всегда (только враги)
 
 export interface Status {
   id: StatusId;
@@ -56,8 +63,19 @@ export interface DerivedStats {
   thorns: number;
   lifesteal: number;
   regen: number;
-  /** 0..1 */
+  /** Шанс критического удара, 0..1. */
   crit: number;
+  /**
+   * Крит. урон: сколько процентов обычного урона наносит крит. 150 — полтора урона.
+   * До v0.21 был множителем ×2 у всех; теперь база у каждого героя своя, снаряжение прибавляет проценты.
+   */
+  critDmg: number;
+  /** Прибавка к шансу крита за каждый некритический удар в бою; крит сбрасывает накопленное («Азарт»). */
+  critRamp: number;
+  /** Прибавка к шансу крита по врагу ниже EXECUTE_HP_PCT здоровья («Клеймо палача»). */
+  executeCrit: number;
+  /** Лечение героя за каждый критический удар («Жажда крови»). */
+  critHeal: number;
   spellPower: number;
   firstTurnSta: number;
   /** Во сколько раз слабее каждая следующая атака в ходу. */
@@ -65,8 +83,6 @@ export interface DerivedStats {
   // ── Перки оружия ──
   /** Бонус урона первого удара в ходу. */
   firstHit: number;
-  /** Множитель крита (обычно 2). */
-  critMult: number;
   /** >0 — удары игнорируют блок врага. */
   pierceBlock: number;
   /** >0 — герой не получает урон от шипов врага при ударе. */
@@ -75,8 +91,8 @@ export interface DerivedStats {
   splash: number;
   /** Кровотечение, которое вешает каждый удар (на 2 хода). */
   onHitBleed: number;
-  /** Шанс 0..1, что удар оглушит цель (праща). */
-  stunOnHit: number;
+  /** Шанс 0..1, что критический удар оглушит цель (праща); обычные удары не оглушают. */
+  stunOnCrit: number;
   /** Блок за каждый удар. */
   blockOnHit: number;
   /** Лечение за каждое заклинание. */
@@ -102,6 +118,10 @@ export interface DerivedStats {
   blockStart: number;
   /** Первый удар героя в ходу вешает Уязвимость на N ходов («Метка охотника»). */
   markOnHit: number;
+  /** >0 — оружие достаёт любого врага в ряду (дальнее, магическое, копьё); 0 — только первого. */
+  reachAny: number;
+  /** >0 — базовый удар хлещет по всему ряду на SWEEP_MULT урона (перк плети «Хлёст», только у владеющего); приёмы бьют как ближнее оружие. */
+  sweep: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -148,7 +168,9 @@ export type Effect =
   | { type: 'selfDamage'; amount: number }
   | { type: 'gainMp'; amount: number }
   /** Снять с героя раны и проклятия: кровотечение, горение, яд, слабость, изнурение. */
-  | { type: 'cleanse' };
+  | { type: 'cleanse' }
+  /** Притянуть цель в первый ряд (Крюк-кошка): она встаёт под удар ближнего боя, остальные сдвигаются назад. */
+  | { type: 'pull'; target: 'enemy' };
 
 export interface ArtifactCost {
   sta?: number | 'all';
@@ -167,6 +189,11 @@ export interface ArtifactDef {
   /** Не больше N применений за ход (Волшебная стрела: без перезарядки, но не бесконечно). */
   usesPerTurn?: (tier: ArtTier) => number;
   target?: TargetKind;
+  /**
+   * Своя дальность приёма по цели. Без поля: заклинания достают любого врага, физические приёмы бьют как оружие в руках.
+   * Щит и порез — всегда ближний бой, брошенный флакон — любая цель.
+   */
+  reach?: Reach;
   effects?: (tier: ArtTier) => Effect[];
   mods?: (tier: ArtTier) => StatMods;
   describe: (tier: ArtTier) => string;
@@ -241,11 +268,14 @@ export interface HeroDef {
   mpRegen: number;
   sta: number;
   /** Врождённый шанс крита, 0..1. */
+  /** Шанс крита, 0..1. */
   crit?: number;
+  /** Крит. урон в процентах обычного (150 — полтора урона). */
+  critDmg?: number;
   /** Своя усталость: во сколько раз слабее каждая следующая атака в ходу (по умолчанию 0.75). */
   fatigue?: number;
-  /** Умение владения каждым типом оружия. */
-  mastery: Record<WeaponType, Mastery>;
+  /** Умение владеть типом оружия: владеет — полный кубик и перк базы, не владеет — кубик вдвое и перк не работает. */
+  weaponSkill: Record<WeaponType, boolean>;
   /** Умение носить тип брони: умеет — перк базы работает, не умеет — броня даёт только DEF, HP и аффикс. */
   armorSkill: Record<ArmorType, boolean>;
   weapon: { base: string; name: string; dmgMin: number; dmgMax: number };
@@ -365,6 +395,8 @@ export interface HeroBattle extends Combatant {
   defended: boolean;
   /** Сколько атакующих действий сделано в этом ходу — каждое следующее слабее. */
   attacks: number;
+  /** Накопленный «Азартом» шанс крита: растёт с каждого некрита, крит обнуляет. */
+  critStack: number;
 }
 
 export interface EnemyState extends Combatant {
@@ -472,13 +504,13 @@ export interface HeroPersistent {
 
 export type RunPhase = 'map' | 'battle' | 'reward' | 'shop' | 'event' | 'camp' | 'victory' | 'defeat';
 
-/** Торговец, остановка между элитой и боссом: лекарь, одна случайная экипировка, один случайный артефакт, одно зелье, переброс товаров один раз. */
+/** Торговец, остановка между элитой и боссом: лекарь, одна случайная экипировка, один случайный артефакт, одно зелье, переброс всего прилавка один раз. */
 export interface ShopState {
   /** Товар куплен или не завёзли — null. */
   gear: GearInstance | null;
   artifact: ArtifactInstance | null;
   potion: string | null;
-  /** Лечение уже куплено — один раз за визит. */
+  /** Лечение уже куплено — один раз до переброса (переброс завозит новый товар и снимает флаг). */
   healed: boolean;
   rerolled: boolean;
 }
@@ -547,16 +579,22 @@ export interface RunStats {
 export interface BattleLog {
   /** «Акт 1 · Лес · Бой 2: Волк, Волк». */
   title: string;
-  result: 'won' | 'lost';
+  /** `fled` — враг сбежал (вор): поле пусто, но добыча ушла с ним. */
+  result: 'won' | 'lost' | 'fled';
   turns: number;
   lines: string[];
 }
 
-export const SAVE_VERSION = 15;
+/** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
+export const GAME_VERSION = '0.30';
+
+export const SAVE_VERSION = 19;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
   seed: number;
+  /** Забег начат отладочным параметром `?hero=`: в статистику (report.ts) уходит с пометкой debug и в общие цифры не идёт. */
+  debug: boolean;
   rng: { state: number };
   hero: HeroPersistent;
   /** Золото: капает за бои, тратится на переброс наград. */

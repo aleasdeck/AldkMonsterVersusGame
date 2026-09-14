@@ -472,41 +472,32 @@ p {
   margin-left: auto;
   white-space: nowrap;
 }
-/* Умения одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇», подписи серые, иконки — цветом владения или умения. */
-.mastery {
+/* Умения одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇», подписи серые, иконки — цветом владения или умения (skill-yes/skill-no). */
+.skill-line {
   display: flex;
   gap: 6px;
   align-items: baseline;
   flex-wrap: wrap;
   font-size: 15px;
 }
-.mastery .lbl {
+.skill-line .lbl {
   color: var(--dim);
 }
-.mastery .lbl + .lbl,
-.mastery span:not(.lbl) + .lbl {
+.skill-line .lbl + .lbl,
+.skill-line span:not(.lbl) + .lbl {
   margin-left: 8px;
 }
-.mastery span:not(.lbl) {
+.skill-line span:not(.lbl) {
   cursor: help;
 }
-.mastery-master {
-  color: #8ce99a;
-}
-.mastery-trained {
-  color: #ffd166;
-}
-.mastery-foreign {
-  color: #ff8787;
-}
-/* Умение носить броню: два состояния, зелёный умеет, красный нет. */
+/* Владение оружием и умение носить броню: два состояния, зелёный да, красный нет. */
 .skill-yes {
   color: #8ce99a;
 }
 .skill-no {
   color: #ff8787;
 }
-/* Иконка типа оружия или брони рядом с именем; цвет — владение или умение героя (классы mastery-*, skill-*). */
+/* Иконка типа оружия или брони рядом с именем; цвет — владение или умение героя (классы skill-*). */
 .wtype-icon {
   font-size: 15px;
   line-height: 1;
@@ -514,20 +505,33 @@ p {
   cursor: help;
 }
 /* Цвет владения должен перебивать серый по умолчанию. */
-.wtype-icon.mastery-master {
-  color: #8ce99a;
-}
-.wtype-icon.mastery-trained {
-  color: #ffd166;
-}
-.wtype-icon.mastery-foreign {
-  color: #ff8787;
-}
 .wtype-icon.skill-yes {
   color: #8ce99a;
 }
 .wtype-icon.skill-no {
   color: #ff8787;
+}
+/* Маркер дальности оружия: три точки — ряд врагов; горят те, кого оружие достаёт (ближнее — первую, остальное — все). */
+.reach-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  flex: none;
+  cursor: help;
+  padding: 2px 0;
+}
+.reach-dots i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  background: #2a2a44;
+  box-shadow: 0 0 0 1px #000;
+}
+.reach-dots i.on {
+  background: var(--accent);
+}
+.reach-dots.reach-row i.on {
+  background: #ffab40;
 }
 .card-perk {
   font-size: 15px;
@@ -861,6 +865,15 @@ p {
   color: #6f6f8a;
   font-size: 17px;
 }
+/* Версия игры: правый нижний угол главного экрана, .screen уже absolute и служит опорой. */
+.menu .version {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  color: #6f6f8a;
+  font-size: 17px;
+  letter-spacing: 1px;
+}
 
 /* ─── Выбор героя: сетка плиток слева, превью справа ─────────────────── */
 
@@ -1100,9 +1113,29 @@ p {
 .enemy:hover {
   border-color: #55557a;
 }
-.enemy.selected {
+/* Выбор цели (v0.26): досягаемые для выбранного или наведённого приёма враги — зелёная рамка, остальные тускнеют;
+   наведённая цель, цель под предпросмотром и выбранная Tab — жёлтая рамка. */
+.enemy.ok {
+  border-color: var(--good);
+  cursor: crosshair;
+}
+.enemy.ok:hover,
+.enemy.preview,
+.enemy.aim {
   border-color: var(--accent);
   background: #ffd16608;
+}
+.enemy.far {
+  cursor: not-allowed;
+}
+.enemy.far:hover {
+  border-color: transparent;
+}
+.enemy.far .name {
+  color: var(--dim);
+}
+.enemy.far .sprite-wrap {
+  filter: brightness(0.7);
 }
 .enemy .bar {
   width: 140px;
@@ -1348,6 +1381,10 @@ p {
   border-color: var(--good);
   color: var(--good);
 }
+.status-doom {
+  border-color: #d264ff;
+  color: #d264ff;
+}
 
 /* ─── Консоль боя: ридаут и плитки ──────────────────────────────────── */
 
@@ -1417,6 +1454,14 @@ p {
 .tile.off {
   opacity: 0.4;
   cursor: default;
+}
+/* Выбранный приём ждёт цель: жёлтая рамка с ободом, пока не применён или не снят. */
+.tile.armed {
+  border-color: var(--accent);
+  background: #ffd16618;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    2px 2px 0 #000;
 }
 .tile.off.cooling {
   opacity: 0.85;
@@ -1956,10 +2001,6 @@ p {
 .art-row-desc {
   color: var(--text);
 }
-.art-row-next {
-  color: var(--dim);
-  font-size: 14px;
-}
 
 /* ─── Оверлей «Персонаж» и пауза ───────────────────────────────────── */
 
@@ -2012,22 +2053,8 @@ p {
 .sheet-stats .stat {
   cursor: help;
 }
-.sheet-sub {
-  font-size: 15px;
-  color: var(--dim);
-  margin-top: 4px;
-  border-bottom: 1px dotted var(--border);
-}
-.skill-row {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  font-size: 16px;
-  cursor: help;
-}
-.skill-val {
-  margin-left: auto;
-  font-size: 15px;
+.sheet-left .skill-line {
+  margin-top: 6px;
 }
 .sheet-potion {
   margin-top: auto;
@@ -2317,6 +2344,7 @@ p {
 /* ─── Каталог находок ───────────────────────────────────────────────── */
 
 .coll-tile {
+  position: relative;
   width: 100px;
   height: 60px;
   flex: none;
@@ -2347,12 +2375,22 @@ p {
   max-height: 26px;
   overflow: hidden;
 }
-.coll-card {
-  max-width: 420px;
-  text-align: left;
+/* Тиры артефакта: три метки в углу плитки, горит найденный. Цифры такого размера в Handjet нечитаемы. */
+.coll-tiers {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  gap: 2px;
 }
-.coll-card .glyph {
-  font-size: 26px;
+.coll-pip {
+  width: 5px;
+  height: 5px;
+  background: #10101a;
+  border: 1px solid var(--border);
+}
+.coll-pip.on {
+  border-color: transparent;
 }
 
 .collection .coll-body {
@@ -2550,107 +2588,6 @@ p {
   margin-top: 12px;
   font-size: 18px;
   max-width: 420px;
-}
-
-/* ─── Сундук ────────────────────────────────────────────────────────── */
-
-.chest .topbar .title-sm {
-  flex: 1;
-  text-align: center;
-}
-.chest-idle {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  text-align: center;
-}
-.chest-box {
-  filter: grayscale(1) brightness(0.55);
-}
-.chest-box.ready {
-  filter: none;
-  cursor: pointer;
-  animation: chest-idle-bob 1.8s ease-in-out infinite;
-}
-.chest-box.ready:hover {
-  transform: scale(1.06);
-}
-@keyframes chest-idle-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-.chest-count {
-  font-size: 24px;
-  color: var(--accent);
-}
-.chest-stage {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  width: 100%;
-}
-.chest-window {
-  position: relative;
-  width: 800px;
-  height: 92px;
-  overflow: hidden;
-  border: 3px solid var(--border);
-  background: #0a0a12;
-  box-shadow: inset 0 0 40px #000;
-}
-.chest-strip {
-  display: flex;
-  gap: 6px;
-  height: 100%;
-  align-items: center;
-  padding: 0 3px;
-  will-change: transform;
-}
-.chest-strip.spinning {
-  transition: transform 4600ms cubic-bezier(0.12, 0.72, 0.08, 1);
-}
-.chest-strip .coll-tile {
-  height: 74px;
-}
-.chest-strip .coll-tile.won {
-  box-shadow: 0 0 24px var(--accent);
-  border-width: 3px;
-}
-.chest-marker {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 3px;
-  margin-left: -1px;
-  background: var(--accent);
-  box-shadow: 0 0 10px var(--accent);
-  pointer-events: none;
-}
-.chest-result {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-.chest-result h2 {
-  margin: 0;
-  color: var(--accent);
-}
-.chest-earned {
-  color: var(--dim);
-  margin-top: 6px;
 }
 
 /* ─── Карточки-выбор: подсветка на наведении ─────────────────────────── */

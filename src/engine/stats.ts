@@ -1,8 +1,7 @@
 import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef, HeroPersistent, StatMods } from './types';
 import { ARTIFACTS } from '../data/artifacts';
-import { affixMods, armorPerkMods, gearPerkText, weaponDice, weaponPerkMods } from '../data/gear';
+import { affixMods, armorPerkMods, canWearArmor, canWieldWeapon, gearPerkText, weaponDice, weaponPerkMods } from '../data/gear';
 import { equipGear } from './equipment';
-import { armorType as armorTypeOf } from '../data/gear';
 
 export function socketedArtifacts(weapon: GearInstance, armor: GearInstance): ArtifactInstance[] {
   const out: ArtifactInstance[] = [];
@@ -16,12 +15,13 @@ function applyMods(s: DerivedStats, m: StatMods): void {
   }
 }
 
-export const DEFAULT_FATIGUE = 0.75;
-export const DEFAULT_CRIT_MULT = 2;
+export const DEFAULT_FATIGUE = 0.7;
+/** Крит. урон по умолчанию, проценты от обычного урона: полтора удара. */
+export const DEFAULT_CRIT_DMG = 150;
 
 /**
  * Статы героя: база героя → кубик оружия в его руках (владение, тип) → перки оружия и брони
- * (перк брони — только если герой умеет носить её тип) → аффиксы → пассивные артефакты.
+ * (перк работает, только если герой владеет типом оружия и умеет носить тип брони) → аффиксы → пассивные артефакты.
  */
 export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInstance): DerivedStats {
   const dice = weaponDice(def, weapon);
@@ -38,16 +38,19 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     lifesteal: 0,
     regen: 0,
     crit: def.crit ?? 0,
+    critDmg: def.critDmg ?? DEFAULT_CRIT_DMG,
+    critRamp: 0,
+    executeCrit: 0,
+    critHeal: 0,
     spellPower: 0,
     firstTurnSta: 0,
     fatigue: def.fatigue ?? DEFAULT_FATIGUE,
     firstHit: 0,
-    critMult: DEFAULT_CRIT_MULT,
     pierceBlock: 0,
     thornsImmune: 0,
     splash: 0,
     onHitBleed: 0,
-    stunOnHit: 0,
+    stunOnCrit: 0,
     blockOnHit: 0,
     spellLeech: 0,
     hitReduce: 0,
@@ -60,8 +63,10 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     onKillHeal: 0,
     blockStart: 0,
     markOnHit: 0,
+    reachAny: 0,
+    sweep: 0,
   };
-  applyMods(s, weaponPerkMods(weapon));
+  applyMods(s, weaponPerkMods(weapon, def));
   applyMods(s, armorPerkMods(armor, def));
   applyMods(s, affixMods(weapon));
   applyMods(s, affixMods(armor));
@@ -70,6 +75,8 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     if (ad?.mods) applyMods(s, ad.mods(a.tier));
   }
   s.crit = Math.min(1, s.crit);
+  // Крит слабее обычного удара не бывает.
+  s.critDmg = Math.max(100, s.critDmg);
   s.fatigue = Math.min(1, s.fatigue);
   return s;
 }
@@ -84,7 +91,7 @@ export interface GearSwapPreview {
   /** Число сокетов до и после. */
   slotsBefore: number;
   slotsAfter: number;
-  /** Строки перков: пустая — перка нет. У брони, которую герой не умеет носить, перк не работает — строка пустая. */
+  /** Строки перков: пустая — перка нет. У предмета, которым герой не владеет (оружие) или не умеет носить (броня), перк не работает — строка пустая. */
   perkBefore: string;
   perkAfter: string;
   /** Артефакты, которые переедут в новый предмет, и те, которым не хватит сокетов. */
@@ -103,15 +110,14 @@ export function previewGearSwap(def: HeroDef, hero: HeroPersistent, gear: GearIn
   const overflow = equipGear(copy, gear);
   const fresh = gear.kind === 'weapon' ? copy.weapon : copy.armor;
   const after = computeStats(def, copy.weapon, copy.armor);
-  const worksNow = gear.kind === 'weapon' || def.armorSkill[armorTypeOf(old)];
-  const worksNext = gear.kind === 'weapon' || def.armorSkill[armorTypeOf(gear)];
+  const works = (g: GearInstance) => (g.kind === 'weapon' ? canWieldWeapon(def, g) : canWearArmor(def, g));
   return {
     before,
     after,
     slotsBefore: old.slots.length,
     slotsAfter: gear.slots.length,
-    perkBefore: worksNow ? gearPerkText(old) : '',
-    perkAfter: worksNext ? gearPerkText(gear) : '',
+    perkBefore: works(old) ? gearPerkText(old) : '',
+    perkAfter: works(gear) ? gearPerkText(gear) : '',
     moved: fresh.slots.filter((a): a is ArtifactInstance => !!a),
     overflow,
   };

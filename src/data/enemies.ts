@@ -16,6 +16,10 @@ const hurt = (ctx: AiCtx) => ctx.self.hp < ctx.self.maxHp;
 /** Фазы босса: правила первой фазы гаснут после перехода (`EnemyDef.phase2`), правила второй — загораются. */
 const p1 = (ctx: AiCtx) => ctx.self.phase < 2;
 const p2 = (ctx: AiCtx) => ctx.self.phase >= 2;
+/** Шипы складываются и не спадают — второй раз щетиниться нельзя, иначе защита растёт без предела. */
+const noThorns = (ctx: AiCtx) => !ctx.self.statuses.some((st) => st.id === 'thorns');
+/** Уклонение тоже складывается и висит до конца боя: вешать второй заряд поверх непотраченного нельзя — враг станет неубиваемым. */
+const noDodge = (ctx: AiCtx) => !ctx.self.statuses.some((st) => st.id === 'dodge');
 
 const blob = (outline: string, body: string, shade: string, eye: string, size?: number): SpriteSpec => ({
   type: 'blob',
@@ -73,7 +77,7 @@ const list: EnemyDef[] = [
     hp: 9,
     location: 'forest',
     rank: 'normal',
-    actions: [act('bite', 'Укус', [{ type: 'attack', amount: 4, drain: true }]), act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }])],
+    actions: [act('bite', 'Укус', [{ type: 'attack', amount: 4, drain: true }]), act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }], noDodge)],
     ai: { type: 'cycle', order: ['bite', 'flutter'] },
     sprite: blob('#0e0e16', '#3a3a5a', '#2a2a3a', '#ffd166', 14),
   },
@@ -86,7 +90,7 @@ const list: EnemyDef[] = [
     actions: [
       act('bite', 'Ядовитый укус', [
         { type: 'attack', amount: 4 },
-        { type: 'debuff', status: 'weak', value: 1, turns: 1 },
+        { type: 'debuff', status: 'poison', value: 1, turns: 3 },
       ]),
       act('web', 'Паутина', [{ type: 'debuff', status: 'exhaust', value: 1, turns: 1 }]),
     ],
@@ -311,7 +315,7 @@ const list: EnemyDef[] = [
     actions: [
       act('slam', 'Удар', [{ type: 'attack', amount: 8 }]),
       act('wrap', 'Бинты', [{ type: 'block', amount: 12 }]),
-      act('curse', 'Проклятие мумии', [{ type: 'debuff', status: 'bleed', value: 3, turns: 3 }]),
+      act('curse', 'Проклятие мумии', [{ type: 'debuff', status: 'weak', value: 1, turns: 3 }]),
     ],
     ai: { type: 'cycle', order: ['slam', 'wrap', 'curse'] },
     sprite: humanoid('bare', { s: '#d8ccb0', h: '#c8bc9a', b: '#c8bc9a', l: '#b8ac8a', w: '#8a7a5a' }),
@@ -324,7 +328,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     actions: [
       act('bite', 'Укус', [{ type: 'attack', amount: 9, drain: true }]),
-      act('mist', 'Туман', [{ type: 'dodge', value: 1 }]),
+      act('mist', 'Туман', [{ type: 'dodge', value: 1 }], noDodge),
       act('hypnosis', 'Гипноз', [{ type: 'debuff', status: 'weak', value: 1, turns: 2 }]),
     ],
     ai: { type: 'cycle', order: ['bite', 'mist', 'bite', 'hypnosis'] },
@@ -444,7 +448,16 @@ const list: EnemyDef[] = [
     hp: 28,
     location: 'caves',
     rank: 'normal',
-    actions: [act('spit', 'Огненный плевок', [{ type: 'attack', amount: 9 }]), act('mischief', 'Пакость', [{ type: 'debuff', status: 'burn', value: 3, turns: 3 }])],
+    actions: [
+      act('spit', 'Огненный плевок', [
+        { type: 'attack', amount: 7 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 3 },
+      ]),
+      act('mischief', 'Пакость', [
+        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+        { type: 'drainMp', amount: 1 },
+      ]),
+    ],
     ai: { type: 'cycle', order: ['spit', 'mischief'] },
     sprite: blob('#2a0a0a', '#c0392b', '#7b1e1e', '#ffe066'),
   },
@@ -475,7 +488,7 @@ const list: EnemyDef[] = [
         { type: 'attack', amount: 8 },
         { type: 'debuff', status: 'burn', value: 2, turns: 2 },
       ]),
-      act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }]),
+      act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
     ai: { type: 'cycle', order: ['bite', 'flutter'] },
     sprite: blob('#2a0a0a', '#7b1e1e', '#4a0a0a', '#ffe066', 14),
@@ -691,7 +704,7 @@ const list: EnemyDef[] = [
     hp: 10,
     location: 'swamp',
     rank: 'normal',
-    actions: [act('bites', 'Укусы', [{ type: 'attack', amount: 2, hits: 3 }]), act('scatter', 'Рассеяться', [{ type: 'dodge', value: 1 }])],
+    actions: [act('bites', 'Укусы', [{ type: 'attack', amount: 2, hits: 3 }]), act('scatter', 'Рассеяться', [{ type: 'dodge', value: 1 }], noDodge)],
     ai: { type: 'cycle', order: ['bites', 'scatter'] },
     sprite: blob('#0e0e10', '#4a4a3a', '#2a2a22', '#e0e0c0', 14),
   },
@@ -706,7 +719,7 @@ const list: EnemyDef[] = [
       act('puff', 'Раздуться', [{ type: 'block', amount: 6 }]),
       act('spit', 'Ядовитый плевок', [
         { type: 'attack', amount: 4 },
-        { type: 'debuff', status: 'weak', value: 1, turns: 1 },
+        { type: 'debuff', status: 'poison', value: 2, turns: 2 },
       ]),
     ],
     ai: { type: 'cycle', order: ['tongue', 'puff', 'spit'] },
@@ -723,7 +736,7 @@ const list: EnemyDef[] = [
         { type: 'attack', amount: 3 },
         { type: 'debuff', status: 'burn', value: 1, turns: 2 },
       ]),
-      act('flicker', 'Мерцание', [{ type: 'dodge', value: 1 }]),
+      act('flicker', 'Мерцание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
     ai: { type: 'cycle', order: ['scorch', 'flicker'] },
     sprite: blob('#1a2a1a', '#a0ffc0', '#40c080', '#ffffff', 12),
@@ -765,7 +778,7 @@ const list: EnemyDef[] = [
     hp: 15,
     location: 'swamp',
     rank: 'normal',
-    actions: [act('trident', 'Трезубец', [{ type: 'attack', amount: 6 }]), act('dive', 'Нырок', [{ type: 'dodge', value: 1 }])],
+    actions: [act('trident', 'Трезубец', [{ type: 'attack', amount: 6 }]), act('dive', 'Нырок', [{ type: 'dodge', value: 1 }], noDodge)],
     ai: { type: 'cycle', order: ['trident', 'trident', 'dive'] },
     sprite: humanoid('plume', { s: '#4a9a8a', h: '#2a6a5a', b: '#2a5a5a', l: '#1a3a3a', w: '#c0c0c0' }),
   },
@@ -778,7 +791,7 @@ const list: EnemyDef[] = [
     actions: [
       act('maws', 'Три пасти', [{ type: 'attack', amount: 3, hits: 3 }]),
       act('regrow', 'Отрастить головы', [{ type: 'heal', amount: 6, target: 'self' }], hurt),
-      act('miasma', 'Ядовитое облако', [{ type: 'debuff', status: 'bleed', value: 2, turns: 3 }]),
+      act('miasma', 'Ядовитое облако', [{ type: 'debuff', status: 'poison', value: 2, turns: 3 }]),
     ],
     ai: { type: 'cycle', order: ['maws', 'regrow', 'maws', 'miasma'] },
     sprite: blob('#0f1a10', '#3a7a4a', '#245a30', '#ffd166', 22),
@@ -794,7 +807,7 @@ const list: EnemyDef[] = [
       act('puff', 'Раздуться', [{ type: 'block', amount: 8 }]),
       withFx({ kind: 'flask', color: '#7ddc5a' }, act('spit', 'Ядовитый плевок', [
         { type: 'attack', amount: 6 },
-        { type: 'debuff', status: 'weak', value: 1, turns: 1 },
+        { type: 'debuff', status: 'poison', value: 3, turns: 2 },
       ])),
       act('spawn', 'Икра', [{ type: 'summon', enemyId: 'toad', count: 1 }], hasRoom),
     ],
@@ -870,7 +883,7 @@ const list: EnemyDef[] = [
         { type: 'debuff', status: 'bleed', value: 1, turns: 2 },
       ]),
       act('dive', 'Пикирование', [{ type: 'attack', amount: 9, pierce: true }]),
-      act('buzz', 'Жужжание', [{ type: 'dodge', value: 1 }]),
+      act('buzz', 'Жужжание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
     ai: { type: 'cycle', order: ['sting', 'dive', 'buzz'] },
     sprite: blob('#1a1020', '#d0a020', '#8a6a10', '#ff5050', 14),
@@ -918,6 +931,8 @@ const list: EnemyDef[] = [
       ]),
     ],
     ai: { type: 'cycle', order: ['spores', 'burst'] },
+    // Лопнувший споровик выдыхает всё, что копил: облако оседает на том, кто его вскрыл.
+    onDeath: { name: 'Облако спор', effects: [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 2 }] },
     sprite: blob('#1a1020', '#8a5aa0', '#5a3a70', '#e0ffa0'),
   },
   {
@@ -926,8 +941,13 @@ const list: EnemyDef[] = [
     hp: 14,
     location: 'hive',
     rank: 'normal',
-    actions: [act('pulse', 'Пульсация', [{ type: 'none' }]), act('hatch', 'Вылупление', [{ type: 'summon', enemyId: 'larva', count: 1 }], hasRoom)],
-    ai: { type: 'cycle', order: ['pulse', 'hatch'] },
+    // Кладка не нападает: щетинится иглами и зреет. Успеешь разбить за два хода — личинок не будет вовсе.
+    actions: [
+      act('bristle', 'Щетина', [{ type: 'thorns', amount: 3 }], noThorns),
+      act('pulse', 'Пульсация', [{ type: 'none' }]),
+      act('hatch', 'Вылупление', [{ type: 'summon', enemyId: 'larva', count: 2 }], hasRoom),
+    ],
+    ai: { type: 'cycle', order: ['bristle', 'pulse', 'hatch'] },
     sprite: blob('#1a1020', '#c0b0d0', '#8070a0', '#402060', 14),
   },
   {
@@ -1054,7 +1074,7 @@ const list: EnemyDef[] = [
         { type: 'debuff', status: 'weak', value: 1, turns: 1 },
         { type: 'drainMp', amount: 2 },
       ]),
-      act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }]),
+      act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
     ai: { type: 'cycle', order: ['peck', 'screech', 'flutter'] },
     sprite: blob('#101010', '#e03030', '#2060c0', '#ffd166', 12),
@@ -1073,6 +1093,15 @@ const list: EnemyDef[] = [
       act('boom', 'Подрыв', [{ type: 'selfDestruct', amount: 20, burn: 3 }]),
     ],
     ai: { type: 'cycle', order: ['throw', 'boom'] },
+    // Убитая раньше времени мартышка роняет бочонок: порох рвётся сам, слабее её собственного Подрыва.
+    // Если она успела подорваться, второй раз рвать нечему — см. selfDestruct в combat.ts.
+    onDeath: {
+      name: 'Порох рвётся',
+      effects: [
+        { type: 'attack', amount: 6 },
+        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+      ],
+    },
     sprite: blob('#1a1008', '#7a5a3a', '#4a3a20', '#ffe066', 14),
   },
   {
@@ -1106,6 +1135,14 @@ const list: EnemyDef[] = [
       act('submerge', 'Уход под воду', [{ type: 'block', amount: 20 }]),
     ],
     ai: { type: 'cycle', order: ['slam', 'grab', 'submerge'] },
+    // Перерубленное щупальце сжимается в последней судороге — вырваться стоит сил.
+    onDeath: {
+      name: 'Предсмертный захват',
+      effects: [
+        { type: 'attack', amount: 6 },
+        { type: 'debuff', status: 'exhaust', value: 1, turns: 1 },
+      ],
+    },
     sprite: blob('#0a1020', '#6a2a5a', '#401a3a', '#ffd166', 20),
   },
   {
@@ -1154,7 +1191,7 @@ const list: EnemyDef[] = [
       act('all_hands', 'Свистать всех наверх', [{ type: 'summon', enemyId: 'pirate', count: 1 }]),
       act('aim', 'Наводит пушки', [{ type: 'none' }]),
       withFx({ kind: 'orb', color: '#ff7b00' }, act('broadside', 'Бортовой залп', [{ type: 'attack', amount: 28 }])),
-      act('curse', 'Проклятие', [{ type: 'debuff', status: 'bleed', value: 4, turns: 3 }]),
+      act('curse', 'Проклятие', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 3 }]),
     ],
     ai: {
       type: 'boss',

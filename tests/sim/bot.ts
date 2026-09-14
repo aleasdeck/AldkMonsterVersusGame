@@ -8,11 +8,11 @@
  */
 import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { SMOKE_MISS_CHANCE, VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
+import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
-import { canWearArmor, upgradeGearTier, weaponDice } from '../../src/data/gear';
+import { SWEEP_MULT, canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
 import { potionDef } from '../../src/data/potions';
 import { findSameArtifact, gearOf, socketRefs, type SocketRef } from '../../src/engine/equipment';
 import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice } from '../../src/engine/loot';
@@ -78,6 +78,17 @@ export const W = {
   finalists: 5,
   rollouts: 2,
   maxDepth: 6,
+  /**
+   * Дальность (v0.26): надбавки ближнему бойцу за приём, который бьёт любого (заклинание, склянка, Молот света), — во столько раз,
+   * и за оружие через ряд (лук, копьё, посох) — столько очков. Измерено на 600 забегах: ×1.3 и +4 стоили ближним героям 3–8 пунктов
+   * (бот гнался за луками с половиной кубика и за заклинаниями вместо ударов), поэтому по умолчанию надбавок нет — тактику
+   * дальности бот и так учитывает перебором ходов, а статическая цена реальной пользы не отражает.
+   */
+  reachArt: 1,
+  reachGear: 0,
+  /** Вор: монета срезанного золота в HP (лечение у торговца: 20 % HP за SHOP_HEAL_COST) и потеря артефакта из сокета в HP. */
+  goldHp: 0.5,
+  stolenArt: 15,
 };
 
 /** Счётчик применений приёмов и зелий — печатается симулятором. */
@@ -149,16 +160,10 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
   const h = b.hero;
   // Враги бьют союзника первым, пока он жив.
   if (b.allies.length > 0) return { hit: 0, dot: 0 };
-  const st = getStatus(h, 'stealth');
-  const hidden = !!st && (st.turns === -1 || st.turns > 1);
-  const inv = getStatus(h, 'invuln');
-  const invuln = !!inv && (inv.turns === -1 || inv.turns > 1);
-  // Дымовая завеса гасит удар с шансом SMOKE_MISS_CHANCE — в ожидании считаем долю урона.
+  const hidden = holdsThroughEnemyTurn(getStatus(h, 'stealth'));
+  const invuln = holdsThroughEnemyTurn(getStatus(h, 'invuln'));
   // Уязвимость на герое: удары сильнее на VULNERABLE_MULT.
-  const vul = getStatus(h, 'vulnerable');
-  const vulMult = vul && (vul.turns === -1 || vul.turns > 1) ? VULNERABLE_MULT : 1;
-  const sm = getStatus(h, 'smoke');
-  const smokeMult = sm && (sm.turns === -1 || sm.turns > 1) ? 1 - SMOKE_MISS_CHANCE : 1;
+  const vulMult = holdsThroughEnemyTurn(getStatus(h, 'vulnerable')) ? VULNERABLE_MULT : 1;
   let dodge = statusValue(h, 'dodge');
   let block = h.block;
   let hit = 0;
@@ -180,7 +185,7 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
             dodge--;
             continue;
           }
-          let rest = Math.max(0, Math.round(Math.round(dmg * smokeMult) * vulMult) - h.stats.hitReduce);
+          let rest = Math.max(0, Math.round(dmg * vulMult) - h.stats.hitReduce);
           if (!pierce) {
             const used = Math.min(block, rest);
             block -= used;
@@ -194,6 +199,14 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
         else if (eff.status === 'weak' || eff.status === 'exhaust') hit += 2;
       } else if (eff.type === 'drainMp' && !hidden) {
         hit += Math.min(h.mp, eff.amount) * W.mp;
+      } else if (eff.type === 'stealGold') {
+        // Вор: срезанное золото — потеря без крови, идёт в мягкую графу (dot), а не в hit, чтобы бот не «умирал» от кражи.
+        dot += eff.amount * W.goldHp;
+      } else if (eff.type === 'stealArtifact' && h.artifacts.length > 0) {
+        dot += W.stolenArt;
+      } else if (eff.type === 'flee') {
+        // Побег уносит всё срезанное: за ход до него бот должен бить, а не защищаться.
+        dot += b.stolen * W.goldHp + (b.stolenArtifact ? W.stolenArt : 0);
       }
     }
   }
@@ -223,7 +236,9 @@ export function evaluate(b: BattleState): number {
   let effTotal = 0;
   for (const e of b.enemies) {
     const spawn = deathSpawn(e.defId);
-    const effHp = Math.max(0, e.hp - dotTotal(e)) + spawn.hp * e.hpMult;
+    // Процентный уворот (вор): чтобы снять HP, ударов нужно больше — в той же пропорции растёт «эффективный» запас.
+    const evade = Math.min(90, statusValue(e, 'evade'));
+    const effHp = Math.max(0, e.hp - dotTotal(e)) / (1 - evade / 100) + spawn.hp * e.hpMult;
     effTotal += effHp;
     if (effHp > 0) threat += baseThreat(e.defId) * e.dmgMult + spawn.threat * e.dmgMult * 0.7;
     s -= statusValue(e, 'strength') * 2;
@@ -234,8 +249,7 @@ export function evaluate(b: BattleState): number {
   if (pushing) s += (b.stats.damageDealt - pushBase) * W.pushReward;
   const str = getStatus(h, 'strength');
   if (str) s += str.value * Math.min(3, str.turns === -1 ? 3 : str.turns) * 1.5;
-  const st = getStatus(h, 'stealth') ?? getStatus(h, 'smoke');
-  if (st && (st.turns === -1 || st.turns > 1)) s += 4;
+  if (holdsThroughEnemyTurn(getStatus(h, 'stealth'))) s += 4;
   s += statusValue(h, 'dodge') * 3;
   if (getStatus(h, 'vulnerable')) s -= 4;
   s += h.mp * W.mp;
@@ -258,9 +272,12 @@ function candidates(b: BattleState, prev: PlayerAction | undefined): PlayerActio
   const out: PlayerAction[] = [];
   const first = b.enemies[0]?.uid;
   const minIdx = prev?.type === 'attack' ? b.enemies.findIndex((e) => e.uid === prev.target) : 0;
-  b.enemies.forEach((e, i) => {
-    if (i >= minIdx) out.push({ type: 'attack', target: e.uid });
-  });
+  // Плеть бьёт весь ряд — цель не важна, один вариант.
+  if (b.hero.stats.sweep > 0) out.push({ type: 'attack', target: first ?? -1 });
+  else
+    b.enemies.forEach((e, i) => {
+      if (i >= minIdx) out.push({ type: 'attack', target: e.uid });
+    });
   out.push({ type: 'defend' });
   for (const inst of b.hero.artifacts) {
     const def = artifactDef(inst.id);
@@ -392,6 +409,10 @@ function hasMagicActive(hero: HeroPersistent, except?: string): boolean {
 
 /** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. */
 export function artifactValue(run: RunState, inst: ArtifactInstance): number {
+  if (inst.id === heroDef(run.hero.defId).signature) return artifactValueRaw(run, inst) * 2;
+  return artifactValueRaw(run, inst);
+}
+function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
   const def = artifactDef(inst.id);
   const s = heroStats(run);
   const avg = (s.dmgMin + s.dmgMax) / 2 + s.str;
@@ -408,7 +429,13 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
     v += (m.thorns ?? 0) * 2;
     v += (m.lifesteal ?? 0) * 3;
     v += (m.regen ?? 0) * 5;
-    v += (m.crit ?? 0) * 27;
+    // Крит-статы в «HP врага»: шанс стоит ровно столько, сколько даёт крит. урон сверх обычного, и наоборот.
+    v += (m.crit ?? 0) * avg * (s.critDmg / 100 - 1) * 12;
+    v += ((m.critDmg ?? 0) / 100) * avg * s.crit * 12;
+    // «Азарт» копится весь бой: в среднем работает как половина накопленного шанса на каждом ударе.
+    v += (m.critRamp ?? 0) * avg * (s.critDmg / 100 - 1) * 30;
+    v += (m.executeCrit ?? 0) * avg * (s.critDmg / 100 - 1) * 3;
+    v += (m.critHeal ?? 0) * s.crit * 6;
     v += (m.spellPower ?? 0) * (magic ? 4 : 0);
     v += (m.dmgMax ?? 0) * 2;
     v += (m.onKillHeal ?? 0) * 3;
@@ -418,11 +445,15 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
   }
   const cost = artifactCost(def, inst.tier);
   if ((cost.mp ?? 0) > s.maxMp) return 0.3;
+  // Ближний боец с приёмом через ряд выбирает цель сам — стрелка или шамана за спиной брута; остальным дальность ничего не добавляет.
+  const weaponFar = weaponReach(run.hero.weapon) === 'any';
+  const artFar = (def.reach ?? (def.school === 'magic' ? 'any' : weaponReach(run.hero.weapon))) === 'any';
+  const far = !weaponFar && artFar ? W.reachArt : 1;
   let per = 0;
   for (const e of def.effects?.(inst.tier) ?? []) {
     switch (e.type) {
       case 'attack':
-        per += (avg * (e.mult ?? 1) + e.bonus) * (e.sureCrit ? 2 : 1) * (e.target === 'allEnemies' ? 1.8 : 1) * W.enemyHp;
+        per += (avg * (e.mult ?? 1) + e.bonus) * (e.sureCrit ? 2 : 1) * (e.target === 'allEnemies' ? 1.8 : far) * W.enemyHp;
         if (e.blockPct) per += avg * (e.mult ?? 1) * e.blockPct * 0.8;
         break;
       case 'blockStrike':
@@ -430,7 +461,7 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
         per += defendBlock(s) * e.mult * W.enemyHp;
         break;
       case 'spell':
-        per += (e.amount + s.spellPower) * (e.target === 'allEnemies' ? 1.8 : 1) * W.enemyHp + (e.drain ? e.amount * 0.7 : 0);
+        per += (e.amount + s.spellPower) * (e.target === 'allEnemies' ? 1.8 : far) * W.enemyHp + (e.drain ? e.amount * 0.7 : 0);
         break;
       case 'block':
         per += e.amount * 0.8;
@@ -453,18 +484,21 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
       case 'cleanse':
         per += 2;
         break;
+      case 'pull':
+        // Вытянуть стрелка под удар стоит примерно одного лишнего удара по нужной цели; дальнобойному не нужно.
+        per += weaponFar ? 0.5 : avg * W.enemyHp * 1.5;
+        break;
       case 'status': {
         const turns = e.turns === -1 ? 3 : e.turns;
         if (e.target === 'self') {
           if (e.status === 'strength') per += e.value * turns * 1.5;
           else if (e.status === 'dodge') per += 4;
-          else if (e.status === 'stealth') per += turns * 4;
-          else if (e.status === 'smoke') per += turns * 3;
+          else if (e.status === 'stealth') per += turns * 10;
           else if (e.status === 'regen') per += e.value * turns;
           else if (e.status === 'exhaust') per -= e.value * avg * W.enemyHp;
           else per += 2;
         } else {
-          const many = e.target === 'allEnemies' ? 1.8 : 1;
+          const many = e.target === 'allEnemies' ? 1.8 : far;
           if (e.status === 'stun') per += 6 * many;
           else if (e.status === 'vulnerable') per += turns * avg * (VULNERABLE_MULT - 1) * many;
           else if (e.status === 'weak') per += turns * 2 * many;
@@ -482,15 +516,23 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
   return Math.max(0, per) * uses;
 }
 
-/** Насколько предмет лучше надетого: тир, кубик в руках героя или защита, аффикс, потеря слотов. */
+/** Насколько предмет лучше надетого: тир, кубик в руках героя или защита, владение, аффикс, потеря слотов. */
 export function gearGain(run: RunState, gear: GearInstance): number {
   const def = heroDef(run.hero.defId);
   const cur = gearOf(run.hero, gear.kind);
-  let score = (gear.tier - cur.tier) * 10;
+  let score = (gear.tier - cur.tier) * 4;
   if (gear.kind === 'weapon') {
-    const a = weaponDice(def, gear);
-    const c = weaponDice(def, cur);
-    score += a.min + a.max - c.min - c.max;
+    // Плеть бьёт всех на долю урона: кубик считаем как против полутора врагов — примерно как меч. Коэффициент 1.8 (как у приёмов по всем)
+    // заставлял бота брать плеть вместо меча и стоил ближним героям 2 пункта: сосредоточенный урон убивает быстрее размазанного.
+    const dice = (g: GearInstance) => {
+      const d = weaponDice(def, g);
+      return (d.min + d.max) * (weaponReach(g, def) === 'row' ? SWEEP_MULT * 1.5 : 1);
+    };
+    score += dice(gear) - dice(cur);
+    // Перк базы работает только у владеющего — та же надбавка, что у брони.
+    score += (canWieldWeapon(def, gear) ? 3 : -8) - (canWieldWeapon(def, cur) ? 3 : -8);
+    // Оружие через ряд (лук, копьё, посох) против оружия в упор: свобода выбора цели стоит очков.
+    score += (weaponReach(gear) === 'any' ? W.reachGear : 0) - (weaponReach(cur) === 'any' ? W.reachGear : 0);
   } else {
     score += (gear.def - cur.def) * 2 + (gear.hp - cur.hp) * 0.5;
     score += (canWearArmor(def, gear) ? 3 : 0) - (canWearArmor(def, cur) ? 3 : 0);

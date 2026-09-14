@@ -2,10 +2,11 @@ import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { INTENT_ICON, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { SWEEP_MULT } from '../../data/gear';
+import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, reachableEnemies, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
-import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction } from '../../engine/types';
+import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
 import { MAX_ALLIES } from '../../engine/types';
 import { bar, coin, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
@@ -16,9 +17,12 @@ import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
 import { runLogBody } from './runLog';
 
-/** Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы. */
-function badges(c: Combatant, withBlock: boolean, ...extra: Child[]): HTMLElement {
-  return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, ...extra, statusIcons(c));
+/**
+ * Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы.
+ * `enemy` — сам враг: нужен «Предсмертию», чтобы подсказка расписала его эффект при смерти.
+ */
+function badges(c: Combatant, withBlock: boolean, enemy?: EnemyState, ...extra: Child[]): HTMLElement {
+  return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, ...extra, statusIcons(c, enemy));
 }
 
 /**
@@ -43,8 +47,8 @@ function fatigueBadge(b: BattleState): HTMLElement | null {
 }
 
 /**
- * Хвост пилюли: остальные виды эффектов приёма мелкими иконками — дебаф иконкой самого статуса, чтобы «⚔ 7» с Кровотечением
- * или Изнурением читался без подсказки; бафф, лечение, призыв — иконкой вида.
+ * Хвост пилюли: остальные виды эффектов приёма мелкими иконками — дебаф и бафф на себя иконкой самого статуса, чтобы «⚔ 7» с Кровотечением
+ * или «⛨ 12» с Шипами читались без подсказки; лечение и призыв — иконкой вида.
  */
 function intentExtras(intent: IntentInfo): Child[] {
   const out: Child[] = [];
@@ -52,6 +56,9 @@ function intentExtras(intent: IntentInfo): Child[] {
     if (kind === 'debuff') {
       for (const id of intent.statuses) out.push(h('span', { class: 'pill-extra intent-debuff' }, statusIcon(id, 16)));
       if (intent.statuses.length === 0) out.push(h('span', { class: 'pill-extra intent-debuff' }, INTENT_ICON.debuff));
+    } else if (kind === 'buff' && intent.selfStatuses.length) {
+      // «Панцирь» = Блок 12 + Шипы 2: щит с числом уже в голове пилюли, шипы дорисовываем своей иконкой.
+      for (const id of intent.selfStatuses) out.push(h('span', { class: 'pill-extra intent-buff' }, statusIcon(id, 16)));
     } else out.push(h('span', { class: `pill-extra intent-${kind}` }, INTENT_ICON[kind]));
   }
   return out;
@@ -84,26 +91,45 @@ function fleeTimer(e: EnemyState): HTMLElement | null {
   );
 }
 
+/**
+ * Враг в поле. Клик применяет выбранный приём (v0.26: сначала приём, потом цель); без выбранного приёма клик только
+ * подсказывает. Рамка досягаемости ставится по выбранному приёму при отрисовке, наведение на плитку перекрашивает её временно.
+ */
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
   const size = spriteSize(def.sprite);
   const px = Math.round(size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5) * (def.spriteScale ?? 1));
-  const selected = app.currentTarget() === e.uid;
-  return h(
+  const targets = app.armedTargets();
+  const cls = targets ? (targets.includes(e.uid) ? 'ok' : 'far') : '';
+  const el = h(
     'div',
     {
-      class: `enemy rank-${def.rank} ${selected ? 'selected' : ''} ${e.aura ? 'aura' : ''}`,
+      class: `enemy rank-${def.rank} ${cls} ${e.aura ? 'aura' : ''}`,
       style: e.aura ? `--aura:${e.aura}` : '',
       'data-uid': e.uid,
-      onclick: () => app.selectTarget(e.uid),
+      onclick: () => app.applyArmed(e.uid),
     },
     intentPill(app.run!.battle!, e),
     fleeTimer(e),
-    badges(e, false),
+    badges(e, false, e),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
     h('div', { class: 'name' }, e.name),
     bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
   );
+  return bindPreview(app, el, () => enemyPreview(app, e.uid));
+}
+
+/**
+ * Ридаут при наведении на врага: с выбранным приёмом — сколько урона он получит (или почему не достать),
+ * без приёма — его HP и блок с напоминанием выбрать приём.
+ */
+export function enemyPreview(app: App, uid: number): PreviewSpec {
+  const b = app.run!.battle!;
+  const spec = app.armedSpec();
+  if (spec) return spec.preview(uid);
+  const e = b.enemies.find((x) => x.uid === uid);
+  if (!e) return { title: '', parts: [] };
+  return { title: e.name, parts: [`${e.hp}/${e.maxHp} HP`, e.block > 0 ? `блок ${e.block}` : '', h('span', { class: 'dim' }, 'выберите приём, потом цель')] };
 }
 
 /**
@@ -132,33 +158,50 @@ function summonGhost(): HTMLElement {
 
 // ─── Плитки приёмов ─────────────────────────────────────────────────────────
 
-interface TileSpec {
+/**
+ * Приём на плитке. Приёму с целью (`targeted`) клик по плитке только выбирает его — цель выбирается кликом по врагу;
+ * приём на себя или по всем применяется сразу.
+ */
+export interface TileSpec {
+  /** Ключ приёма: 'attack', 'defend' или id артефакта — по нему App помнит выбранный приём. */
+  key: string;
   glyph: string;
   name: string;
   /** Крупное число или короткий эффект. */
   value: Child[];
   cost: { kind: 'sta' | 'mp' | 'none'; text: string };
+  /** Причина недоступности приёма как такового: стамина, перезарядка, лимит; для приёма с целью — по лучшей из целей. */
   err: string | null;
   cooldown?: { left: number; total: number };
-  preview: () => PreviewSpec;
-  onclick: () => void;
+  targeted: boolean;
+  /** Действие по цели; приёму без цели uid не важен. */
+  action: (target: number) => PlayerAction;
+  /** Кого приём достанет: рамка им при выборе и наведении. У приёма на себя пусто. */
+  targets: number[];
+  /** Ридаут: без цели — описание; с целью — ещё и «останется N HP» или причина, почему по ней нельзя. */
+  preview: (target?: number) => PreviewSpec;
 }
 
 /**
  * Плитка 78 px: иконка, короткое имя, крупное число, цена ярлыком в углу. Недоступная — затемнена, но без атрибута
- * disabled: иначе браузер не шлёт ей наведение, а ридаут должен показать причину.
+ * disabled: иначе браузер не шлёт ей наведение, а ридаут должен показать причину. Выбранная — с жёлтым ободом.
  */
 function tile(app: App, spec: TileSpec, busy: boolean, index: number): HTMLElement {
   const off = !!spec.err || busy;
   const cd = spec.cooldown;
   const pct = cd ? Math.round((cd.left / Math.max(1, cd.total)) * 100) : 0;
+  const armed = app.armed === spec.key;
+  const first = app.run!.battle!.enemies[0]?.uid ?? -1;
   const el = h(
     'button',
     {
-      class: `tile ${off ? 'off' : ''} ${cd ? 'cooling' : ''}`,
+      class: `tile ${off ? 'off' : ''} ${cd ? 'cooling' : ''} ${armed ? 'armed' : ''}`,
       'aria-disabled': off ? 'true' : null,
+      'aria-pressed': spec.targeted ? (armed ? 'true' : 'false') : null,
       onclick: () => {
-        if (!off) spec.onclick();
+        if (off) return;
+        if (spec.targeted) app.arm(spec.key);
+        else app.battleAction(spec.action(first));
       },
     },
     cd ? h('div', { class: 'cd-fill', style: `height:${pct}%` }) : null,
@@ -206,6 +249,8 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return ['☍'];
       case 'cleanse':
         return ['✚'];
+      case 'pull':
+        return ['⇤', h('small', null, 'в ряд')];
       default:
         continue;
     }
@@ -213,50 +258,87 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
   return ['—'];
 }
 
-function tiles(app: App): HTMLElement {
+/** Слово о дальности для ридаута: «любая цель», «весь ряд», «первый в ряду». */
+function reachWord(r: WeaponReach): string {
+  return r === 'any' ? 'любая цель' : r === 'row' ? 'весь ряд' : 'первый в ряду';
+}
+
+/**
+ * Все приёмы героя на этот момент боя: удар, защита и активные артефакты. Отсюда же App берёт выбранный приём,
+ * его цели и предпросмотр по врагу.
+ */
+export function actionSpecs(app: App): TileSpec[] {
   const b = app.run!.battle!;
-  const target = app.currentTarget();
-  const busy = app.busy || b.phase !== 'player';
+  const first = b.enemies[0]?.uid ?? -1;
   const specs: TileSpec[] = [];
 
   // Из скрытности любая атака — удар в спину: гарантированный крит.
   const stealthed = isHidden(b.hero);
-  const critX = (r: DamageRange) => ({ min: r.min * b.hero.stats.critMult, max: r.max * b.hero.stats.critMult });
+  const critX = (r: DamageRange) => ({ min: Math.floor((r.min * b.hero.stats.critDmg) / 100), max: Math.floor((r.max * b.hero.stats.critDmg) / 100) });
   const fatigue = Math.round((1 - b.hero.stats.fatigue) * 100);
+  const uids = (action: PlayerAction) => reachableEnemies(b, actionReach(b, action)).map((e) => e.uid);
+  /** Причина недоступности плитки: приёму с целью — по лучшей из целей, чтобы «Уже первый в ряду» не гасил Крюк при второй цели. */
+  const tileErr = (action: (t: number) => PlayerAction, targeted: boolean): string | null => {
+    if (!targeted) return canUseAction(b, action(first));
+    let last: string | null = 'Нет цели';
+    for (const e of b.enemies) {
+      last = canUseAction(b, action(e.uid));
+      if (last === null) return null;
+    }
+    return last;
+  };
+  /** Хвост предпросмотра по цели: по ней можно — штриховка и остаток HP, нельзя — причина. */
+  const onTarget = (action: (t: number) => PlayerAction, target: number | undefined, range: DamageRange | undefined, kind: 'hit' | 'spell'): Partial<PreviewSpec> => {
+    if (target === undefined) return {};
+    const err = canUseAction(b, action(target));
+    if (err) return { err };
+    return range ? { target, range, kind } : {};
+  };
 
-  const atk: PlayerAction = { type: 'attack', target };
-  const atkRange = stealthed ? critX(previewAttack(b)) : previewAttack(b);
+  const atkAction = (t: number): PlayerAction => ({ type: 'attack', target: t });
+  // Плеть хлещет весь ряд на долю урона — число на плитке уже с ней, с пометкой «всем».
+  const sweep = b.hero.stats.sweep > 0;
+  const atkRange = stealthed ? critX(previewAttack(b, 0, sweep ? SWEEP_MULT : 1)) : previewAttack(b, 0, sweep ? SWEEP_MULT : 1);
+  const atkTargets = uids(atkAction(first));
+  const atkName = stealthed ? 'Удар в спину' : 'Ударить';
   specs.push({
+    key: 'attack',
     glyph: '⚔',
-    name: stealthed ? 'Удар в спину' : 'Ударить',
-    value: [rangeText(atkRange)],
+    name: atkName,
+    value: [rangeText(atkRange), sweep ? h('small', null, 'всем') : null],
     cost: { kind: 'sta', text: '1' },
-    err: canUseAction(b, atk),
-    onclick: () => app.battleAction(atk),
-    preview: () => ({
-      title: stealthed ? 'Удар в спину' : 'Ударить',
-      parts: ['1 STA', `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}`, `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`],
-      target,
-      range: atkRange,
+    err: tileErr(atkAction, true),
+    targeted: true,
+    action: atkAction,
+    targets: atkTargets,
+    preview: (t) => ({
+      title: atkName,
+      parts: ['1 STA', `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}`, reachWord(actionReach(b, atkAction(first))), `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`],
+      targets: atkTargets,
+      ...onTarget(atkAction, t, atkRange, 'hit'),
     }),
   });
 
-  const def: PlayerAction = { type: 'defend' };
+  const defAction = (): PlayerAction => ({ type: 'defend' });
   const blk = defendBlock(b.hero.stats);
   specs.push({
+    key: 'defend',
     glyph: '⛨',
     name: 'Защита',
     value: [`+${blk}`],
     cost: { kind: 'sta', text: '1' },
-    err: canUseAction(b, def),
-    onclick: () => app.battleAction(def),
+    err: tileErr(defAction, false),
+    targeted: false,
+    action: defAction,
+    targets: [],
     preview: () => ({ title: 'Защититься', parts: ['1 STA', `+${blk} блока до начала следующего хода`, '80 % от Защиты, округление вверх, раз за ход'] }),
   });
 
   for (const inst of b.hero.artifacts) {
     const ad = artifactDef(inst.id);
     if (ad.kind !== 'active') continue;
-    const action: PlayerAction = { type: 'artifact', artifactId: ad.id, target };
+    const action = (t: number): PlayerAction => ({ type: 'artifact', artifactId: ad.id, target: t });
+    const targeted = ad.target === 'enemy';
     const cd = b.hero.cooldowns[ad.id] ?? 0;
     const effects = ad.effects?.(inst.tier) ?? [];
     const atkEff = effects.find((e) => e.type === 'attack');
@@ -278,8 +360,11 @@ function tiles(app: App): HTMLElement {
     }
     const total = ad.cooldown?.(inst.tier) ?? 0;
     const limit = ad.usesPerTurn?.(inst.tier) ?? 0;
-    const err = canUseAction(b, action);
+    const err = tileErr(action, targeted);
+    // Приём по всем подсвечивает всех, по одному — досягаемых, на себя — никого.
+    const targets = targeted ? uids(action(first)) : ad.target === 'allEnemies' ? b.enemies.map((e) => e.uid) : [];
     specs.push({
+      key: ad.id,
       glyph: ad.glyph,
       name: ad.name,
       // При двух союзниках плитка призыва пишет причину прямо на себе, а не просто темнеет.
@@ -287,17 +372,24 @@ function tiles(app: App): HTMLElement {
       cost: costBadge(ad, inst.tier),
       err,
       cooldown: cd > 0 ? { left: cd, total: Math.max(total, cd) } : undefined,
-      onclick: () => app.battleAction(action),
-      preview: () => ({
+      targeted,
+      action,
+      targets,
+      preview: (t) => ({
         title: `${ad.name} · тир ${inst.tier}`,
-        parts: [artifactCostText(ad, inst.tier), ad.describe(inst.tier), total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
-        target: range ? target : undefined,
-        range: range ?? undefined,
-        kind,
+        parts: [artifactCostText(ad, inst.tier), ad.describe(inst.tier), targeted ? reachWord(actionReach(b, action(first))) : '', total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
+        targets,
+        ...(targeted ? onTarget(action, t, range ?? undefined, kind) : {}),
       }),
     });
   }
+  return specs;
+}
 
+function tiles(app: App): HTMLElement {
+  const b = app.run!.battle!;
+  const busy = app.busy || b.phase !== 'player';
+  const specs = actionSpecs(app);
   // Семь плиток и меньше — один ряд 134 px; восемь и больше — два ряда по 62 px. Класс ставит рендер: число плиток известно здесь.
   const rows = specs.length >= 8 ? 2 : 1;
   return h('div', { class: `tiles rows-${rows}` }, ...specs.map((s, i) => tile(app, s, busy, i)));
@@ -314,7 +406,7 @@ export function battleScreen(app: App): HTMLElement {
   const heroZone = h(
     'div',
     { class: `hero-zone ${hasAllies ? 'narrow' : ''}` },
-    badges(b.hero, true, fatigueBadge(b)),
+    badges(b.hero, true, undefined, fatigueBadge(b)),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, hasAllies ? 104 : 128, 'bob')),
     h('div', { class: 'name' }, def.name),
   );

@@ -1,5 +1,5 @@
 import { button, h, type Child } from './dom';
-import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, GearInstance, GearKind, GearTier, RunState, StatusId } from '../engine/types';
+import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, EnemyState, GearInstance, GearKind, GearTier, RunState, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
@@ -10,22 +10,26 @@ import {
   ART_TIER_COLORS,
   GEAR_TIERS,
   WEAPON_TYPE_GLYPHS,
+  WEAPON_TYPE_NAMES,
   armorSkillTitle,
   armorType,
   armorTypeTitle,
   canWearArmor,
+  canWieldWeapon,
   gearPerkText,
   gearStatText,
   hasPerk,
-  masteryTitle,
   weaponDice,
+  weaponSkillTitle,
+  weaponReach,
+  weaponReachTitle,
   weaponType,
   weaponTypeTitle,
 } from '../data/gear';
-import type { Collectible } from '../data/collection';
+import { collectibleLines, type Collectible, type FoundState } from '../data/collection';
 import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
 import { findSameArtifact, gearOf, socketRefs } from '../engine/equipment';
-import { STATUS_HINTS, STATUS_NAMES, defendBlock } from '../engine/combat';
+import { STATUS_HINTS, STATUS_NAMES, defendBlock, onDeathInfo } from '../engine/combat';
 import { markKeywords } from './keywords';
 import type { App } from './app';
 
@@ -65,27 +69,24 @@ export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElemen
   );
 }
 
-/** Плитка предмета каталога: в сетке коллекции и в ленте сундука. */
-export function collectibleTile(c: Collectible, locked = false): HTMLElement {
-  if (locked) {
+/**
+ * Плитка каталога. Запись закрыта — «???»; у артефакта в углу три метки тиров: горит тот, что был у героя в забеге.
+ * Описание закрытого тира в подсказке спрятано, сама запись при этом открыта (см. collectibleLines).
+ */
+export function collectibleTile(c: Collectible, st: FoundState): HTMLElement {
+  if (!st.open) {
     return h('div', { class: 'coll-tile locked', tip: 'Ещё не найдено' }, h('span', { class: 'coll-glyph' }, '?'), h('span', { class: 'coll-name' }, '???'));
   }
+  // Метки без своей подсказки: наведение на любую точку плитки должно показывать её описание целиком.
+  const pips = st.tiers.length
+    ? h('span', { class: 'coll-tiers' }, ...st.tiers.map((ok) => h('i', { class: `coll-pip ${ok ? 'on' : ''}`, style: ok ? `background:${c.color}` : '' })))
+    : null;
   return h(
     'div',
-    { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, tip: `${c.name}\n${c.sub}\n${c.desc}` },
+    { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, tip: [c.name, c.sub, ...collectibleLines(c, st)].join('\n') },
+    pips,
     h('span', { class: 'coll-glyph', style: `color:${c.color}` }, c.glyph),
     h('span', { class: 'coll-name' }, c.name),
-  );
-}
-
-/** Крупная карточка находки — показывается после крутки сундука. */
-export function collectibleCard(c: Collectible): HTMLElement {
-  return h(
-    'div',
-    { class: 'card coll-card', style: `border-color:${c.color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph', style: `color:${c.color}` }, c.glyph), h('span', { class: 'card-name' }, c.name)),
-    h('div', { class: 'card-sub', style: `color:${c.color}` }, c.sub),
-    ...c.desc.split('\n').map((line) => h('div', { class: 'card-desc' }, line)),
   );
 }
 
@@ -196,10 +197,10 @@ export function potionCard(id: string, footer?: Child, note?: string | null): HT
   );
 }
 
-/** Иконка типа оружия у бейджа тира. С героем окрашена по владению: зелёный мастер, жёлтый знаком, красный чужое. */
+/** Иконка типа оружия у бейджа тира. С героем окрашена по владению: зелёный владеет, красный нет. */
 export function weaponTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   const type = weaponType(gear);
-  const cls = def ? `mastery-${def.mastery[type]}` : '';
+  const cls = def ? (canWieldWeapon(def, gear) ? 'skill-yes' : 'skill-no') : '';
   return h('span', { class: `wtype-icon ${cls}`.trim(), tip: weaponTypeTitle(gear, def) }, WEAPON_TYPE_GLYPHS[type]);
 }
 
@@ -213,17 +214,28 @@ export function gearTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
   return gear.kind === 'weapon' ? weaponTypeIcon(gear, def) : armorTypeIcon(gear, def);
 }
 
-/** Строка перка базы: название своим цветом, описание после двоеточия. Броня, которую герой не умеет носить, — перк зачёркнут, причина в подсказке. */
+/**
+ * Маркер дальности оружия (v0.26): три точки — ряд врагов. Ближнее оружие красит первую (достаёт только первого),
+ * дальнее, магическое, копьё и плеть — все три. С героем — в его руках: плеть у не владеющего красит одну.
+ */
+export function reachDots(gear: GearInstance, def?: HeroDef): HTMLElement | null {
+  if (gear.kind !== 'weapon') return null;
+  const reach = weaponReach(gear, def);
+  const lit = reach === 'melee' ? 1 : 3;
+  return h('span', { class: `reach-dots reach-${reach}`, tip: weaponReachTitle(gear, def) }, ...[0, 1, 2].map((i) => h('i', { class: i < lit ? 'on' : '' })));
+}
+
+/** Строка перка базы: название своим цветом, описание после двоеточия. Предмет, которым герой не владеет, — перк зачёркнут, причина в подсказке. */
 export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null {
   const perk = gearPerkText(gear);
   if (!perk) return null;
-  if (gear.kind === 'armor' && def && !canWearArmor(def, gear)) {
-    return h(
-      'div',
-      { class: 'card-perk off', tip: `${def.name} не умеет носить ${ARMOR_TYPE_NAMES[armorType(gear)].toLowerCase()} броню: перк не работает` },
-      h('s', null, perk),
-    );
-  }
+  const off =
+    def && gear.kind === 'weapon' && !canWieldWeapon(def, gear)
+      ? `${def.name} не владеет ${WEAPON_TYPE_NAMES[weaponType(gear)].toLowerCase()} оружием: перк не работает`
+      : def && gear.kind === 'armor' && !canWearArmor(def, gear)
+        ? `${def.name} не умеет носить ${ARMOR_TYPE_NAMES[armorType(gear)].toLowerCase()} броню: перк не работает`
+        : null;
+  if (off) return h('div', { class: 'card-perk off', tip: off }, h('s', null, perk));
   const sep = perk.indexOf(':');
   const name = sep > 0 ? perk.slice(0, sep) : perk;
   const text = sep > 0 ? perk.slice(sep + 1) : '';
@@ -241,7 +253,7 @@ export function gearStatInfo(gear: GearInstance, def?: HeroDef): { text: string;
   const d = weaponDice(def, gear);
   const own = d.min !== gear.dmgMin || d.max !== gear.dmgMax;
   const text = gearStatText({ ...gear, dmgMin: d.min, dmgMax: d.max });
-  return own ? { text, tip: `Кубик оружия ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: владение типом оружия` } : { text };
+  return own ? { text, tip: `Кубик оружия ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: герой не владеет этим типом оружия` } : { text };
 }
 
 function gearStatLine(gear: GearInstance, def?: HeroDef): HTMLElement {
@@ -260,7 +272,7 @@ export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Chi
   return h(
     'div',
     { class: 'card gear-card', style: `border-color:${info.color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'card-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def)),
+    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'card-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), reachDots(gear, def)),
     gearStatLine(gear, def),
     ...(deltas ?? []),
     perkLine(gear, def),
@@ -270,7 +282,7 @@ export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Chi
 
 /**
  * Умения героя одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇».
- * Цвет иконки оружия — владение (зелёный мастер, жёлтый знаком, красный чужое), брони — умение носить (зелёный да, красный нет).
+ * Цвет иконки — владение и умение носить: зелёный да, красный нет.
  * Названия, доля кубика и свойство типа — в подсказке при наведении на иконку; карточки предметов этого не повторяют.
  */
 export function skillLine(def: HeroDef): HTMLElement {
@@ -278,9 +290,9 @@ export function skillLine(def: HeroDef): HTMLElement {
   const armors: ArmorType[] = ['heavy', 'medium', 'light'];
   return h(
     'div',
-    { class: 'mastery' },
-    h('span', { class: 'lbl', tip: 'Владение оружием: зелёный мастер, жёлтый знаком, красный чужое. Наведи на иконку' }, 'Оружие:'),
-    ...weapons.map((t) => h('span', { class: `mastery-${def.mastery[t]}`, tip: masteryTitle(t, def.mastery[t]) }, WEAPON_TYPE_GLYPHS[t])),
+    { class: 'skill-line' },
+    h('span', { class: 'lbl', tip: 'Владение оружием: зелёный владеет, красный нет — кубик вдвое и перк базы не работает. Наведи на иконку' }, 'Оружие:'),
+    ...weapons.map((t) => h('span', { class: def.weaponSkill[t] ? 'skill-yes' : 'skill-no', tip: weaponSkillTitle(t, def.weaponSkill[t]) }, WEAPON_TYPE_GLYPHS[t])),
     h('span', { class: 'lbl', tip: 'Умение носить броню: зелёный перк работает, красный нет. Наведи на иконку' }, 'Броня:'),
     ...armors.map((t) => h('span', { class: def.armorSkill[t] ? 'skill-yes' : 'skill-no', tip: armorSkillTitle(t, def.armorSkill[t]) }, ARMOR_TYPE_GLYPHS[t])),
   );
@@ -298,13 +310,19 @@ export function goldBadge(gold: number): HTMLElement {
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
 const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge', 'evade'];
 
-export function statusIcons(c: Combatant): HTMLElement {
+/**
+ * Статусы бойца. Для врага передаётся он сам: «Предсмертие» тогда расписывает в подсказке
+ * его onDeath с числами под акт («Вспышка: Атака 6, Горение 3 на 2 хода»).
+ */
+export function statusIcons(c: Combatant, enemy?: EnemyState): HTMLElement {
   return h(
     'div',
     { class: 'statuses' },
     ...c.statuses.map((s) => {
       const showValue = VALUE_STATUSES.includes(s.id) && (s.id !== 'dodge' || s.value > 1);
-      const title = `${STATUS_NAMES[s.id]}${showValue ? ` ${s.value}` : ''}${s.turns > 0 ? `, ходов: ${s.turns}` : ''}\n${STATUS_HINTS[s.id]}`;
+      const doom = s.id === 'doom' && enemy ? onDeathInfo(enemy) : null;
+      const hint = doom ? `${doom.name} — ${doom.detail}.\nСработает, когда враг погибнет` : STATUS_HINTS[s.id];
+      const title = `${STATUS_NAMES[s.id]}${showValue ? ` ${s.value}` : ''}${s.turns > 0 ? `, ходов: ${s.turns}` : ''}\n${hint}`;
       return h(
         'span',
         { class: `status status-${s.id}`, tip: title },
@@ -326,7 +344,8 @@ export function statsGrid(s: DerivedStats): HTMLElement {
     row('STA', `${s.sta}${s.firstTurnSta ? ` (+${s.firstTurnSta})` : ''}`, 'Очки действий за ход'),
     row('MP', `${s.maxMp}${s.mpRegen ? ` (+${s.mpRegen})` : ''}`, 'Мана и реген за ход'),
     row('Устал.', `−${Math.round((1 - s.fatigue) * 100)}%`, 'На столько слабее каждая следующая атака в этом ходу'),
-    s.crit ? row('Крит', `${Math.round(s.crit * 100)} %`, `Шанс крита (урон ×${s.critMult})`) : null,
+    row('Крит', `${Math.round(s.crit * 100)} %`, 'Шанс критического удара'),
+    row('Крит. урон', `${s.critDmg} %`, 'Сколько процентов обычного урона наносит крит'),
     s.firstHit ? row('1-й удар', `+${s.firstHit}`, 'Бонус урона первого удара в ходу') : null,
     s.spellPower ? row('Закл.', `+${s.spellPower}`, 'Бонус к урону заклинаний') : null,
     s.thorns ? row('Шипы', `${s.thorns}`, 'Урон атакующему') : null,

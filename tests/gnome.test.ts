@@ -90,6 +90,17 @@ describe('гном-деньгокрад', () => {
     expect(run.event).toMatchObject({ result: 'fled', gold: 3 });
   });
 
+  it('уворот пишется в строку удара героя, а бегство — в журнал забега отдельным исходом', () => {
+    const run = gnomeRun();
+    const b = run.battle!;
+    getStatus(b.enemies[0], 'evade')!.value = 100;
+    battleAction(run, { type: 'attack', target: b.enemies[0].uid });
+    expect(b.log.some((l) => l.startsWith('Герой бьёт') && l.includes('→ 0 по HP (уворот 100 %)'))).toBe(true);
+    for (let i = 0; i < 4 && run.battle!.phase !== 'won'; i++) passTurn(run);
+    finishBattle(run);
+    expect(run.logs.at(-1)).toMatchObject({ result: 'fled', title: expect.stringContaining('Гном-деньгокрад') });
+  });
+
   it('убитый возвращает украденное и отдаёт свой мешок', () => {
     const run = gnomeRun();
     run.gold = 20;

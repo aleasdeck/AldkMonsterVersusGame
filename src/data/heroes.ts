@@ -5,6 +5,9 @@ const base = { o: '#1b1b2a', e: '#1a1a1a' };
 const list: HeroDef[] = [
   {
     id: 'warrior',
+    // Эталон: минимальный крит, базовый крит. урон.
+    crit: 0.05,
+    critDmg: 150,
     name: 'Воин',
     role: 'Ровный боец: много действий за ход, крепкий. Эталон для баланса.',
     // 46, а не 40 (v0.14): без стартового Сердца тролля (+6 HP) бот падал до 36 %, с 46 — 43 %.
@@ -13,7 +16,7 @@ const list: HeroDef[] = [
     mp: 2,
     mpRegen: 0,
     sta: 3,
-    mastery: { melee: 'master', ranged: 'trained', magic: 'foreign' },
+    weaponSkill: { melee: true, ranged: false, magic: false },
     armorSkill: { heavy: true, medium: true, light: false },
     weapon: { base: 'sword', name: 'Меч', dmgMin: 4, dmgMax: 6 },
     armor: { base: 'mail', name: 'Кольчуга', def: 1, hp: 0 },
@@ -26,6 +29,9 @@ const list: HeroDef[] = [
   },
   {
     id: 'mage',
+    // Бьёт заклинаниями — крит ему почти не нужен.
+    crit: 0.05,
+    critDmg: 150,
     name: 'Маг',
     role: 'Хрупкий, урон через ману: Волшебная стрела бьёт каждый ход без перезарядки.',
     // 26, а не 23 (v0.14): без стартового Магического щита бот падал до 39 %, с 26 — 44 %.
@@ -33,10 +39,11 @@ const list: HeroDef[] = [
     hp: 29,
     def: 3,
     // 7, а не 10 (v0.14.1): с 10 маны и Волшебной стрелой без лимита Маг был «имбой» по отзыву пользователя.
-    mp: 7,
+    // 5 (v0.19.1): по просьбе пользователя, вместе с лимитом стрелы 2/3/4. Симулятором правка не мерялась.
+    mp: 5,
     mpRegen: 2,
     sta: 2,
-    mastery: { melee: 'trained', ranged: 'foreign', magic: 'master' },
+    weaponSkill: { melee: false, ranged: false, magic: true },
     armorSkill: { heavy: false, medium: false, light: true },
     weapon: { base: 'staff', name: 'Посох', dmgMin: 3, dmgMax: 6 },
     armor: { base: 'robe', name: 'Роба', def: 0, hp: 0 },
@@ -49,6 +56,9 @@ const list: HeroDef[] = [
   },
   {
     id: 'assassin',
+    // Крит — его профиль: удар из тени и так всегда критический.
+    crit: 0.2,
+    critDmg: 190,
     name: 'Ассасин',
     role: 'Входит в бой в тени: враги его не видят, а любая атака из скрытности — удар в спину, всегда крит. Дымовая шашка возвращает в тень, яд не выдаёт.',
     hp: 31,
@@ -57,7 +67,7 @@ const list: HeroDef[] = [
     mp: 3,
     mpRegen: 1,
     sta: 3,
-    mastery: { melee: 'master', ranged: 'trained', magic: 'foreign' },
+    weaponSkill: { melee: true, ranged: false, magic: false },
     armorSkill: { heavy: false, medium: false, light: true },
     // Стилет — лёгкое оружие: кубик ниже меча Воина (4–6), удар в спину добирает своё.
     weapon: { base: 'stiletto', name: 'Стилет', dmgMin: 3, dmgMax: 5 },
@@ -71,6 +81,9 @@ const list: HeroDef[] = [
   },
   {
     id: 'paladin',
+    // Танк: урон не его дело.
+    crit: 0.05,
+    critDmg: 140,
     name: 'Паладин',
     role: 'Танк: Молот света бьёт и лечит, низкий урон.',
     hp: 31,
@@ -78,7 +91,7 @@ const list: HeroDef[] = [
     mp: 6,
     mpRegen: 1,
     sta: 3,
-    mastery: { melee: 'master', ranged: 'foreign', magic: 'trained' },
+    weaponSkill: { melee: true, ranged: false, magic: false },
     armorSkill: { heavy: true, medium: true, light: false },
     weapon: { base: 'mace', name: 'Булава', dmgMin: 2, dmgMax: 6 },
     armor: { base: 'plate', name: 'Латы', def: 1, hp: 0 },
@@ -91,6 +104,9 @@ const list: HeroDef[] = [
   },
   {
     id: 'berserk',
+    // Много ударов за ход — шансу крита есть где сработать.
+    crit: 0.1,
+    critDmg: 160,
     name: 'Берсерк',
     role: 'Почти без защиты и без маны, доспехов не носит: перки брони на нём не работают. Ярость даёт лишние действия и Силу ценой своей крови; серия ударов за ход теряет мало урона.',
     hp: 44,
@@ -98,8 +114,8 @@ const list: HeroDef[] = [
     mp: 0,
     mpRegen: 0,
     sta: 3,
-    fatigue: 0.85,
-    mastery: { melee: 'master', ranged: 'trained', magic: 'foreign' },
+    fatigue: 0.8,
+    weaponSkill: { melee: true, ranged: false, magic: false },
     // Броню не носит вовсе: любая для него — только DEF, HP, аффикс и слоты. Стартовая шкура поэтому без перка.
     armorSkill: { heavy: false, medium: false, light: false },
     // Топор — тяжёлое оружие: 3–6 вместо 2–5 (v0.15), всё ещё ниже меча Воина, Силу добирает Ярость.
@@ -114,6 +130,9 @@ const list: HeroDef[] = [
   },
   {
     id: 'archer',
+    // Прицельный выстрел всегда критует, крит. урон решает.
+    crit: 0.12,
+    critDmg: 170,
     name: 'Лучник',
     role: 'Стрелок: Прицельный выстрел всегда критует, Подсечный ослабляет врага. Хрупкий, защита слабая.',
     hp: 29,
@@ -122,7 +141,7 @@ const list: HeroDef[] = [
     mp: 3,
     mpRegen: 1,
     sta: 3,
-    mastery: { melee: 'trained', ranged: 'master', magic: 'foreign' },
+    weaponSkill: { melee: false, ranged: true, magic: false },
     armorSkill: { heavy: false, medium: true, light: true },
     weapon: { base: 'bow', name: 'Лук', dmgMin: 3, dmgMax: 7 },
     armor: { base: 'cloak', name: 'Куртка', def: 0, hp: 0 },

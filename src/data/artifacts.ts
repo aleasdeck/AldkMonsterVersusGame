@@ -10,8 +10,8 @@ const list: ArtifactDef[] = [
     name: 'Камень силы',
     glyph: 'ᚢ',
     kind: 'passive',
-    mods: (tier) => ({ str: t(2, 4, 6)(tier) }),
-    describe: (tier) => `+${t(2, 4, 6)(tier)} к Силе`,
+    mods: (tier) => ({ str: t(2, 3, 4)(tier) }),
+    describe: (tier) => `+${t(2, 3, 4)(tier)} к Силе`,
   },
   {
     id: 'troll_heart',
@@ -82,8 +82,33 @@ const list: ArtifactDef[] = [
     name: 'Талисман удачи',
     glyph: '☘',
     kind: 'passive',
-    mods: (tier) => ({ crit: t(0.15, 0.3, 0.45)(tier) }),
-    describe: (tier) => `Шанс крита ${Math.round(t(15, 30, 45)(tier))} % (урон ×2)`,
+    // До v0.21 давал только шанс (15/30/45 %) при крите ×2 у всех; теперь он стержень крит-билда: шанс и крит. урон.
+    mods: (tier) => ({ crit: t(0.1, 0.15, 0.2)(tier), critDmg: t(20, 30, 40)(tier) }),
+    describe: (tier) => `+${t(10, 15, 20)(tier)} % к шансу крита и +${t(20, 30, 40)(tier)} % к крит. урону`,
+  },
+  {
+    id: 'gambler_coin',
+    name: 'Азарт',
+    glyph: '❖',
+    kind: 'passive',
+    mods: (tier) => ({ critRamp: t(0.05, 0.1, 0.15)(tier) }),
+    describe: (tier) => `Каждый удар без крита повышает шанс крита на ${t(5, 10, 15)(tier)} % до конца боя; крит сбрасывает накопленное`,
+  },
+  {
+    id: 'executioner_mark',
+    name: 'Клеймо палача',
+    glyph: '⚑',
+    kind: 'passive',
+    mods: (tier) => ({ executeCrit: t(0.3, 0.4, 0.5)(tier) }),
+    describe: (tier) => `+${t(30, 40, 50)(tier)} % к шансу крита по врагу, у которого осталось меньше 20 % HP`,
+  },
+  {
+    id: 'blood_thirst',
+    name: 'Жажда крови',
+    glyph: '❥',
+    kind: 'passive',
+    mods: (tier) => ({ critHeal: t(3, 4, 5)(tier) }),
+    describe: (tier) => `+${t(3, 4, 5)(tier)} HP за каждый критический удар`,
   },
   {
     id: 'sage_eye',
@@ -140,6 +165,20 @@ const list: ArtifactDef[] = [
     describe: (tier) => `Атака +${t(6, 9, 12)(tier)} урона по цели`,
   },
   {
+    id: 'herbal_brew',
+    fx: { color: '#7ddc5a' },
+    name: 'Травяной отвар',
+    glyph: '⚱',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 2 },
+    cooldown: () => 3,
+    target: 'self',
+    // Лечит мало — ценность в том, что снимает всё разом: кровь, огонь, яд, слабость, изнурение, уязвимость.
+    effects: (tier) => [{ type: 'heal', amount: t(3, 4, 5)(tier) }, { type: 'cleanse' }],
+    describe: (tier) => `Восстанавливает ${t(3, 4, 5)(tier)} HP и снимает все отрицательные эффекты. КД 3`,
+  },
+  {
     id: 'whirlwind',
     fx: { color: '#ffffff' },
     name: 'Вихрь',
@@ -177,6 +216,8 @@ const list: ArtifactDef[] = [
     school: 'physical',
     cost: { sta: 1 },
     target: 'enemy',
+    // Порез — клинком в упор, каким бы ни было оружие.
+    reach: 'melee',
     effects: (tier) => [{ type: 'status', target: 'enemy', status: 'bleed', value: t(3, 4, 5)(tier), turns: 3 }],
     describe: (tier) => `Кровотечение ${t(3, 4, 5)(tier)} на 3 хода (стакается)`,
   },
@@ -204,10 +245,10 @@ const list: ArtifactDef[] = [
     effects: (tier) => [
       // Цена крови 2/1/1 (v0.14): с одной Яростью на старте и без Клича при 3/2/2 Берсерк давал 34 % у бота, с 2/1/1 — 47 %.
       { type: 'selfDamage', amount: t(2, 1, 1)(tier) },
-      { type: 'gainSta', amount: t(3, 3, 3)(tier) },
+      { type: 'gainSta', amount: t(2, 2, 3)(tier) },
       { type: 'status', target: 'self', status: 'strength', value: t(1, 2, 3)(tier), turns: 1 },
     ],
-    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(3, 3, 3)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
+    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(2, 2, 3)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
   },
   {
     id: 'second_wind',
@@ -219,8 +260,8 @@ const list: ArtifactDef[] = [
     cost: { sta: 0 },
     cooldown: () => 4,
     target: 'self',
-    effects: (tier) => [{ type: 'gainSta', amount: t(2, 3, 4)(tier) }],
-    describe: (tier) => `+${t(2, 3, 4)(tier)} стамины. КД 4`,
+    effects: (tier) => [{ type: 'gainSta', amount: t(1, 2, 3)(tier) }],
+    describe: (tier) => `+${t(1, 2, 3)(tier)} стамины. КД 4`,
   },
   {
     id: 'aimed_shot',
@@ -261,8 +302,8 @@ const list: ArtifactDef[] = [
     cost: (tier) => ({ sta: t(3, 3, 2)(tier) }),
     cooldown: () => 3,
     target: 'self',
-    effects: (tier) => [{ type: 'status', target: 'self', status: 'smoke', value: 1, turns: t(2, 2, 3)(tier) }],
-    describe: (tier) => `Дымовая завеса на ${t(2, 2, 3)(tier)} ход(а): удары врагов с шансом 80 % мимо, следующая атака — удар в спину. КД 3`,
+    effects: (tier) => [{ type: 'status', target: 'self', status: 'stealth', value: 1, turns: t(1, 2, 2)(tier) }],
+    describe: (tier) => `Скрытность на ${t(1, 2, 2)(tier)} хода врага: враги не видят героя, следующая атака — удар в спину. КД 3`,
   },
   {
     id: 'poison_vial',
@@ -273,6 +314,8 @@ const list: ArtifactDef[] = [
     school: 'physical',
     cost: { sta: 1 },
     target: 'enemy',
+    // Склянка летит через ряд: достаёт любого, даже в руках ближнего бойца.
+    reach: 'any',
     effects: (tier) => [{ type: 'status', target: 'enemy', status: 'poison', value: t(2, 3, 4)(tier), turns: 4 }],
     describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода (стакается). Бросок не снимает скрытность`,
   },
@@ -287,6 +330,8 @@ const list: ArtifactDef[] = [
     cost: { sta: 1 },
     cooldown: () => 2,
     target: 'enemy',
+    // Щитом бьют в упор — и с луком в другой руке тоже.
+    reach: 'melee',
     // Блок — доля урона, а не плоские +3/4/5 (v0.18): с оружием третьего акта плоский блок не гасил и половины удара.
     effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', mult: 0.75, blockPct: t(0.6, 0.8, 1)(tier) }],
     describe: (tier) => `Атака на 75 % урона; ${t(60, 80, 100)(tier)} % нанесённого урона становится Блоком. КД 2`,
@@ -301,6 +346,7 @@ const list: ArtifactDef[] = [
     cost: { sta: 1 },
     cooldown: () => 2,
     target: 'enemy',
+    reach: 'melee',
     effects: (tier) => [{ type: 'blockStrike', mult: t(1, 1.5, 2)(tier), target: 'enemy' }],
     describe: (tier) => `Удар щитом: ${t(100, 150, 200)(tier)} % текущего Блока героя уроном по цели. Оружие и усталость не участвуют, блок не тратится. КД 2`,
   },
@@ -315,11 +361,28 @@ const list: ArtifactDef[] = [
     // Первая версия (+2/3/4, лечение 3/4/5, КД 2) давала Паладину 72 % у бота; эта — 58 %.
     cooldown: () => 3,
     target: 'enemy',
+    // В упор, как щит (v0.26): через ряд Молот давал Паладину лишние 3 пункта у бота, а он и так силён — решение пользователя.
+    reach: 'melee',
     effects: (tier) => [
       { type: 'attack', bonus: t(1, 2, 3)(tier), target: 'enemy' },
       { type: 'heal', amount: t(2, 3, 4)(tier) },
     ],
     describe: (tier) => `Атака +${t(1, 2, 3)(tier)} и лечение ${t(2, 3, 4)(tier)} HP. 1 STA + 1 MP, КД 3`,
+  },
+  {
+    id: 'grapple_hook',
+    fx: { kind: 'arrow', color: '#c0c0c0' },
+    name: 'Крюк-кошка',
+    glyph: '⚓',
+    kind: 'active',
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: (tier) => t(3, 2, 1)(tier),
+    target: 'enemy',
+    // Единственный приём про перестановку (v0.26): ответ ближнего бойца стрелку за спиной брута — вытянуть его под удар.
+    reach: 'any',
+    effects: () => [{ type: 'pull', target: 'enemy' }],
+    describe: (tier) => `Притягивает врага в первый ряд — под удар ближнего боя, остальные сдвигаются назад. КД ${t(3, 2, 1)(tier)}`,
   },
   {
     id: 'net',
@@ -436,10 +499,10 @@ const list: ArtifactDef[] = [
     kind: 'active',
     school: 'magic',
     cost: { mp: 2 },
-    cooldown: (tier) => t(3, 2, 1)(tier),
+    cooldown: (tier) => t(4, 3, 2)(tier),
     target: 'self',
     effects: () => [{ type: 'status', target: 'self', status: 'dodge', value: 1, turns: -1 }],
-    describe: (tier) => `Следующая атака по герою не наносит урона. КД ${t(3, 2, 1)(tier)}`,
+    describe: (tier) => `Следующая атака по герою не наносит урона. КД ${t(4, 3, 2)(tier)}`,
   },
   {
     id: 'wolf_whistle',
@@ -464,10 +527,10 @@ const list: ArtifactDef[] = [
     school: 'magic',
     cost: { mp: 1 },
     // Без перезарядки, но не бесконечно: с 10 маны и без лимита Маг выносил бои за ход — «имба» по отзыву пользователя.
-    usesPerTurn: (tier) => t(3, 4, 5)(tier),
+    usesPerTurn: (tier) => t(2, 3, 4)(tier),
     target: 'enemy',
-    effects: (tier) => [{ type: 'spell', amount: t(4, 5, 6)(tier), target: 'enemy' }],
-    describe: (tier) => `${t(4, 5, 6)(tier)} урона заклинанием. До ${t(3, 4, 5)(tier)} раз за ход`,
+    effects: (tier) => [{ type: 'spell', amount: t(3, 4, 5)(tier), target: 'enemy' }],
+    describe: (tier) => `${t(3, 4, 5)(tier)} урона заклинанием. До ${t(2, 3, 4)(tier)} раз за ход`,
   },
   {
     id: 'spark',
@@ -493,10 +556,10 @@ const list: ArtifactDef[] = [
     kind: 'active',
     school: 'magic',
     cost: { mp: 1 },
-    cooldown: () => 2,
+    cooldown: () => 3,
     target: 'allEnemies',
     effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'vulnerable', value: 1, turns: t(2, 3, 3)(tier) }],
-    describe: (tier) => `Уязвимость всем врагам на ${t(2, 3, 3)(tier)} ход(а). КД 2`,
+    describe: (tier) => `Уязвимость всем врагам на ${t(2, 3, 3)(tier)} ход(а). КД 3`,
   },
 ];
 

@@ -51,7 +51,6 @@ export function endScreen(app: App): HTMLElement {
           row('Сид', `${run.seed}`),
         ),
       ),
-      h('div', { class: 'chest-earned' }, app.profile.chests > 0 ? `Сундуков за забеги: ${app.profile.chests}` : 'Сундук за этот забег уже открыт'),
       h(
         'div',
         { class: 'row' },
@@ -61,8 +60,7 @@ export function endScreen(app: App): HTMLElement {
       h(
         'div',
         { class: 'row' },
-        app.profile.chests > 0 ? button('Открыть сундук', () => app.showChest(), { class: 'primary big' }) : null,
-        button('Новый забег', () => app.showHeroSelect(), { class: app.profile.chests > 0 ? 'big' : 'primary big' }),
+        button('Новый забег', () => app.showHeroSelect(), { class: 'primary big' }),
         button('В меню', () => app.showMenu(), { class: 'big' }),
       ),
     ),

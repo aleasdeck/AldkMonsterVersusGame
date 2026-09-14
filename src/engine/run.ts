@@ -50,6 +50,7 @@ export function newRun(heroId: string, seed: number = randomSeed(), now: number 
   return {
     version: SAVE_VERSION,
     seed,
+    debug: false,
     rng,
     hero: { defId: heroId, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
     gold: START_GOLD,
@@ -229,7 +230,7 @@ export function finishBattle(run: RunState): void {
   run.stats.turns += b.turn;
   run.stats.damageDealt += b.stats.damageDealt;
   run.stats.damageTaken += b.stats.damageTaken;
-  run.logs.push({ title: battleTitle(run), result: b.phase, turns: b.turn, lines: b.log.slice() });
+  run.logs.push({ title: battleTitle(run), result: b.phase === 'won' && b.fled ? 'fled' : b.phase, turns: b.turn, lines: b.log.slice() });
   if (b.phase === 'lost') {
     run.hero.hp = 0;
     run.battle = null;
@@ -599,7 +600,6 @@ export function canShopReroll(run: RunState): string | null {
   if (err) return err;
   const shop = run.shop!;
   if (shop.rerolled) return 'Переброс уже использован';
-  if (!shop.gear && !shop.artifact && !shop.potion) return 'Нечего перебрасывать';
   return needGold(run, REROLL_COST);
 }
 
@@ -640,16 +640,11 @@ export function shopBuyPotion(run: RunState): boolean {
   return true;
 }
 
-/** Перебросить непроданные товары за золото. Один раз за визит. */
+/** Перебросить прилавок за золото: новые экипировка, артефакт и зелье вместо любых, купленных в том числе, и лекарь снова готов помочь. Один раз за визит. */
 export function shopReroll(run: RunState): boolean {
   if (canShopReroll(run)) return false;
-  const shop = run.shop!;
-  const act = currentAct(run);
   run.gold -= REROLL_COST;
-  shop.rerolled = true;
-  if (shop.gear) shop.gear = rollGear(run.rng, run.hero, act.gearTiers);
-  if (shop.artifact) shop.artifact = rollArtifact(run.rng, run.hero, act.artTiers, []);
-  if (shop.potion) shop.potion = rollPotion(run.rng, run.hero);
+  run.shop = { ...rollShop(run.rng, run.hero, currentAct(run)), rerolled: true };
   return true;
 }
 

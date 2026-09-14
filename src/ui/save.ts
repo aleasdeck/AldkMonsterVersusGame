@@ -1,6 +1,7 @@
 import type { RunState } from '../engine/types';
 import { SAVE_VERSION } from '../engine/types';
 import { HEROES } from '../data/heroes';
+import { migrateFinds } from '../data/collection';
 
 const RUN_KEY = 'mv_run_v1';
 const PROFILE_KEY = 'mv_profile_v1';
@@ -9,7 +10,7 @@ const BEST_KEY = 'mv_best_v1';
 
 /**
  * Профиль игрока: живёт между забегами и переживает смену SAVE_VERSION.
- * Хранит общую статистику, нераспечатанные сундуки и найденные предметы.
+ * Хранит общую статистику, найденные предметы и открытые записи бестиария.
  */
 export interface Profile {
   runs: number;
@@ -24,12 +25,17 @@ export interface Profile {
   /** Забегов и побед по каждому герою. */
   heroRuns: Record<string, number>;
   heroWins: Record<string, number>;
-  /** Нераспечатанные сундуки. */
+  /**
+   * Нераспечатанные сундуки за забеги. Экран сундука убран (ADR 0002), счётчик копится дальше:
+   * вернётся экран — вернутся и сундуки за сыгранные тем временем забеги.
+   */
   chests: number;
-  /** id найденных предметов каталога. */
+  /** Ключи находок каталога: «weapon:sword», «potion:heal_potion», у артефактов с тиром — «art:fireball@2». */
   collection: string[];
   /** id врагов, которые хоть раз показались в бою — открытые записи бестиария. */
   bestiary: string[];
+  /** Анонимный id игрока для статистики забегов (telemetry.ts): случайная строка, ставится один раз при первом чтении профиля. */
+  playerId: string;
 }
 
 function emptyProfile(): Profile {
@@ -47,6 +53,7 @@ function emptyProfile(): Profile {
     chests: 0,
     collection: [],
     bestiary: [],
+    playerId: '',
   };
 }
 
@@ -89,10 +96,34 @@ export function clearRun(): void {
 }
 
 export function loadProfile(): Profile {
+  const p = readProfile();
+  // id ставится один раз и сразу пишется, чтобы все чтения профиля до первого сохранения видели один и тот же
+  if (!p.playerId) {
+    p.playerId = newPlayerId();
+    saveProfile(p);
+  }
+  return p;
+}
+
+/** UUID, где он есть (https и localhost), иначе время и случайный хвост. */
+function newPlayerId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  } catch {
+    /* нет crypto — ниже */
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function readProfile(): Profile {
   const p = emptyProfile();
   try {
     const raw = storage()?.getItem(PROFILE_KEY);
-    if (raw) return { ...p, ...(JSON.parse(raw) as Partial<Profile>) };
+    if (raw) {
+      const saved = { ...p, ...(JSON.parse(raw) as Partial<Profile>) };
+      saved.collection = migrateFinds(saved.collection);
+      return saved;
+    }
     // первый запуск после обновления: подтянуть старую запись о забегах
     const old = storage()?.getItem(BEST_KEY);
     if (old) {
@@ -117,7 +148,7 @@ export function saveProfile(p: Profile): Profile {
   return p;
 }
 
-/** Забег закончился: копим общую статистику и выдаём сундук за прохождение. */
+/** Забег закончился: копим общую статистику. Сундук за прохождение по-прежнему начисляется впрок (см. chests). */
 export function recordResult(run: RunState): Profile {
   const p = loadProfile();
   const hero = run.hero.defId;
@@ -139,11 +170,10 @@ export function recordResult(run: RunState): Profile {
   return saveProfile(p);
 }
 
-/** Потратить сундук и записать найденный предмет. */
-export function claimChest(id: string): Profile {
+/** Записать находки забега в коллекцию. Список приходит уже без дубликатов и уже открытого (см. loadoutFinds). */
+export function recordFinds(keys: string[]): Profile {
   const p = loadProfile();
-  if (p.chests > 0) p.chests -= 1;
-  if (!p.collection.includes(id)) p.collection.push(id);
+  for (const key of keys) if (!p.collection.includes(key)) p.collection.push(key);
   return saveProfile(p);
 }
 
