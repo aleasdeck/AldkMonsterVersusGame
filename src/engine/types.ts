@@ -179,11 +179,22 @@ export interface ArtifactCost {
   mp?: number;
 }
 
+/**
+ * Тип сокета (v0.31): оружейный принимает только оружейные артефакты, бронный — только бронные, универсальный — любые.
+ * В оружии не бывает бронных сокетов, в броне — оружейных.
+ */
+export type SlotKind = 'weapon' | 'armor' | 'any';
+
+/** Тип артефакта: в какой сокет он встаёт. Оружейные — всё, что бьёт и растит урон; бронные — HP, ресурсы, блок, выживание. */
+export type ArtifactSlot = 'weapon' | 'armor';
+
 export interface ArtifactDef {
   id: string;
   name: string;
   glyph: string;
   kind: 'passive' | 'active';
+  /** В какой сокет встаёт: оружейный или бронный (универсальный сокет принимает оба). */
+  slot: ArtifactSlot;
   school?: 'physical' | 'magic';
   /** Цена: число или вся стамина ('all' — нужна полная, уходит целиком); может зависеть от тира. */
   cost?: ArtifactCost | ((tier: ArtTier) => ArtifactCost);
@@ -248,6 +259,11 @@ export interface GearInstance {
   hp: number;
   affix: GearAffix | null;
   slots: (ArtifactInstance | null)[];
+  /**
+   * Тип каждого сокета, параллельно slots (v0.31). Короче slots быть не должен; на всякий случай
+   * недостающие сокеты считаются универсальными (slotKindAt в equipment.ts).
+   */
+  slotKinds: SlotKind[];
 }
 
 // ─── Спрайты ───────────────────────────────────────────────────────────────
@@ -537,6 +553,8 @@ export interface PendingPlacement {
   cancellable: boolean;
   /** После размещения или отказа снять текущий экран награды. */
   consumeReward: boolean;
+  /** id артефактов в очереди, вытесненных «Заменить» из сокета (v0.31): игрок решает и их судьбу, а не теряет молча. */
+  displaced?: string[];
 }
 
 /** Что выпало в клетке «Событие»: привал, элита, торговец, сундук, алтарь, кузнец или вор (веса — EVENT_WEIGHTS). */
@@ -588,9 +606,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.30.2';
+export const GAME_VERSION = '0.31';
 
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

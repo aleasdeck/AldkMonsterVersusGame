@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_LIST, SIGNATURE_OWNER, heroDef } from '../src/data/heroes';
+import { ARTIFACTS, artifactDef } from '../src/data/artifacts';
 import { baseArmorStats, baseOf, makeGear, makeStartingGear, weaponDice } from '../src/data/gear';
-import { addArtifact, equipGear, isMaxed, replaceArtifact, socketRefs, upgradableSockets } from '../src/engine/equipment';
+import { addArtifact, canPlaceArtifact, equipGear, freeSocketFor, isMaxed, replaceArtifact, socketRefs, upgradableSockets } from '../src/engine/equipment';
 import { computeStats } from '../src/engine/stats';
 import { createRng } from '../src/engine/rng';
 import type { HeroPersistent } from '../src/engine/types';
@@ -15,13 +16,87 @@ function mkHero(id = 'warrior'): HeroPersistent {
 }
 
 describe('артефакты и слоты', () => {
-  it('на старте персональный артефакт в оружии, слот брони пуст', () => {
+  it('на старте персональный артефакт в предмете своего типа, второй сокет пуст; сокеты типизированы', () => {
     for (const def of HERO_LIST) {
       const gear = makeStartingGear(def);
-      expect(gear.weapon.slots).toEqual([{ id: def.signature, tier: 1 }]);
-      expect(gear.armor.slots).toEqual([null]);
+      const inWeapon = artifactDef(def.signature).slot === 'weapon';
+      expect(gear.weapon.slots, def.id).toEqual([inWeapon ? { id: def.signature, tier: 1 } : null]);
+      expect(gear.armor.slots, def.id).toEqual([inWeapon ? null : { id: def.signature, tier: 1 }]);
+      expect(gear.weapon.slotKinds).toEqual(['weapon']);
+      expect(gear.armor.slotKinds).toEqual(['armor']);
       expect(SIGNATURE_OWNER[def.signature]).toBe(def.id);
     }
+    // Пять сигнатур в оружии, Дымовая шашка Ассасина — в покрове.
+    expect(HERO_LIST.filter((d) => artifactDef(d.signature).slot === 'armor').map((d) => d.id)).toEqual(['assassin']);
+  });
+
+  it('типы артефактов: 28 оружейных и 19 бронных, у каждого тип задан', () => {
+    const ids = Object.keys(ARTIFACTS);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(28);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(19);
+  });
+
+  it('сокет своего типа не принимает чужой артефакт, универсальный принимает любой', () => {
+    const h = mkHero();
+    h.weapon.slots = [null, null];
+    h.weapon.slotKinds = ['weapon', 'any'];
+    h.armor.slots = [null];
+    h.armor.slotKinds = ['armor'];
+    expect(canPlaceArtifact(h, 'weapon', 0, 'troll_heart')).toMatch(/Оружейный сокет/);
+    expect(canPlaceArtifact(h, 'weapon', 1, 'troll_heart')).toBeNull();
+    expect(canPlaceArtifact(h, 'armor', 0, 'fireball')).toMatch(/Бронный сокет/);
+    expect(canPlaceArtifact(h, 'armor', 0, 'troll_heart')).toBeNull();
+    expect(canPlaceArtifact(h, 'armor', 5, 'troll_heart')).toBe('Нет такого сокета');
+    expect(() => replaceArtifact(h, 'weapon', 0, { id: 'troll_heart', tier: 1 })).toThrow(/Оружейный сокет/);
+  });
+
+  it('addArtifact занимает сокет своего типа раньше универсального и даёт full, когда подходящих нет', () => {
+    const h = mkHero();
+    h.weapon.slots = [null, null];
+    h.weapon.slotKinds = ['any', 'weapon'];
+    h.armor.slots = [null];
+    h.armor.slotKinds = ['armor'];
+    expect(freeSocketFor(h, 'fireball')?.index).toBe(1); // свой сокет, универсальный остаётся бронным
+    expect(addArtifact(h, { id: 'fireball', tier: 1 })).toBe('placed');
+    expect(h.weapon.slots[1]?.id).toBe('fireball');
+    expect(addArtifact(h, { id: 'troll_heart', tier: 1 })).toBe('placed');
+    expect(h.armor.slots[0]?.id).toBe('troll_heart');
+    expect(addArtifact(h, { id: 'thorns', tier: 1 })).toBe('placed'); // бронный — в универсальный
+    expect(h.weapon.slots[0]?.id).toBe('thorns');
+    expect(addArtifact(h, { id: 'regen_amulet', tier: 1 })).toBe('full');
+  });
+
+  it('при смене предмета артефакты переезжают по типам: свои сокеты занимают первыми, лишние возвращаются', () => {
+    const h = mkHero();
+    h.weapon.slots = [{ id: 'fireball', tier: 1 }, { id: 'thorns', tier: 1 }, { id: 'sage_eye', tier: 1 }];
+    h.weapon.slotKinds = ['any', 'any', 'any'];
+    const next = makeGear(createRng(2), 'weapon', 4);
+    next.slotKinds = ['any', 'weapon', 'weapon'];
+    // Два оружейных садятся в оружейные сокеты, универсальный достаётся Шипам — никто не пропал.
+    expect(equipGear(h, next)).toEqual([]);
+    expect(h.weapon.slots.map((a) => a?.id)).toEqual(['thorns', 'fireball', 'sage_eye']);
+    // Три оружейных сокета — Шипам места нет, хотя сокетов хватает по счёту.
+    const strict = makeGear(createRng(2), 'weapon', 4);
+    strict.slotKinds = ['weapon', 'weapon', 'weapon'];
+    expect(equipGear(h, strict).map((a) => a.id)).toEqual(['thorns']);
+  });
+
+  it('генерация: у оружия нет бронных сокетов, у брони — оружейных; универсальных около 40 %', () => {
+    const rng = createRng(9);
+    let any = 0;
+    let total = 0;
+    for (let i = 0; i < 200; i++) {
+      const w = makeGear(rng, 'weapon', 5);
+      const a = makeGear(rng, 'armor', 5);
+      expect(w.slotKinds.length).toBe(w.slots.length);
+      expect(a.slotKinds.length).toBe(a.slots.length);
+      expect(w.slotKinds.every((k) => k === 'weapon' || k === 'any')).toBe(true);
+      expect(a.slotKinds.every((k) => k === 'armor' || k === 'any')).toBe(true);
+      any += [...w.slotKinds, ...a.slotKinds].filter((k) => k === 'any').length;
+      total += w.slotKinds.length + a.slotKinds.length;
+    }
+    expect(any / total).toBeGreaterThan(0.33);
+    expect(any / total).toBeLessThan(0.47);
   });
 
   it('пара артефактов в слотах читается по порядку: оружие, броня', () => {
@@ -58,6 +133,7 @@ describe('артефакты и слоты', () => {
     const rng = createRng(5);
     const weapon = makeGear(rng, 'weapon', 3);
     expect(weapon.slots.length).toBe(2);
+    weapon.slotKinds = ['weapon', 'any'];
     const overflow = equipGear(h, weapon);
     expect(overflow).toEqual([]);
     expect(h.weapon.slots[0]?.id).toBe('heavy_strike');
@@ -69,12 +145,14 @@ describe('артефакты и слоты', () => {
   it('даунгрейд предмета возвращает лишние артефакты', () => {
     const h = mkHero();
     const rng = createRng(7);
-    equipGear(h, makeGear(rng, 'weapon', 4));
+    const big = makeGear(rng, 'weapon', 4);
+    big.slotKinds = ['weapon', 'any', 'weapon'];
+    equipGear(h, big);
     addArtifact(h, { id: 'thorns', tier: 1 });
     addArtifact(h, { id: 'sage_eye', tier: 1 });
     expect(h.weapon.slots.filter(Boolean).length).toBe(3);
     const overflow = equipGear(h, makeGear(rng, 'weapon', 1));
-    expect(overflow.map((a) => a.id)).toEqual(['thorns', 'sage_eye']);
+    expect(overflow.map((a) => a.id).sort()).toEqual(['sage_eye', 'thorns']);
     expect(h.weapon.slots.length).toBe(1);
   });
 

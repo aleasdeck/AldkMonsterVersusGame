@@ -12,7 +12,7 @@ import type { ArtifactInstance, GearInstance, GearTier, HeroPersistent } from '.
  */
 
 function weapon(base: string, dmg: number, tier: GearTier = 1, slots: ArtifactInstance[] = []): GearInstance {
-  return { kind: 'weapon', tier, base, name: base, dmgMin: dmg, dmgMax: dmg, def: 0, hp: 0, affix: null, slots };
+  return { kind: 'weapon', tier, base, name: base, dmgMin: dmg, dmgMax: dmg, def: 0, hp: 0, affix: null, slots, slotKinds: [] };
 }
 
 function mkBattle(heroId: string, enemies: string[], w?: GearInstance, arts: ArtifactInstance[] = []) {

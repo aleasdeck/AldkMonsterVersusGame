@@ -18,6 +18,7 @@ import {
   campRest,
   canAltarSacrifice,
   canForge,
+  canPendingPlace,
   canReroll,
   canShopBuyGear,
   canShopBuyPotion,
@@ -48,7 +49,7 @@ import {
 } from '../src/engine/run';
 import { POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, canDropFor, forgePrice, gearPrice, rollArtifact, rollEventKind } from '../src/engine/loot';
 import { POTION_IDS } from '../src/data/potions';
-import { gearOf, socketRefs } from '../src/engine/equipment';
+import { freeSocketFor, gearOf } from '../src/engine/equipment';
 import type { RunState } from '../src/engine/types';
 
 /** Простейший бот: бьёт первого врага, пока есть стамина, потом заканчивает ход. */
@@ -83,9 +84,9 @@ function playBattle(run: RunState): void {
   finishBattle(run);
 }
 
-/** Разместить ожидающий артефакт в первый свободный слот, иначе выбросить. */
+/** Разместить ожидающий артефакт в первый свободный подходящий сокет, иначе выбросить. */
 function resolvePending(run: RunState): void {
-  const free = socketRefs(run.hero).find((s) => !s.art);
+  const free = freeSocketFor(run.hero, run.pending!.artifacts[0].id);
   if (free) pendingPlace(run, free.kind, free.index);
   else pendingDiscard(run);
 }
@@ -474,6 +475,81 @@ describe('забег', () => {
     expect(run.phase).toBe('map');
   });
 
+  it('неподходящий сокет не принимает ожидающий артефакт: причина в canPendingPlace, pendingPlace ничего не делает', () => {
+    const run = newRun('warrior', 11);
+    enterRoom(run);
+    winCurrentBattle(run);
+    // Стартовая кольчуга: один бронный сокет. Огненный шар — оружейный, ему туда нельзя.
+    run.rewards = [{ title: 'x', source: 'fight', rerolled: false, options: [{ kind: 'artifact', artifact: { id: 'fireball', tier: 1 } }] }];
+    takeReward(run, 0);
+    expect(run.pending).not.toBeNull();
+    expect(canPendingPlace(run, 'armor', 0)).toMatch(/Бронный сокет/);
+    expect(pendingPlace(run, 'armor', 0)).toBe(false);
+    expect(run.pending).not.toBeNull();
+    expect(run.hero.armor.slots[0]).toBeNull();
+    // Оружейный сокет занят Щитовым ударом — замена разрешена, тип совпадает; вытесненный удар ждёт решения.
+    expect(canPendingPlace(run, 'weapon', 0)).toBeNull();
+    expect(pendingPlace(run, 'weapon', 0)).toBe(true);
+    expect(run.hero.weapon.slots[0]?.id).toBe('fireball');
+    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['shield_bash']);
+    pendingDiscard(run);
+    expect(run.phase).toBe('map');
+  });
+
+  it('«Заменить» ставит вытесненный артефакт в очередь: его можно переставить или выбросить, отмена после этого закрыта', () => {
+    const run = newRun('warrior', 11);
+    run.hero.weapon.slots = [{ id: 'shield_bash', tier: 1 }, { id: 'heavy_strike', tier: 1 }];
+    run.hero.weapon.slotKinds = ['weapon', 'any'];
+    enterRoom(run);
+    winCurrentBattle(run);
+    run.rewards = [{ title: 'x', source: 'fight', rerolled: false, options: [{ kind: 'artifact', artifact: { id: 'fireball', tier: 1 } }] }];
+    takeReward(run, 0);
+    expect(run.pending?.cancellable).toBe(true);
+    // Шар вместо Мощного удара: удар не пропал, а ждёт своей очереди; награда уже потрачена — отмены нет.
+    expect(pendingPlace(run, 'weapon', 1)).toBe(true);
+    expect(run.hero.weapon.slots[1]?.id).toBe('fireball');
+    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['heavy_strike']);
+    expect(run.pending?.displaced).toEqual(['heavy_strike']);
+    expect(run.pending?.cancellable).toBe(false);
+    expect(run.phase).toBe('reward');
+    expect(run.rewards.length).toBe(1);
+    // Мощный удар — в бронный сокет нельзя, вместо Щитового удара — можно: тот в свою очередь встаёт в очередь.
+    expect(canPendingPlace(run, 'armor', 0)).toMatch(/Бронный сокет/);
+    expect(pendingPlace(run, 'weapon', 0)).toBe(true);
+    expect(run.hero.weapon.slots.map((a) => a?.id)).toEqual(['heavy_strike', 'fireball']);
+    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['shield_bash']);
+    pendingDiscard(run);
+    expect(run.pending).toBeNull();
+    expect(run.rewards.length).toBe(0);
+    expect(run.phase).toBe('map');
+  });
+
+  it('смена предмета: не поместившийся артефакт можно переставить во второй предмет, вытеснив оттуда другой', () => {
+    const run = newRun('warrior', 11);
+    run.hero.weapon.slots = [{ id: 'shield_bash', tier: 1 }, { id: 'troll_heart', tier: 1 }];
+    run.hero.weapon.slotKinds = ['weapon', 'any'];
+    run.hero.armor.slots = [{ id: 'thorns', tier: 1 }];
+    run.hero.armor.slotKinds = ['armor'];
+    run.phase = 'reward';
+    run.rewards = [
+      {
+        title: 'x',
+        source: 'fight',
+        rerolled: false,
+        options: [{ kind: 'gear', gear: { kind: 'weapon', tier: 2, base: 'sword', name: 'Тест', dmgMin: 4, dmgMax: 8, def: 0, hp: 0, affix: null, slots: [null, null], slotKinds: ['weapon', 'weapon'] } }],
+      },
+    ];
+    takeReward(run, 0);
+    // Сердцу тролля в новом мече места нет — оно в очереди; Шипы из брони вытесняет, Шипы решает игрок.
+    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['troll_heart']);
+    expect(pendingPlace(run, 'armor', 0)).toBe(true);
+    expect(run.hero.armor.slots[0]?.id).toBe('troll_heart');
+    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['thorns']);
+    pendingDiscard(run);
+    expect(run.pending).toBeNull();
+    expect(run.phase).toBe('map');
+  });
+
   it('дубликат из награды апгрейдит сразу, без выбора слота', () => {
     const run = newRun('warrior', 11);
     enterRoom(run);
@@ -499,7 +575,7 @@ describe('забег', () => {
         options: [
           {
             kind: 'gear',
-            gear: { kind: 'armor', tier: 5, base: 'mail', name: 'Тест', dmgMin: 0, dmgMax: 0, def: 5, hp: 15, affix: null, slots: [null, null, null, null] },
+            gear: { kind: 'armor', tier: 5, base: 'mail', name: 'Тест', dmgMin: 0, dmgMax: 0, def: 5, hp: 15, affix: null, slots: [null, null, null, null], slotKinds: [] },
           },
         ],
       },
@@ -513,7 +589,7 @@ describe('забег', () => {
         title: 'x',
         source: 'fight',
         rerolled: false,
-        options: [{ kind: 'gear', gear: { kind: 'armor', tier: 1, base: 'robe', name: 'Тряпка', dmgMin: 0, dmgMax: 0, def: 0, hp: 0, affix: null, slots: [null] } }],
+        options: [{ kind: 'gear', gear: { kind: 'armor', tier: 1, base: 'robe', name: 'Тряпка', dmgMin: 0, dmgMax: 0, def: 0, hp: 0, affix: null, slots: [null], slotKinds: [] } }],
       },
     ];
     takeReward(run, 0);

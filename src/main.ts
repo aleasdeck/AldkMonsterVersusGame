@@ -57,8 +57,11 @@ if (heroParam) {
   // Третий аргумент — пометка debug: такой забег уйдёт в статистику как отладочный.
   app.newRun(heroParam, seedRaw ? Number(seedRaw) >>> 0 : undefined, true);
   const run = app.run!;
-  // &art=id1,id2 — досыпать артефакты в оружие (для отладки интерфейса)
-  for (const id of (params.get('art') ?? '').split(',').filter(Boolean)) run.hero.weapon.slots.push({ id, tier: 1 });
+  // &art=id1,id2 — досыпать артефакты в оружие (для отладки интерфейса); сокеты под них универсальные, тип артефакта не важен
+  for (const id of (params.get('art') ?? '').split(',').filter(Boolean)) {
+    run.hero.weapon.slots.push({ id, tier: 1 });
+    run.hero.weapon.slotKinds.push('any');
+  }
   // &events=gnome_art — каждая клетка события в этом забеге разыгрывает заданный вид (живой забег, нужное событие)
   const forced = params.get('events');
   if (forced && forced in EVENT_WEIGHTS) app.forcedEvent = forced as EventKind;

@@ -1,5 +1,6 @@
-import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, StatMods, WeaponReach, WeaponType } from '../engine/types';
-import { pick, weighted, type Rng } from '../engine/rng';
+import type { ArmorType, ArtifactInstance, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, SlotKind, StatMods, WeaponReach, WeaponType } from '../engine/types';
+import { chance, pick, weighted, type Rng } from '../engine/rng';
+import { artifactDef } from './artifacts';
 
 type ByTier = [number, number, number, number, number];
 
@@ -693,6 +694,20 @@ function pickArmorBase(rng: Rng, armorSkill?: HeroDef['armorSkill']): Base {
   );
 }
 
+// ─── Типы сокетов ──────────────────────────────────────────────────────────
+
+/**
+ * Шанс, что сокет предмета окажется универсальным, а не типа предмета (v0.31). Каждый сокет бросается отдельно:
+ * обычный предмет с одним сокетом чаще свой, легендарный на четырёх почти всегда несёт один-два универсальных —
+ * они и есть ценность, ради которой предмет стоит брать.
+ */
+export const SLOT_ANY_CHANCE = 0.4;
+
+/** Типы n новых сокетов предмета: свой тип или универсальный. Бронных сокетов у оружия и оружейных у брони не бывает. */
+export function rollSlotKinds(rng: Rng, kind: GearKind, n: number): SlotKind[] {
+  return Array.from({ length: n }, () => (chance(rng, SLOT_ANY_CHANCE) ? 'any' : kind));
+}
+
 /** Предмет случайной базы. С героем оружие выпадает под его владение, броня — под умение носить. */
 export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, def?: HeroDef): GearInstance {
   const base = kind === 'weapon' ? pickWeaponBase(rng, def?.weaponSkill) : pickArmorBase(rng, def?.armorSkill);
@@ -711,6 +726,7 @@ export function makeGear(rng: Rng, kind: GearKind, tier: GearTier, def?: HeroDef
     hp: kind === 'armor' ? arm.hp : 0,
     affix: rollAffix(rng, kind, tier),
     slots: Array.from({ length: info.slots }, () => null),
+    slotKinds: rollSlotKinds(rng, kind, info.slots),
   };
 }
 
@@ -735,7 +751,13 @@ export function upgradeGearTier(rng: Rng, gear: GearInstance): boolean {
     const def = (gear.kind === 'weapon' ? WEAPON_AFFIXES : ARMOR_AFFIXES).find((a) => a.stat === gear.affix!.stat);
     if (def && def.values[tier - 1] > 0) gear.affix = { stat: def.stat, value: def.values[tier - 1] };
   }
-  while (gear.slots.length < info.slots) gear.slots.push(null);
+  // Новые сокеты — тем же броском, что у найденного предмета; старые типов не меняют.
+  gear.slotKinds = (gear.slotKinds ?? []).slice(0, gear.slots.length);
+  while (gear.slotKinds.length < gear.slots.length) gear.slotKinds.push('any');
+  while (gear.slots.length < info.slots) {
+    gear.slots.push(null);
+    gear.slotKinds.push(...rollSlotKinds(rng, gear.kind, 1));
+  }
   return true;
 }
 
@@ -767,7 +789,13 @@ export function upgradePreview(gear: GearInstance): string {
   return parts.join(', ');
 }
 
+/**
+ * Стартовая пара: по одному сокету типа предмета в оружии и броне. Персональный артефакт встаёт в тот предмет,
+ * чей сокет его принимает (v0.31): пять сигнатур — в оружие, Дымовая шашка Ассасина — в покров.
+ */
 export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: GearInstance } {
+  const sig: ArtifactInstance = { id: def.signature, tier: 1 };
+  const inWeapon = artifactDef(def.signature).slot === 'weapon';
   return {
     weapon: {
       kind: 'weapon',
@@ -779,7 +807,8 @@ export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: G
       def: 0,
       hp: 0,
       affix: null,
-      slots: [{ id: def.signature, tier: 1 }],
+      slots: [inWeapon ? sig : null],
+      slotKinds: ['weapon'],
     },
     armor: {
       kind: 'armor',
@@ -792,7 +821,8 @@ export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: G
       hp: def.armor.hp,
       affix: null,
       // Второй стартовый артефакт убран (v0.14): пустой сокет ждёт первую находку.
-      slots: [null],
+      slots: [inWeapon ? null : sig],
+      slotKinds: ['armor'],
     },
   };
 }
