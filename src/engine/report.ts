@@ -1,7 +1,7 @@
 import type { ArtifactInstance, BattleLog, GearInstance, HeroPersistent, RunPhase, RunState, RunStats } from './types';
 import { GAME_VERSION } from './types';
 import { ROOMS_PER_LOCATION } from '../data/locations';
-import { currentLocation, currentRoomKind, heroStats } from './run';
+import { battleTitle, currentLocation, currentRoomKind, heroStats } from './run';
 
 // ─── Запись статистики забега ───────────────────────────────────────────────
 // Игра на Pages шлёт одну такую запись на каждый законченный или брошенный забег (ui/telemetry.ts → Google Таблица).
@@ -67,6 +67,9 @@ export interface RunReport {
   detail: RunReportDetail;
 }
 
+/** Бой в записи: как в журнале, но без строк лога. Незакрытый бой (забег брошен посреди него) — `unfinished`. */
+export type ReportBattle = Omit<BattleLog, 'lines'> | { title: string; result: 'unfinished'; turns: number };
+
 /** Полная картина для разбора: снаряжение как есть, цифры, бои без строк лога (строки — десятки килобайт). */
 export interface RunReportDetail {
   hero: HeroPersistent;
@@ -76,7 +79,7 @@ export interface RunReportDetail {
   roomIndex: number;
   /** Вид события, если герой в нём. */
   event: string | null;
-  battles: Omit<BattleLog, 'lines'>[];
+  battles: ReportBattle[];
 }
 
 /** «sword@3 +crit»: база, тир и стат аффикса — достаточно, чтобы фильтровать таблицу; имя и цифры лежат в detail. */
@@ -95,7 +98,19 @@ function artifactsShort(hero: HeroPersistent): string {
 export function runReport(run: RunState, ctx: ReportContext): RunReport {
   const s = run.stats;
   const finished = s.finishedAt || ctx.now;
-  const last = run.logs.at(-1);
+  // Бой ещё не закрыт: гибель уходит в момент, когда герой пал, а брошенный забег — прямо посреди боя.
+  // Его цифры сворачивает в run.stats только finishBattle, так что здесь они подмешиваются вручную — иначе последний
+  // бой пропал бы из записи целиком (а при гибели это ровно тот бой, который и интересен).
+  const b = run.battle;
+  const live: ReportBattle | null = b
+    ? { title: battleTitle(run), result: b.phase === 'lost' ? 'lost' : b.phase === 'won' ? (b.fled ? 'fled' : 'won') : 'unfinished', turns: b.turn }
+    : null;
+  const stats: RunStats = b
+    ? { ...s, kills: s.kills + b.stats.kills, turns: s.turns + b.turn, damageDealt: s.damageDealt + b.stats.damageDealt, damageTaken: s.damageTaken + b.stats.damageTaken }
+    : s;
+  const battles: ReportBattle[] = run.logs.map(({ title, result, turns }) => ({ title, result, turns }));
+  if (live) battles.push(live);
+  const last = battles.at(-1);
   return {
     event: ctx.event,
     version: GAME_VERSION,
@@ -111,11 +126,11 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     room: Math.min(run.roomIndex, ROOMS_PER_LOCATION - 1) + 1,
     roomKind: run.event ? `event:${run.event.kind}` : currentRoomKind(run),
     locations: run.locations.join(','),
-    roomsCleared: s.roomsCleared,
-    kills: s.kills,
-    turns: s.turns,
-    damageDealt: s.damageDealt,
-    damageTaken: s.damageTaken,
+    roomsCleared: stats.roomsCleared,
+    kills: stats.kills,
+    turns: stats.turns,
+    damageDealt: stats.damageDealt,
+    damageTaken: stats.damageTaken,
     duration: s.startedAt ? Math.max(0, Math.round((finished - s.startedAt) / 1000)) : 0,
     gold: run.gold,
     // Посреди боя живое HP — в бою, вне боя — у героя.
@@ -126,15 +141,15 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     artifacts: artifactsShort(run.hero),
     potion: run.hero.potion ?? '',
     lastBattle: last?.title ?? '',
-    battles: run.logs.length,
+    battles: battles.length,
     detail: {
       hero: run.hero,
-      stats: s,
+      stats,
       locations: run.locations,
       locationIndex: run.locationIndex,
       roomIndex: run.roomIndex,
       event: run.event?.kind ?? null,
-      battles: run.logs.map(({ title, result, turns }) => ({ title, result, turns })),
+      battles,
     },
   };
 }

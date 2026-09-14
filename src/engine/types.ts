@@ -573,7 +573,7 @@ export interface RunStats {
   roomsCleared: number;
   /** Время старта забега, мс эпохи. В старых сейвах отсутствует — экран итогов тогда время не пишет. */
   startedAt: number;
-  /** Время конца забега (победа или гибель), 0 — ещё идёт. */
+  /** Время конца забега, 0 — ещё идёт. Ставится в момент, когда исход решён: у гибели — когда герой пал, а не когда нажали «К итогам». */
   finishedAt: number;
 }
 
@@ -588,15 +588,20 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.30.1';
+export const GAME_VERSION = '0.30.2';
 
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
   seed: number;
   /** Забег начат отладочным параметром `?hero=`: в статистику (report.ts) уходит с пометкой debug и в общие цифры не идёт. */
   debug: boolean;
+  /**
+   * Исход забега уже ушёл в статистику (ui/telemetry.ts). Гибель отправляется в момент, когда герой пал, — не дожидаясь
+   * кнопки «К итогам»; отметка лежит в самом забеге, чтобы перезагрузка страницы не послала вторую запись о том же забеге.
+   */
+  reported: boolean;
   rng: { state: number };
   hero: HeroPersistent;
   /** Золото: капает за бои, тратится на переброс наград. */

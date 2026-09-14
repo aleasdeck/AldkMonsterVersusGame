@@ -13,6 +13,7 @@ import {
   battleAction,
   battleEndTurn,
   battleEnemyStep,
+  battleTitle,
   campForge,
   campRest,
   canAltarSacrifice,
@@ -913,5 +914,52 @@ describe('статистика забега (report.ts)', () => {
     expect(run.debug).toBe(false);
     run.debug = true;
     expect((JSON.parse(JSON.stringify(run)) as RunState).debug).toBe(true);
+  });
+
+  it('новый забег ещё не отправлен — отметка живёт в состоянии и переживает сохранение', () => {
+    const run = newRun('warrior', 1);
+    expect(run.reported).toBe(false);
+    run.reported = true;
+    expect((JSON.parse(JSON.stringify(run)) as RunState).reported).toBe(true);
+  });
+
+  it('гибель до кнопки «К итогам»: незакрытый бой попадает в запись со своими цифрами', () => {
+    const run = newRun('mage', 5, 1_000_000);
+    enterRoom(run);
+    const b = run.battle!;
+    b.turn = 4;
+    b.stats.kills = 2;
+    b.stats.damageDealt = 37;
+    b.stats.damageTaken = 19;
+    b.hero.hp = 0;
+    b.phase = 'lost';
+    // Запись собирается прямо на плашке «Герой пал», finishBattle ещё не вызван.
+    const r = runReport(run, { ...ctx, event: 'defeat' });
+    expect(r.phase).toBe('battle');
+    expect(r.battles).toBe(1);
+    expect(r.lastBattle).toBe(battleTitle(run));
+    expect(r.kills).toBe(2);
+    expect(r.turns).toBe(4);
+    expect(r.damageDealt).toBe(37);
+    expect(r.damageTaken).toBe(19);
+    expect(r.hp).toBe(0);
+    expect(r.detail.battles).toEqual([{ title: battleTitle(run), result: 'lost', turns: 4 }]);
+    expect(r.detail.stats.kills).toBe(2);
+    // Те же цифры, что и у записи после кнопки: клик ничего не добавляет и не теряет.
+    finishBattle(run);
+    const after = runReport(run, { ...ctx, event: 'defeat' });
+    expect({ ...after, phase: 'battle' }).toEqual(r);
+  });
+
+  it('брошенный посреди боя: бой идёт в запись как незакрытый, цифры не теряются', () => {
+    const run = newRun('archer', 7, 1_000_000);
+    enterRoom(run);
+    run.battle!.turn = 3;
+    run.battle!.stats.damageDealt = 12;
+    const r = runReport(run, { ...ctx, event: 'abandoned' });
+    expect(r.battles).toBe(1);
+    expect(r.turns).toBe(3);
+    expect(r.damageDealt).toBe(12);
+    expect(r.detail.battles).toEqual([{ title: battleTitle(run), result: 'unfinished', turns: 3 }]);
   });
 });

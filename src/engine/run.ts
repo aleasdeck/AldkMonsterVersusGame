@@ -51,6 +51,7 @@ export function newRun(heroId: string, seed: number = randomSeed(), now: number 
     version: SAVE_VERSION,
     seed,
     debug: false,
+    reported: false,
     rng,
     hero: { defId: heroId, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
     gold: START_GOLD,
