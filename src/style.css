@@ -2555,6 +2555,22 @@ p {
 .gs-panel > button {
   align-self: flex-start;
 }
+/* Вкладки внутри левой колонки: всё содержимое одной вкладки влезает в кадр, прокрутки нет. */
+.gs-tabs {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.gs-tab {
+  flex: 1;
+  padding: 2px 4px;
+  font-size: 15px;
+}
+.gs-tab.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: #2a2412;
+}
 
 /* ─── Бестиарий: вкладки локаций, сетка врагов слева, запись справа ──── */
 

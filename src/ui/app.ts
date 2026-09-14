@@ -20,7 +20,7 @@ import { campScreen } from './screens/camp';
 import { endScreen } from './screens/end';
 import { collectionScreen } from './screens/collection';
 import { bestiaryScreen } from './screens/bestiary';
-import { statsScreen } from './screens/stats';
+import { statsScreen, type StatsTab } from './screens/stats';
 import type { RunsFeed } from '../engine/globalStats';
 import { hideTooltip, installTooltips } from './tooltip';
 import { formatClock } from './topbar';
@@ -70,6 +70,8 @@ export class App {
   statsLoading = false;
   statsError: string | null = null;
   statsMock: RunsFeed | null = null;
+  /** Вкладка сводки по всем игрокам: герои, гибели, оружие, броня, артефакты. */
+  statsTab: StatsTab = 'heroes';
   private stepTimer: number | null = null;
   /** Снаряд героя в полёте: перерисовка и числа ждут попадания, новые действия не принимаются. */
   private fxTimer: number | null = null;
@@ -335,6 +337,11 @@ export class App {
 
   showCollection(): void {
     this.screen = 'collection';
+    this.render();
+  }
+
+  setStatsTab(tab: StatsTab): void {
+    this.statsTab = tab;
     this.render();
   }
 

@@ -79,6 +79,31 @@ describe('общая статистика (globalStats.ts)', () => {
     expect(s.winDuration).toBe(0);
   });
 
+  it('чем заканчивали: базы и артефакты без тира и аффикса, счёт забегов и побед, частые первыми', () => {
+    const feed: RunsFeed = {
+      keys: ['event', 'weapon', 'armor', 'artifacts'],
+      rows: [
+        ['victory', 'sword@5 +crit', 'plate@4', 'fireball@3 thorns@1'],
+        ['defeat', 'sword@2', 'mail@1 +def', 'fireball@1'],
+        ['defeat', 'bow@3', 'plate@2', ''],
+        ['abandoned', 'axe@1', 'robe@1', 'rage@1'],
+      ],
+    };
+    const s = summarize(feed, { heroes: HEROES });
+    expect(s.weapons).toEqual([
+      { id: 'sword', runs: 2, wins: 1 },
+      { id: 'bow', runs: 1, wins: 0 },
+    ]);
+    expect(s.armors).toEqual([
+      { id: 'plate', runs: 2, wins: 1 },
+      { id: 'mail', runs: 1, wins: 0 },
+    ]);
+    expect(s.artifacts).toEqual([
+      { id: 'fireball', runs: 2, wins: 1 },
+      { id: 'thorns', runs: 1, wins: 1 },
+    ]);
+  });
+
   it('пустой ответ — нули без ошибок', () => {
     const s = summarize({ keys: [], rows: [] }, { heroes: HEROES });
     expect(s.runs).toBe(0);
