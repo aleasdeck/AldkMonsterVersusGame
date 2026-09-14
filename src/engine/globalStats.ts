@@ -38,8 +38,9 @@ export interface GlobalSummary {
   /** Победный забег в среднем: секунды и ходы. 0 — побед нет. */
   winDuration: number;
   winTurns: number;
-  /** Клетка и убийца по числу гибелей, самые частые первыми. */
+  /** Клетка и убийца по числу гибелей, самые частые первыми; отдельно — убийцы сами по себе (последний бой), по всем клеткам. */
   deathSpots: SpotSummary[];
+  killers: SpotSummary[];
   /** Урон за все законченные забеги: нанесённый героями и полученный ими. */
   damageDealt: number;
   damageTaken: number;
@@ -54,7 +55,7 @@ export interface SummarizeOpts {
   heroes: string[];
   /** Имя локации по id для подписи клетки; без него — id как есть. */
   locationName?: (id: string) => string;
-  /** Сколько строк «где гибнут». */
+  /** Сколько строк «где гибнут» и «убийцы». */
   top?: number;
 }
 
@@ -120,6 +121,7 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
   let dealt = 0;
   let taken = 0;
   const spots = new Map<string, number>();
+  const killers = new Map<string, number>();
   const weapons = new Map<string, ItemSummary>();
   const armors = new Map<string, ItemSummary>();
   const artifacts = new Map<string, ItemSummary>();
@@ -153,7 +155,11 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
       const loc = str(row[cLocation]);
       parts.push(`${opts.locationName?.(loc) ?? loc}, акт ${num(row[cAct])} · клетка ${num(row[cRoom])}`);
     }
-    if (cLast >= 0 && str(row[cLast])) parts.push(str(row[cLast]));
+    const last = cLast >= 0 ? str(row[cLast]) : '';
+    if (last) {
+      parts.push(last);
+      killers.set(last, (killers.get(last) ?? 0) + 1);
+    }
     if (parts.length) {
       const label = parts.join(' — ');
       spots.set(label, (spots.get(label) ?? 0) + 1);
@@ -168,6 +174,7 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
     winDuration: wins ? Math.round(winSeconds / wins) : 0,
     winTurns: wins ? Math.round(winTurns / wins) : 0,
     deathSpots: topOf(spots, deaths, top),
+    killers: topOf(killers, deaths, top),
     damageDealt: dealt,
     damageTaken: taken,
     weapons: itemsOf(weapons),

@@ -11,10 +11,11 @@ import type { App } from '../app';
 export const MIN_RUNS_FOR_RATE = 5;
 
 /** Вкладки сводки по всем игрокам. Одна вкладка — один экран без прокрутки (решение пользователя). */
-export type StatsTab = 'heroes' | 'deaths' | 'weapons' | 'armor' | 'artifacts';
+export type StatsTab = 'heroes' | 'deaths' | 'killers' | 'weapons' | 'armor' | 'artifacts';
 const TABS: { id: StatsTab; name: string }[] = [
   { id: 'heroes', name: 'Герои' },
   { id: 'deaths', name: 'Гибели' },
+  { id: 'killers', name: 'Убийцы' },
   { id: 'weapons', name: 'Оружие' },
   { id: 'armor', name: 'Броня' },
   { id: 'artifacts', name: 'Артефакты' },
@@ -84,6 +85,8 @@ function tabBody(app: App, s: GlobalSummary): HTMLElement[] {
     }
     case 'deaths':
       return [h('div', { class: 'coll-head' }, h('span', null, 'Где гибнут'), h('span', { class: 'dim' }, `${s.runs - s.wins} гибелей`)), spotList(s.deathSpots, 'Гибелей ещё не было.')];
+    case 'killers':
+      return [h('div', { class: 'coll-head' }, h('span', null, 'Кто убивает'), h('span', { class: 'dim' }, 'последний бой погибших')), spotList(s.killers, 'Гибелей ещё не было.')];
     case 'weapons':
       return [rateTable('Оружие в конце забега', itemRows(s.weapons, weaponName))];
     case 'armor':

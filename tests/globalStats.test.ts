@@ -60,6 +60,7 @@ describe('общая статистика (globalStats.ts)', () => {
     };
     const s = summarize(feed, { heroes: HEROES, locationName: (id) => names[id] ?? id, top: 1 });
     expect(s.deathSpots).toEqual([{ label: 'Лес, акт 1 · клетка 10 — Вожак стаи', count: 2, share: 2 / 3 }]);
+    expect(s.killers).toEqual([{ label: 'Вожак стаи', count: 2, share: 2 / 3 }]);
   });
 
   it('неизвестные герои и чужие события не ломают счёт; колонки ищутся по имени, а не по позиции', () => {
@@ -76,6 +77,7 @@ describe('общая статистика (globalStats.ts)', () => {
     expect(s.wins).toBe(1);
     expect(s.heroes[0]).toEqual({ hero: 'warrior', runs: 1, wins: 0 });
     expect(s.deathSpots).toEqual([]);
+    expect(s.killers).toEqual([]);
     expect(s.winDuration).toBe(0);
   });
 
