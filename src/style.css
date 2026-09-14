@@ -2483,6 +2483,79 @@ p {
   max-width: none;
 }
 
+/* ─── Статистика: сводка всех игроков слева, своя справа ─────────────── */
+
+.stats .gs-body {
+  display: flex;
+  gap: 12px;
+  padding: 8px 12px;
+  overflow: hidden;
+}
+.gs-panel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 17px;
+}
+.gs-table {
+  display: flex;
+  flex-direction: column;
+}
+.gs-row {
+  display: grid;
+  grid-template-columns: 1fr 72px 64px 56px;
+  gap: 6px;
+  padding: 1px 0;
+  border-bottom: 1px dotted #26263a;
+}
+.gs-row.head {
+  font-size: 14px;
+}
+.gs-row.total {
+  color: var(--accent);
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+}
+.gs-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gs-num {
+  text-align: right;
+  white-space: nowrap;
+}
+.gs-note {
+  font-size: 15px;
+  line-height: 1.1;
+}
+.gs-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gs-spots {
+  display: flex;
+  flex-direction: column;
+}
+.gs-spot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 16px;
+}
+.gs-spot-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gs-panel > button {
+  align-self: flex-start;
+}
+
 /* ─── Бестиарий: вкладки локаций, сетка врагов слева, запись справа ──── */
 
 .sprite.silhouette {

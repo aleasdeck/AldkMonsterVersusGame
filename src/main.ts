@@ -1,4 +1,6 @@
 import { App } from './ui/app';
+import { createRng, next } from './engine/rng';
+import type { RunsFeed } from './engine/globalStats';
 import { EVENT_WEIGHTS, LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locations';
 import { startEvent } from './engine/run';
 import type { EventKind, LocationId } from './engine/types';
@@ -29,8 +31,10 @@ app.start();
 // &phase=event&event=chest|altar|forge|elite|shop|camp|gnome|gnome_art — заданное событие в третьей клетке; &events=<вид> — на весь забег.
 const params = new URLSearchParams(window.location.search);
 
-// &mock=1 — демо-профиль: статистика, часть коллекции (у артефактов — часть тиров) и половина бестиария (для отладки экранов)
+// &mock=1 — демо-профиль: статистика, часть коллекции (у артефактов — часть тиров) и половина бестиария (для отладки экранов);
+// экрану «Статистика» — демо-ответ таблицы вместо сети (mockRuns)
 if (params.get('mock')) {
+  app.statsMock = mockRuns();
   saveProfile({
     ...loadProfile(),
     runs: 12,
@@ -138,12 +142,13 @@ if (heroParam) {
     app.render();
   }
 } else {
-  // ?screen=select|collection|bestiary — сразу нужный экран вне забега; &loc=crypt — вкладка бестиария
+  // ?screen=select|collection|bestiary|stats — сразу нужный экран вне забега; &loc=crypt — вкладка бестиария
   const screen = params.get('screen');
   const locParam = params.get('loc');
   if (screen === 'select') app.showHeroSelect();
   else if (screen === 'collection') app.showCollection();
   else if (screen === 'bestiary') app.showBestiary(locParam && locParam in LOCATION_BY_ID ? (locParam as LocationId) : undefined);
+  else if (screen === 'stats') app.showStats();
 }
 
 // &sheet=1 — открыть оверлей «Персонаж», &pause=1 — паузу (на любом экране забега)
@@ -154,3 +159,21 @@ if (app.run && app.screen === 'run') {
 
 // Для отладки из консоли: mv.run, mv.render()
 (window as unknown as { mv: App }).mv = app;
+
+/** Демо-ответ ?data=runs для `&mock=1`: 90 забегов шести героев, победы у трети, гибели по разным клеткам — чтобы экран «Статистика» было на чём смотреть. */
+function mockRuns(): RunsFeed {
+  const heroes = ['warrior', 'mage', 'assassin', 'paladin', 'berserk', 'archer'];
+  const locs = ['forest', 'crypt', 'caves', 'swamp', 'hive', 'ship'];
+  const killers = ['Вожак стаи', 'Лич', 'Королева улья', 'Капитан', 'Кладка', 'Гоблин-шаман'];
+  const rng = createRng(42);
+  const rows: unknown[][] = [];
+  for (let i = 0; i < 90; i++) {
+    const hero = heroes[i % heroes.length];
+    const r = next(rng);
+    const event = r < 0.3 ? 'victory' : r < 0.9 ? 'defeat' : 'abandoned';
+    const act = event === 'victory' ? 3 : 1 + Math.floor(next(rng) * 3);
+    const room = event === 'victory' ? 10 : next(rng) < 0.5 ? 10 : 1 + Math.floor(next(rng) * 9);
+    rows.push([new Date().toISOString(), event, hero, act, locs[Math.floor(next(rng) * locs.length)], room, 30 + Math.floor(next(rng) * 60), 400 + Math.floor(next(rng) * 900), killers[Math.floor(next(rng) * killers.length)]]);
+  }
+  return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle'], rows };
+}

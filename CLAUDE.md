@@ -13,7 +13,7 @@
 
 ```bash
 npm run dev                                          # http://localhost:5173
-npx vitest run                                       # тесты движка (~3 с, 245 тестов)
+npx vitest run                                       # тесты движка (~3 с, 250 тестов)
 node node_modules/typescript/bin/tsc --noEmit -p .   # typecheck — ТОЛЬКО так (см. ловушки)
 node node_modules/vite/bin/vite.js build             # сборка в dist/
 SIM=1 npx vitest run tests/balance-sim.test.ts       # бот-симулятор баланса, все герои, 60 забегов
@@ -40,6 +40,7 @@ src/engine/   чистая логика, без DOM, покрыта тестам
   loot.ts       константы экономики (золото, цены, шанс зелья, цена кузнеца) и генерация наград/магазина/событий (rollEventKind)
   run.ts        машина состояний забега: enterRoom → startEvent | startBattle → finishBattle (лог боя → run.logs с battleTitle) → reward → advanceRoom …; события: takeChest, altarPray/altarSacrifice, forgeUpgrade, gnomeTakeLoot, leaveEvent; бой с вором закрывают finishGnome/finishSnatcher (фаза `event` с итогом)
   report.ts     runReport(run, ctx) — запись статистики забега (RunReport: плоское поле = колонка таблицы, detail — JSON со снаряжением и боями); чистая, тесты в run.test.ts
+  globalStats.ts summarize(feed, opts) — сводка по ответу таблицы ?data=runs для экрана «Статистика» (забеги/победы по героям, средний победный забег, топ клеток гибели и убийц); чистая, tests/globalStats.test.ts
 src/data/     типизированные таблицы; каждый файл экспортирует list-based Record + xxxDef(id)
   heroes.ts     6 героев (warrior, mage, assassin, paladin, berserk, archer), weaponSkill/armorSkill — владение оружием и бронёй (два состояния), signature — персональный артефакт, SIGNATURE_OWNER
   enemies.ts    69 врагов по локациям (секции ═══; два гнома-вора числятся за лесом, но приходят событием любого акта), хелпер act(), ai: cycle | boss-rules; evade — процентный уворот с порога, spriteScale — размер спрайта; фазы боссов: phase2 + условия p1/p2 в правилах, второе тело через onDeath: summon + aura
@@ -53,7 +54,7 @@ src/ui/       рендер и клики
                 и добавляет оверлеи, commit() = saveRun + render, ход врагов с таймером ENEMY_STEP_MS (под оверлеем ждёт), таймер забега
   frame.ts      runFrame(app, parts): топбар 40 + центр 320 + консоль 180 — все шесть экранов забега
   topbar.ts     кнопка «Персонаж» (☻), золото, акт/локация, лента комнат (ROOM_ICONS), ход, таймер, меню; console.ts — блок героя, hubGear, кнопка лога
-  screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи; runLog.ts — тело лога за весь забег (runLogBody: прошлые бои свёрнуты, текущий строками) и оверлей лога вне боя; bestiary.ts — альбом врагов по локациям (describeAction из combat.ts)
+  screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи; runLog.ts — тело лога за весь забег (runLogBody: прошлые бои свёрнуты, текущий строками) и оверлей лога вне боя; bestiary.ts — альбом врагов по локациям (describeAction из combat.ts); stats.ts — «Статистика»: все игроки (app.statsFeed из fetchRuns, statsLoading/statsError, &mock=1 → statsMock) и своя из профиля
   components.ts карточки предметов, бары, чипы, иконки типов, pendingModal; gearTile.ts — плитка экипировки с сокетами 2×2; dom.ts — h()/button()
   tooltip.ts    свои подсказки: атрибуты tip / tipTitle в h() → data-tip; keywords.ts — подсветка ключевых слов в описаниях
   preview.ts    ридаут, подсветка целей (ok/far) и штриховка предпросмотра урона в бою (пишет в DOM без перерисовки, покой — по app.armed); diff.ts — дельты к надетому в карточках
@@ -61,11 +62,11 @@ src/ui/       рендер и клики
   hotkeys.ts    1–9, Space, C, L, Esc
   sprites.ts, backgrounds.ts, icons.ts   процедурная пиксель-графика (data URL)
   save.ts       localStorage: забег (mv_run_v1, сброс при смене SAVE_VERSION) и профиль (mv_profile_v1, переживает версии; статистика, коллекция, бестиарий — recordFinds/recordEnemies из App.render()); playerId — анонимный id для статистики
-  telemetry.ts  reportRun(run, event, profile): STATS_URL (адрес веб-приложения Apps Script, пусто — не шлём), отсечка localhost/домашней сети (кроме &stats=1), пометка debug, fetch no-cors keepalive
+  telemetry.ts  reportRun(run, event, profile): STATS_URL (адрес веб-приложения Apps Script, пусто — не шлём), отсечка localhost/домашней сети (кроме &stats=1), пометка debug, fetch no-cors keepalive; fetchRuns(force) — GET ?data=runs для экрана «Статистика», кэш mv_runs_v1 на RUNS_CACHE_MS, читается и с localhost
 src/main.ts   монтирование, масштаб кадра 960×540, разбор debug-параметров URL
 src/style.css один файл, секции /* ─── … */
 tests/        vitest; sim/bot.ts — умный бот (W — веса оценки, planTurn, playRun, chooseReward)
-tools/apps-script/Code.gs   приёмник статистики: скрипт внутри Google Таблицы или отдельный с SPREADSHEET_ID, лист runs, колонки по ключам записи (новый ключ — новая колонка справа)
+tools/apps-script/Code.gs   приёмник статистики: отдельный проект с SPREADSHEET_ID (таблица «Monster Versus Metrics» в Drive пользователя), лист runs, колонки по ключам записи (новый ключ — новая колонка справа); GET ?data=runs отдаёт последние 2000 без отладочных и без player/detail
 ```
 
 Ключевые инварианты:
