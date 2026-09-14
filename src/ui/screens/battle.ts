@@ -104,7 +104,8 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
   const el = h(
     'div',
     {
-      class: `enemy rank-${def.rank} ${cls}`,
+      class: `enemy rank-${def.rank} ${cls} ${e.aura ? 'aura' : ''}`,
+      style: e.aura ? `--aura:${e.aura}` : '',
       'data-uid': e.uid,
       onclick: () => app.applyArmed(e.uid),
     },

@@ -13,6 +13,9 @@ const hasRoom = (ctx: AiCtx) => ctx.enemies.length < MAX_ENEMIES;
 const countKind = (ctx: AiCtx, defId: string) => ctx.enemies.filter((e) => e.defId === defId).length;
 const minions = (ctx: AiCtx) => ctx.enemies.filter((e) => e.uid !== ctx.self.uid).length;
 const hurt = (ctx: AiCtx) => ctx.self.hp < ctx.self.maxHp;
+/** Фазы босса: правила первой фазы гаснут после перехода (`EnemyDef.phase2`), правила второй — загораются. */
+const p1 = (ctx: AiCtx) => ctx.self.phase < 2;
+const p2 = (ctx: AiCtx) => ctx.self.phase >= 2;
 /** Шипы складываются и не спадают — второй раз щетиниться нельзя, иначе защита растёт без предела. */
 const noThorns = (ctx: AiCtx) => !ctx.self.statuses.some((st) => st.id === 'thorns');
 /** Уклонение тоже складывается и висит до конца боя: вешать второй заряд поверх непотраченного нельзя — враг станет неубиваемым. */
@@ -183,21 +186,30 @@ const list: EnemyDef[] = [
   {
     id: 'alpha_wolf',
     name: 'Вожак стаи',
-    hp: 60,
+    hp: 55,
     location: 'forest',
     rank: 'boss',
     actions: [
       act('bite', 'Укус', [{ type: 'attack', amount: 8 }]),
       act('rend', 'Разрывание', [{ type: 'attack', amount: 5, hits: 2 }]),
+      act('rend2', 'Бешеное разрывание', [{ type: 'attack', amount: 4, hits: 3 }]),
       act('howl', 'Вой', [{ type: 'summon', enemyId: 'wolf', count: 1 }]),
       act('rage', 'Ярость', [{ type: 'buffStr', amount: 2, target: 'self' }]),
     ],
+    // Первая половина боя — про стаю, вторая — вожак щетинится и рвёт сам: три удара вместо двух, каждая Ярость считается трижды. HP 60 → 55.
+    phase2: {
+      atHp: 0.5,
+      name: 'Раненый зверь',
+      aura: '#ff3b3b',
+      effects: [{ type: 'block', amount: 6 }],
+    },
     ai: {
       type: 'boss',
       rules: [
         { action: 'bite', weight: 3 },
-        { action: 'rend', weight: 2 },
-        { action: 'howl', weight: 3, condition: (ctx) => hasRoom(ctx) && countKind(ctx, 'wolf') < 2 },
+        { action: 'rend', weight: 2, condition: p1 },
+        { action: 'rend2', weight: 2, condition: p2 },
+        { action: 'howl', weight: 3, condition: (ctx) => p1(ctx) && hasRoom(ctx) && countKind(ctx, 'wolf') < 2 },
         { action: 'rage', weight: 2, cooldown: 3, maxUses: 3 },
       ],
     },
@@ -376,7 +388,7 @@ const list: EnemyDef[] = [
   {
     id: 'lich',
     name: 'Лич',
-    hp: 110,
+    hp: 75,
     location: 'crypt',
     rank: 'boss',
     actions: [
@@ -399,7 +411,34 @@ const list: EnemyDef[] = [
         { action: 'rot', weight: 2, cooldown: 3 },
       ],
     },
+    // Филактерия: тело падает, дух встаёт отдельным врагом (без свиты и щита, зато луч и слив маны злее). HP 110 → 75 + 40 у духа.
+    onDeath: { name: 'Филактерия', effects: [{ type: 'summon', enemyId: 'lich_ghost', count: 1 }] },
     sprite: humanoid('crown', { o: '#0e0e16', e: '#5cf0ff', s: '#b8c0c8', h: '#d4af37', b: '#24143f', l: '#160b28', w: '#d4af37' }),
+  },
+  {
+    id: 'lich_ghost',
+    name: 'Развоплощённый лич',
+    hp: 40,
+    location: 'crypt',
+    rank: 'boss',
+    aura: '#8a2be2',
+    actions: [
+      withFx({ kind: 'orb', color: '#8a2be2' }, act('ray', 'Тёмный луч', [{ type: 'attack', amount: 14 }])),
+      act('wither', 'Иссушение', [
+        { type: 'attack', amount: 7 },
+        { type: 'drainMp', amount: 5 },
+      ]),
+      act('rot', 'Гниение', [{ type: 'debuff', status: 'bleed', value: 3, turns: 3 }]),
+    ],
+    ai: {
+      type: 'boss',
+      rules: [
+        { action: 'ray', weight: 3 },
+        { action: 'wither', weight: 2 },
+        { action: 'rot', weight: 2, cooldown: 3 },
+      ],
+    },
+    sprite: humanoid('crown', { o: '#0e0e16', e: '#5cf0ff', s: '#7a8aa0', h: '#8a2be2', b: '#1a1030', l: '#120a22', w: '#8a2be2' }),
   },
 
   // ═══ Пещеры огня ═════════════════════════════════════════════════════════
@@ -603,13 +642,17 @@ const list: EnemyDef[] = [
   {
     id: 'dragon',
     name: 'Древний дракон',
-    hp: 170,
+    hp: 120,
     location: 'caves',
     rank: 'boss',
     actions: [
       withFx({ kind: 'orb', color: '#ff5a1f' }, act('breath', 'Дыхание', [
         { type: 'attack', amount: 18 },
         { type: 'debuff', status: 'burn', value: 4, turns: 3 },
+      ])),
+      withFx({ kind: 'orb', color: '#ff5a1f' }, act('breath2', 'Пламенное дыхание', [
+        { type: 'attack', amount: 18 },
+        { type: 'debuff', status: 'burn', value: 5, turns: 3 },
       ])),
       act('claw', 'Коготь', [{ type: 'attack', amount: 10, hits: 2 }]),
       act('tail', 'Хвост', [
@@ -620,15 +663,26 @@ const list: EnemyDef[] = [
       act('dive', 'Пикирование', [{ type: 'attack', amount: 30 }]),
       act('roar', 'Рёв', [{ type: 'buffStr', amount: 3, target: 'self' }]),
     ],
+    // Пламенный покров: чешуя раскаляется — ближний бой стоит здоровья, дыхание жжёт сильнее, рёв больше не нужен. HP 170 → 120.
+    phase2: {
+      atHp: 0.5,
+      name: 'Пламенный покров',
+      aura: '#ff5a1f',
+      effects: [
+        { type: 'block', amount: 10 },
+        { type: 'thorns', amount: 2 },
+      ],
+    },
     ai: {
       type: 'boss',
       rules: [
-        { action: 'breath', weight: 3 },
+        { action: 'breath', weight: 3, condition: p1 },
+        { action: 'breath2', weight: 3, condition: p2 },
         { action: 'claw', weight: 3 },
         { action: 'tail', weight: 2 },
         { action: 'takeoff', weight: 2, cooldown: 4, followUp: 'dive' },
         { action: 'dive', weight: 0 },
-        { action: 'roar', weight: 2, maxUses: 2 },
+        { action: 'roar', weight: 2, maxUses: 2, condition: p1 },
       ],
     },
     sprite: blob('#0d0d10', '#8b0000', '#4a0000', '#ffd700', 24),
@@ -774,16 +828,27 @@ const list: EnemyDef[] = [
       ]),
       act('call', 'Зов пиявок', [{ type: 'summon', enemyId: 'leech', count: 2 }]),
       act('rot', 'Гниль', [{ type: 'debuff', status: 'bleed', value: 2, turns: 3 }]),
+      act('rot2', 'Трупный яд', [{ type: 'debuff', status: 'poison', value: 3, turns: 3 }]),
       act('submerge', 'Погружение', [{ type: 'block', amount: 10 }]),
+      act('devour', 'Пожирание', [{ type: 'attack', amount: 8, drain: true }]),
     ],
+    // Всплытие: до половины прячется за блоком, потом показывает пасть — не убьёшь быстро, отлечится пожиранием. Уворот и Сила стае здесь не стоят: бот с ними падал вдвое.
+    phase2: {
+      atHp: 0.5,
+      name: 'Всплытие',
+      aura: '#7ddc5a',
+      effects: [{ type: 'heal', amount: 6, target: 'self' }],
+    },
     ai: {
       type: 'boss',
       rules: [
         { action: 'tentacles', weight: 3 },
         { action: 'quagmire', weight: 2 },
         { action: 'call', weight: 3, condition: (ctx) => hasRoom(ctx) && minions(ctx) < 2 },
-        { action: 'rot', weight: 2, cooldown: 3 },
-        { action: 'submerge', weight: 1, cooldown: 3 },
+        { action: 'rot', weight: 2, cooldown: 3, condition: p1 },
+        { action: 'rot2', weight: 2, cooldown: 3, condition: p2 },
+        { action: 'submerge', weight: 1, cooldown: 3, condition: p1 },
+        { action: 'devour', weight: 3, condition: p2 },
       ],
     },
     sprite: blob('#0a140c', '#2f4a30', '#1a2e1c', '#c0ff60', 24),
@@ -925,7 +990,7 @@ const list: EnemyDef[] = [
   {
     id: 'hive_heart',
     name: 'Сердце улья',
-    hp: 100,
+    hp: 85,
     location: 'hive',
     rank: 'boss',
     actions: [
@@ -935,17 +1000,28 @@ const list: EnemyDef[] = [
         { type: 'debuff', status: 'burn', value: 3, turns: 3 },
       ])),
       act('brood', 'Выводок', [{ type: 'summon', enemyId: 'larva', count: 2 }]),
+      act('brood2', 'Рой ос', [{ type: 'summon', enemyId: 'wasp', count: 1 }]),
       act('chitin', 'Хитин', [{ type: 'block', amount: 14 }]),
       act('frenzy', 'Феромон ярости', [{ type: 'buffStr', amount: 3, target: 'allies' }]),
+      act('frenzy2', 'Феромон роя', [{ type: 'buffStr', amount: 3, target: 'allies' }]),
     ],
+    // Рой: хитин трескается в шипы, вместо личинок вылетают осы, феромон без лимита — поле надо разгребать, иначе осы с Силой разберут героя. HP 100 → 85.
+    phase2: {
+      atHp: 0.5,
+      name: 'Рой',
+      aura: '#b5e61d',
+      effects: [{ type: 'thorns', amount: 2 }],
+    },
     ai: {
       type: 'boss',
       rules: [
         { action: 'slam', weight: 3 },
         { action: 'acid_rain', weight: 2 },
-        { action: 'brood', weight: 3, condition: (ctx) => hasRoom(ctx) && minions(ctx) < 2 },
-        { action: 'chitin', weight: 2, cooldown: 3 },
-        { action: 'frenzy', weight: 1, cooldown: 4, maxUses: 2 },
+        { action: 'brood', weight: 3, condition: (ctx) => p1(ctx) && hasRoom(ctx) && minions(ctx) < 2 },
+        { action: 'brood2', weight: 3, condition: (ctx) => p2(ctx) && hasRoom(ctx) && minions(ctx) < 2 },
+        { action: 'chitin', weight: 2, cooldown: 3, condition: p1 },
+        { action: 'frenzy', weight: 1, cooldown: 4, maxUses: 2, condition: p1 },
+        { action: 'frenzy2', weight: 1, cooldown: 4, condition: p2 },
       ],
     },
     sprite: blob('#1a0a20', '#a03060', '#601840', '#e0ff60', 24),
@@ -1106,7 +1182,7 @@ const list: EnemyDef[] = [
   {
     id: 'cursed_captain',
     name: 'Проклятый капитан',
-    hp: 150,
+    hp: 80,
     location: 'ship',
     rank: 'boss',
     actions: [
@@ -1128,7 +1204,30 @@ const list: EnemyDef[] = [
         { action: 'curse', weight: 1, cooldown: 3 },
       ],
     },
+    // Проклятие моря: капитан падает и встаёт призраком — без команды, зато сквозь блок и с уворотом. HP 150 → 80 + 40 у призрака.
+    onDeath: { name: 'Проклятие моря', effects: [{ type: 'summon', enemyId: 'captain_ghost', count: 1 }] },
     sprite: humanoid('hat', { o: '#0e0e16', e: '#5cf0ff', s: '#8fa8a0', h: '#1a1a2a', b: '#3a1a2a', l: '#1a1a2a', w: '#d4af37' }),
+  },
+  {
+    id: 'captain_ghost',
+    name: 'Призрак капитана',
+    hp: 40,
+    location: 'ship',
+    rank: 'boss',
+    evade: 30,
+    aura: '#5cf0ff',
+    actions: [
+      withFx({ kind: 'melee', color: '#5cf0ff' }, act('sabre', 'Призрачная сабля', [{ type: 'attack', amount: 10, pierce: true }])),
+      withFx({ kind: 'orb', color: '#5cf0ff' }, act('broadside', 'Залп с того света', [{ type: 'attack', amount: 18 }])),
+    ],
+    ai: {
+      type: 'boss',
+      rules: [
+        { action: 'sabre', weight: 3 },
+        { action: 'broadside', weight: 2, cooldown: 3 },
+      ],
+    },
+    sprite: humanoid('hat', { o: '#0e0e16', e: '#5cf0ff', s: '#7ab8c8', h: '#2a3a4a', b: '#2a4a5a', l: '#1a2a3a', w: '#5cf0ff' }),
   },
   // ═══ Вор (событие любого этажа) ═══════════════════════════════════════════
   // Родной tier — первый (лес): бой с вором длится всего четыре хода, и числа заданы под урон героя в первом акте;

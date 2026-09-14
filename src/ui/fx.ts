@@ -31,9 +31,9 @@ export interface Shot {
   delay: number;
 }
 
-/** Эффект на бойце после перерисовки: свечение (баф), облако (дебаф), щит (блок) или глоток зелья. */
+/** Эффект на бойце после перерисовки: свечение (баф), облако (дебаф), щит (блок), глоток зелья или вспышка второй фазы босса. */
 export interface AfterFx {
-  kind: 'glow' | 'cloud' | 'drink' | 'shield';
+  kind: 'glow' | 'cloud' | 'drink' | 'shield' | 'burst';
   color: string;
   target: EventTarget;
 }
@@ -544,12 +544,59 @@ function drink(root: HTMLElement, layer: HTMLElement, color: string): void {
   window.setTimeout(() => glow(root, layer, 'hero', color), 300);
 }
 
-/** Эффект на бойце после перерисовки: облако, свечение или глоток. */
+/**
+ * Вторая фаза босса: приглушённая вспышка — спрайт темнеет и вспыхивает цветом ауры, от него расходится кольцо,
+ * поднимается тёмное облако и искры. Дальше ауру держит CSS (`.enemy.aura`), здесь только момент перехода.
+ */
+function phaseBurst(root: HTMLElement, layer: HTMLElement, t: EventTarget, color: string): void {
+  const sprite = spriteOf(root, t);
+  const p = anchor(root, layer, t);
+  if (!sprite || !p) return;
+  sprite.animate(
+    [
+      { filter: 'brightness(1) drop-shadow(0 0 0 transparent)', transform: 'scale(1)' },
+      { filter: 'brightness(0.2)', transform: 'scale(0.94)', offset: 0.3 },
+      { filter: `brightness(2.2) drop-shadow(0 0 16px ${color})`, transform: 'scale(1.1)', offset: 0.5 },
+      { filter: 'brightness(1) drop-shadow(0 0 0 transparent)', transform: 'scale(1)' },
+    ],
+    { duration: 900, easing: 'ease-in-out' },
+  );
+  const ring = document.createElement('div');
+  ring.className = 'fx fx-ring';
+  ring.style.borderColor = color;
+  ring.style.width = ring.style.height = `${Math.round(p.w * 0.6)}px`;
+  layer.appendChild(ring);
+  const cx = p.x - p.w * 0.3;
+  const cy = p.y - p.w * 0.3;
+  animate(ring, [
+    { transform: `translate(${cx}px, ${cy}px) scale(0.3)`, opacity: 0 },
+    { transform: `translate(${cx}px, ${cy}px) scale(1)`, opacity: 0.8, offset: 0.2 },
+    { transform: `translate(${cx}px, ${cy}px) scale(2.6)`, opacity: 0 },
+  ], { duration: 800, delay: 250, easing: 'ease-out' }, () => ring.remove());
+  window.setTimeout(() => cloud(layer, p, mix(color, '#000000', 0.5), 7), 300);
+  for (let i = 0; i < 6; i++) {
+    const spark = sparkImg(color);
+    const ang = (i / 6) * Math.PI * 2;
+    const x = p.x - spark.width / 2;
+    const y = p.y - spark.height / 2;
+    const dx = Math.cos(ang) * p.w * 0.9;
+    const dy = Math.sin(ang) * p.h * 0.7;
+    layer.appendChild(spark);
+    animate(spark, [
+      { transform: `translate(${x}px, ${y}px)`, opacity: 0 },
+      { transform: `translate(${x + dx * 0.3}px, ${y + dy * 0.3}px)`, opacity: 1, offset: 0.3 },
+      { transform: `translate(${x + dx}px, ${y + dy}px)`, opacity: 0 },
+    ], { duration: 700, delay: 400 + i * 30, easing: 'ease-out' }, () => spark.remove());
+  }
+}
+
+/** Эффект на бойце после перерисовки: облако, свечение, глоток или вспышка фазы. */
 export function playAfter(root: HTMLElement, fx: AfterFx): void {
   const layer = root.querySelector<HTMLElement>('.fx-layer');
   if (!layer) return;
   if (fx.kind === 'glow') glow(root, layer, fx.target, fx.color);
   else if (fx.kind === 'shield') shield(root, layer, fx.target, fx.color);
+  else if (fx.kind === 'burst') phaseBurst(root, layer, fx.target, fx.color);
   else if (fx.kind === 'drink') drink(root, layer, fx.color);
   else {
     const p = anchor(root, layer, fx.target);
