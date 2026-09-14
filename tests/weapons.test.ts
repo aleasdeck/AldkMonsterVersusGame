@@ -136,7 +136,7 @@ describe('перки баз в статах', () => {
   it('меч — защита, топор — усталость, посох — мана, жезл — реген, сфера — шипы', () => {
     const w = heroDef('warrior');
     expect(computeStats(w, weapon('sword', 5), armorOf('warrior')).def).toBe(6 + 1 + 1);
-    expect(computeStats(w, weapon('axe', 5), armorOf('warrior')).fatigue).toBeCloseTo(0.75); // база 0.7 + перк топора
+    expect(computeStats(w, weapon('axe', 5), armorOf('warrior')).fatigue).toBeCloseTo(0.8); // своя 0.75 + перк топора
     const m = heroDef('mage');
     expect(computeStats(m, weapon('staff', 5), armorOf('mage')).maxMp).toBe(5 + 2);
     expect(computeStats(m, weapon('wand', 5), armorOf('mage')).mpRegen).toBe(3);
@@ -167,6 +167,30 @@ describe('перки баз в бою', () => {
     performAction(state, { type: 'attack', target: a.uid }, rng);
     expect(a.hp).toBe(2);
     expect(b.hp).toBe(12 - 3);
+  });
+
+  it('щитовой удар расталкивает строй: часть урона уходит следующему врагу', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf', 'wolf']);
+    const [a, b] = state.enemies;
+    const hpA = a.hp;
+    const hpB = b.hp;
+    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: a.uid }, rng);
+    const dealt = hpA - a.hp;
+    expect(dealt).toBeGreaterThan(0);
+    expect(hpB - b.hp).toBe(Math.floor(dealt * 0.3)); // тир 1 — 30 %
+  });
+
+  it('сквозной урон щита и копья не складываются: берётся большая доля', () => {
+    // Копьё 5 тира даёт 50 %, Щитовой удар 1 тира — 30 %: сквозняк должен пойти по 50 %.
+    const spear = weapon('spear', 10, 5);
+    spear.slots = [{ id: 'shield_bash', tier: 1 }, null, null, null];
+    const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], spear);
+    const [a, b] = state.enemies;
+    const hpA = a.hp;
+    const hpB = b.hp;
+    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: a.uid }, rng);
+    const dealt = hpA - a.hp;
+    expect(hpB - b.hp).toBe(Math.floor(dealt * 0.5));
   });
 
   it('молот добавляет крит. урон: Сокрушение +50 % на 5 тире', () => {

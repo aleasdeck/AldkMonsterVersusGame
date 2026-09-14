@@ -333,8 +333,8 @@ const list: ArtifactDef[] = [
     // Щитом бьют в упор — и с луком в другой руке тоже.
     reach: 'melee',
     // Блок — доля урона, а не плоские +3/4/5 (v0.18): с оружием третьего акта плоский блок не гасил и половины удара.
-    effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', mult: 0.75, blockPct: t(0.6, 0.8, 1)(tier) }],
-    describe: (tier) => `Атака на 75 % урона; ${t(60, 80, 100)(tier)} % нанесённого урона становится Блоком. КД 2`,
+    effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', mult: 0.75, blockPct: t(0.6, 0.8, 1)(tier), splashPct: t(0.3, 0.4, 0.5)(tier) }],
+    describe: (tier) => `Атака на 75 % урона; ${t(60, 80, 100)(tier)} % нанесённого урона становится Блоком, ${t(30, 40, 50)(tier)} % — сквозняком следующему врагу. КД 2`,
   },
   {
     id: 'shield_ram',

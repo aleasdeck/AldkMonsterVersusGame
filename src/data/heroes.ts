@@ -20,6 +20,8 @@ const list: HeroDef[] = [
     armorSkill: { heavy: true, medium: true, light: false },
     weapon: { base: 'sword', name: 'Меч', dmgMin: 4, dmgMax: 6 },
     armor: { base: 'mail', name: 'Кольчуга', def: 1, hp: 0 },
+    // Своя усталость, как у Берсерка (v0.31): общая 0.7 давала Воину те же +2 пункта, но заодно двигала пятерых других.
+    fatigue: 0.75,
     signature: 'shield_bash',
     sprite: {
       type: 'humanoid',

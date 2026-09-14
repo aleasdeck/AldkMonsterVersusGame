@@ -93,7 +93,7 @@ describe('базовые действия', () => {
   it('берсерк выдыхается медленнее остальных', () => {
     const w = mkBattle('warrior', ['bear']);
     const b = mkBattle('berserk', ['bear']);
-    expect(w.state.hero.stats.fatigue).toBe(0.7);
+    expect(w.state.hero.stats.fatigue).toBe(0.75); // у Воина своя, как у Берсерка
     expect(b.state.hero.stats.fatigue).toBeCloseTo(0.85); // своя 0.8 + перк топора
   });
 
