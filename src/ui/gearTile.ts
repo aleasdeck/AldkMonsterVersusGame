@@ -2,7 +2,7 @@ import { h } from './dom';
 import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef } from '../engine/types';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { ART_TIER_COLORS, GEAR_TIERS, gearPerkText } from '../data/gear';
-import { SLOT_KIND_GLYPH, artifactChip, gearStatInfo, gearTypeIcon, perkLine, reachDots, slotKindTip, tierTip } from './components';
+import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, reachDots, slotKindTip, socketChip, tierTip } from './components';
 import { slotKindAt } from '../engine/equipment';
 import type { SlotKind } from '../engine/types';
 import { markKeywords } from './keywords';
@@ -49,9 +49,9 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
   return artifactCostText(def, inst.tier);
 }
 
-/** Ячейка сокета: чип, имя и число артефакта; пустая — пунктирная, со значком типа вместо имени. Тип сокета — цвет левой кромки и подсказка; словами — только в подсказке. */
+/** Ячейка сокета: чип, имя и число артефакта; пустая — один квадратный чип со значком типа, как в подвале карточки. Тип занятого — цвет левой кромки и подсказка. */
 function socketCell(inst: ArtifactInstance | null, kind: SlotKind, s: DerivedStats): HTMLElement {
-  if (!inst) return h('div', { class: `sock empty k-${kind}`, tip: slotKindTip(kind) }, artifactChip(null), h('span', { class: 'sock-name sock-kind' }, SLOT_KIND_GLYPH[kind]));
+  if (!inst) return h('div', { class: `sock empty k-${kind}` }, socketChip(kind));
   const def = artifactDef(inst.id);
   return h('div', { class: `sock k-${kind}`, tip: slotKindTip(kind) }, artifactChip(inst), h('span', { class: 'sock-name' }, def.name), h('span', { class: 'sock-val' }, artifactShort(inst, s)));
 }
@@ -98,7 +98,7 @@ export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, opts
     h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), reachDots(gear, def), stats),
     perk,
     opts.expanded
-      ? h('div', { class: 'art-list' }, ...gear.slots.map((a, i) => (a ? artifactRow(a, s) : h('div', { class: `art-row empty k-${slotKindAt(gear, i)}`, tip: slotKindTip(slotKindAt(gear, i)) }, artifactChip(null), h('span', { class: 'sock-kind' }, SLOT_KIND_GLYPH[slotKindAt(gear, i)]), h('span', { class: 'dim' }, 'свободный сокет')))))
+      ? h('div', { class: 'art-list' }, ...gear.slots.map((a, i) => (a ? artifactRow(a, s) : h('div', { class: 'art-row empty' }, socketChip(slotKindAt(gear, i)), h('span', { class: 'dim' }, 'свободный сокет')))))
       : h('div', { class: 'gt-sockets' }, ...gear.slots.map((a, i) => socketCell(a, slotKindAt(gear, i), s))),
   );
 }

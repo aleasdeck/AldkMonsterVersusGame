@@ -710,24 +710,11 @@ p {
   border-color: var(--slot-any);
   opacity: 0.7;
 }
-.slot-kind.k-weapon,
-.sock.k-weapon .sock-kind,
-.art-row.k-weapon .sock-kind {
+.slot-kind.k-weapon {
   color: var(--slot-weapon);
 }
-.slot-kind.k-armor,
-.sock.k-armor .sock-kind,
-.art-row.k-armor .sock-kind {
+.slot-kind.k-armor {
   color: var(--slot-armor);
-}
-.sock.k-any .sock-kind,
-.art-row.k-any .sock-kind {
-  color: var(--slot-any);
-}
-/* Значок типа в пустой ячейке: чуть крупнее текста, без затухания. */
-.sock-kind {
-  font-size: 17px;
-  opacity: 1 !important;
 }
 /* Зелье: зелёный чип без точек тира; в панели героя — одна строка «Зелье: [чип] Название». */
 .chip.potion .chip-glyph {
@@ -2020,17 +2007,17 @@ p {
 .sock.k-any {
   border-left: 4px solid var(--slot-any);
 }
-.sock.empty.k-weapon .sock-name {
-  color: var(--slot-weapon);
-  opacity: 0.75;
+/* Пустой сокет в плитке — только квадратный чип со значком типа, без рамки ячейки (решение пользователя). В модалке выбора слота ячейка остаётся кнопкой. */
+.sock.empty:not(.pm-sock) {
+  border: none;
+  background: none;
+  padding: 0;
 }
-.sock.empty.k-armor .sock-name {
-  color: var(--slot-armor);
-  opacity: 0.75;
-}
-.sock.empty.k-any .sock-name {
-  color: var(--slot-any);
-  opacity: 0.75;
+.sock .chip-empty {
+  width: 36px;
+  height: 36px;
+  border: 2px dashed;
+  font-size: 17px;
 }
 /* Полный список артефактов в оверлее: чип, имя с тиром и ценой, описание, следующий тир. */
 .art-list {

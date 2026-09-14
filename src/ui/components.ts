@@ -424,8 +424,8 @@ export function pendingModal(app: App): HTMLElement | null {
                 if (!off) app.pendingPlace(kind, index);
               },
             },
-            artifactChip(a),
-            a ? h('span', { class: 'sock-name' }, `${artifactDef(a.id).name} · ${a.tier}`) : h('span', { class: 'sock-name sock-kind' }, SLOT_KIND_GLYPH[sk]),
+            a ? artifactChip(a) : socketChip(sk),
+            a ? h('span', { class: 'sock-name' }, `${artifactDef(a.id).name} · ${a.tier}`) : null,
             h('span', { class: 'pm-act' }, why ? 'Нельзя' : a ? 'Заменить' : 'Вставить'),
           );
         }),
