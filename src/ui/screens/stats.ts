@@ -10,7 +10,9 @@ import type { App } from '../app';
 /** Герой с меньшим числом забегов — процент не показываем: три забега с одной победой «33 %» ничего не значат. */
 export const MIN_RUNS_FOR_RATE = 5;
 
-/** Вкладки сводки по всем игрокам. Одна вкладка — один экран без прокрутки (решение пользователя). */
+/** Главные вкладки: сводка по всем игрокам или своя — каждая на весь кадр (решение пользователя). */
+export type StatsScope = 'all' | 'mine';
+/** Вкладки сводки по всем игрокам. Одна вкладка — один экран без прокрутки. */
 export type StatsTab = 'heroes' | 'deaths' | 'killers' | 'weapons' | 'armor' | 'artifacts';
 const TABS: { id: StatsTab; name: string }[] = [
   { id: 'heroes', name: 'Герои' },
@@ -81,7 +83,15 @@ function tabBody(app: App, s: GlobalSummary): HTMLElement[] {
   switch (app.statsTab) {
     case 'heroes': {
       const avg = s.wins ? `Победный забег в среднем: ${durationText(s.winDuration)}, ${s.winTurns} ходов` : 'Побед пока нет.';
-      return [rateTable('Герой', heroRows(s.heroes), s), h('div', { class: 'gs-note dim' }, `${avg}${s.abandoned ? ` · брошено ${s.abandoned}` : ''}`), damageBlock(s.damageDealt, s.damageTaken, s.runs)];
+      // На всю ширину: таблица слева, урон и средний забег справа.
+      return [
+        h(
+          'div',
+          { class: 'gs-cols' },
+          rateTable('Герой', heroRows(s.heroes), s),
+          h('div', { class: 'gs-side' }, damageBlock(s.damageDealt, s.damageTaken, s.runs), h('div', { class: 'gs-note dim' }, `${avg}${s.abandoned ? ` · брошено ${s.abandoned}` : ''}`)),
+        ),
+      ];
     }
     case 'deaths':
       return [h('div', { class: 'coll-head' }, h('span', null, 'Где гибнут'), h('span', { class: 'dim' }, `${s.runs - s.wins} гибелей`)), spotList(s.deathSpots, 'Гибелей ещё не было.')];
@@ -124,18 +134,20 @@ function mine(app: App): HTMLElement {
     'div',
     { class: 'gs-panel' },
     h('div', { class: 'coll-head' }, h('span', null, 'Ты'), h('span', { class: 'dim' }, p.runs ? `${p.runs} забегов` : '')),
-    p.runs ? rateTable('Герой', rows, { runs: p.runs, wins: p.victories }) : h('div', { class: 'dim' }, 'Ещё ни одного забега.'),
-    p.runs ? damageBlock(p.damageDealt, p.damageTaken, p.runs) : null,
+    p.runs
+      ? h('div', { class: 'gs-cols' }, rateTable('Герой', rows, { runs: p.runs, wins: p.victories }), h('div', { class: 'gs-side' }, damageBlock(p.damageDealt, p.damageTaken, p.runs)))
+      : h('div', { class: 'dim' }, 'Ещё ни одного забега.'),
     h('div', { class: 'gs-note dim' }, `Доля считается от ${MIN_RUNS_FOR_RATE} забегов. Брошенные забеги не считаются ни у кого. Предметы — те, что были у героя в конце забега.`),
   );
 }
 
-/** Экран «Статистика»: слева сводка по всем игрокам из таблицы (кэш 10 минут) с вкладками, справа своя из профиля. */
+/** Экран «Статистика»: главные вкладки «Общее» (сводка по всем игрокам из таблицы, кэш 10 минут, со своими вкладками) и «Ты» (профиль), каждая на весь кадр. */
 export function statsScreen(app: App): HTMLElement {
+  const scope = (id: StatsScope, name: string) => button(name, () => app.setStatsScope(id), { class: `small gs-scope ${app.statsScope === id ? 'selected' : ''}` });
   return h(
     'div',
     { class: 'screen stats' },
-    h('div', { class: 'topbar' }, button('← Меню', () => app.showMenu(), { class: 'small' }), h('span', { class: 'title-sm' }, 'Статистика'), h('span', { class: 'dim' }, 'все игроки и ты')),
-    h('div', { class: 'body gs-body' }, everyone(app), mine(app)),
+    h('div', { class: 'topbar' }, button('← Меню', () => app.showMenu(), { class: 'small' }), h('span', { class: 'title-sm' }, 'Статистика'), h('div', { class: 'gs-scopes' }, scope('all', 'Общее'), scope('mine', 'Ты'))),
+    h('div', { class: 'body gs-body' }, app.statsScope === 'all' ? everyone(app) : mine(app)),
   );
 }
