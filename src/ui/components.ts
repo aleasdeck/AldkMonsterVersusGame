@@ -174,7 +174,8 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Chil
       'div',
       { class: 'card-sub', style: `color:${color}` },
       `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''} · `,
-      h('span', { class: `slot-kind k-${def.slot}`, tip: `Встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет` }, `${SLOT_KIND_GLYPH[def.slot]} ${ARTIFACT_SLOT_NAME[def.slot]}`),
+      // Тип сокета — только значком, словами — в подсказке (решение пользователя).
+      h('span', { class: `slot-kind k-${def.slot}`, tip: `${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет` }, SLOT_KIND_GLYPH[def.slot]),
     ),
     h('div', { class: 'card-desc' }, ...markKeywords(def.describe(inst.tier))),
     def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
@@ -424,7 +425,7 @@ export function pendingModal(app: App): HTMLElement | null {
               },
             },
             artifactChip(a),
-            h('span', { class: 'sock-name' }, a ? `${artifactDef(a.id).name} · ${a.tier}` : SLOT_KIND_NAME[sk]),
+            a ? h('span', { class: 'sock-name' }, `${artifactDef(a.id).name} · ${a.tier}`) : h('span', { class: 'sock-name sock-kind' }, SLOT_KIND_GLYPH[sk]),
             h('span', { class: 'pm-act' }, why ? 'Нельзя' : a ? 'Заменить' : 'Вставить'),
           );
         }),

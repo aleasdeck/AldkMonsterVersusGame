@@ -688,9 +688,10 @@ p {
   gap: 6px;
   flex-wrap: wrap;
 }
-/* Типы сокетов (v0.31): оружейный — красноватый, бронный — голубой, универсальный — золотой. Цвет несут кромка ячейки и значок пустого чипа. */
+/* Типы сокетов (v0.31): оружейный — сиреневый, бронный — голубой, универсальный — золотой; без красного и зелёного, они заняты
+   HP/уроном и «хорошо/плохо» (решение пользователя). Цвет несут кромка ячейки и значок пустого чипа; словами тип — только в подсказке. */
 :root {
-  --slot-weapon: #ff8c7a;
+  --slot-weapon: #c48cff;
   --slot-armor: #7fb8ff;
   --slot-any: #ffd166;
 }
@@ -709,11 +710,24 @@ p {
   border-color: var(--slot-any);
   opacity: 0.7;
 }
-.slot-kind.k-weapon {
+.slot-kind.k-weapon,
+.sock.k-weapon .sock-kind,
+.art-row.k-weapon .sock-kind {
   color: var(--slot-weapon);
 }
-.slot-kind.k-armor {
+.slot-kind.k-armor,
+.sock.k-armor .sock-kind,
+.art-row.k-armor .sock-kind {
   color: var(--slot-armor);
+}
+.sock.k-any .sock-kind,
+.art-row.k-any .sock-kind {
+  color: var(--slot-any);
+}
+/* Значок типа в пустой ячейке: чуть крупнее текста, без затухания. */
+.sock-kind {
+  font-size: 17px;
+  opacity: 1 !important;
 }
 /* Зелье: зелёный чип без точек тира; в панели героя — одна строка «Зелье: [чип] Название». */
 .chip.potion .chip-glyph {
@@ -1891,7 +1905,7 @@ p {
   cursor: default;
 }
 .pm-sock.off .pm-act {
-  color: var(--bad);
+  color: var(--dim);
 }
 .pm-act {
   margin-left: auto;
