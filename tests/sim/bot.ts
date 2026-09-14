@@ -39,6 +39,7 @@ import {
   enterRoom,
   finishBattle,
   forgeUpgrade,
+  gnomeTakeLoot,
   heroStats,
   isRunOver,
   leaveEvent,
@@ -85,6 +86,9 @@ export const W = {
    */
   reachArt: 1,
   reachGear: 0,
+  /** Вор: монета срезанного золота в HP (лечение у торговца: 20 % HP за SHOP_HEAL_COST) и потеря артефакта из сокета в HP. */
+  goldHp: 0.5,
+  stolenArt: 15,
 };
 
 /** Счётчик применений приёмов и зелий — печатается симулятором. */
@@ -195,6 +199,14 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
         else if (eff.status === 'weak' || eff.status === 'exhaust') hit += 2;
       } else if (eff.type === 'drainMp' && !hidden) {
         hit += Math.min(h.mp, eff.amount) * W.mp;
+      } else if (eff.type === 'stealGold') {
+        // Вор: срезанное золото — потеря без крови, идёт в мягкую графу (dot), а не в hit, чтобы бот не «умирал» от кражи.
+        dot += eff.amount * W.goldHp;
+      } else if (eff.type === 'stealArtifact' && h.artifacts.length > 0) {
+        dot += W.stolenArt;
+      } else if (eff.type === 'flee') {
+        // Побег уносит всё срезанное: за ход до него бот должен бить, а не защищаться.
+        dot += b.stolen * W.goldHp + (b.stolenArtifact ? W.stolenArt : 0);
       }
     }
   }
@@ -224,7 +236,9 @@ export function evaluate(b: BattleState): number {
   let effTotal = 0;
   for (const e of b.enemies) {
     const spawn = deathSpawn(e.defId);
-    const effHp = Math.max(0, e.hp - dotTotal(e)) + spawn.hp * e.hpMult;
+    // Процентный уворот (вор): чтобы снять HP, ударов нужно больше — в той же пропорции растёт «эффективный» запас.
+    const evade = Math.min(90, statusValue(e, 'evade'));
+    const effHp = Math.max(0, e.hp - dotTotal(e)) / (1 - evade / 100) + spawn.hp * e.hpMult;
     effTotal += effHp;
     if (effHp > 0) threat += baseThreat(e.defId) * e.dmgMult + spawn.threat * e.dmgMult * 0.7;
     s -= statusValue(e, 'strength') * 2;
@@ -639,6 +653,18 @@ export function chooseEventRoom(run: RunState): void {
     const gain = ev.artifact && !canAltarSacrifice(run) && run.hero.hp - cost >= max * 0.3 ? artifactGain(run, ev.artifact) * 2 - cost : -Infinity;
     if (gain > heal && gain > 0) altarSacrifice(run);
     else altarPray(run);
+    return;
+  }
+  if (ev.kind === 'gnome_art') {
+    // Своя вещь и так на месте; из мешка вора может выпасть чужой артефакт — его берём.
+    if (ev.result === 'slain' && ev.loot) gnomeTakeLoot(run);
+    else leaveEvent(run);
+    return;
+  }
+  if (ev.kind === 'gnome') {
+    // Мешок вора: артефакт бесплатный, брать всегда — бот сам решит, в какой сокет его девать.
+    if (ev.result === 'slain' && ev.artifact) gnomeTakeLoot(run);
+    else leaveEvent(run);
     return;
   }
   // Кузнец: ценность апгрейда — как у нового предмета того же тира на месте надетого; цена за монету — как у торговца.

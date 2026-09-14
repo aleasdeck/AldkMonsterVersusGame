@@ -308,7 +308,7 @@ export function goldBadge(gold: number): HTMLElement {
 }
 
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
-const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge'];
+const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge', 'evade'];
 
 /**
  * Статусы бойца. Для врага передаётся он сам: «Предсмертие» тогда расписывает в подсказке

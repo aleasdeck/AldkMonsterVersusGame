@@ -285,10 +285,12 @@ export const ROOM_NAMES: Record<RoomKind, string> = {
 export const EVENT_WEIGHTS: Record<EventKind, number> = {
   camp: 10,
   elite: 5,
-  shop: 25,
-  chest: 25,
-  altar: 25,
-  forge: 10,
+  shop: 22,
+  chest: 22,
+  altar: 22,
+  forge: 9,
+  gnome: 5,
+  gnome_art: 5,
 };
 
 export const EVENT_NAMES: Record<EventKind, string> = {
@@ -298,6 +300,8 @@ export const EVENT_NAMES: Record<EventKind, string> = {
   chest: 'Сундук',
   altar: 'Алтарь',
   forge: 'Кузнец',
+  gnome: 'Вор',
+  gnome_art: 'Вор',
 };
 
 /** Доля максимума HP, которую герой восстанавливает после босса локации. */

@@ -3,8 +3,8 @@ import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, reachableEnemies, type DamageRange, type IntentInfo } from '../../engine/combat';
-import { goldReward } from '../../engine/loot';
+import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, reachableEnemies, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
 import { MAX_ALLIES } from '../../engine/types';
@@ -79,6 +79,18 @@ function intentPill(b: BattleState, e: EnemyState): HTMLElement {
   );
 }
 
+/** Часики над вором: сколько ходов осталось до побега. Считает движок, у обычных врагов ничего не рисуется. */
+function fleeTimer(e: EnemyState): HTMLElement | null {
+  const left = turnsToFlee(e);
+  if (left === null) return null;
+  const word = left === 1 ? 'сбежит в этот ход' : `сбежит через ${left} ход(а)`;
+  return h(
+    'div',
+    { class: `flee-timer ${left <= 1 ? 'urgent' : ''}`, tip: `${word} и унесёт всё срезанное. Убить нужно раньше`, tipTitle: 'Побег' },
+    `⏳ ${left}`,
+  );
+}
+
 /**
  * Враг в поле. Клик применяет выбранный приём (v0.26: сначала приём, потом цель); без выбранного приёма клик только
  * подсказывает. Рамка досягаемости ставится по выбранному приёму при отрисовке, наведение на плитку перекрашивает её временно.
@@ -86,7 +98,7 @@ function intentPill(b: BattleState, e: EnemyState): HTMLElement {
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
   const size = spriteSize(def.sprite);
-  const px = size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5);
+  const px = Math.round(size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5) * (def.spriteScale ?? 1));
   const targets = app.armedTargets();
   const cls = targets ? (targets.includes(e.uid) ? 'ok' : 'far') : '';
   const el = h(
@@ -97,6 +109,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
       onclick: () => app.applyArmed(e.uid),
     },
     intentPill(app.run!.battle!, e),
+    fleeTimer(e),
     badges(e, false, e),
     h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
     h('div', { class: 'name' }, e.name),
@@ -419,7 +432,14 @@ export function battleScreen(app: App): HTMLElement {
 
   const over = b.phase === 'won' || b.phase === 'lost';
   const won = b.phase === 'won';
-  const finishLabel = won ? 'Забрать награду' : 'К итогам';
+  // Вор удрал — поле пусто, но это не победа: добыча уходит с ним, и подводить итог надо честно.
+  const fled = won && b.fled;
+  // Убитый вор платит не за клетку, а из своего мешка: возвращает украденное и добавляет свой.
+  const gnomeSlain = won && !b.fled && run.event?.kind === 'gnome';
+  // Вещекрад: ставка не в монете, а в стянутом артефакте.
+  const snatcher = run.event?.kind === 'gnome_art';
+  const stolenName = b.stolenArtifact ? artifactDef(b.stolenArtifact.id).name : null;
+  const finishLabel = fled || (won && snatcher) ? 'Дальше' : won ? 'Забрать награду' : 'К итогам';
   const busy = app.busy || b.phase !== 'player';
 
   const top = h('div', { class: 'readout' }, ...defaultReadout(app));
@@ -436,9 +456,25 @@ export function battleScreen(app: App): HTMLElement {
           { class: 'overlay' },
           h(
             'div',
-            { class: `panel result ${won ? 'won' : 'lost'}` },
-            h('h2', null, won ? 'Победа!' : 'Герой пал'),
-            h('p', { class: 'dim' }, ...(won ? [`Бой занял ${b.turn} ход(ов). Добыча: +${goldReward(currentRoomKind(run))} `, coin(), ' золота.'] : ['Забег окончен.'])),
+            { class: `panel result ${fled ? 'fled' : won ? 'won' : 'lost'}` },
+            h('h2', null, fled ? 'Только его и видели' : won ? (snatcher && stolenName ? 'Вещь отбита' : 'Победа!') : 'Герой пал'),
+            h(
+              'p',
+              { class: 'dim' },
+              ...(fled && snatcher
+                ? [stolenName ? `Бой занял ${b.turn} ход(ов). Вор унёс «${stolenName}».` : `Бой занял ${b.turn} ход(ов). Красть у героя было нечего.`]
+                : fled
+                  ? [`Бой занял ${b.turn} ход(ов). Вор ушёл с ${b.stolen} `, coin(), ' золота.']
+                  : won && snatcher
+                    ? [stolenName ? `Бой занял ${b.turn} ход(ов). «${stolenName}» остался при герое.` : `Бой занял ${b.turn} ход(ов). Вор ушёл ни с чем.`]
+                    : won
+                  ? [
+                      `Бой занял ${b.turn} ход(ов). Добыча: +${gnomeSlain ? b.stolen + GNOME_BOUNTY : goldReward(currentRoomKind(run))} `,
+                      coin(),
+                      ' золота.',
+                    ]
+                  : ['Забег окончен.']),
+            ),
             h(
               'div',
               { class: 'row' },
