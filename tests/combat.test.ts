@@ -436,6 +436,36 @@ describe('новые механики врагов', () => {
     expect(getStatus(h, 'weak')).toBeUndefined();
   });
 
+  it('глухая оборона даёт блок и снимает только Слабость и Изнурение, раны остаются', () => {
+    const { state, rng } = mkBattle('warrior', ['spider'], { extra: [{ id: 'deaf_defense', tier: 1 }] });
+    const h = state.hero;
+    h.statuses.push({ id: 'bleed', value: 3, turns: 3 }, { id: 'weak', value: 1, turns: 2 }, { id: 'exhaust', value: 1, turns: 2 });
+    const block0 = h.block;
+    performAction(state, { type: 'artifact', artifactId: 'deaf_defense' }, rng);
+    expect(h.block).toBe(block0 + 3);
+    expect(getStatus(h, 'weak')).toBeUndefined();
+    expect(getStatus(h, 'exhaust')).toBeUndefined();
+    expect(getStatus(h, 'bleed')).toBeDefined();
+  });
+
+  it('бронные пассивки v0.31.1 работают как перки брони: удар слабее, «Защититься» щедрее, блок держится, первая атака мимо', () => {
+    const { state } = mkBattle('warrior', ['spider'], {
+      extra: [
+        { id: 'stone_hide', tier: 3 },
+        { id: 'steadfast_seal', tier: 1 },
+        { id: 'carapace_charm', tier: 2 },
+        { id: 'evasion_amulet', tier: 3 },
+      ],
+    });
+    const s = state.hero.stats;
+    expect(s.hitReduce).toBe(2 + 1); // + Кольца стартовой кольчуги
+    expect(s.defendBonus).toBe(2);
+    expect(s.blockKeep).toBe(3);
+    expect(s.dodgeStart).toBe(2);
+    // Уклонение из Амулета вешается в начале боя, как Тень плаща.
+    expect(getStatus(state.hero, 'dodge')?.value).toBe(2);
+  });
+
   it('споровик при гибели оставляет облако спор', () => {
     const { state, rng } = mkBattle('warrior', ['sporeling', 'larva']);
     state.hero.stats.dmgMin = 99;

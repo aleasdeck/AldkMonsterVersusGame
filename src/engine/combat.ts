@@ -811,7 +811,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       break;
     }
     case 'cleanse': {
-      const bad: StatusId[] = ['bleed', 'burn', 'poison', 'weak', 'exhaust', 'vulnerable'];
+      const bad: StatusId[] = eff.statuses ?? ['bleed', 'burn', 'poison', 'weak', 'exhaust', 'vulnerable'];
       const had = h.statuses.filter((s) => bad.includes(s.id)).map((s) => STATUS_NAMES[s.id]);
       for (const id of bad) removeStatus(h, id);
       log(state, had.length ? `Снято: ${had.join(', ')}` : 'Снимать нечего');
