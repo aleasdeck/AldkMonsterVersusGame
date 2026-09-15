@@ -34,8 +34,9 @@ export interface ActDef {
 
 export const ACTS: ActDef[] = [
   { gearTiers: [1, 2], artTiers: [1], bossGearTier: 3 },
-  // Мифический во втором акте (v0.35): один-два фиолетовых за акт сверх элиты и босса, чтобы сборка к третьему акту не стояла на тире 3.
-  { gearTiers: [2, 3], artTiers: [1, 2], bossGearTier: 4, rareGear: { tier: 4, chance: 0.15 } },
+  // Мифический во втором акте (v0.35): изредка фиолетовый сверх элиты и босса. Бот на тир 4 в акте 2 реагирует резко:
+  // 15 % давали +8…+15 пунктов каждому, 5 % — +3…+7 (см. CLAUDE.md), поэтому шанс минимальный.
+  { gearTiers: [2, 3], artTiers: [1, 2], bossGearTier: 4, rareGear: { tier: 4, chance: 0.05 } },
   { gearTiers: [3, 4, 5], artTiers: [2, 3], bossGearTier: null },
 ];
 
