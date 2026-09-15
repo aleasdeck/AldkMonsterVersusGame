@@ -34,7 +34,6 @@ const STATUS_STEMS: Record<StatusId, string> = {
   stealth: 'скрытност[а-яё]*',
   vulnerable: 'уязвим[а-яё]*',
   doom: 'предсмерти[а-яё]*|предсмертн[а-яё]*',
-  onslaught: 'натиск[а-яё]*',
 };
 
 const KEYWORDS: Keyword[] = [

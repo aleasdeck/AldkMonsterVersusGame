@@ -19,6 +19,7 @@ import {
   previewAttack,
   previewOnTarget,
   resolveEnemyTurn,
+  riposteDamage,
 } from '../src/engine/combat';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
 
@@ -1116,26 +1117,33 @@ describe('v0.14: уязвимость и новые артефакты', () => {
 });
 
 describe('v0.33: вторые персональные артефакты', () => {
-  it('Натиск: 0 STA, до конца хода усталость не ниже 90 %, на новом ходу усталость обычная', () => {
-    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'onslaught', tier: 1 }] });
-    const bear = first(state);
-    performAction(state, { type: 'artifact', artifactId: 'onslaught' }, rng);
-    expect(state.hero.sta).toBe(3);
-    expect(state.hero.cooldowns.onslaught).toBe(3);
-    expect(getStatus(state.hero, 'onslaught')?.value).toBe(90);
-    for (let i = 0; i < 3; i++) performAction(state, { type: 'attack', target: bear.uid }, rng);
-    // 5, floor(5 × 0.9) = 4, floor(5 × 0.81) = 4 — против 5 / 3 / 2 без Натиска
-    expect(bear.hp).toBe(35 - 5 - 4 - 4);
+  it('Ответный удар: блок погасил удар — ударивший получает долю среднего урона оружия, раз за свой ход, без блока ответа нет', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf'], { extra: [{ id: 'riposte', tier: 1 }] });
+    const wolf = first(state);
+    expect(state.hero.stats.riposte).toBe(50);
+    // Меч 4–6 → среднее 5, Силы нет: 50 % = 2.5 → 3.
+    expect(riposteDamage(state.hero)).toBe(3);
+    performAction(state, { type: 'defend' }, rng);
+    expect(state.hero.block).toBeGreaterThan(0);
+    const hp0 = state.hero.hp;
     pass(state, rng);
-    expect(getStatus(state.hero, 'onslaught')).toBeUndefined();
-    performAction(state, { type: 'attack', target: bear.uid }, rng);
-    performAction(state, { type: 'attack', target: bear.uid }, rng);
-    expect(bear.hp).toBe(35 - 13 - 5 - 3);
-    // Третий тир — усталости нет вовсе.
-    const t3 = mkBattle('warrior', ['bear'], { extra: [{ id: 'onslaught', tier: 3 }] });
-    performAction(t3.state, { type: 'artifact', artifactId: 'onslaught' }, t3.rng);
-    for (let i = 0; i < 3; i++) performAction(t3.state, { type: 'attack', target: first(t3.state).uid }, t3.rng);
-    expect(first(t3.state).hp).toBe(35 - 15);
+    // Укус 5, кольчуга −1, остаток в блок целиком: герой цел, волк получил ответ.
+    expect(state.hero.hp).toBe(hp0);
+    expect(wolf.hp).toBe(12 - 3);
+    expect(state.log.some((l) => /Ответный удар: 3 урона Волк/.test(l))).toBe(true);
+    // Без блока укус проходит по HP и ответа нет.
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hp0 - 4);
+    expect(wolf.hp).toBe(12 - 3);
+    // Многоударный враг получает только один ответ за ход, даже если блок гасит оба удара.
+    const two = mkBattle('warrior', ['cutthroat'], { extra: [{ id: 'riposte', tier: 3 }] });
+    const swarm = first(two.state);
+    swarm.intent = 'double';
+    two.state.hero.block = 20;
+    const swarmHp = swarm.hp;
+    pass(two.state, two.rng);
+    expect(swarm.hp).toBe(swarmHp - riposteDamage(two.state.hero));
+    expect(riposteDamage(two.state.hero)).toBe(5);
   });
 
   it('Огненная волна: 2 MP, урон заклинания + сила посоха всем и Горение всем на 2 хода, раз в ход', () => {
@@ -1181,21 +1189,28 @@ describe('v0.33: вторые персональные артефакты', () =
     expect(state.hero.hp).toBe(20 - 9 + 2); // Лапа 9, регенерация 2 в начале хода
   });
 
-  it('Боевой транс: Сила и лишняя стамина приходят только ниже двух третей HP', () => {
+  it('Боевой транс: Сила, лишняя стамина и гашение удара приходят только ниже половины HP', () => {
     const { state, rng } = mkBattle('berserk', ['bear'], { extra: [{ id: 'battle_trance', tier: 1 }] });
     const bear = first(state);
     expect(state.hero.stats.lowHpStr).toBe(3);
     expect(state.hero.stats.lowHpSta).toBe(1);
+    expect(state.hero.stats.lowHpReduce).toBe(1);
     expect(state.hero.maxHp).toBe(44);
-    state.hero.hp = 30; // выше 44 × ⅔ ≈ 29.3 — ещё не транс
+    state.hero.hp = 22; // ровно половина — ещё не транс
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(bear.hp).toBe(35 - 5);
     expect(previewAttack(state)).toEqual({ min: Math.floor(5 * 0.85), max: Math.floor(5 * 0.85) });
-    state.hero.hp = 29;
+    // Удар медведя по не раненому герою — без гашения: тот же первый удар в отдельном бою.
+    const calm = mkBattle('berserk', ['bear'], { extra: [{ id: 'battle_trance', tier: 1 }] });
+    calm.state.hero.hp = 22;
+    pass(calm.state, calm.rng);
+    const fullHit = 22 - calm.state.hero.hp;
+    expect(fullHit).toBeGreaterThan(1);
+    state.hero.hp = 21;
     expect(previewAttack(state)).toEqual({ min: Math.floor(8 * 0.85), max: Math.floor(8 * 0.85) });
     pass(state, rng);
-    // Начало хода раненым: 3 STA + 1 от транса (удар медведя до этого оставил героя ниже порога).
-    expect(state.hero.hp).toBeLessThan(29);
+    // Раненому транс гасит единицу с удара; в начале хода 3 STA + 1 от транса.
+    expect(state.hero.hp).toBe(21 - (fullHit - 1));
     expect(state.hero.sta).toBe(4);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(bear.hp).toBe(35 - 5 - 8);

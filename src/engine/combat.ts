@@ -44,7 +44,6 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   vulnerable: 'Уязвимость',
   doom: 'Предсмертие',
   evade: 'Уворот',
-  onslaught: 'Натиск',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -63,7 +62,6 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
-  onslaught: 'До конца хода усталость не ниже N %: серия ударов почти не слабеет',
 };
 
 /**
@@ -76,11 +74,12 @@ export const VULNERABLE_MULT = 1.25;
 export const EXECUTE_HP_PCT = 0.2;
 
 /**
- * Ниже этой доли HP герой ранен и входит в транс: «Боевой транс» Берсерка прибавляет Силу (`lowHpStr`) и стамину
- * в начале хода (`lowHpSta`). Строго ниже двух третей: порог в половину бот не переживал (14 % против 24 %, v0.33) —
- * Берсерк без Ярости к половине HP уже проигрывает бой.
+ * Ниже этой доли HP герой ранен и входит в транс: «Боевой транс» Берсерка прибавляет Силу (`lowHpStr`), стамину
+ * в начале хода (`lowHpSta`) и гасит каждый удар (`lowHpReduce`). Строго ниже половины (v0.33.2, решение пользователя):
+ * без гашения порог в половину бот не переживал (14 % против 24 % на ⅔, v0.33) — Берсерк без Ярости к половине HP
+ * уже проигрывал бой; гашение удара как раз и держит его там.
  */
-export const TRANCE_HP_PCT = 2 / 3;
+export const TRANCE_HP_PCT = 1 / 2;
 
 /** Герой ранен настолько, что «Боевой транс» работает. */
 export function inTrance(h: HeroBattle): boolean {
@@ -90,6 +89,20 @@ export function inTrance(h: HeroBattle): boolean {
 /** Сила от «Боевого транса» прямо сейчас: своя доля только пока герой ранен. */
 export function tranceStr(h: HeroBattle): number {
   return h.stats.lowHpStr > 0 && inTrance(h) ? h.stats.lowHpStr : 0;
+}
+
+/** Гашение удара от «Боевого транса» прямо сейчас: только пока герой ранен. */
+export function tranceReduce(h: HeroBattle): number {
+  return h.stats.lowHpReduce > 0 && inTrance(h) ? h.stats.lowHpReduce : 0;
+}
+
+/**
+ * Урон «Ответного удара»: доля среднего урона оружия с Силой, без кубика, усталости и крита — как Таран, ответ не
+ * атака героя, а свойство щита. Слабость его тоже не портит. 0 — пассивки нет.
+ */
+export function riposteDamage(h: HeroBattle): number {
+  if (h.stats.riposte <= 0) return 0;
+  return Math.max(0, Math.round(((h.stats.dmgMin + h.stats.dmgMax) / 2 + heroStr(h)) * (h.stats.riposte / 100)));
 }
 
 // ─── Дальность ─────────────────────────────────────────────────────────────
@@ -257,12 +270,14 @@ interface HitDetail {
   vuln: number;
   /** Гашение удара кольчугой. */
   reduced: number;
+  /** Гашение удара «Боевым трансом». */
+  tranced: number;
   /** Почему урон не дошёл вовсе: уклонение, неуязвимость, тень, дым. */
   miss: string;
 }
 
 function newDetail(): HitDetail {
-  return { blocked: 0, vuln: 0, reduced: 0, miss: '' };
+  return { blocked: 0, vuln: 0, reduced: 0, tranced: 0, miss: '' };
 }
 
 /** Хвост строки лога по деталям удара: «→ 4 по HP (уязвимость ×1.25, кольчуга −1, блок −3)». */
@@ -271,6 +286,7 @@ function hitTail(dmg: number, dealt: number, d: HitDetail, pierce = false): stri
   const notes: string[] = [];
   if (d.vuln) notes.push(`уязвимость ×${VULNERABLE_MULT} = ${d.vuln}`);
   if (d.reduced) notes.push(`кольчуга −${d.reduced}`);
+  if (d.tranced) notes.push(`транс −${d.tranced}`);
   if (d.blocked) notes.push(`блок −${d.blocked}`);
   if (pierce) notes.push('сквозь блок');
   if (dealt === dmg && notes.length === 0) return '';
@@ -390,11 +406,24 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
       d.reduced = Math.min(rest, h.stats.hitReduce);
       rest = Math.max(0, rest - h.stats.hitReduce);
     }
+    // «Боевой транс» гасит удар так же, пока герой ранен.
+    const tr = tranceReduce(h);
+    if (tr > 0) {
+      d.tranced = Math.min(rest, tr);
+      rest = Math.max(0, rest - tr);
+    }
     if (!pierce) {
       const b = Math.min(h.block, rest);
       h.block -= b;
       rest -= b;
       d.blocked = b;
+      // «Ответный удар»: блок погасил удар — ударивший получает долю среднего урона оружия с Силой, раз за свой ход.
+      if (b > 0 && source && !source.riposted && source.hp > 0 && riposteDamage(h) > 0) {
+        source.riposted = true;
+        const r = riposteDamage(h);
+        log(state, `Ответный удар: ${r} урона ${source.name} (щит погасил ${b})`);
+        damageEnemy(state, source, r, 'hit', { noThorns: true });
+      }
     }
   }
   // Шипы врага тоже упираются в блок героя, но мимо уклонения, уязвимости и колец кольчуги.
@@ -585,14 +614,9 @@ export function defendBlock(stats: { def: number; defendBonus: number }): number
   return Math.ceil((stats.def + stats.defendBonus) * DEFEND_MULT);
 }
 
-/** Усталость героя с поправкой на «Натиск»: статус до конца хода не даёт ей опуститься ниже своего порога. */
-export function fatigueBase(h: HeroBattle): number {
-  return Math.max(h.stats.fatigue, statusValue(h, 'onslaught') / 100);
-}
-
-/** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя (под «Натиском» — не ниже его порога). */
+/** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя. */
 export function fatigueMult(state: BattleState): number {
-  return fatigueBase(state.hero) ** state.hero.attacks;
+  return state.hero.stats.fatigue ** state.hero.attacks;
 }
 
 /**
@@ -1041,6 +1065,7 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     hpMult: sc.hp,
     dmgMult: sc.dmg,
     phase: 1,
+    riposted: false,
   };
   placeEnemy(state, e, announce);
   // Процентный уворот вора: висит статусом, чтобы игрок видел текущий шанс промаха прямо на плитке врага.
@@ -1227,6 +1252,7 @@ function fleeEnemy(state: BattleState, e: EnemyState): void {
 function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   const def = enemyDef(e.defId);
   e.block = 0;
+  e.riposted = false;
   // Неуязвимость отработала ход героя — снимаем её до действия, а не после.
   tickDurations(e, 'start');
   const dot = statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison');

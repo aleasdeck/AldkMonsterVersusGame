@@ -59,7 +59,7 @@ const heroParam = params.get('hero');
 if (heroParam) {
   const seedRaw = params.get('seed');
   // Третий аргумент — пометка debug: такой забег уйдёт в статистику как отладочный.
-  // &sig=onslaught — начать с указанным персональным артефактом героя, открыт он или нет.
+  // &sig=riposte — начать с указанным персональным артефактом героя, открыт он или нет.
   app.newRun(heroParam, seedRaw ? Number(seedRaw) >>> 0 : undefined, true, params.get('sig') ?? undefined);
   const run = app.run!;
   // &art=id1,id2 — досыпать артефакты в оружие (для отладки интерфейса); сокеты под них универсальные, тип артефакта не важен
