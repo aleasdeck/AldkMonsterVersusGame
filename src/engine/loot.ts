@@ -85,7 +85,7 @@ export function artifactPrice(art: ArtifactInstance): number {
 /** Товары магазина из пула текущего акта: экипировка под героя, артефакт из ещё не максимальных, одно зелье. */
 export function rollShop(rng: Rng, hero: HeroPersistent, act: ActDef): ShopState {
   return {
-    gear: rollGear(rng, hero, act.gearTiers),
+    gear: rollGear(rng, hero, act.gearTiers, undefined, act.rareGear),
     artifact: rollArtifact(rng, hero, act.artTiers, []),
     potion: rollPotion(rng, hero),
     healed: false,
@@ -116,9 +116,11 @@ export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], e
 }
 
 /** Экипировка под героя: оружие выпадает с учётом его владения, броня — с учётом умения носить. */
-export function rollGear(rng: Rng, hero: HeroPersistent, tiers: GearTier[], kind?: GearKind): GearInstance {
+/** Предмет из пула тиров; rare — редкий тир акта, выпадает вместо пула со своим шансом (обычная награда, торговец, сундук). */
+export function rollGear(rng: Rng, hero: HeroPersistent, tiers: GearTier[], kind?: GearKind, rare?: ActDef['rareGear']): GearInstance {
   const k = kind ?? pick(rng, ['weapon', 'armor'] as GearKind[]);
-  return makeGear(rng, k, pick(rng, tiers), heroDef(hero.defId));
+  const tier = rare && chance(rng, rare.chance) ? rare.tier : pick(rng, tiers);
+  return makeGear(rng, k, tier, heroDef(hero.defId));
 }
 
 export function rollRewards(rng: Rng, hero: HeroPersistent, act: ActDef, source: 'fight' | 'elite'): LootItem[] {
@@ -141,7 +143,7 @@ export function rollRewards(rng: Rng, hero: HeroPersistent, act: ActDef, source:
     else if (gearKinds.includes('armor') && !gearKinds.includes('weapon')) kind = 'weapon';
     else kind = pick(rng, ['weapon', 'armor'] as GearKind[]);
     gearKinds.push(kind);
-    items.push({ kind: 'gear', gear: rollGear(rng, hero, gearTiers, kind) });
+    items.push({ kind: 'gear', gear: rollGear(rng, hero, gearTiers, kind, source === 'fight' ? act.rareGear : undefined) });
   }
   return items;
 }

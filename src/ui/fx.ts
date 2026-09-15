@@ -53,6 +53,8 @@ export interface FxPlan {
 const FLIGHT: Record<FxKind, number> = { melee: 260, arrow: 260, orb: 330, flask: 440 };
 /** Задержка между снарядами по нескольким целям. */
 const STAGGER = 70;
+/** Шаг между ударами многоударного приёма: каждый удар — свой взмах или наскок и своя цифра (app.ts: playEvents). */
+export const HIT_GAP = 200;
 const DEFAULT_BLADE = '#dcdcdc';
 const SHIELD = '#8ecae6';
 const HEAL = '#80ed99';
@@ -64,12 +66,17 @@ function emptyPlan(): FxPlan {
   return { shots: [], impact: 0, after: [], lunged: new Set() };
 }
 
-function addShots(plan: FxPlan, kind: FxKind, color: string, blade: string, from: EventTarget, targets: EventTarget[]): void {
+function addShots(plan: FxPlan, kind: FxKind, color: string, blade: string, from: EventTarget, targets: EventTarget[], offset = 0): void {
   targets.forEach((to, i) => {
-    plan.shots.push({ kind, color, blade, from, to, delay: i * STAGGER });
-    plan.impact = Math.max(plan.impact, i * STAGGER + FLIGHT[kind]);
+    plan.shots.push({ kind, color, blade, from, to, delay: offset + i * STAGGER });
+    plan.impact = Math.max(plan.impact, offset + i * STAGGER + FLIGHT[kind]);
   });
   if (targets.length) plan.lunged.add(from);
+}
+
+/** Повторный наскок бойца — на каждый удар многоударного приёма после первого. */
+export function lungeAgain(root: HTMLElement, t: EventTarget): void {
+  restart(zone(root, t), 'acting');
 }
 
 /** Снаряд оружия героя: ближнее — взмах, дальнее — стрела, магическое — шар; праща кидает камень через `fx` базы. */
@@ -157,10 +164,15 @@ export function planEnemyFx(run: RunState, events: BattleEvent[], victim: EventT
     if (!e) continue;
     const def = enemyDef(e.defId);
     if (def.rank === 'normal') continue;
-    const fx = def.actions.find((a) => a.name === ev.name)?.fx;
-    if (!fx?.kind) continue;
+    const action = def.actions.find((a) => a.name === ev.name);
+    const fx = action?.fx;
+    if (!action || !fx?.kind) continue;
     const blade = fx.color ?? DEFAULT_BLADE;
-    addShots(plan, fx.kind, fx.kind === 'melee' ? '#ffffff' : blade, blade, e.uid, [victim]);
+    // Многоударный приём — столько же взмахов с шагом HIT_GAP; перерисовка и первая цифра — по первому удару,
+    // остальные цифры подтягивает playEvents с тем же шагом.
+    const hits = Math.max(1, ...action.effects.map((x) => (x.type === 'attack' ? (x.hits ?? 1) : 1)));
+    for (let i = 0; i < hits; i++) addShots(plan, fx.kind, fx.kind === 'melee' ? '#ffffff' : blade, blade, e.uid, [victim], i * HIT_GAP);
+    if (hits > 1) plan.impact = FLIGHT[fx.kind];
   }
   return plan;
 }
