@@ -194,7 +194,7 @@ const list: EnemyDef[] = [
       act('rend', 'Разрывание', [{ type: 'attack', amount: 5, hits: 2 }]),
       act('rend2', 'Бешеное разрывание', [{ type: 'attack', amount: 4, hits: 3 }]),
       act('howl', 'Вой', [{ type: 'summon', enemyId: 'wolf', count: 1 }]),
-      act('rage', 'Ярость', [{ type: 'buffStr', amount: 3, target: 'self' }]), // +2 → +3 в v0.36 (решение пользователя)
+      act('rage', 'Ярость', [{ type: 'buffStr', amount: 1, target: 'self' }]), // +2 → +1 в v0.36 (решение пользователя): во второй фазе каждая Ярость считается трижды
     ],
     // Первая половина боя — про стаю, вторая — вожак щетинится и рвёт сам: три удара вместо двух, каждая Ярость считается трижды. HP 60 → 55.
     phase2: {
