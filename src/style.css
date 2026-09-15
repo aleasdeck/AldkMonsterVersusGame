@@ -1011,6 +1011,37 @@ p {
 .preview-arts .card-desc {
   font-size: 16px;
 }
+/* Пара персональных артефактов (v0.33): выбранный — рамка и свечение акцентом, закрытый — затемнён, клик по нему ничего не делает. */
+.sig-card {
+  cursor: pointer;
+  position: relative;
+  transition: box-shadow 90ms, transform 90ms;
+}
+.sig-card:not(.locked):hover {
+  transform: translateY(-2px);
+}
+.sig-card.selected {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 14px #ffd16655;
+}
+.sig-card.locked {
+  cursor: default;
+  opacity: 0.45;
+  filter: grayscale(0.7);
+}
+.sig-note {
+  font-size: 15px;
+  color: var(--dim);
+}
+/* Подпись «Артефакт · приём · персональный» здесь лишняя: обе карточки персональные, а высота кадра на счету. */
+.sig-card .card-sub {
+  display: none;
+}
+.sig-card .card-desc {
+  font-size: 15px;
+}
+.sig-card.selected .sig-note {
+  color: var(--accent);
+}
 .preview-foot {
   margin-top: auto;
 }

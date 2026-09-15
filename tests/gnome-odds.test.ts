@@ -22,7 +22,7 @@ function equipForAct(run: RunState, act: number, seed: number): void {
   const tiers = ACTS[act].gearTiers;
   const tier = tiers[tiers.length - 1];
   const def = heroDef(run.hero.defId);
-  const signature = run.hero.weapon.slots.find((s) => s?.id === def.signature) ?? null;
+  const signature = [...run.hero.weapon.slots, ...run.hero.armor.slots].find((s) => s?.id === run.hero.signature) ?? null;
   run.hero.weapon = makeGear(rng, 'weapon', tier, def);
   run.hero.armor = makeGear(rng, 'armor', tier, def);
   // Персональный артефакт возвращаем на место, к нему — типовой набор находок к этому акту.

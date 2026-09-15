@@ -874,6 +874,34 @@ describe('персональные артефакты', () => {
     expect(canDropFor(mage, 'magic_missile')).toBe(true);
     expect(canDropFor(mage, 'rage')).toBe(false);
   });
+
+  it('v0.33: у каждого героя пара, забег начинается с выбранным, невыбранный не выпадает никому', () => {
+    for (const def of HERO_LIST) {
+      expect(def.signatures).toHaveLength(2);
+      expect(def.signatures[0]).not.toBe(def.signatures[1]);
+      for (const id of def.signatures) expect(SIGNATURE_OWNER[id]).toBe(def.id);
+    }
+    const plain = newRun('warrior', 1);
+    expect(plain.hero.signature).toBe('shield_bash');
+    const second = newRun('warrior', 1, 0, 'onslaught');
+    expect(second.hero.signature).toBe('onslaught');
+    expect(second.hero.weapon.slots).toEqual([{ id: 'onslaught', tier: 1 }]);
+    expect(second.hero.armor.slots).toEqual([null]);
+    expect(canDropFor(second.hero, 'onslaught')).toBe(true);
+    expect(canDropFor(second.hero, 'shield_bash')).toBe(false);
+    expect(canDropFor(plain.hero, 'onslaught')).toBe(false);
+    expect(canDropFor(plain.hero, 'heavy_strike')).toBe(true);
+    expect(() => newRun('warrior', 1, 0, 'rage')).toThrow(/Not a signature/);
+    // Бронная сигнатура стартует в броне, оружие пустое.
+    const pal = newRun('paladin', 1, 0, 'vengeance_halo');
+    expect(pal.hero.weapon.slots).toEqual([null]);
+    expect(pal.hero.armor.slots).toEqual([{ id: 'vengeance_halo', tier: 1 }]);
+    const rng = createRng(5);
+    for (let i = 0; i < 300; i++) {
+      const a = rollArtifact(rng, second.hero, [1], []);
+      expect(a!.id).not.toBe('shield_bash');
+    }
+  });
 });
 
 describe('журнал забега', () => {
@@ -961,7 +989,8 @@ describe('статистика забега (report.ts)', () => {
     expect(r.maxHp).toBe(heroStats(run).maxHp);
     expect(r.weapon).toBe(`${run.hero.weapon.base}@${run.hero.weapon.tier}`);
     expect(r.armor).toBe(`${run.hero.armor.base}@${run.hero.armor.tier}`);
-    expect(r.artifacts).toBe(`${heroDef('mage').signature}@1`);
+    expect(r.artifacts).toBe(`${heroDef('mage').signatures[0]}@1`);
+    expect(r.signature).toBe('magic_missile');
     expect(r.potion).toBe('');
     expect(r.duration).toBe(30);
     expect(r.detail.hero).toBe(run.hero);

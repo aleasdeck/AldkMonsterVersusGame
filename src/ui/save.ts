@@ -1,6 +1,7 @@
 import type { RunState } from '../engine/types';
 import { SAVE_VERSION } from '../engine/types';
-import { HEROES } from '../data/heroes';
+import type { HeroDef } from '../engine/types';
+import { HEROES, HERO_LIST, defaultSignature } from '../data/heroes';
 import { migrateFinds } from '../data/collection';
 
 const RUN_KEY = 'mv_run_v1';
@@ -36,6 +37,10 @@ export interface Profile {
   bestiary: string[];
   /** Анонимный id игрока для статистики забегов (telemetry.ts): случайная строка, ставится один раз при первом чтении профиля. */
   playerId: string;
+  /** Персональный артефакт, выбранный для каждого героя на экране выбора (v0.33); нет записи — первый из пары. */
+  sigPick: Record<string, string>;
+  /** id персональных артефактов, открытых мимо победы — отладочный `mv.unlockAll()`; обычное открытие — по `heroWins`. */
+  unlocks: string[];
 }
 
 function emptyProfile(): Profile {
@@ -54,7 +59,38 @@ function emptyProfile(): Profile {
     collection: [],
     bestiary: [],
     playerId: '',
+    sigPick: {},
+    unlocks: [],
   };
+}
+
+/**
+ * Открыт ли персональный артефакт героя: первый из пары — всегда, второй — после победы этим героем
+ * (или отладочным `unlocks`). Чужие id закрыты.
+ */
+export function signatureUnlocked(p: Profile, def: HeroDef, id: string): boolean {
+  if (!def.signatures.includes(id)) return false;
+  return id === def.signatures[0] || (p.heroWins[def.id] ?? 0) > 0 || p.unlocks.includes(id);
+}
+
+/** С каким персональным артефактом герой пойдёт в забег: выбор из профиля, если он открыт, иначе первый из пары. */
+export function pickedSignature(p: Profile, def: HeroDef): string {
+  const pick = p.sigPick[def.id];
+  return pick && signatureUnlocked(p, def, pick) ? pick : defaultSignature(def);
+}
+
+/** Запомнить выбор персонального артефакта героя. */
+export function saveSignaturePick(heroId: string, id: string): Profile {
+  const p = loadProfile();
+  p.sigPick = { ...p.sigPick, [heroId]: id };
+  return saveProfile(p);
+}
+
+/** Отладка: открыть вторые персональные артефакты всем героям (`mv.unlockAll()` в консоли); `unlockAll(false)` закрывает обратно. */
+export function setAllUnlocked(on: boolean): Profile {
+  const p = loadProfile();
+  p.unlocks = on ? HERO_LIST.map((h) => h.signatures[1]) : [];
+  return saveProfile(p);
 }
 
 function storage(): Storage | null {

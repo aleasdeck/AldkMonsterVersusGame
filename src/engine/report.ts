@@ -34,6 +34,8 @@ export interface RunReport {
   player: string;
   playerRuns: number;
   hero: string;
+  /** Персональный артефакт, с которым начат забег (v0.33: у героя их два на выбор). */
+  signature: string;
   seed: number;
   /** Фаза в момент записи: у победы и гибели — они же, у брошенного — где бросили (map, battle, shop…). */
   phase: RunPhase;
@@ -118,6 +120,7 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     player: ctx.player,
     playerRuns: ctx.playerRuns,
     hero: run.hero.defId,
+    signature: run.hero.signature,
     seed: run.seed,
     phase: run.phase,
     act: run.locationIndex + 1,

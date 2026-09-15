@@ -65,6 +65,8 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     markOnHit: 0,
     reachAny: 0,
     sweep: 0,
+    lowHpStr: 0,
+    lowHpSta: 0,
   };
   applyMods(s, weaponPerkMods(weapon, def));
   applyMods(s, armorPerkMods(armor, def));

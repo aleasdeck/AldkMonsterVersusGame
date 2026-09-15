@@ -100,10 +100,13 @@ function bump<T extends number>(tiers: T[], max: T): T[] {
   return Array.from(new Set(out));
 }
 
-/** Может ли артефакт выпасть герою: персональные — только владельцу (дубликат апгрейдит, выброшенный находится снова). */
+/**
+ * Может ли артефакт выпасть герою: персональные — только владельцу и только тот, с которым забег начат
+ * (дубликат апгрейдит, выброшенный находится снова); невыбранный из пары в этом забеге не выпадает никому.
+ */
 export function canDropFor(hero: HeroPersistent, id: string): boolean {
   const owner = SIGNATURE_OWNER[id];
-  return !owner || owner === hero.defId;
+  return !owner || (owner === hero.defId && id === hero.signature);
 }
 
 export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], exclude: string[]): ArtifactInstance | null {

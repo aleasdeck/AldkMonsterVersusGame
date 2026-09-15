@@ -11,6 +11,7 @@ npm test           # vitest, тесты движка
 SIM=1 npx vitest run tests/balance-sim.test.ts   # бот-симулятор баланса: победы, смерти, приёмы и зелья по героям
 SIM=1 SIM_LOCS=caves,caves,caves SIM_N=200 npx vitest run tests/balance-sim.test.ts   # один босс на всех трёх актах
 SIM=1 SIM_HERO=berserk SIM_N=300 npx vitest run tests/balance-sim.test.ts   # один герой, своё число забегов
+SIM=1 SIM_SIG=2 SIM_N=300 npx vitest run tests/balance-sim.test.ts   # все герои со вторым персональным артефактом (1 — с первым, по умолчанию)
 SIM_DEBUG=1 SIM_HERO=warrior SIM_SEED=3 SIM_FIGHTS=4 npx vitest run tests/sim-debug.test.ts   # лог первых боёв бота: что и почему он делает
 SIM_DEBUG=stall SIM_HERO=paladin npx vitest run tests/sim-debug.test.ts   # найти забег с патом и показать хвост зависшего боя
 npm run build      # typecheck + сборка в dist/
@@ -33,7 +34,7 @@ npm run preview    # посмотреть собранную версию
 
 - `?screen=select|collection|bestiary|stats` — экран выбора героя, коллекция, бестиарий или статистика; `&screen=bestiary&loc=crypt` — вкладка нужной локации; `&screen=stats&mock=1` — статистика на демо-ответе таблицы, без сети.
 - `&mock=1` — залить демо-профиль: статистика, часть коллекции (у артефактов открыта часть тиров) и половина бестиария.
-- `?hero=warrior&seed=5` — новый забег указанным героем (`warrior`, `mage`, `paladin`, `berserk`, `archer`, `assassin`) с заданным сидом.
+- `?hero=warrior&seed=5` — новый забег указанным героем (`warrior`, `mage`, `paladin`, `berserk`, `archer`, `assassin`) с заданным сидом; `&sig=onslaught` — с указанным персональным артефактом героя (второй из пары даже до победы; чужой id молча заменяется первым).
 - `&enter=1` — сразу войти в первую комнату; `&room=9&enter=1&boss2=1` — бой с боссом сразу во второй фазе (HP на порог и один удар героя; у Лича и Капитана — сразу второе тело).
 - `&phase=won|reward|shop|event|camp|end` — сразу нужный экран (бой выигрывается читом); `&phase=won` — остаться на плашке победы, `&log=1` — с раскрытым логом боя; `&phase=shop` и `&phase=camp` — торговец или привал в клетке события; `&phase=event&event=chest|altar|forge|elite|shop|camp|gnome|gnome_art` — заданное событие (без `event` — случайное; `gnome` и `gnome_art` сразу начинают бой с вором: деньгокрадом или вещекрадом); `&events=<вид>` — то же, но на весь забег: каждая клетка события разыгрывает заданный вид (живой забег, гарантированное событие); `&phase=reward&take=art` — сразу взять артефакт из награды и открыть выбор слота; `&room=9&phase=reward` — трофей босса (`&room=N` — начать с клетки 0..9).
 - `&gauntlet=1` — парад боссов: каждый акт начинается сразу с босса, экипировка героя на 5 тире, артефакты из `&art=` на 3-м, HP полное; трёх боссов задаёт `&locs=`, остальных трёх — второй забег.
@@ -41,7 +42,7 @@ npm run preview    # посмотреть собранную версию
 - `&locs=swamp,hive,ship` — задать локации забега по порядку (`forest`, `swamp`, `crypt`, `hive`, `caves`, `ship`); `&loc=1` — начать с акта 0..2; `&art=second_wind,stun_strike` — досыпать артефакты в оружие (в универсальные сокеты, тип артефакта не важен); `&use=war_cry` — применить их сразу после входа в бой; `&potion=heal_potion` — положить зелье в слот (`heal_potion`, `strength_potion`, `stamina_potion`, `mana_potion`, `stone_skin`, `fire_flask`, `antidote`).
 - `&stats=1` — отправить статистику забега и с localhost (проверить таблицу; запись помечается debug). Пока адрес таблицы в `src/ui/telemetry.ts` пустой, не отправляется ничего.
 
-В консоли браузера доступен объект `mv` (экземпляр `App`): `mv.run` — состояние забега, `mv.render()` — перерисовать.
+В консоли браузера доступен объект `mv` (экземпляр `App`): `mv.run` — состояние забега, `mv.render()` — перерисовать, `mv.unlockAll()` — открыть вторые персональные артефакты всем героям без побед (`mv.unlockAll(false)` — закрыть обратно).
 
 ## Структура
 

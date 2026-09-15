@@ -22,7 +22,7 @@ const list: HeroDef[] = [
     armor: { base: 'mail', name: 'Кольчуга', def: 1, hp: 0 },
     // Своя усталость, как у Берсерка (v0.30.1): общая 0.7 давала Воину те же +2 пункта, но заодно двигала пятерых других.
     fatigue: 0.75,
-    signature: 'shield_bash',
+    signatures: ['shield_bash', 'onslaught'],
     sprite: {
       type: 'humanoid',
       head: 'helmet',
@@ -49,7 +49,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: false, medium: false, light: true },
     weapon: { base: 'staff', name: 'Посох', dmgMin: 3, dmgMax: 6 },
     armor: { base: 'robe', name: 'Роба', def: 0, hp: 0 },
-    signature: 'magic_missile',
+    signatures: ['magic_missile', 'fire_wave'],
     sprite: {
       type: 'humanoid',
       head: 'hat',
@@ -74,7 +74,7 @@ const list: HeroDef[] = [
     // Стилет — лёгкое оружие: кубик ниже меча Воина (4–6), удар в спину добирает своё.
     weapon: { base: 'stiletto', name: 'Стилет', dmgMin: 3, dmgMax: 5 },
     armor: { base: 'shroud', name: 'Тёмный покров', def: 0, hp: 0 },
-    signature: 'smoke_bomb',
+    signatures: ['smoke_bomb', 'double_lunge'],
     sprite: {
       type: 'humanoid',
       head: 'mask',
@@ -97,7 +97,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: true, medium: true, light: false },
     weapon: { base: 'mace', name: 'Булава', dmgMin: 2, dmgMax: 6 },
     armor: { base: 'plate', name: 'Латы', def: 1, hp: 0 },
-    signature: 'light_hammer',
+    signatures: ['light_hammer', 'vengeance_halo'],
     sprite: {
       type: 'humanoid',
       head: 'plume',
@@ -123,7 +123,7 @@ const list: HeroDef[] = [
     // Топор — тяжёлое оружие: 3–6 вместо 2–5 (v0.15), всё ещё ниже меча Воина, Силу добирает Ярость.
     weapon: { base: 'axe', name: 'Топор', dmgMin: 3, dmgMax: 6 },
     armor: { base: 'hide', name: 'Шкура', def: 0, hp: 0 },
-    signature: 'rage',
+    signatures: ['rage', 'battle_trance'],
     sprite: {
       type: 'humanoid',
       head: 'horns',
@@ -147,7 +147,7 @@ const list: HeroDef[] = [
     armorSkill: { heavy: false, medium: true, light: true },
     weapon: { base: 'bow', name: 'Лук', dmgMin: 3, dmgMax: 7 },
     armor: { base: 'cloak', name: 'Куртка', def: 0, hp: 0 },
-    signature: 'aimed_shot',
+    signatures: ['aimed_shot', 'arrow_rain'],
     sprite: {
       type: 'humanoid',
       head: 'cap',
@@ -159,8 +159,13 @@ const list: HeroDef[] = [
 export const HEROES: Record<string, HeroDef> = Object.fromEntries(list.map((h) => [h.id, h]));
 export const HERO_LIST: HeroDef[] = list;
 
-/** id артефакта → id героя, которому он принадлежит. Остальным героям персональные артефакты не выпадают. */
-export const SIGNATURE_OWNER: Record<string, string> = Object.fromEntries(list.map((h) => [h.signature, h.id]));
+/** id артефакта → id героя, которому он принадлежит (оба из пары). Остальным героям персональные артефакты не выпадают. */
+export const SIGNATURE_OWNER: Record<string, string> = Object.fromEntries(list.flatMap((h) => h.signatures.map((id) => [id, h.id])));
+
+/** Персональный артефакт по умолчанию — первый из пары: с ним герой начинает, пока второй не открыт или не выбран. */
+export function defaultSignature(def: HeroDef): string {
+  return def.signatures[0];
+}
 
 export function heroDef(id: string): HeroDef {
   const def = HEROES[id];

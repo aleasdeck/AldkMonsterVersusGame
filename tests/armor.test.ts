@@ -15,7 +15,7 @@ function armor(base: string, tier: GearTier = 1): GearInstance {
 function mkBattle(heroId: string, a: GearInstance, enemies: string[]) {
   const def = heroDef(heroId);
   const gear = makeStartingGear(def);
-  const hero: HeroPersistent = { defId: heroId, hp: 999, weapon: gear.weapon, armor: a, potion: null };
+  const hero: HeroPersistent = { defId: heroId, signature: def.signatures[0], hp: 999, weapon: gear.weapon, armor: a, potion: null };
   const rng = createRng(1);
   const state = createBattle(def, hero, enemies, rng);
   state.hero.stats.crit = 0;

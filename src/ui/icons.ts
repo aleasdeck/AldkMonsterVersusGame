@@ -154,6 +154,17 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '..##....',
     '........',
   ],
+  // Молния: серия ударов без передышки.
+  onslaught: [
+    '....##..',
+    '...##...',
+    '..##....',
+    '.#####..',
+    '...##...',
+    '..##....',
+    '.##.....',
+    '#.......',
+  ],
 };
 
 export const STATUS_COLORS: Record<StatusId, string> = {
@@ -172,6 +183,7 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   stealth: '#9aa6c8',
   vulnerable: '#ff6b6b',
   doom: '#d264ff',
+  onslaught: '#ff7b00',
 };
 
 const OUTLINE = '#0b0b12';

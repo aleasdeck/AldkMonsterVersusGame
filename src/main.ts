@@ -59,7 +59,8 @@ const heroParam = params.get('hero');
 if (heroParam) {
   const seedRaw = params.get('seed');
   // Третий аргумент — пометка debug: такой забег уйдёт в статистику как отладочный.
-  app.newRun(heroParam, seedRaw ? Number(seedRaw) >>> 0 : undefined, true);
+  // &sig=onslaught — начать с указанным персональным артефактом героя, открыт он или нет.
+  app.newRun(heroParam, seedRaw ? Number(seedRaw) >>> 0 : undefined, true, params.get('sig') ?? undefined);
   const run = app.run!;
   // &art=id1,id2 — досыпать артефакты в оружие (для отладки интерфейса); сокеты под них универсальные, тип артефакта не важен
   for (const id of (params.get('art') ?? '').split(',').filter(Boolean)) {
@@ -157,7 +158,7 @@ if (app.run && app.screen === 'run') {
   else if (params.get('pause')) app.togglePause();
 }
 
-// Для отладки из консоли: mv.run, mv.render()
+// Для отладки из консоли: mv.run, mv.render(), mv.unlockAll() — открыть вторые персональные артефакты (false — закрыть)
 (window as unknown as { mv: App }).mv = app;
 
 /** Демо-ответ ?data=runs для `&mock=1`: 90 забегов шести героев, победы у трети, гибели по разным клеткам — чтобы экран «Статистика» было на чём смотреть. */
