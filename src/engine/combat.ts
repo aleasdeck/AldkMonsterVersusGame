@@ -154,13 +154,20 @@ function removeStatus(c: Combatant, id: StatusId): void {
 
 const STACKING: StatusId[] = ['strength', 'thorns', 'regen', 'bleed', 'burn', 'poison', 'dodge'];
 
+/**
+ * Статусы, у которых складывается срок, а не сила: у скрытности силы нет, и шашка поверх Тени покрова
+ * должна продлить тень на свои ходы, а не пропасть под уже висящей (v0.32.3).
+ */
+const STACKING_TURNS: StatusId[] = ['stealth'];
+
 function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: StatusId, value: number, turns: number): void {
   const ex = getStatus(c, id);
   if (ex) {
     if (STACKING.includes(id)) ex.value += value;
     else ex.value = Math.max(ex.value, value);
-    if (ex.turns !== -1 && turns !== -1) ex.turns = Math.max(ex.turns, turns);
-    else ex.turns = -1;
+    if (ex.turns === -1 || turns === -1) ex.turns = -1;
+    else if (STACKING_TURNS.includes(id)) ex.turns += turns;
+    else ex.turns = Math.max(ex.turns, turns);
   } else {
     c.statuses.push({ id, value, turns });
   }

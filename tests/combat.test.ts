@@ -890,13 +890,19 @@ describe('перки брони', () => {
 });
 
 describe('ассасин: скрытность', () => {
-  it('входит в бой в тени: враг промахивается, удар из тени — крит с бонусом стилета и снимает скрытность', () => {
-    const { state, rng } = mkBattle('assassin', ['bear']);
-    expect(getStatus(state.hero, 'stealth')?.turns).toBe(2);
+  it('входит в бой в тени на 1 ход врага: враг промахивается, на второй ход тень спала', () => {
+    const { state, rng } = mkBattle('assassin', ['rat']);
+    expect(getStatus(state.hero, 'stealth')?.turns).toBe(1);
     const hp = state.hero.hp;
     pass(state, rng);
     expect(state.hero.hp).toBe(hp);
-    expect(getStatus(state.hero, 'stealth')?.turns).toBe(1);
+    expect(getStatus(state.hero, 'stealth')).toBeUndefined();
+    pass(state, rng);
+    expect(state.hero.hp).toBeLessThan(hp);
+  });
+
+  it('удар из тени — крит с бонусом стилета и снимает скрытность', () => {
+    const { state, rng } = mkBattle('assassin', ['bear']);
     const bear = first(state);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     // стилет 3–5 на среднем — 4, Удар в спину +3, крит Ассасина 190 % от 7
@@ -904,10 +910,27 @@ describe('ассасин: скрытность', () => {
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
   });
 
-  it('дымовая шашка: 3/3/2 STA, скрытность на 1/2/2 хода, удар из тени — крит в спину и снимает скрытность', () => {
+  it('сроки скрытности складываются: шашка поверх Тени покрова — два хода врага мимо, третий в цель', () => {
+    const { state, rng } = mkBattle('assassin', ['rat']);
+    expect(getStatus(state.hero, 'stealth')?.turns).toBe(1);
+    performAction(state, { type: 'artifact', artifactId: 'smoke_bomb' }, rng);
+    expect(getStatus(state.hero, 'stealth')?.turns).toBe(2);
+    expect(state.hero.cooldowns.smoke_bomb).toBe(4);
+    const hp = state.hero.hp;
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hp);
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hp);
+    expect(getStatus(state.hero, 'stealth')).toBeUndefined();
+    pass(state, rng);
+    expect(state.hero.hp).toBeLessThan(hp);
+  });
+
+  it('дымовая шашка: 2 STA, КД 4, скрытность на 1/2/2 хода, удар из тени — крит в спину и снимает скрытность', () => {
     const t1 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
     performAction(t1.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t1.rng);
-    expect(t1.state.hero.sta).toBe(0);
+    expect(t1.state.hero.sta).toBe(1);
+    expect(t1.state.hero.cooldowns.smoke_bomb).toBe(4);
     expect(getStatus(t1.state.hero, 'stealth')?.turns).toBe(1);
     const t3 = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 3 }] });
     performAction(t3.state, { type: 'artifact', artifactId: 'smoke_bomb' }, t3.rng);
@@ -948,8 +971,10 @@ describe('ассасин: скрытность', () => {
     expect(state.hero.hp).toBe(hp);
   });
 
-  it('шашке первого тира нужно 3 STA — после удара её не бросить', () => {
+  it('шашке нужно 2 STA — после одного удара её ещё бросить, после двух уже нет', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'smoke_bomb', tier: 1 }] });
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'smoke_bomb' })).toBeNull();
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'smoke_bomb' })).toMatch(/стамин/);
   });
