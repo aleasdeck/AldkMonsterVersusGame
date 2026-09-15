@@ -620,9 +620,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.35';
+export const GAME_VERSION = '0.35.1';
 
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
