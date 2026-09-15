@@ -526,7 +526,7 @@ const list: EnemyDef[] = [
     onDeath: {
       name: 'Взрыв',
       effects: [
-        { type: 'attack', amount: 12 },
+        { type: 'attack', amount: 8 },
         { type: 'debuff', status: 'burn', value: 2, turns: 2 },
       ],
     },

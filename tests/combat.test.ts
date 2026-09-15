@@ -343,7 +343,7 @@ describe('новые механики врагов', () => {
     const hp0 = state.hero.hp;
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(state.phase).toBe('won');
-    expect(state.hero.hp).toBe(hp0 - 11); // взрыв 12, Кольца кольчуги гасят 1
+    expect(state.hero.hp).toBe(hp0 - 7); // взрыв 8, Кольца кольчуги гасят 1
     expect(getStatus(state.hero, 'burn')?.value).toBe(2);
   });
 
