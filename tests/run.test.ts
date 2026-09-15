@@ -883,13 +883,13 @@ describe('персональные артефакты', () => {
     }
     const plain = newRun('warrior', 1);
     expect(plain.hero.signature).toBe('shield_bash');
-    const second = newRun('warrior', 1, 0, 'onslaught');
-    expect(second.hero.signature).toBe('onslaught');
-    expect(second.hero.weapon.slots).toEqual([{ id: 'onslaught', tier: 1 }]);
+    const second = newRun('warrior', 1, 0, 'riposte');
+    expect(second.hero.signature).toBe('riposte');
+    expect(second.hero.weapon.slots).toEqual([{ id: 'riposte', tier: 1 }]);
     expect(second.hero.armor.slots).toEqual([null]);
-    expect(canDropFor(second.hero, 'onslaught')).toBe(true);
+    expect(canDropFor(second.hero, 'riposte')).toBe(true);
     expect(canDropFor(second.hero, 'shield_bash')).toBe(false);
-    expect(canDropFor(plain.hero, 'onslaught')).toBe(false);
+    expect(canDropFor(plain.hero, 'riposte')).toBe(false);
     expect(canDropFor(plain.hero, 'heavy_strike')).toBe(true);
     expect(() => newRun('warrior', 1, 0, 'rage')).toThrow(/Not a signature/);
     // Бронная сигнатура стартует в броне, оружие пустое.

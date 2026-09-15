@@ -22,7 +22,7 @@ const list: HeroDef[] = [
     armor: { base: 'mail', name: 'Кольчуга', def: 1, hp: 0 },
     // Своя усталость, как у Берсерка (v0.30.1): общая 0.7 давала Воину те же +2 пункта, но заодно двигала пятерых других.
     fatigue: 0.75,
-    signatures: ['shield_bash', 'onslaught'],
+    signatures: ['shield_bash', 'riposte'],
     sprite: {
       type: 'humanoid',
       head: 'helmet',

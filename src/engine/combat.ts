@@ -44,7 +44,6 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   vulnerable: 'Уязвимость',
   doom: 'Предсмертие',
   evade: 'Уворот',
-  onslaught: 'Натиск',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -63,7 +62,6 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
-  onslaught: 'До конца хода усталость не ниже N %: серия ударов почти не слабеет',
 };
 
 /**
@@ -96,6 +94,15 @@ export function tranceStr(h: HeroBattle): number {
 /** Гашение удара от «Боевого транса» прямо сейчас: только пока герой ранен. */
 export function tranceReduce(h: HeroBattle): number {
   return h.stats.lowHpReduce > 0 && inTrance(h) ? h.stats.lowHpReduce : 0;
+}
+
+/**
+ * Урон «Ответного удара»: доля среднего урона оружия с Силой, без кубика, усталости и крита — как Таран, ответ не
+ * атака героя, а свойство щита. Слабость его тоже не портит. 0 — пассивки нет.
+ */
+export function riposteDamage(h: HeroBattle): number {
+  if (h.stats.riposte <= 0) return 0;
+  return Math.max(0, Math.round(((h.stats.dmgMin + h.stats.dmgMax) / 2 + heroStr(h)) * (h.stats.riposte / 100)));
 }
 
 // ─── Дальность ─────────────────────────────────────────────────────────────
@@ -410,6 +417,13 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
       h.block -= b;
       rest -= b;
       d.blocked = b;
+      // «Ответный удар»: блок погасил удар — ударивший получает долю среднего урона оружия с Силой, раз за свой ход.
+      if (b > 0 && source && !source.riposted && source.hp > 0 && riposteDamage(h) > 0) {
+        source.riposted = true;
+        const r = riposteDamage(h);
+        log(state, `Ответный удар: ${r} урона ${source.name} (щит погасил ${b})`);
+        damageEnemy(state, source, r, 'hit', { noThorns: true });
+      }
     }
   }
   // Шипы врага тоже упираются в блок героя, но мимо уклонения, уязвимости и колец кольчуги.
@@ -600,14 +614,9 @@ export function defendBlock(stats: { def: number; defendBonus: number }): number
   return Math.ceil((stats.def + stats.defendBonus) * DEFEND_MULT);
 }
 
-/** Усталость героя с поправкой на «Натиск»: статус до конца хода не даёт ей опуститься ниже своего порога. */
-export function fatigueBase(h: HeroBattle): number {
-  return Math.max(h.stats.fatigue, statusValue(h, 'onslaught') / 100);
-}
-
-/** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя (под «Натиском» — не ниже его порога). */
+/** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя. */
 export function fatigueMult(state: BattleState): number {
-  return fatigueBase(state.hero) ** state.hero.attacks;
+  return state.hero.stats.fatigue ** state.hero.attacks;
 }
 
 /**
@@ -1056,6 +1065,7 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     hpMult: sc.hp,
     dmgMult: sc.dmg,
     phase: 1,
+    riposted: false,
   };
   placeEnemy(state, e, announce);
   // Процентный уворот вора: висит статусом, чтобы игрок видел текущий шанс промаха прямо на плитке врага.
@@ -1242,6 +1252,7 @@ function fleeEnemy(state: BattleState, e: EnemyState): void {
 function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   const def = enemyDef(e.defId);
   e.block = 0;
+  e.riposted = false;
   // Неуязвимость отработала ход героя — снимаем её до действия, а не после.
   tickDurations(e, 'start');
   const dot = statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison');
