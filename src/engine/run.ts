@@ -163,7 +163,7 @@ export function startEvent(run: RunState, kind: EventKind): void {
       startBattle(run, 'elite');
       return;
     case 'chest':
-      run.event = { kind, gear: rollGear(run.rng, run.hero, act.gearTiers) };
+      run.event = { kind, gear: rollGear(run.rng, run.hero, act.gearTiers, undefined, act.rareGear) };
       run.phase = 'event';
       return;
     case 'altar':

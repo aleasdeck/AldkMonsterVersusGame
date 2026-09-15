@@ -3,7 +3,7 @@ import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerA
 import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
-import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
+import { HIT_GAP, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
 import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
 import { fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
@@ -572,8 +572,9 @@ export class App {
     this.scheduleStep();
   }
 
-  private scheduleStep(): void {
-    this.stepTimer = window.setTimeout(() => this.step(), ENEMY_STEP_MS);
+  /** extra — сколько ещё играют удары многоударного приёма после перерисовки: следующий враг ждёт их. */
+  private scheduleStep(extra = 0): void {
+    this.stepTimer = window.setTimeout(() => this.step(), ENEMY_STEP_MS + extra);
   }
 
   private step(): void {
@@ -598,8 +599,7 @@ export class App {
       this.stepTimer = null;
       if (run.battle!.phase === 'enemy') {
         this.render();
-        this.playEvents(events, plan);
-        this.scheduleStep();
+        this.scheduleStep(this.playEvents(events, plan));
       } else {
         this.busy = false;
         saveRun(run);
@@ -768,8 +768,15 @@ export class App {
    * Всплывающие числа и эффекты на бойцах по событиям боя — на свежем поле. Облако (дебаф), свечение (баф, лечение)
    * и щит (блок) — по одному на бойца за пакет; план добавляет свои: свечение героя от приёма на себя, глоток зелья.
    */
-  playEvents(events: BattleEvent[], plan?: FxPlan): void {
+  /**
+   * Всплывающие цифры и эффекты по событиям боя. Удары одного приёма по одной цели идут по очереди с шагом HIT_GAP:
+   * каждый — своя цифра, своя тряска и свой наскок бьющего. Возвращает, через сколько мс отыграет последний удар.
+   */
+  playEvents(events: BattleEvent[], plan?: FxPlan): number {
     const counters = new Map<string, number>();
+    const hitSeq = new Map<string, number>();
+    let actor: EventTarget | null = plan?.lunged.has('hero') ? 'hero' : null;
+    let longest = 0;
     const done = new Set<string>();
     const after = (kind: AfterFx['kind'], color: string, target: EventTarget) => {
       const key = `${kind}:${target}`;
@@ -795,16 +802,31 @@ export class App {
       let text = '';
       let cls = '';
       switch (ev.type) {
-        case 'damage':
+        case 'damage': {
           if (ev.kind === 'blocked') {
             text = 'блок';
             cls = 'f-block';
           } else {
             text = ev.kind === 'crit' ? `−${ev.amount} крит!` : `−${ev.amount}`;
             cls = ev.kind === 'crit' ? 'f-crit' : ev.kind === 'dot' ? 'f-dot' : 'f-dmg';
-            shake(wrap);
           }
-          break;
+          const seq = hitSeq.get(key) ?? 0;
+          hitSeq.set(key, seq + 1);
+          const who = actor;
+          const hurt = ev.kind !== 'blocked';
+          // Цифры ударов разнесены по времени, а не по высоте: каждая стартует с той же строки, что и первая.
+          const land = () => {
+            if (hurt) shake(wrap);
+            if (seq > 0 && who !== null) lungeAgain(this.root, who);
+            floatText(wrap, text, cls, n - seq);
+          };
+          if (seq === 0) land();
+          else {
+            longest = Math.max(longest, seq * HIT_GAP);
+            window.setTimeout(land, seq * HIT_GAP);
+          }
+          continue;
+        }
         case 'heal':
           text = `+${ev.amount}`;
           cls = 'f-heal';
@@ -820,6 +842,7 @@ export class App {
         case 'enemyAction':
           text = ev.name;
           cls = 'f-action';
+          actor = ev.target;
           if (!plan?.lunged.has(ev.target)) wrap.closest('.enemy, .ally')?.classList.add('acting');
           break;
         case 'stunned':
@@ -840,6 +863,7 @@ export class App {
       }
       floatText(wrap, text, cls, n);
     }
+    return longest;
   }
 }
 

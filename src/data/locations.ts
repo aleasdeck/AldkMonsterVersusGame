@@ -28,11 +28,14 @@ export interface ActDef {
   artTiers: ArtTier[];
   /** Гарантированная экипировка за босса. null — финальный босс, награды нет. */
   bossGearTier: GearTier | null;
+  /** Редкий тир в обычном пуле (награда за бой, торговец, сундук): с шансом chance предмет выпадает этим тиром вместо gearTiers. Элиту и босса не касается. */
+  rareGear?: { tier: GearTier; chance: number };
 }
 
 export const ACTS: ActDef[] = [
   { gearTiers: [1, 2], artTiers: [1], bossGearTier: 3 },
-  { gearTiers: [2, 3], artTiers: [1, 2], bossGearTier: 4 },
+  // Мифический во втором акте (v0.35): один-два фиолетовых за акт сверх элиты и босса, чтобы сборка к третьему акту не стояла на тире 3.
+  { gearTiers: [2, 3], artTiers: [1, 2], bossGearTier: 4, rareGear: { tier: 4, chance: 0.15 } },
   { gearTiers: [3, 4, 5], artTiers: [2, 3], bossGearTier: null },
 ];
 
