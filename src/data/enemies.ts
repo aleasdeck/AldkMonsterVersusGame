@@ -1292,7 +1292,14 @@ export function enemyDef(id: string): EnemyDef {
   return def;
 }
 
+/**
+ * Id приёма-перехода во вторую фазу (v0.36): босс, перешедший в ход героя, следующим своим ходом не действует —
+ * «собирается с силами». Приём синтетический: в `actions` его нет, `enemyAction` собирает его из `phase2`.
+ */
+export const PHASE_SHIFT = 'phase_shift';
+
 export function enemyAction(def: EnemyDef, actionId: string): EnemyAction {
+  if (actionId === PHASE_SHIFT && def.phase2) return { id: PHASE_SHIFT, name: def.phase2.name, effects: [] };
   const a = def.actions.find((x) => x.id === actionId);
   if (!a) throw new Error(`Enemy ${def.id} has no action ${actionId}`);
   return a;

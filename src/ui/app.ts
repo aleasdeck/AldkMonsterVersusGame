@@ -768,6 +768,11 @@ export class App {
    * Всплывающие числа и эффекты на бойцах по событиям боя — на свежем поле. Облако (дебаф), свечение (баф, лечение)
    * и щит (блок) — по одному на бойца за пакет; план добавляет свои: свечение героя от приёма на себя, глоток зелья.
    */
+  private isPhaseShift(target: EventTarget, name: string): boolean {
+    const e = typeof target === 'number' && this.run?.battle ? findEnemy(this.run.battle, target) : undefined;
+    return !!e && enemyDef(e.defId).phase2?.name === name && e.phase === 2;
+  }
+
   /**
    * Всплывающие цифры и эффекты по событиям боя. Удары одного приёма по одной цели идут по очереди с шагом HIT_GAP:
    * каждый — своя цифра, своя тряска и свой наскок бьющего. Возвращает, через сколько мс отыграет последний удар.
@@ -843,7 +848,8 @@ export class App {
           text = ev.name;
           cls = 'f-action';
           actor = ev.target;
-          if (!plan?.lunged.has(ev.target)) wrap.closest('.enemy, .ally')?.classList.add('acting');
+          // Ход перехода во вторую фазу — босс стоит, наскока нет.
+          if (!plan?.lunged.has(ev.target) && !this.isPhaseShift(ev.target, ev.name)) wrap.closest('.enemy, .ally')?.classList.add('acting');
           break;
         case 'stunned':
           text = 'оглушён';

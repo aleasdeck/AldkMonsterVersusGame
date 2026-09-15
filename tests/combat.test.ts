@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/engine/rng';
 import { heroDef } from '../src/data/heroes';
 import { makeStartingGear } from '../src/data/gear';
-import { ENEMY_LIST, enemyDef } from '../src/data/enemies';
+import { ENEMY_LIST, PHASE_SHIFT, enemyDef } from '../src/data/enemies';
 import { LOCATIONS } from '../src/data/locations';
 import {
   canUseAction,
@@ -696,10 +696,18 @@ describe('боссы', () => {
     expect(a.aura).toBe('#ff3b3b');
     expect(a.block).toBe(6);
     expect(state.events.filter((ev) => ev.type === 'phase' && ev.target === a.uid).length).toBe(1);
+    // Переход стоит хода: намерение — «Раненый зверь» без эффектов, герой в этот ход врагов цел.
+    expect(a.intent).toBe(PHASE_SHIFT);
+    expect(computeIntent(a).text).toMatch(/не действует/);
+    const hpBefore = state.hero.hp;
+    state.enemies = [a]; // волк-напарник в этом замере не нужен
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hpBefore);
+    expect(a.intent).not.toBe(PHASE_SHIFT);
     state.hero.hp = 100000;
     state.hero.maxHp = 100000;
     for (let i = 0; i < 30; i++) {
-      expect(['howl', 'rend']).not.toContain(a.intent);
+      expect(['howl', 'rend', PHASE_SHIFT]).not.toContain(a.intent);
       pass(state, rng);
     }
     // переход одноразовый: добили ниже — второй вспышки нет
