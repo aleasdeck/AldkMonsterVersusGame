@@ -218,7 +218,8 @@ export const LOCATIONS: LocationDef[] = [
         ['bosun', 'rat', 'rat'],
         ['tentacle'],
         ['siren', 'parrot'],
-        ['powder_monkey', 'powder_monkey', 'pirate'],
+        // Две мартышки в одном бою — нет (v0.34.2): их Подрывы за один ход не дефались ничем, кроме удара по площади.
+        ['powder_monkey', 'pirate', 'rat'],
         ['skeleton_warrior', 'skeleton_archer', 'skeleton_archer'],
         ['gunner', 'gunner'],
         ['bosun', 'pirate'],

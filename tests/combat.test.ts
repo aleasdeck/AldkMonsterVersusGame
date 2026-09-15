@@ -502,6 +502,18 @@ describe('новые механики врагов', () => {
     pass(self.state, self.rng);
     expect(self.state.phase).toBe('won');
     expect(self.state.hero.hp).toBe(hp1 - 19); // подрыв 20, Кольца кольчуги гасят 1
+
+    // Фитиль на два хода: два броска бочонка, Подрыв только третьим действием.
+    const fuse = mkBattle('warrior', ['powder_monkey']);
+    expect(first(fuse.state).intent).toBe('throw');
+    pass(fuse.state, fuse.rng);
+    expect(first(fuse.state).intent).toBe('throw');
+    pass(fuse.state, fuse.rng);
+    expect(first(fuse.state).intent).toBe('boom');
+    expect(fuse.state.phase).toBe('player');
+    fuse.state.hero.hp = 99;
+    pass(fuse.state, fuse.rng);
+    expect(fuse.state.phase).toBe('won');
   });
 
   it('метка «Предсмертие» висит только на врагах с эффектом при смерти и расписывает его', () => {
