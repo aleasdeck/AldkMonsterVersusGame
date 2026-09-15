@@ -88,7 +88,7 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
     h('div', { class: 'beast-actions' }, ...def.actions.map((a) => actionRow(def, a, conditional(a)))),
     patternLine(def),
     def.phase2 ? h('h3', null, `Вторая фаза — при HP ниже ${Math.round(def.phase2.atHp * 100)} %`) : null,
-    def.phase2 ? h('div', { class: 'beast-actions' }, actionRow(def, def.phase2, 'меняет набор приёмов')) : null,
+    def.phase2 ? h('div', { class: 'beast-actions' }, actionRow(def, def.phase2, 'сразу, меняет набор приёмов'), actionRow(def, { name: 'Ход перехода', effects: def.phase2.guard }, 'вместо атаки')) : null,
     def.onDeath ? h('h3', null, 'При смерти') : null,
     def.onDeath ? h('div', { class: 'beast-actions' }, actionRow(def, def.onDeath)) : null,
     h('div', { class: 'beast-note dim' }, 'Числа — для первого акта; во втором и третьем враг толще и бьёт сильнее.'),

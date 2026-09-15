@@ -328,7 +328,7 @@ export type EnemyEffect =
   | { type: 'drainMp'; amount: number }
   | { type: 'summon'; enemyId: string; count: number }
   | { type: 'invuln' }
-  | { type: 'thorns'; amount: number }
+  | { type: 'thorns'; amount: number; turns?: number } // turns — на срок (стража перехода), без него навсегда
   | { type: 'dodge'; value: number }
   /** Урон герою, после чего враг погибает. */
   | { type: 'selfDestruct'; amount: number; burn?: number }
@@ -391,7 +391,8 @@ export interface EnemyDef {
    * Вторая фаза босса: как только HP опускается до доли `atHp` от максимума, босс тут же (ещё в ход героя) меняет
    * облик — разыгрывает `effects`, получает ауру цвета `aura` и `phase = 2`; правила ИИ различают фазы через `ctx.self.phase`.
    */
-  phase2?: { atHp: number; name: string; effects: EnemyEffect[]; aura: string };
+  /** Вторая фаза: порог доли HP, эффекты в момент перехода, аура и `guard` — что босс делает на ходу перехода вместо атаки (v0.36: блок, уклонение, неуязвимость или шипы на срок). */
+  phase2?: { atHp: number; name: string; effects: EnemyEffect[]; guard: EnemyEffect[]; aura: string };
   /** Аура с появления: тело, вставшее после смерти босса (Развоплощённый лич, Призрак капитана). */
   aura?: string;
   sprite: SpriteSpec;

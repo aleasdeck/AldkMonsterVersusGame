@@ -318,11 +318,10 @@ const list: ArtifactDef[] = [
     effects: (tier) => [
       // Цена крови 2/1/1 (v0.14): с одной Яростью на старте и без Клича при 3/2/2 Берсерк давал 34 % у бота, с 2/1/1 — 47 %.
       { type: 'selfDamage', amount: t(2, 1, 1)(tier) },
-      // +1 STA на всех тирах в v0.36 (решение пользователя): 3/3/4 вместо 2/2/3.
-      { type: 'gainSta', amount: t(3, 3, 4)(tier) },
+      { type: 'gainSta', amount: t(2, 2, 3)(tier) },
       { type: 'status', target: 'self', status: 'strength', value: t(1, 2, 3)(tier), turns: 1 },
     ],
-    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(3, 3, 4)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
+    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(2, 2, 3)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
   },
   {
     id: 'second_wind',
