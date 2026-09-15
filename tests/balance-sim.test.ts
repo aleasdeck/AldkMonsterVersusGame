@@ -1,7 +1,8 @@
 /**
  * Симуляция баланса: бот проходит забеги за каждого героя и печатает статистику.
  * Запуск: SIM=1 npx vitest run tests/balance-sim.test.ts  (по умолчанию пропускается)
- * SIM_HERO=berserk — один герой, SIM_N=300 — число забегов, SIM_LOCS=caves,caves,caves — локации по актам.
+ * SIM_HERO=berserk — один герой, SIM_N=300 — число забегов, SIM_LOCS=caves,caves,caves — локации по актам,
+ * SIM_SIG=2 — второй персональный артефакт у всех героев (1 — первый, по умолчанию).
  * Сам бот — в tests/sim/bot.ts: планирует ход перебором на копии состояния, вне боя считает ценность предметов.
  */
 import { it } from 'vitest';
@@ -18,6 +19,8 @@ const N = Number(env.SIM_N ?? 60);
 const ONLY = env.SIM_HERO;
 /** SIM_LOCS=caves,caves,caves — зафиксировать локации забега по актам (замер одного босса на всех трёх актах). */
 const LOCS = env.SIM_LOCS?.split(',').filter(Boolean) as RunState['locations'] | undefined;
+/** SIM_SIG=1|2 — с каким персональным артефактом из пары начинать. */
+const SIG = env.SIM_SIG === '2' ? 1 : 0;
 
 for (const hero of HERO_LIST) {
   // Отдельный it на героя: между ними vitest успевает отчитаться воркеру, иначе долгий прогон падает по таймауту RPC.
@@ -32,7 +35,7 @@ for (const hero of HERO_LIST) {
     const byLoc: Record<string, number> = {};
     const bossHp: number[][] = [[], [], []];
     for (let seed = 1; seed <= N; seed++) {
-      const run = newRun(hero.id, seed * 7919);
+      const run = newRun(hero.id, seed * 7919, undefined, hero.signatures[SIG]);
       if (LOCS) run.locations = LOCS;
       const outcome = playRun(run, (r) => bossHp[r.locationIndex].push(r.hero.hp / heroStats(r).maxHp));
       if (outcome === 'victory') wins++;
@@ -69,7 +72,7 @@ for (const hero of HERO_LIST) {
       .map(([k, v]) => `${k.replace('_potion', '')}:${(v / N).toFixed(2)}`)
       .join(' ');
     console.log(
-      `${hero.name.padEnd(8)} побед ${String(wins).padStart(2)}/${N}${stuck ? ` (пат: ${stuck})` : ''}  боёв ${(cleared / N).toFixed(1).padStart(4)}  HP у босса: ${avg(bossHp[0])} ${avg(bossHp[1])} ${avg(bossHp[2])}  смерти: ${top}  где: ${locTop}  приёмы/забег: ${uses}  зелья/забег: ${potions || '—'}  ${((Date.now() - started) / 1000).toFixed(0)} с`,
+      `${hero.name.padEnd(8)} ${SIG ? '②' : '①'} побед ${String(wins).padStart(2)}/${N}${stuck ? ` (пат: ${stuck})` : ''}  боёв ${(cleared / N).toFixed(1).padStart(4)}  HP у босса: ${avg(bossHp[0])} ${avg(bossHp[1])} ${avg(bossHp[2])}  смерти: ${top}  где: ${locTop}  приёмы/забег: ${uses}  зелья/забег: ${potions || '—'}  ${((Date.now() - started) / 1000).toFixed(0)} с`,
     );
     // Большой SIM_N не укладывается в стандартные 5 секунд vitest.
   }, 1_800_000);

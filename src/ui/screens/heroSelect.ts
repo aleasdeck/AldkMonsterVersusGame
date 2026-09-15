@@ -5,6 +5,7 @@ import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
 import { artifactCard, skillLine, statsGrid } from '../components';
 import { spriteImg } from '../sprites';
+import { pickedSignature, signatureUnlocked } from '../save';
 import type { HeroDef } from '../../engine/types';
 import type { App } from '../app';
 
@@ -32,11 +33,33 @@ function heroTile(app: App, def: HeroDef): HTMLElement {
 }
 
 /**
- * Превью справа: роль, владение оружием и бронёй, статы и стартовые артефакты. Всё умещается в кадр без прокрутки,
+ * Карточка персонального артефакта из пары (v0.33): выбранный — с рамкой и меткой, закрытый — затемнён с подписью,
+ * как открыть. Клик по открытому делает его стартовым (выбор живёт в профиле), по закрытому — ничего.
+ */
+function signatureCard(app: App, def: HeroDef, id: string, chosen: string): HTMLElement {
+  const open = signatureUnlocked(app.profile, def, id);
+  const selected = id === chosen;
+  const note = h(
+    'div',
+    { class: 'sig-note' },
+    !open ? 'Откроется после победы за героя' : selected ? '✓ в забег с этим' : 'нажмите, чтобы выбрать',
+  );
+  const card = artifactCard({ id, tier: 1 }, undefined, note);
+  card.classList.add('sig-card');
+  if (selected) card.classList.add('selected');
+  if (!open) card.classList.add('locked');
+  card.setAttribute('tip', open ? (selected ? 'С этим артефактом герой начнёт забег' : 'Нажмите, чтобы начать забег с этим артефактом; второй в этом забеге не выпадет') : `Второй персональный артефакт: откроется, когда ${def.name} пройдёт все три акта`);
+  card.addEventListener('click', () => app.selectSignature(def.id, id));
+  return card;
+}
+
+/**
+ * Превью справа: роль, владение оружием и бронёй, статы и пара персональных артефактов. Всё умещается в кадр без прокрутки,
  * поэтому стартовое снаряжение — одной строкой, а не карточками.
  */
 function heroPreview(app: App, def: HeroDef): HTMLElement {
-  const gear = makeStartingGear(def);
+  const chosen = pickedSignature(app.profile, def);
+  const gear = makeStartingGear(def, chosen);
   const s = computeStats(def, gear.weapon, gear.armor);
   return h(
     'div',
@@ -67,8 +90,8 @@ function heroPreview(app: App, def: HeroDef): HTMLElement {
       h(
         'div',
         { class: 'preview-col' },
-        h('h3', null, 'Персональный артефакт'),
-        h('div', { class: 'preview-arts' }, artifactCard({ id: def.signature, tier: 1 })),
+        h('h3', null, 'Персональный артефакт: один из двух'),
+        h('div', { class: 'preview-arts' }, ...def.signatures.map((id) => signatureCard(app, def, id, chosen))),
       ),
     ),
     h('div', { class: 'row preview-foot' }, button(`Выбрать: ${def.name}`, () => app.newRun(def.id, parseSeed(app.seedText)), { class: 'primary big' })),

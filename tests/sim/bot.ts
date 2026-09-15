@@ -8,7 +8,7 @@
  */
 import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue } from '../../src/engine/combat';
+import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
@@ -240,7 +240,8 @@ export function evaluate(b: BattleState): number {
   if (hpAfter <= 0) return -1000 + hpAfter;
   let s = hpAfter - inc.dot * 0.7;
   // Остаток HP врагов переводим в ходы до конца боя: каждый ход стоит цены хода плюс половины угрозы врагов.
-  const dpt = Math.max(1, ((h.stats.dmgMin + h.stats.dmgMax) / 2 + h.stats.str) * h.maxSta * 0.85);
+  // Сила «Боевого транса» действует только раненому — в ходах до конца боя её видно, в статике (artifactValue) нет.
+  const dpt = Math.max(1, ((h.stats.dmgMin + h.stats.dmgMax) / 2 + h.stats.str + tranceStr(h)) * h.maxSta * 0.85);
   let threat = 0;
   let effTotal = 0;
   for (const e of b.enemies) {
@@ -418,7 +419,7 @@ function hasMagicActive(hero: HeroPersistent, except?: string): boolean {
 
 /** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. */
 export function artifactValue(run: RunState, inst: ArtifactInstance): number {
-  if (inst.id === heroDef(run.hero.defId).signature) return artifactValueRaw(run, inst) * 2;
+  if (inst.id === run.hero.signature) return artifactValueRaw(run, inst) * 2;
   return artifactValueRaw(run, inst);
 }
 function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
@@ -455,6 +456,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
     v += (m.defendBonus ?? 0) * 2.5;
     v += (m.blockKeep ?? 0) * 1.5;
     v += (m.dodgeStart ?? 0) * 5;
+    // «Боевой транс»: Сила и стамина только раненому — Берсерк проводит там примерно половину боёв.
+    v += (m.lowHpStr ?? 0) * 4 * 0.5 + (m.lowHpSta ?? 0) * avg * W.enemyHp * 0.5;
     return v;
   }
   const cost = artifactCost(def, inst.tier);
@@ -509,6 +512,15 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           else if (e.status === 'dodge') per += 4;
           else if (e.status === 'stealth') per += turns * 10;
           else if (e.status === 'regen') per += e.value * turns;
+          else if (e.status === 'thorns') per += e.value * turns * 1.5;
+          // «Натиск»: усталость не ниже порога до конца хода — выигрыш второго и третьего удара в ходу против обычной усталости.
+          else if (e.status === 'onslaught') {
+            const f = e.value / 100;
+            const n = Math.max(1, s.sta);
+            let gain = 0;
+            for (let i = 1; i < n; i++) gain += Math.max(f, s.fatigue) ** i - s.fatigue ** i;
+            per += gain * avg * W.enemyHp * 2;
+          }
           else if (e.status === 'exhaust') per -= e.value * avg * W.enemyHp;
           else per += 2;
         } else {

@@ -1,6 +1,7 @@
 import type { ArmorType, ArtifactInstance, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, SlotKind, StatMods, WeaponReach, WeaponType } from '../engine/types';
 import { chance, pick, weighted, type Rng } from '../engine/rng';
 import { artifactDef } from './artifacts';
+import { defaultSignature } from './heroes';
 
 type ByTier = [number, number, number, number, number];
 
@@ -793,9 +794,10 @@ export function upgradePreview(gear: GearInstance): string {
  * Стартовая пара: по одному сокету типа предмета в оружии и броне. Персональный артефакт встаёт в тот предмет,
  * чей сокет его принимает (v0.31): пять сигнатур — в оружие, Дымовая шашка Ассасина — в покров.
  */
-export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: GearInstance } {
-  const sig: ArtifactInstance = { id: def.signature, tier: 1 };
-  const inWeapon = artifactDef(def.signature).slot === 'weapon';
+/** Стартовые оружие и броня героя: выбранный персональный артефакт (по умолчанию первый из пары) в предмете своего типа. */
+export function makeStartingGear(def: HeroDef, signature: string = defaultSignature(def)): { weapon: GearInstance; armor: GearInstance } {
+  const sig: ArtifactInstance = { id: signature, tier: 1 };
+  const inWeapon = artifactDef(signature).slot === 'weapon';
   return {
     weapon: {
       kind: 'weapon',

@@ -39,7 +39,7 @@ describe('открытие записей забегом', () => {
     const keys = loadoutFinds(run.hero);
     expect(keys).toContain(`weapon:${run.hero.weapon.base}`);
     expect(keys).toContain(`armor:${run.hero.armor.base}`);
-    expect(keys).toContain(findKey(`art:${heroDef('warrior').signature}`, 1));
+    expect(keys).toContain(findKey(`art:${heroDef('warrior').signatures[0]}`, 1));
   });
 
   it('«Шкура» Берсерка записи не открывает — её нет в каталоге', () => {

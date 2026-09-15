@@ -4,11 +4,11 @@ import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
 import { eventFx, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
-import { clearRun, loadProfile, loadRun, recordEnemies, recordFinds, recordResult, saveRun, type Profile } from './save';
+import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
 import { fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
 import { loadoutFinds } from '../data/collection';
-import { HERO_LIST } from '../data/heroes';
+import { HERO_LIST, heroDef } from '../data/heroes';
 import { menuScreen } from './screens/menu';
 import { heroSelectScreen } from './screens/heroSelect';
 import { mapScreen } from './screens/map';
@@ -336,6 +336,19 @@ export class App {
     this.render();
   }
 
+  /** Клик по карточке персонального артефакта на экране героя: закрытый не выбирается, выбор живёт в профиле. */
+  selectSignature(heroId: string, id: string): void {
+    if (!signatureUnlocked(this.profile, heroDef(heroId), id)) return;
+    this.profile = saveSignaturePick(heroId, id);
+    this.render();
+  }
+
+  /** Отладка из консоли: `mv.unlockAll()` открывает вторые персональные артефакты всем героям, `mv.unlockAll(false)` закрывает. */
+  unlockAll(on = true): void {
+    this.profile = setAllUnlocked(on);
+    this.render();
+  }
+
   showCollection(): void {
     this.screen = 'collection';
     this.render();
@@ -385,10 +398,16 @@ export class App {
     this.render();
   }
 
-  /** `debug` — забег начат отладочным параметром URL: в статистику уйдёт с пометкой. */
-  newRun(heroId: string, seed?: number, debug = false): void {
+  /**
+   * `debug` — забег начат отладочным параметром URL: в статистику уйдёт с пометкой. `signature` — персональный артефакт
+   * (отладочный `&sig=`, мимо открытия); без него — выбор из профиля, если открыт, иначе первый из пары.
+   */
+  newRun(heroId: string, seed?: number, debug = false, signature?: string): void {
     this.dropRun();
-    this.run = R.newRun(heroId, seed);
+    const def = heroDef(heroId);
+    // Чужой или опечатанный id из URL — молча первый из пары, а не сломанная страница.
+    const sig = signature && def.signatures.includes(signature) ? signature : pickedSignature(this.profile, def);
+    this.run = R.newRun(heroId, seed, Date.now(), sig);
     this.run.debug = debug;
     this.armed = null;
     this.resultRecorded = false;

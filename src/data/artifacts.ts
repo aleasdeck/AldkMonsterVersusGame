@@ -209,6 +209,18 @@ const list: ArtifactDef[] = [
     mods: (tier) => ({ dodgeStart: t(1, 1, 2)(tier) }),
     describe: (tier) => (t(1, 1, 2)(tier) === 1 ? 'Первая атака врага в бою промахивается' : 'Первые 2 атаки врага в бою промахиваются'),
   },
+  {
+    id: 'battle_trance',
+    name: 'Боевой транс',
+    glyph: '☄',
+    kind: 'passive',
+    // Второй персональный Берсерка (v0.33): бронная пассивка — оружие остаётся свободным, а Сила и лишнее очко приходят,
+    // когда HP уже пролито. Порог — две трети HP (TRANCE_HP_PCT в combat.ts), считается по текущим HP в бою. Одна Сила без
+    // стамины Ярость не заменяла: бот падал до 4–8 %, с очком на пороге ⅔ — 24 %.
+    slot: 'armor',
+    mods: (tier) => ({ lowHpStr: t(3, 4, 5)(tier), lowHpSta: 1 }),
+    describe: (tier) => `Пока HP ниже двух третей: +${t(3, 4, 5)(tier)} к Силе и +1 STA в начале хода`,
+  },
   // ─── Активные физические (STA) ───────────────────────────────────────────
   {
     id: 'heavy_strike',
@@ -298,6 +310,23 @@ const list: ArtifactDef[] = [
     describe: (tier) => `+${t(2, 3, 4)(tier)} к Силе на этот и следующий ход. КД 3`,
   },
   {
+    id: 'onslaught',
+    fx: { color: '#ff7b00' },
+    name: 'Натиск',
+    glyph: '⚡',
+    kind: 'active',
+    slot: 'weapon',
+    school: 'physical',
+    // Второй персональный Воина (v0.33): ставка на серию ударов вместо блока. Стоит 0 STA: за 1 STA он не окупался бы никогда —
+    // с тремя очками два удара на 0.9 (1.9 урона) слабее трёх на 0.75 (2.31). Статус `onslaught` держит усталость не ниже порога
+    // до конца хода (fatigueMult в combat.ts); чем больше стамины набрано Кольцом, Вторым дыханием и Адреналином, тем он ценнее.
+    cost: { sta: 0 },
+    cooldown: () => 3,
+    target: 'self',
+    effects: (tier) => [{ type: 'status', target: 'self', status: 'onslaught', value: t(90, 95, 100)(tier), turns: 1 }],
+    describe: (tier) => (t(90, 95, 100)(tier) === 100 ? 'До конца хода удары не выдыхаются: усталости нет. КД 3' : `До конца хода усталость не ниже ${t(90, 95, 100)(tier)} %: каждый следующий удар слабее лишь на ${100 - t(90, 95, 100)(tier)} %. КД 3`),
+  },
+  {
     id: 'rage',
     name: 'Ярость',
     glyph: '✸',
@@ -361,6 +390,21 @@ const list: ArtifactDef[] = [
     describe: (tier) => `Атака +${t(0, 1, 2)(tier)} и Слабость на ${t(1, 2, 3)(tier)} ход(а). КД 2`,
   },
   {
+    id: 'arrow_rain',
+    fx: { kind: 'arrow', color: '#e9c46a' },
+    name: 'Дождь из стрел',
+    glyph: '⇶',
+    kind: 'active',
+    slot: 'weapon',
+    school: 'physical',
+    cost: { sta: 2 },
+    cooldown: () => 2,
+    target: 'allEnemies',
+    // Второй персональный Лучника (v0.33): Вихрь стрелка — процент выше (Вихрь 50 %), приём по всем дальности не знает.
+    effects: (tier) => [{ type: 'attack', bonus: 0, target: 'allEnemies', mult: t(0.6, 0.7, 0.8)(tier) }],
+    describe: (tier) => `${t(60, 70, 80)(tier)} % урона атаки по всем врагам. КД 2`,
+  },
+  {
     id: 'smoke_bomb',
     name: 'Дымовая шашка',
     glyph: '☁',
@@ -391,6 +435,26 @@ const list: ArtifactDef[] = [
     reach: 'any',
     effects: (tier) => [{ type: 'status', target: 'enemy', status: 'poison', value: t(2, 3, 4)(tier), turns: 4 }],
     describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода (стакается). До ${t(1, 2, 2)(tier)} раз за ход. Бросок не снимает скрытность`,
+  },
+  {
+    id: 'double_lunge',
+    fx: { kind: 'melee', color: '#8d99ae' },
+    name: 'Двойной выпад',
+    glyph: '⚔',
+    kind: 'active',
+    slot: 'weapon',
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 2,
+    target: 'enemy',
+    // Второй персональный Ассасина (v0.33): два удара одним действием — усталость считает их одной атакой, но скрытность
+    // спадает после первого (performAction снимает её после каждого бьющего эффекта), так что в спину бьёт только он.
+    effects: (tier) => [
+      // 75/85/100 %, а не 60/70/80 (бот 18 → 23 %): без шашки Ассасин теряет тень, и выпад должен возвращать урон сам.
+      { type: 'attack', bonus: 0, target: 'enemy', mult: t(0.75, 0.85, 1)(tier) },
+      { type: 'attack', bonus: 0, target: 'enemy', mult: t(0.75, 0.85, 1)(tier) },
+    ],
+    describe: (tier) => `Два удара по ${t(75, 85, 100)(tier)} % урона; из тени в спину бьёт только первый. КД 2`,
   },
 
   {
@@ -655,6 +719,24 @@ const list: ArtifactDef[] = [
     describe: (tier) => `${t(3, 5, 6)(tier)} урона заклинанием и Горение ${t(1, 2, 3)(tier)} на 2 хода. Раз в ход`,
   },
   {
+    id: 'fire_wave',
+    fx: { color: '#ff7b00' },
+    name: 'Огненная волна',
+    glyph: '≋',
+    kind: 'active',
+    slot: 'weapon',
+    school: 'magic',
+    cost: { mp: 2 },
+    cooldown: () => 1,
+    target: 'allEnemies',
+    // Второй персональный Мага (v0.33): урон по площади и по времени против Волшебной стрелы-«пулемёта».
+    effects: (tier) => [
+      { type: 'spell', amount: t(2, 3, 4)(tier), target: 'allEnemies' },
+      { type: 'status', target: 'allEnemies', status: 'burn', value: t(1, 2, 2)(tier), turns: 2 },
+    ],
+    describe: (tier) => `${t(2, 3, 4)(tier)} урона заклинанием всем врагам и Горение ${t(1, 2, 2)(tier)} на 2 хода всем. Раз в ход`,
+  },
+  {
     id: 'hex',
     fx: { kind: 'orb', color: '#6a4fb3' },
     name: 'Сглаз',
@@ -668,6 +750,25 @@ const list: ArtifactDef[] = [
     target: 'allEnemies',
     effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'vulnerable', value: 1, turns: t(2, 3, 3)(tier) }],
     describe: (tier) => `Уязвимость всем врагам на ${t(2, 3, 3)(tier)} ход(а). КД 3`,
+  },
+  {
+    id: 'vengeance_halo',
+    name: 'Ореол возмездия',
+    glyph: '❂',
+    kind: 'active',
+    // Второй персональный Паладина (v0.33): бронный — оружие остаётся свободным, как у Ассасина с шашкой, только наоборот.
+    // Танк, об которого бьются, против танка, который лечится ударами (Молот света).
+    slot: 'armor',
+    school: 'magic',
+    cost: { mp: 1 },
+    cooldown: () => 3,
+    target: 'self',
+    effects: (tier) => [
+      { type: 'status', target: 'self', status: 'thorns', value: t(2, 3, 4)(tier), turns: 3 },
+      // Регенерация 2/2/3, а не 1/1/2 (бот 18 → 24 %): Паладин без Молота лечится только ей.
+      { type: 'status', target: 'self', status: 'regen', value: t(2, 2, 3)(tier), turns: 3 },
+    ],
+    describe: (tier) => `Шипы ${t(2, 3, 4)(tier)} и Регенерация ${t(2, 2, 3)(tier)} на 3 хода. КД 3`,
   },
 ];
 

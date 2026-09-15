@@ -3,7 +3,7 @@ import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, reachableEnemies, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueBase, fatigueMult, isHidden, previewAttack, rangeText, reachableEnemies, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
@@ -31,9 +31,10 @@ function badges(c: Combatant, withBlock: boolean, enemy?: EnemyState, ...extra: 
  */
 function fatigueBadge(b: BattleState): HTMLElement | null {
   const hero = b.hero;
-  if (hero.attacks === 0 || hero.stats.fatigue >= 1) return null;
+  // Под «Натиском» усталость мягче (fatigueBase): бейдж считает шаг по ней, а при полном пороге не показывается вовсе.
+  if (hero.attacks === 0 || fatigueBase(hero) >= 1) return null;
   const pct = Math.round(fatigueMult(b) * 100);
-  const step = Math.round((1 - hero.stats.fatigue) * 100);
+  const step = Math.round((1 - fatigueBase(hero)) * 100);
   return h(
     'span',
     {

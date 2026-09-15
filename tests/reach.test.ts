@@ -20,7 +20,7 @@ function mkBattle(heroId: string, enemies: string[], w?: GearInstance, arts: Art
   const gear = makeStartingGear(def);
   const wpn = w ?? gear.weapon;
   wpn.slots = [...wpn.slots, ...arts];
-  const hero: HeroPersistent = { defId: heroId, hp: 999, weapon: wpn, armor: gear.armor, potion: null };
+  const hero: HeroPersistent = { defId: heroId, signature: def.signatures[0], hp: 999, weapon: wpn, armor: gear.armor, potion: null };
   const rng = createRng(1);
   const state = createBattle(def, hero, enemies, rng);
   state.hero.stats.crit = 0;

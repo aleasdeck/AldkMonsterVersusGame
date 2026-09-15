@@ -44,7 +44,7 @@ function mkHero(heroId: string, extra: ArtifactInstance[] = [], potion: string |
   gear.armor.slots = [{ id: pair[1], tier: 1 }];
   // Дополнительные артефакты — в расширенные слоты оружия.
   for (const a of extra) gear.weapon.slots.push(a);
-  return { defId: heroId, hp: 999, weapon: gear.weapon, armor: gear.armor, potion };
+  return { defId: heroId, signature: def.signatures[0], hp: 999, weapon: gear.weapon, armor: gear.armor, potion };
 }
 
 function mkBattle(heroId: string, enemies: string[], opts: { extra?: ArtifactInstance[]; seed?: number; potion?: string } = {}) {
@@ -1112,6 +1112,103 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     expect(p.state.hero.sta).toBe(2);
     expect(p.state.hero.mp).toBe(5);
     expect(canUseAction(p.state, { type: 'artifact', artifactId: 'light_hammer', target: first(p.state).uid })).toMatch(/Перезарядка/);
+  });
+});
+
+describe('v0.33: вторые персональные артефакты', () => {
+  it('Натиск: 0 STA, до конца хода усталость не ниже 90 %, на новом ходу усталость обычная', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'onslaught', tier: 1 }] });
+    const bear = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'onslaught' }, rng);
+    expect(state.hero.sta).toBe(3);
+    expect(state.hero.cooldowns.onslaught).toBe(3);
+    expect(getStatus(state.hero, 'onslaught')?.value).toBe(90);
+    for (let i = 0; i < 3; i++) performAction(state, { type: 'attack', target: bear.uid }, rng);
+    // 5, floor(5 × 0.9) = 4, floor(5 × 0.81) = 4 — против 5 / 3 / 2 без Натиска
+    expect(bear.hp).toBe(35 - 5 - 4 - 4);
+    pass(state, rng);
+    expect(getStatus(state.hero, 'onslaught')).toBeUndefined();
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 13 - 5 - 3);
+    // Третий тир — усталости нет вовсе.
+    const t3 = mkBattle('warrior', ['bear'], { extra: [{ id: 'onslaught', tier: 3 }] });
+    performAction(t3.state, { type: 'artifact', artifactId: 'onslaught' }, t3.rng);
+    for (let i = 0; i < 3; i++) performAction(t3.state, { type: 'attack', target: first(t3.state).uid }, t3.rng);
+    expect(first(t3.state).hp).toBe(35 - 15);
+  });
+
+  it('Огненная волна: 2 MP, урон заклинания + сила посоха всем и Горение всем на 2 хода, раз в ход', () => {
+    const { state, rng } = mkBattle('mage', ['bear', 'bear'], { extra: [{ id: 'fire_wave', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'fire_wave' }, rng);
+    expect(state.hero.mp).toBe(7 - 2); // 5 маны Мага + 2 посоха
+    expect(state.hero.cooldowns.fire_wave).toBe(1);
+    // 2 урона + 1 сила заклинаний посоха, Горение 1 на 2 хода — каждому.
+    for (const e of state.enemies) {
+      expect(e.hp).toBe(35 - 3);
+      expect(getStatus(e, 'burn')).toEqual({ id: 'burn', value: 1, turns: 2 });
+    }
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'fire_wave' })).toBe('Перезарядка: 1');
+  });
+
+  it('Двойной выпад: два удара по 75 % за 1 STA считаются одной атакой, из тени в спину бьёт только первый', () => {
+    const { state, rng } = mkBattle('assassin', ['bear'], { extra: [{ id: 'double_lunge', tier: 1 }] });
+    const bear = first(state);
+    expect(getStatus(state.hero, 'stealth')).toBeDefined();
+    performAction(state, { type: 'artifact', artifactId: 'double_lunge', target: bear.uid }, rng);
+    expect(state.hero.sta).toBe(2);
+    expect(state.hero.attacks).toBe(1);
+    // Первый удар из тени: (4 + 3 в спину) × 0.75 = 5, крит 190 % = 9; второй уже на виду: 4 × 0.75 = 3, без крита.
+    expect(bear.hp).toBe(35 - 9 - 3);
+    expect(getStatus(state.hero, 'stealth')).toBeUndefined();
+    // Следующая обычная атака — вторая в ходу (усталость 0.7: floor(4 × 0.7) = 2): выпад считался одной атакой.
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 12 - 2);
+  });
+
+  it('Ореол возмездия: 1 MP, КД 3, Шипы и Регенерация на себя на 3 хода — враг ранится об удар, герой лечится в начале хода', () => {
+    const { state, rng } = mkBattle('paladin', ['bear'], { extra: [{ id: 'vengeance_halo', tier: 1 }] });
+    const bear = first(state);
+    state.hero.hp = 20;
+    performAction(state, { type: 'artifact', artifactId: 'vengeance_halo' }, rng);
+    expect(state.hero.mp).toBe(6 - 1);
+    expect(state.hero.sta).toBe(3);
+    expect(state.hero.cooldowns.vengeance_halo).toBe(3);
+    expect(getStatus(state.hero, 'thorns')).toEqual({ id: 'thorns', value: 2, turns: 3 });
+    expect(getStatus(state.hero, 'regen')).toEqual({ id: 'regen', value: 2, turns: 3 });
+    pass(state, rng);
+    expect(bear.hp).toBe(35 - 2); // медведь бьёт Лапой — и ранится о шипы
+    expect(state.hero.hp).toBe(20 - 9 + 2); // Лапа 9, регенерация 2 в начале хода
+  });
+
+  it('Боевой транс: Сила и лишняя стамина приходят только ниже двух третей HP', () => {
+    const { state, rng } = mkBattle('berserk', ['bear'], { extra: [{ id: 'battle_trance', tier: 1 }] });
+    const bear = first(state);
+    expect(state.hero.stats.lowHpStr).toBe(3);
+    expect(state.hero.stats.lowHpSta).toBe(1);
+    expect(state.hero.maxHp).toBe(44);
+    state.hero.hp = 30; // выше 44 × ⅔ ≈ 29.3 — ещё не транс
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 5);
+    expect(previewAttack(state)).toEqual({ min: Math.floor(5 * 0.85), max: Math.floor(5 * 0.85) });
+    state.hero.hp = 29;
+    expect(previewAttack(state)).toEqual({ min: Math.floor(8 * 0.85), max: Math.floor(8 * 0.85) });
+    pass(state, rng);
+    // Начало хода раненым: 3 STA + 1 от транса (удар медведя до этого оставил героя ниже порога).
+    expect(state.hero.hp).toBeLessThan(29);
+    expect(state.hero.sta).toBe(4);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 5 - 8);
+  });
+
+  it('Дождь из стрел: 2 STA, КД 2, 60 % урона по всем врагам через весь ряд', () => {
+    const { state, rng } = mkBattle('archer', ['bear', 'bear', 'bear'], { extra: [{ id: 'arrow_rain', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'arrow_rain' }, rng);
+    expect(state.hero.sta).toBe(1);
+    expect(state.hero.cooldowns.arrow_rain).toBe(2);
+    // Лук 3–7 на среднем — 5, Прицел лука +2 первому выстрелу в ходу: (5 + 2) × 0.6 = 4 каждому.
+    for (const e of state.enemies) expect(e.hp).toBe(35 - 4);
+    expect(state.hero.attacks).toBe(1);
   });
 });
 

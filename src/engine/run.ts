@@ -1,7 +1,7 @@
 import type { ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RoomKind, RunState } from './types';
 import { SAVE_VERSION } from './types';
 import { chance, createRng, pick } from './rng';
-import { heroDef } from '../data/heroes';
+import { defaultSignature, heroDef } from '../data/heroes';
 import { makeStartingGear, upgradeGearTier } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, ROOM_NAMES, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
@@ -41,10 +41,14 @@ export function randomSeed(): number {
   return (Math.random() * 0xffffffff) >>> 0;
 }
 
-/** `now` — момент старта; тесты и симулятор могут подставить свой, чтобы состояние не зависело от часов. */
-export function newRun(heroId: string, seed: number = randomSeed(), now: number = Date.now()): RunState {
+/**
+ * `now` — момент старта; тесты и симулятор могут подставить свой, чтобы состояние не зависело от часов.
+ * `signature` — с каким из пары персональных артефактов начать (по умолчанию первый); чужой id — ошибка.
+ */
+export function newRun(heroId: string, seed: number = randomSeed(), now: number = Date.now(), signature: string = defaultSignature(heroDef(heroId))): RunState {
   const def = heroDef(heroId);
-  const gear = makeStartingGear(def);
+  if (!def.signatures.includes(signature)) throw new Error(`Not a signature of ${heroId}: ${signature}`);
+  const gear = makeStartingGear(def, signature);
   const stats = computeStats(def, gear.weapon, gear.armor);
   const rng = createRng(seed);
   return {
@@ -53,7 +57,7 @@ export function newRun(heroId: string, seed: number = randomSeed(), now: number 
     debug: false,
     reported: false,
     rng,
-    hero: { defId: heroId, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
+    hero: { defId: heroId, signature, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
     gold: START_GOLD,
     locations: pickRunLocations(rng),
     locationIndex: 0,

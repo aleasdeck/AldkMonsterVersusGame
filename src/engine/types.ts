@@ -39,7 +39,8 @@ export type StatusId =
   | 'stealth' // враги не видят героя; любая атака — удар в спину (крит) и снимает статус (только герой)
   | 'vulnerable' // получает на 25 % больше урона от ударов и заклинаний (VULNERABLE_MULT), turns ходов
   | 'doom' // предсмертие: метка врага с onDeath — сам ничего не делает, но в подсказке видно, что случится после его гибели (только враги)
-  | 'evade'; // процентный уворот: удар или заклинание по владельцу с шансом value % мимо; раны (DoT) и шипы бьют всегда (только враги)
+  | 'evade' // процентный уворот: удар или заклинание по владельцу с шансом value % мимо; раны (DoT) и шипы бьют всегда (только враги)
+  | 'onslaught'; // натиск: до конца хода усталость героя не ниже value % («Натиск» Воина; только герой)
 
 export interface Status {
   id: StatusId;
@@ -122,6 +123,10 @@ export interface DerivedStats {
   reachAny: number;
   /** >0 — базовый удар хлещет по всему ряду на SWEEP_MULT урона (перк плети «Хлёст», только у владеющего); приёмы бьют как ближнее оружие. */
   sweep: number;
+  /** Прибавка к Силе, пока герой ранен — HP ниже доли TRANCE_HP_PCT (combat.ts) от максимума («Боевой транс» Берсерка). */
+  lowHpStr: number;
+  /** Стамина сверх максимума в начале каждого хода, пока герой ранен (тот же порог; «Боевой транс»). */
+  lowHpSta: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -299,10 +304,12 @@ export interface HeroDef {
   weapon: { base: string; name: string; dmgMin: number; dmgMax: number };
   armor: { base: string; name: string; def: number; hp: number };
   /**
-   * Персональный артефакт: стоит в оружии на старте (слот брони пуст) и выпадает в забеге только этому герою —
-   * дубликат апгрейдит стоящий, а выброшенный можно найти снова. Другим героям не попадается вовсе.
+   * Персональные артефакты (v0.33 — пара): один из них стоит на старте в предмете своего типа, второй сокет пуст.
+   * Первый открыт всегда, второй — после победы этим героем (профиль, `heroWins`); выбор — на экране героя.
+   * Выбранный выпадает в забеге только этому герою (дубликат апгрейдит стоящий, выброшенный находится снова),
+   * невыбранный в этом забеге не выпадает никому. Другим героям персональные не попадаются вовсе.
    */
-  signature: string;
+  signatures: [string, string];
   sprite: SpriteSpec;
 }
 
@@ -513,6 +520,8 @@ export type LootItem = LootArtifact | LootGear | LootPotion;
 
 export interface HeroPersistent {
   defId: string;
+  /** Персональный артефакт, с которым начат забег (один из `HeroDef.signatures`): только он и выпадает герою в этом забеге. */
+  signature: string;
   hp: number;
   weapon: GearInstance;
   armor: GearInstance;
@@ -606,9 +615,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.32.3';
+export const GAME_VERSION = '0.33';
 
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

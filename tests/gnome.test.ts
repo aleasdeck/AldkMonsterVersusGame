@@ -146,7 +146,7 @@ describe('гном-вещекрад', () => {
 
   it('тянет и персональный артефакт: неприкосновенных нет', () => {
     const run = snatcherRun(3, 'mage', []);
-    const signature = heroDef('mage').signature;
+    const signature = heroDef('mage').signatures[0];
     // У Мага на старте в сокете только Волшебная стрела — её и стянут.
     expect(run.battle!.hero.artifacts.map((a) => a.id)).toEqual([signature]);
     passTurn(run);

@@ -44,6 +44,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   vulnerable: 'Уязвимость',
   doom: 'Предсмертие',
   evade: 'Уворот',
+  onslaught: 'Натиск',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -62,6 +63,7 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
+  onslaught: 'До конца хода усталость не ниже N %: серия ударов почти не слабеет',
 };
 
 /**
@@ -72,6 +74,23 @@ export const VULNERABLE_MULT = 1.25;
 
 /** Ниже этой доли HP цель считается раненой: «Клеймо палача» добавляет шанс крита по ней. */
 export const EXECUTE_HP_PCT = 0.2;
+
+/**
+ * Ниже этой доли HP герой ранен и входит в транс: «Боевой транс» Берсерка прибавляет Силу (`lowHpStr`) и стамину
+ * в начале хода (`lowHpSta`). Строго ниже двух третей: порог в половину бот не переживал (14 % против 24 %, v0.33) —
+ * Берсерк без Ярости к половине HP уже проигрывает бой.
+ */
+export const TRANCE_HP_PCT = 2 / 3;
+
+/** Герой ранен настолько, что «Боевой транс» работает. */
+export function inTrance(h: HeroBattle): boolean {
+  return h.hp < h.maxHp * TRANCE_HP_PCT;
+}
+
+/** Сила от «Боевого транса» прямо сейчас: своя доля только пока герой ранен. */
+export function tranceStr(h: HeroBattle): number {
+  return h.stats.lowHpStr > 0 && inTrance(h) ? h.stats.lowHpStr : 0;
+}
 
 // ─── Дальность ─────────────────────────────────────────────────────────────
 
@@ -566,9 +585,22 @@ export function defendBlock(stats: { def: number; defendBonus: number }): number
   return Math.ceil((stats.def + stats.defendBonus) * DEFEND_MULT);
 }
 
-/** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя. */
+/** Усталость героя с поправкой на «Натиск»: статус до конца хода не даёт ей опуститься ниже своего порога. */
+export function fatigueBase(h: HeroBattle): number {
+  return Math.max(h.stats.fatigue, statusValue(h, 'onslaught') / 100);
+}
+
+/** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя (под «Натиском» — не ниже его порога). */
 export function fatigueMult(state: BattleState): number {
-  return state.hero.stats.fatigue ** state.hero.attacks;
+  return fatigueBase(state.hero) ** state.hero.attacks;
+}
+
+/**
+ * Сила героя прямо сейчас: стат, временная Сила от статуса и «Боевой транс», который прибавляет свою долю только пока
+ * герой ранен — единственный стат, зависящий от текущего состояния боя, поэтому считается здесь, а не в computeStats.
+ */
+export function heroStr(h: HeroBattle): number {
+  return h.stats.str + statusValue(h, 'strength') + tranceStr(h);
 }
 
 /** Бонус первого удара в ходу (Прицел лука): пока атак в этом ходу не было. */
@@ -588,11 +620,11 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
   const add = (name: string, v: number) => {
     if (v > 0) parts.push(`${name} ${v}`);
   };
-  add('Сила', h.stats.str + statusValue(h, 'strength'));
+  add('Сила', heroStr(h));
   add('приём', bonus);
   add('первый удар', firstHitBonus(state));
   add('в спину', stealthed ? h.stats.backstab : 0);
-  const flat = h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0);
+  const flat = heroStr(h) + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0);
   const base = roll + flat;
   const steps: string[] = [parts.length > 1 ? `${parts.join(' + ')} = ${base}` : parts[0]];
   const fatigue = fatigueMult(state);
@@ -677,7 +709,7 @@ export interface DamageRange {
 /** Предпросмотр разброса урона атаки без крита — для интерфейса. */
 export function previewAttack(state: BattleState, bonus = 0, mult = 1): DamageRange {
   const h = state.hero;
-  const flat = h.stats.str + statusValue(h, 'strength') + bonus + firstHitBonus(state) + (isHidden(h) ? h.stats.backstab : 0);
+  const flat = heroStr(h) + bonus + firstHitBonus(state) + (isHidden(h) ? h.stats.backstab : 0);
   const scale = mult * fatigueMult(state);
   let min = Math.floor((h.stats.dmgMin + flat) * scale);
   let max = Math.floor((h.stats.dmgMax + flat) * scale);
@@ -867,9 +899,11 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     const def = potionDef(h.potion!);
     h.potion = null;
     log(state, `Герой пьёт: ${def.name}`);
-    for (const eff of def.effects) applyEffect(state, eff, action.target, rng);
+    for (const eff of def.effects) {
+      applyEffect(state, eff, action.target, rng);
+      if (eff.type === 'attack' || eff.type === 'spell') breakStealth(state);
+    }
     if (def.effects.some((e) => e.type === 'attack')) h.attacks += 1;
-    if (def.effects.some((e) => e.type === 'attack' || e.type === 'spell')) breakStealth(state);
   } else {
     const def = artifactDef(action.artifactId);
     const inst = h.artifacts.find((a) => a.id === def.id)!;
@@ -881,9 +915,13 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     h.uses[def.id] = (h.uses[def.id] ?? 0) + 1;
     log(state, `Герой: ${def.name}`);
     const effects = def.effects?.(inst.tier) ?? [];
-    for (const eff of effects) applyEffect(state, eff, action.target, rng);
+    // Скрытность спадает после каждого бьющего эффекта, а не после всего приёма: у Двойного выпада в спину бьёт только первый
+    // удар. Один эффект по всем (Вихрь) по-прежнему целиком из тени. Счётчик атак растёт один раз — приём и есть одна атака.
+    for (const eff of effects) {
+      applyEffect(state, eff, action.target, rng);
+      if (eff.type === 'attack' || eff.type === 'spell' || eff.type === 'blockStrike') breakStealth(state);
+    }
     if (effects.some((e) => e.type === 'attack')) h.attacks += 1;
-    if (effects.some((e) => e.type === 'attack' || e.type === 'spell' || e.type === 'blockStrike')) breakStealth(state);
   }
   cleanupDead(state, rng);
 }
@@ -902,6 +940,11 @@ function startPlayerTurn(state: BattleState): void {
   const ex = getStatus(h, 'exhaust');
   h.sta = Math.max(0, h.maxSta - (ex?.value ?? 0));
   if (ex) removeStatus(h, 'exhaust');
+  // «Боевой транс»: раненому — лишнее очко в начале хода (проверка до ран этого хода, как и Сила — по HP на момент начала).
+  if (h.stats.lowHpSta > 0 && inTrance(h)) {
+    h.sta += h.stats.lowHpSta;
+    log(state, `Боевой транс: +${h.stats.lowHpSta} STA`);
+  }
   if (state.turn === 1) h.sta += h.stats.firstTurnSta;
   else h.mp = Math.min(h.maxMp, h.mp + h.stats.mpRegen);
   for (const k of Object.keys(h.cooldowns)) if (h.cooldowns[k] > 0) h.cooldowns[k] -= 1;

@@ -9,31 +9,37 @@ import type { HeroPersistent } from '../src/engine/types';
 
 /** Герой с классической парой артефактов (приём в оружии, пассивка в броне) — на ней проверяем механику слотов. */
 function mkHero(id = 'warrior'): HeroPersistent {
-  const gear = makeStartingGear(heroDef(id));
+  const def = heroDef(id);
+  const gear = makeStartingGear(def);
   gear.weapon.slots = [{ id: 'heavy_strike', tier: 1 }];
   gear.armor.slots = [{ id: 'troll_heart', tier: 1 }];
-  return { defId: id, hp: 40, weapon: gear.weapon, armor: gear.armor, potion: null };
+  return { defId: id, signature: def.signatures[0], hp: 40, weapon: gear.weapon, armor: gear.armor, potion: null };
 }
 
 describe('артефакты и слоты', () => {
-  it('на старте персональный артефакт в предмете своего типа, второй сокет пуст; сокеты типизированы', () => {
+  it('на старте выбранный персональный артефакт в предмете своего типа, второй сокет пуст; сокеты типизированы', () => {
     for (const def of HERO_LIST) {
-      const gear = makeStartingGear(def);
-      const inWeapon = artifactDef(def.signature).slot === 'weapon';
-      expect(gear.weapon.slots, def.id).toEqual([inWeapon ? { id: def.signature, tier: 1 } : null]);
-      expect(gear.armor.slots, def.id).toEqual([inWeapon ? null : { id: def.signature, tier: 1 }]);
-      expect(gear.weapon.slotKinds).toEqual(['weapon']);
-      expect(gear.armor.slotKinds).toEqual(['armor']);
-      expect(SIGNATURE_OWNER[def.signature]).toBe(def.id);
+      for (const sig of def.signatures) {
+        const gear = makeStartingGear(def, sig);
+        const inWeapon = artifactDef(sig).slot === 'weapon';
+        expect(gear.weapon.slots, `${def.id} ${sig}`).toEqual([inWeapon ? { id: sig, tier: 1 } : null]);
+        expect(gear.armor.slots, `${def.id} ${sig}`).toEqual([inWeapon ? null : { id: sig, tier: 1 }]);
+        expect(gear.weapon.slotKinds).toEqual(['weapon']);
+        expect(gear.armor.slotKinds).toEqual(['armor']);
+        expect(SIGNATURE_OWNER[sig]).toBe(def.id);
+      }
+      // Без аргумента — первый из пары.
+      expect([...makeStartingGear(def).weapon.slots, ...makeStartingGear(def).armor.slots].find(Boolean)?.id).toBe(def.signatures[0]);
     }
-    // Пять сигнатур в оружии, Дымовая шашка Ассасина — в покрове.
-    expect(HERO_LIST.filter((d) => artifactDef(d.signature).slot === 'armor').map((d) => d.id)).toEqual(['assassin']);
+    // Первые сигнатуры: пять в оружии, Дымовая шашка Ассасина — в покрове. Вторые: у Паладина и Берсерка — бронные.
+    expect(HERO_LIST.filter((d) => artifactDef(d.signatures[0]).slot === 'armor').map((d) => d.id)).toEqual(['assassin']);
+    expect(HERO_LIST.filter((d) => artifactDef(d.signatures[1]).slot === 'armor').map((d) => d.id)).toEqual(['paladin', 'berserk']);
   });
 
-  it('типы артефактов: 27 оружейных и 25 бронных, у каждого тип задан', () => {
+  it('типы артефактов: 31 оружейный и 27 бронных, у каждого тип задан', () => {
     const ids = Object.keys(ARTIFACTS);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(27);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(25);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(31);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(27);
   });
 
   it('сокет своего типа не принимает чужой артефакт, универсальный принимает любой', () => {
