@@ -449,19 +449,17 @@ describe('новые механики врагов', () => {
     expect(getStatus(h, 'bleed')).toBeDefined();
   });
 
-  it('бронные пассивки v0.31.1 работают как перки брони: удар слабее, «Защититься» щедрее, блок держится, первая атака мимо', () => {
+  it('бронные пассивки v0.31.1 работают как перки брони: удар слабее, «Защититься» щедрее, первая атака мимо', () => {
     const { state } = mkBattle('warrior', ['spider'], {
       extra: [
         { id: 'stone_hide', tier: 3 },
         { id: 'steadfast_seal', tier: 1 },
-        { id: 'carapace_charm', tier: 2 },
         { id: 'evasion_amulet', tier: 3 },
       ],
     });
     const s = state.hero.stats;
     expect(s.hitReduce).toBe(2 + 1); // + Кольца стартовой кольчуги
     expect(s.defendBonus).toBe(2);
-    expect(s.blockKeep).toBe(3);
     expect(s.dodgeStart).toBe(2);
     // Уклонение из Амулета вешается в начале боя, как Тень плаща.
     expect(getStatus(state.hero, 'dodge')?.value).toBe(2);

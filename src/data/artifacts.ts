@@ -192,15 +192,6 @@ const list: ArtifactDef[] = [
     describe: (tier) => `«Защититься» даёт +${t(2, 3, 4)(tier)} Блока`,
   },
   {
-    id: 'carapace_charm',
-    name: 'Оберег панциря',
-    glyph: '◍',
-    kind: 'passive',
-    slot: 'armor',
-    mods: (tier) => ({ blockKeep: t(2, 3, 4)(tier) }),
-    describe: (tier) => `До ${t(2, 3, 4)(tier)} Блока не сгорает в начале хода`,
-  },
-  {
     id: 'evasion_amulet',
     name: 'Амулет уклонения',
     glyph: '⤨',
