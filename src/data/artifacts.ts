@@ -183,15 +183,6 @@ const list: ArtifactDef[] = [
     describe: (tier) => `Каждый удар по герою слабее на ${t(1, 1, 2)(tier)}`,
   },
   {
-    id: 'steadfast_seal',
-    name: 'Печать стойкости',
-    glyph: '⛉',
-    kind: 'passive',
-    slot: 'armor',
-    mods: (tier) => ({ defendBonus: t(2, 3, 4)(tier) }),
-    describe: (tier) => `«Защититься» даёт +${t(2, 3, 4)(tier)} Блока`,
-  },
-  {
     id: 'evasion_amulet',
     name: 'Амулет уклонения',
     glyph: '⤨',
