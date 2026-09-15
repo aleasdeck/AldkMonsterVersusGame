@@ -76,11 +76,12 @@ export const VULNERABLE_MULT = 1.25;
 export const EXECUTE_HP_PCT = 0.2;
 
 /**
- * Ниже этой доли HP герой ранен и входит в транс: «Боевой транс» Берсерка прибавляет Силу (`lowHpStr`) и стамину
- * в начале хода (`lowHpSta`). Строго ниже двух третей: порог в половину бот не переживал (14 % против 24 %, v0.33) —
- * Берсерк без Ярости к половине HP уже проигрывает бой.
+ * Ниже этой доли HP герой ранен и входит в транс: «Боевой транс» Берсерка прибавляет Силу (`lowHpStr`), стамину
+ * в начале хода (`lowHpSta`) и гасит каждый удар (`lowHpReduce`). Строго ниже половины (v0.33.2, решение пользователя):
+ * без гашения порог в половину бот не переживал (14 % против 24 % на ⅔, v0.33) — Берсерк без Ярости к половине HP
+ * уже проигрывал бой; гашение удара как раз и держит его там.
  */
-export const TRANCE_HP_PCT = 2 / 3;
+export const TRANCE_HP_PCT = 1 / 2;
 
 /** Герой ранен настолько, что «Боевой транс» работает. */
 export function inTrance(h: HeroBattle): boolean {
@@ -90,6 +91,11 @@ export function inTrance(h: HeroBattle): boolean {
 /** Сила от «Боевого транса» прямо сейчас: своя доля только пока герой ранен. */
 export function tranceStr(h: HeroBattle): number {
   return h.stats.lowHpStr > 0 && inTrance(h) ? h.stats.lowHpStr : 0;
+}
+
+/** Гашение удара от «Боевого транса» прямо сейчас: только пока герой ранен. */
+export function tranceReduce(h: HeroBattle): number {
+  return h.stats.lowHpReduce > 0 && inTrance(h) ? h.stats.lowHpReduce : 0;
 }
 
 // ─── Дальность ─────────────────────────────────────────────────────────────
@@ -257,12 +263,14 @@ interface HitDetail {
   vuln: number;
   /** Гашение удара кольчугой. */
   reduced: number;
+  /** Гашение удара «Боевым трансом». */
+  tranced: number;
   /** Почему урон не дошёл вовсе: уклонение, неуязвимость, тень, дым. */
   miss: string;
 }
 
 function newDetail(): HitDetail {
-  return { blocked: 0, vuln: 0, reduced: 0, miss: '' };
+  return { blocked: 0, vuln: 0, reduced: 0, tranced: 0, miss: '' };
 }
 
 /** Хвост строки лога по деталям удара: «→ 4 по HP (уязвимость ×1.25, кольчуга −1, блок −3)». */
@@ -271,6 +279,7 @@ function hitTail(dmg: number, dealt: number, d: HitDetail, pierce = false): stri
   const notes: string[] = [];
   if (d.vuln) notes.push(`уязвимость ×${VULNERABLE_MULT} = ${d.vuln}`);
   if (d.reduced) notes.push(`кольчуга −${d.reduced}`);
+  if (d.tranced) notes.push(`транс −${d.tranced}`);
   if (d.blocked) notes.push(`блок −${d.blocked}`);
   if (pierce) notes.push('сквозь блок');
   if (dealt === dmg && notes.length === 0) return '';
@@ -389,6 +398,12 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
     if (h.stats.hitReduce > 0) {
       d.reduced = Math.min(rest, h.stats.hitReduce);
       rest = Math.max(0, rest - h.stats.hitReduce);
+    }
+    // «Боевой транс» гасит удар так же, пока герой ранен.
+    const tr = tranceReduce(h);
+    if (tr > 0) {
+      d.tranced = Math.min(rest, tr);
+      rest = Math.max(0, rest - tr);
     }
     if (!pierce) {
       const b = Math.min(h.block, rest);

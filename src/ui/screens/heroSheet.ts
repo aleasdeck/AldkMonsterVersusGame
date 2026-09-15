@@ -32,6 +32,9 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
     s.lifesteal ? row('Вампиризм', `${s.lifesteal}`, 'Лечение при базовой атаке') : null,
     s.regen ? row('Регенерация', `${s.regen}`, 'HP в начале хода') : null,
     s.hitReduce ? row('Гашение удара', `−${s.hitReduce}`, 'На столько слабее каждый удар врага по герою, до блока') : null,
+    s.lowHpStr || s.lowHpSta || s.lowHpReduce
+      ? row('Боевой транс', [s.lowHpStr ? `+${s.lowHpStr} Сила` : '', s.lowHpSta ? `+${s.lowHpSta} STA` : '', s.lowHpReduce ? `−${s.lowHpReduce} удар` : ''].filter(Boolean).join(', '), 'Пока HP ниже половины: Сила, стамина в начале хода и гашение каждого удара врага')
+      : null,
     s.blockKeep ? row('Стойкий блок', `${s.blockKeep}`, 'Столько блока переживает начало хода') : null,
   ];
   return rows.filter((r): r is HTMLElement => !!r);

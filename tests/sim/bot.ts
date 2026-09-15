@@ -8,7 +8,7 @@
  */
 import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceStr } from '../../src/engine/combat';
+import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
@@ -194,7 +194,7 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
             dodge--;
             continue;
           }
-          let rest = Math.max(0, Math.round(dmg * vulMult) - h.stats.hitReduce);
+          let rest = Math.max(0, Math.round(dmg * vulMult) - h.stats.hitReduce - tranceReduce(h));
           if (!pierce) {
             const used = Math.min(block, rest);
             block -= used;
@@ -456,8 +456,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
     v += (m.defendBonus ?? 0) * 2.5;
     v += (m.blockKeep ?? 0) * 1.5;
     v += (m.dodgeStart ?? 0) * 5;
-    // «Боевой транс»: Сила и стамина только раненому — Берсерк проводит там примерно половину боёв.
-    v += (m.lowHpStr ?? 0) * 4 * 0.5 + (m.lowHpSta ?? 0) * avg * W.enemyHp * 0.5;
+    // «Боевой транс»: Сила, стамина и гашение только раненому — Берсерк проводит там примерно половину боёв.
+    v += (m.lowHpStr ?? 0) * 4 * 0.5 + (m.lowHpSta ?? 0) * avg * W.enemyHp * 0.5 + (m.lowHpReduce ?? 0) * 5 * 0.5;
     return v;
   }
   const cost = artifactCost(def, inst.tier);

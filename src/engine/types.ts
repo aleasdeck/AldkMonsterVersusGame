@@ -127,6 +127,8 @@ export interface DerivedStats {
   lowHpStr: number;
   /** Стамина сверх максимума в начале каждого хода, пока герой ранен (тот же порог; «Боевой транс»). */
   lowHpSta: number;
+  /** Гашение каждого удара врага (как `hitReduce`), пока герой ранен (тот же порог; «Боевой транс»). */
+  lowHpReduce: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -615,7 +617,7 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.33.1';
+export const GAME_VERSION = '0.33.2';
 
 export const SAVE_VERSION = 22;
 

@@ -1181,21 +1181,28 @@ describe('v0.33: вторые персональные артефакты', () =
     expect(state.hero.hp).toBe(20 - 9 + 2); // Лапа 9, регенерация 2 в начале хода
   });
 
-  it('Боевой транс: Сила и лишняя стамина приходят только ниже двух третей HP', () => {
+  it('Боевой транс: Сила, лишняя стамина и гашение удара приходят только ниже половины HP', () => {
     const { state, rng } = mkBattle('berserk', ['bear'], { extra: [{ id: 'battle_trance', tier: 1 }] });
     const bear = first(state);
     expect(state.hero.stats.lowHpStr).toBe(3);
     expect(state.hero.stats.lowHpSta).toBe(1);
+    expect(state.hero.stats.lowHpReduce).toBe(1);
     expect(state.hero.maxHp).toBe(44);
-    state.hero.hp = 30; // выше 44 × ⅔ ≈ 29.3 — ещё не транс
+    state.hero.hp = 22; // ровно половина — ещё не транс
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(bear.hp).toBe(35 - 5);
     expect(previewAttack(state)).toEqual({ min: Math.floor(5 * 0.85), max: Math.floor(5 * 0.85) });
-    state.hero.hp = 29;
+    // Удар медведя по не раненому герою — без гашения: тот же первый удар в отдельном бою.
+    const calm = mkBattle('berserk', ['bear'], { extra: [{ id: 'battle_trance', tier: 1 }] });
+    calm.state.hero.hp = 22;
+    pass(calm.state, calm.rng);
+    const fullHit = 22 - calm.state.hero.hp;
+    expect(fullHit).toBeGreaterThan(1);
+    state.hero.hp = 21;
     expect(previewAttack(state)).toEqual({ min: Math.floor(8 * 0.85), max: Math.floor(8 * 0.85) });
     pass(state, rng);
-    // Начало хода раненым: 3 STA + 1 от транса (удар медведя до этого оставил героя ниже порога).
-    expect(state.hero.hp).toBeLessThan(29);
+    // Раненому транс гасит единицу с удара; в начале хода 3 STA + 1 от транса.
+    expect(state.hero.hp).toBe(21 - (fullHit - 1));
     expect(state.hero.sta).toBe(4);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(bear.hp).toBe(35 - 5 - 8);
