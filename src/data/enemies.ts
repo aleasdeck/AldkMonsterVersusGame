@@ -997,7 +997,8 @@ const list: EnemyDef[] = [
       act('slam', 'Удар щупальцем', [{ type: 'attack', amount: 11 }]),
       withFx({ kind: 'flask', color: '#b5e61d' }, act('acid_rain', 'Кислотный дождь', [
         { type: 'attack', amount: 6 },
-        { type: 'debuff', status: 'burn', value: 3, turns: 3 },
+        // Горение 3 → 2 в v0.34.1: девять урона мимо блока с одной атаки были самым скрытым уроном босса (см. GDD §13).
+        { type: 'debuff', status: 'burn', value: 2, turns: 3 },
       ])),
       act('brood', 'Выводок', [{ type: 'summon', enemyId: 'larva', count: 2 }]),
       act('brood2', 'Рой ос', [{ type: 'summon', enemyId: 'wasp', count: 1 }]),
