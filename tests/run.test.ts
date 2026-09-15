@@ -98,6 +98,10 @@ function playRun(run: RunState, immortal = false): void {
     if (immortal && run.phase === 'battle' && run.battle) {
       run.battle.hero.hp = 99999;
       run.battle.hero.maxHp = 99999;
+      // И всесокрушающий: простой бот берёт первую награду и может остаться с чужим оружием на половине кубика,
+      // а Осиная королева с бесконечными Феромонами такого героя не выпускает — тест про структуру забега, не про урон.
+      run.battle.hero.stats.dmgMin = 50;
+      run.battle.hero.stats.dmgMax = 50;
     }
     if (run.pending) {
       resolvePending(run);

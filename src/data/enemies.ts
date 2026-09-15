@@ -194,7 +194,7 @@ const list: EnemyDef[] = [
       act('rend', 'Разрывание', [{ type: 'attack', amount: 5, hits: 2 }]),
       act('rend2', 'Бешеное разрывание', [{ type: 'attack', amount: 4, hits: 3 }]),
       act('howl', 'Вой', [{ type: 'summon', enemyId: 'wolf', count: 1 }]),
-      act('rage', 'Ярость', [{ type: 'buffStr', amount: 2, target: 'self' }]),
+      act('rage', 'Ярость', [{ type: 'buffStr', amount: 1, target: 'self' }]), // +2 → +1 в v0.36 (решение пользователя): во второй фазе каждая Ярость считается трижды
     ],
     // Первая половина боя — про стаю, вторая — вожак щетинится и рвёт сам: три удара вместо двух, каждая Ярость считается трижды. HP 60 → 55.
     phase2: {
@@ -202,6 +202,8 @@ const list: EnemyDef[] = [
       name: 'Раненый зверь',
       aura: '#ff3b3b',
       effects: [{ type: 'block', amount: 6 }],
+      // Ход перехода: щетинится — Шипы 6 на два своих хода прикрывают свободный ход героя.
+      guard: [{ type: 'thorns', amount: 6, turns: 2 }],
     },
     ai: {
       type: 'boss',
@@ -668,6 +670,8 @@ const list: EnemyDef[] = [
       atHp: 0.5,
       name: 'Пламенный покров',
       aura: '#ff5a1f',
+      // Ход перехода: покров из пламени — две атаки мимо.
+      guard: [{ type: 'dodge', value: 2 }],
       effects: [
         { type: 'block', amount: 10 },
         { type: 'thorns', amount: 2 },
@@ -837,7 +841,9 @@ const list: EnemyDef[] = [
       atHp: 0.5,
       name: 'Всплытие',
       aura: '#7ddc5a',
-      effects: [{ type: 'heal', amount: 6, target: 'self' }],
+      // Уходит под воду и всплывает: неуязвим до конца хода героя и на ходу перехода — ещё раз.
+      effects: [{ type: 'heal', amount: 6, target: 'self' }, { type: 'invuln' }],
+      guard: [{ type: 'invuln' }],
     },
     ai: {
       type: 'boss',
@@ -1011,7 +1017,9 @@ const list: EnemyDef[] = [
       atHp: 0.5,
       name: 'Рой',
       aura: '#b5e61d',
-      effects: [{ type: 'thorns', amount: 2 }],
+      effects: [{ type: 'thorns', amount: 2 }, { type: 'block', amount: 12 }],
+      // Ход перехода: хитин смыкается — большой блок на свободный ход героя.
+      guard: [{ type: 'block', amount: 24 }],
     },
     ai: {
       type: 'boss',
@@ -1292,7 +1300,15 @@ export function enemyDef(id: string): EnemyDef {
   return def;
 }
 
+/**
+ * Id приёма-перехода во вторую фазу (v0.36): босс, перешедший в ход героя, следующим своим ходом не атакует —
+ * «собирается с силами» и ставит стражу перехода (`phase2.guard`: блок, уклонение, неуязвимость или шипы на срок),
+ * чтобы свободный ход героя не разваливал его. Приём синтетический: в `actions` его нет, `enemyAction` собирает его из `phase2`.
+ */
+export const PHASE_SHIFT = 'phase_shift';
+
 export function enemyAction(def: EnemyDef, actionId: string): EnemyAction {
+  if (actionId === PHASE_SHIFT && def.phase2) return { id: PHASE_SHIFT, name: def.phase2.name, effects: def.phase2.guard };
   const a = def.actions.find((x) => x.id === actionId);
   if (!a) throw new Error(`Enemy ${def.id} has no action ${actionId}`);
   return a;

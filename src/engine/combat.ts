@@ -21,7 +21,7 @@ import type {
 } from './types';
 import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, pick, weighted, type Rng } from './rng';
-import { enemyAction, enemyDef } from '../data/enemies';
+import { enemyAction, enemyDef, PHASE_SHIFT } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
 import { SWEEP_MULT } from '../data/gear';
@@ -559,7 +559,10 @@ function checkPhases(state: BattleState, rng: Rng): void {
     state.events.push({ type: 'phase', target: e.uid, name: p2.name, color: p2.aura });
     log(state, `${e.name}: ${p2.name}!`);
     for (const eff of p2.effects) applyEnemyEffect(state, e, eff, rng);
-    chooseIntent(state, e, rng);
+    // Переход стоит боссу ближайшего хода: намерение — синтетический приём без эффектов (PHASE_SHIFT), и только после
+    // него ИИ второй фазы выбирает по правилам. Связка первой фазы (forcedNext) во вторую не переносится.
+    e.intent = PHASE_SHIFT;
+    e.forcedNext = null;
   }
 }
 
@@ -1150,7 +1153,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       addStatus(state, e, e.uid, 'invuln', 1, 1);
       break;
     case 'thorns':
-      addStatus(state, e, e.uid, 'thorns', scaled(e.dmgMult, eff.amount), -1);
+      addStatus(state, e, e.uid, 'thorns', scaled(e.dmgMult, eff.amount), eff.turns ?? -1);
       break;
     case 'dodge':
       addStatus(state, e, e.uid, 'dodge', eff.value, -1);
@@ -1270,7 +1273,7 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   }
   const action = enemyAction(def, e.intent);
   state.events.push({ type: 'enemyAction', target: e.uid, name: action.name });
-  log(state, `${e.name}: ${action.name}`);
+  log(state, action.id === PHASE_SHIFT ? `${e.name} собирается с силами: ${action.name} — без атаки` : `${e.name}: ${action.name}`);
   for (const eff of action.effects) applyEnemyEffect(state, e, eff, rng);
   e.uses[action.id] = (e.uses[action.id] ?? 0) + 1;
   e.lastUsedTurn[action.id] = state.turn;
@@ -1506,7 +1509,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         kinds.push('special');
         break;
       case 'thorns':
-        parts.push(`Шипы ${scaled(s.dmgMult, eff.amount)}`);
+        parts.push(`Шипы ${scaled(s.dmgMult, eff.amount)}${eff.turns ? ` на ${eff.turns} хода` : ''}`);
         kinds.push('buff');
         selfStatuses.push('thorns');
         break;
@@ -1558,6 +1561,12 @@ export function turnsToFlee(e: EnemyState): number | null {
 export function computeIntent(e: EnemyState): IntentInfo {
   const def = enemyDef(e.defId);
   const a = enemyAction(def, e.intent);
+  if (e.intent === PHASE_SHIFT && def.phase2) {
+    // Ход перехода: босс не атакует, только ставит стражу — игроку окно на удар, лечение или блок, но не бесплатное.
+    const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: 0, weak: false });
+    const guard = info.detail ? ` — ${info.detail}` : '';
+    return { ...info, text: `${a.name}: босс собирается с силами и в этот ход не атакует${guard}`, detail: `переход во вторую фазу, без атаки${guard}`, stunned: !!getStatus(e, 'stun') };
+  }
   const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak') });
   return { ...info, stunned: !!getStatus(e, 'stun') };
 }

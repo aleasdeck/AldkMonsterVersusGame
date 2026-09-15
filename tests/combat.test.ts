@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../src/engine/rng';
 import { heroDef } from '../src/data/heroes';
 import { makeStartingGear } from '../src/data/gear';
-import { ENEMY_LIST, enemyDef } from '../src/data/enemies';
+import { ENEMY_LIST, PHASE_SHIFT, enemyDef } from '../src/data/enemies';
 import { LOCATIONS } from '../src/data/locations';
 import {
   canUseAction,
@@ -696,10 +696,22 @@ describe('боссы', () => {
     expect(a.aura).toBe('#ff3b3b');
     expect(a.block).toBe(6);
     expect(state.events.filter((ev) => ev.type === 'phase' && ev.target === a.uid).length).toBe(1);
+    // Переход стоит хода: намерение — «Раненый зверь» без эффектов, герой в этот ход врагов цел.
+    expect(a.intent).toBe(PHASE_SHIFT);
+    expect(computeIntent(a).text).toMatch(/не атакует.*Шипы 6 на 2 хода/);
+    const hpBefore = state.hero.hp;
+    state.enemies = [a]; // волк-напарник в этом замере не нужен
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hpBefore);
+    // Стража перехода: щетина на свободный ход героя, к следующему ходу врагов спадает.
+    expect(getStatus(a, 'thorns')).toEqual({ id: 'thorns', value: 6, turns: 1 });
+    expect(a.intent).not.toBe(PHASE_SHIFT);
+    pass(state, rng);
+    expect(getStatus(a, 'thorns')).toBeUndefined();
     state.hero.hp = 100000;
     state.hero.maxHp = 100000;
     for (let i = 0; i < 30; i++) {
-      expect(['howl', 'rend']).not.toContain(a.intent);
+      expect(['howl', 'rend', PHASE_SHIFT]).not.toContain(a.intent);
       pass(state, rng);
     }
     // переход одноразовый: добили ниже — второй вспышки нет
@@ -715,6 +727,11 @@ describe('боссы', () => {
     performAction(state, { type: 'attack', target: d.uid }, rng);
     expect(d.phase).toBe(2);
     expect(d.block).toBe(10);
+    expect(getStatus(d, 'thorns')?.value).toBe(2);
+    // Ход перехода — покров: две атаки мимо, шипы остаются.
+    expect(d.intent).toBe(PHASE_SHIFT);
+    pass(state, rng);
+    expect(getStatus(d, 'dodge')?.value).toBe(2);
     expect(getStatus(d, 'thorns')?.value).toBe(2);
     state.hero.hp = 100000;
     state.hero.maxHp = 100000;

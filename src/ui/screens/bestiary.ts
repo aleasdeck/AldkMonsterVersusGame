@@ -1,13 +1,12 @@
 import { button, h } from '../dom';
 import { ENEMY_LIST } from '../../data/enemies';
-import { LOCATIONS, locationDef } from '../../data/locations';
-import { describeAction } from '../../engine/combat';
+import { LOCATIONS, enemyScale, locationDef } from '../../data/locations';
+import { describeAction, type ActionScale } from '../../engine/combat';
 import { spriteImg } from '../sprites';
 import type { EnemyDef, LocationId } from '../../engine/types';
 import type { App } from '../app';
 
 const RANK_NAMES: Record<EnemyDef['rank'], string> = { normal: 'Рядовой', elite: 'Элита', boss: 'Босс' };
-const ACT_NAMES = ['первого', 'второго', 'третьего'];
 
 /** Враги локации в порядке таблицы: рядовые, элиты, боссы — как в enemies.ts. */
 function enemiesOf(loc: LocationId): EnemyDef[] {
@@ -28,9 +27,18 @@ function enemyTile(app: App, def: EnemyDef, open: boolean, selected: boolean): H
   );
 }
 
-/** Строка приёма: иконка вида, название и текст эффектов — те же, что в подсказке намерения в бою. */
+/**
+ * Числа в альбоме — как в первом акте (v0.36, решение пользователя: локации ротируются, «родных» актов нет):
+ * записи врага приводятся к акту 1 тем же `enemyScale`, что и в бою, без статусов.
+ */
+function firstActScale(def: EnemyDef): ActionScale {
+  const sc = enemyScale(locationDef(def.location).tier, 0, def.rank);
+  return { hpMult: sc.hp, dmgMult: sc.dmg, strength: 0, weak: false };
+}
+
+/** Строка приёма: иконка вида, название и текст эффектов — те же, что в подсказке намерения в бою, числами первого акта. */
 function actionRow(def: EnemyDef, a: { name: string; effects: EnemyDef['actions'][number]['effects'] }, note?: string): HTMLElement {
-  const info = describeAction(def, a);
+  const info = describeAction(def, a, firstActScale(def));
   const text = info.text.startsWith(`${a.name}: `) ? info.text.slice(a.name.length + 2) : '';
   return h(
     'div',
@@ -73,17 +81,17 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
         { class: 'beast-title' },
         h('div', { class: 'beast-name' }, def.name),
         h('div', { class: `beast-rank rank-${def.rank}` }, `${RANK_NAMES[def.rank]} · ${loc.name}`),
-        h('div', { class: 'beast-hp' }, h('span', { class: 'dim' }, 'HP '), `${def.hp}`),
+        h('div', { class: 'beast-hp' }, h('span', { class: 'dim' }, 'HP '), `${Math.round(def.hp * firstActScale(def).hpMult)}`),
       ),
     ),
     h('h3', null, 'Приёмы'),
     h('div', { class: 'beast-actions' }, ...def.actions.map((a) => actionRow(def, a, conditional(a)))),
     patternLine(def),
     def.phase2 ? h('h3', null, `Вторая фаза — при HP ниже ${Math.round(def.phase2.atHp * 100)} %`) : null,
-    def.phase2 ? h('div', { class: 'beast-actions' }, actionRow(def, def.phase2, 'меняет набор приёмов')) : null,
+    def.phase2 ? h('div', { class: 'beast-actions' }, actionRow(def, def.phase2, 'сразу, меняет набор приёмов'), actionRow(def, { name: 'Ход перехода', effects: def.phase2.guard }, 'вместо атаки')) : null,
     def.onDeath ? h('h3', null, 'При смерти') : null,
     def.onDeath ? h('div', { class: 'beast-actions' }, actionRow(def, def.onDeath)) : null,
-    h('div', { class: 'beast-note dim' }, `Числа — для ${ACT_NAMES[loc.tier - 1]} акта, родного для локации; в поздних актах враг толще и бьёт сильнее.`),
+    h('div', { class: 'beast-note dim' }, 'Числа — для первого акта; во втором и третьем враг толще и бьёт сильнее.'),
   );
 }
 
