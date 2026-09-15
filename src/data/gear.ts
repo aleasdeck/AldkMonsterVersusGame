@@ -408,8 +408,8 @@ export const ARMOR_BASES: Base[] = [
     armorType: 'light',
     perk: {
       name: 'Тень',
-      mods: (t) => ({ stealthStart: byTier([2, 2, 2, 3, 3])(t) }),
-      text: (t) => `бой начинается в скрытности на ${byTier([2, 2, 2, 3, 3])(t)} хода врага`,
+      mods: (t) => ({ stealthStart: byTier([1, 1, 1, 2, 2])(t) }),
+      text: (t) => (byTier([1, 1, 1, 2, 2])(t) === 1 ? 'бой начинается в скрытности на 1 ход врага' : `бой начинается в скрытности на ${byTier([1, 1, 1, 2, 2])(t)} хода врага`),
     },
   },
 ];
