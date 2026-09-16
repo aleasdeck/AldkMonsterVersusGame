@@ -368,11 +368,12 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     school: 'physical',
     cost: { sta: 2 },
-    cooldown: () => 2,
+    // v0.38.1: КД 4 вместо 2 (решение пользователя) — гарантированный крит раз в четыре хода, а не через ход.
+    cooldown: () => 4,
     target: 'enemy',
     // v0.38: +1/3/5 вместо +2/4/6 — базовый стиль Лучника оставлен, но чуть дороже относительно связок.
     effects: (tier) => [{ type: 'attack', bonus: t(1, 3, 5)(tier), target: 'enemy', sureCrit: true }],
-    describe: (tier) => `Атака +${t(1, 3, 5)(tier)}, всегда крит (урон ×2). КД 2`,
+    describe: (tier) => `Атака +${t(1, 3, 5)(tier)}, всегда крит (урон ×2). КД 4`,
   },
   {
     id: 'crippling_shot',
