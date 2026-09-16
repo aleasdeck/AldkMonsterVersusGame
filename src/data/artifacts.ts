@@ -804,23 +804,6 @@ const list: ArtifactDef[] = [
     describe: (tier) => `${t(2, 3, 4)(tier)} урона заклинанием. До ${t(2, 3, 4)(tier)} раз за ход`,
   },
   {
-    id: 'spark',
-    fx: { color: '#ffd166' },
-    name: 'Искра',
-    glyph: '✦',
-    kind: 'active',
-    slot: 'weapon',
-    school: 'magic',
-    cost: { mp: 1 },
-    cooldown: () => 1,
-    target: 'enemy',
-    effects: (tier) => [
-      { type: 'spell', amount: t(3, 5, 6)(tier), target: 'enemy' },
-      { type: 'status', target: 'enemy', status: 'burn', value: t(1, 2, 3)(tier), turns: 2 },
-    ],
-    describe: (tier) => `${t(3, 5, 6)(tier)} урона заклинанием и Горение ${t(1, 2, 3)(tier)} на 2 хода. Раз в ход`,
-  },
-  {
     id: 'fire_wave',
     fx: { color: '#ff7b00' },
     name: 'Огненная волна',
