@@ -647,12 +647,13 @@ export function affixText(affix: GearAffix): string {
       return `+${v} вампиризм`;
     case 'spellPower':
       return `+${v} к заклинаниям`;
+    // Коротко, как остальные аффиксы (решение пользователя): что делает стихия — в подсказке ключевого слова и в листе персонажа.
     case 'onHitBleed':
-      return `Кровавый: удар вешает Кровотечение ${v}`;
+      return `Кровавый ${v}`;
     case 'onHitBurn':
-      return `Горящий: удар вешает Горение ${v}`;
+      return `Горящий ${v}`;
     case 'onHitPoison':
-      return `Ядовитый: удар вешает Яд ${v}`;
+      return `Ядовитый ${v}`;
     case 'maxHp':
       return `+${v} HP`;
     case 'def':
