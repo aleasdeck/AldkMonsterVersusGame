@@ -969,8 +969,9 @@ describe('персональные артефакты', () => {
     expect(plain.hero.signature).toBe('shield_bash');
     const second = newRun('warrior', 1, 0, 'riposte');
     expect(second.hero.signature).toBe('riposte');
-    expect(second.hero.weapon.slots).toEqual([{ id: 'riposte', tier: 1 }]);
-    expect(second.hero.armor.slots).toEqual([null]);
+    // Ответный удар бронный (v0.39.1): стартует в сокете кольчуги, сокет меча пуст.
+    expect(second.hero.weapon.slots).toEqual([null]);
+    expect(second.hero.armor.slots).toEqual([{ id: 'riposte', tier: 1 }]);
     expect(canDropFor(second.hero, 'riposte')).toBe(true);
     expect(canDropFor(second.hero, 'shield_bash')).toBe(false);
     expect(canDropFor(plain.hero, 'riposte')).toBe(false);
