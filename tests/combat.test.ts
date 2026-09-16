@@ -1602,6 +1602,19 @@ describe('v0.38: связки', () => {
     expect(boar.hp).toBe(18 - 3);
   });
 
+  it('стихийные аффиксы оружия: Горящий и Ядовитый вешают рану с каждого удара, включая удары приёмов', () => {
+    const { state, rng } = mkBattle('warrior', ['boar']);
+    const boar = first(state);
+    state.hero.stats.onHitBurn = 2;
+    state.hero.stats.onHitPoison = 1;
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 2, turns: 2 });
+    expect(getStatus(boar, 'poison')).toEqual({ id: 'poison', value: 1, turns: 3 });
+    performAction(state, { type: 'artifact', artifactId: 'crippling_shot', target: boar.uid }, rng);
+    expect(getStatus(boar, 'burn')?.value).toBe(4);
+    expect(getStatus(boar, 'poison')?.value).toBe(2);
+  });
+
   it('Оглушающий удар: пока вставлен, удар по оглушённому — крит', () => {
     const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'stun_strike', tier: 1 }] });
     const boar = first(state);

@@ -770,6 +770,9 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     // Праща: оглушает только критом, и то не каждым — бросок делается лишь после крита, чтобы не тратить RNG на обычных ударах.
     if (h.stats.stunOnCrit > 0 && crit && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnCrit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
+    // Стихийные аффиксы оружия (v0.38.11): заводка ран приходит с клинком, а не только из пула артефактов.
+    if (h.stats.onHitBurn > 0) addStatus(state, e, e.uid, 'burn', h.stats.onHitBurn, 2);
+    if (h.stats.onHitPoison > 0) addStatus(state, e, e.uid, 'poison', h.stats.onHitPoison, 3);
     // «Стихийная заточка»: рана стихии с каждого удара, пока заточка держится.
     const ench = getStatus(h, 'enchant');
     if (ench?.element) addStatus(state, e, e.uid, ench.element, ench.value, 2);

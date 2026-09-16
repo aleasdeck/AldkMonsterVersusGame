@@ -430,6 +430,8 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
   const out = new Set<StatusId>();
   const s = heroStats(run);
   if (s.onHitBleed > 0) out.add('bleed');
+  if (s.onHitBurn > 0) out.add('burn');
+  if (s.onHitPoison > 0) out.add('poison');
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
   for (const ref of socketRefs(run.hero)) {

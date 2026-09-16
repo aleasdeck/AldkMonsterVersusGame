@@ -613,6 +613,10 @@ const WEAPON_AFFIXES: AffixDef[] = [
   { stat: 'critDmg', values: [10, 15, 20, 25, 30] },
   { stat: 'lifesteal', values: [1, 1, 1, 2, 2] },
   { stat: 'spellPower', values: [1, 1, 2, 3, 4] },
+  // Стихийные аффиксы (v0.38.11, решение пользователя): три заводки ран в пуле аффиксов, чтобы связки не зависели от дропа артефактов.
+  { stat: 'onHitBleed', values: [1, 1, 2, 2, 3] },
+  { stat: 'onHitBurn', values: [1, 1, 2, 2, 3] },
+  { stat: 'onHitPoison', values: [1, 1, 2, 2, 3] },
 ];
 
 const ARMOR_AFFIXES: AffixDef[] = [
@@ -643,6 +647,12 @@ export function affixText(affix: GearAffix): string {
       return `+${v} вампиризм`;
     case 'spellPower':
       return `+${v} к заклинаниям`;
+    case 'onHitBleed':
+      return `Кровавый: удар вешает Кровотечение ${v}`;
+    case 'onHitBurn':
+      return `Горящий: удар вешает Горение ${v}`;
+    case 'onHitPoison':
+      return `Ядовитый: удар вешает Яд ${v}`;
     case 'maxHp':
       return `+${v} HP`;
     case 'def':
