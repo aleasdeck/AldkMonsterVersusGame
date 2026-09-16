@@ -3,7 +3,7 @@ import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, findEnemy, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
@@ -260,7 +260,7 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
       case 'breakBlock':
         return [range ? rangeText(range) : '—', h('small', null, `⛨×${e.mult}`)];
       case 'finisher':
-        return [range ? rangeText(range) : '—', h('small', null, `×${e.per}`)];
+        return [range ? rangeText(range) : '—', h('small', null, `${e.pct} %×атаки`)];
       case 'chain':
         return [`${e.amount}`, h('small', null, 'вдогонку')];
       case 'enchant':
@@ -397,7 +397,7 @@ export function actionSpecs(app: App): TileSpec[] {
         return { min: dmg, max: dmg };
       }
       if (finEff && finEff.type === 'finisher') {
-        const dmg = finEff.per * b.hero.attacks;
+        const dmg = finisherPer(b.hero, finEff.pct) * b.hero.attacks;
         return { min: dmg, max: dmg };
       }
       if (chainEff && chainEff.type === 'chain') return { min: chainEff.amount, max: chainEff.amount };

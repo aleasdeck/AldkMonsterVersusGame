@@ -586,8 +586,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         per += 6 * e.mult * W.enemyHp * 0.6;
         break;
       case 'finisher':
-        // Финишер после двух ударов хода.
-        per += e.per * Math.max(1, s.sta - 1) * W.enemyHp;
+        // Финишер после двух ударов хода: доля среднего удара за каждый.
+        per += Math.max(1, Math.round((avg * e.pct) / 100)) * Math.max(1, s.sta - 1) * W.enemyHp;
         break;
       case 'enchant':
         // Заточка: два хода по два удара, каждый — рана на два тика; выплата любого из трёх семейств её усиливает.

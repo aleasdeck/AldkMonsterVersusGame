@@ -622,8 +622,9 @@ const list: ArtifactDef[] = [
     cost: { sta: 1 },
     cooldown: () => 2,
     target: 'enemy',
-    effects: (tier) => [{ type: 'finisher', per: t(3, 4, 5)(tier), target: 'enemy' }],
-    describe: (tier) => `${t(3, 4, 5)(tier)} урона за каждую атаку, сделанную в этом ходу; сам атакой не считается, усталости нет. КД 2`,
+    // v0.38.8: доля среднего удара вместо плоских 3/4/5 (решение пользователя) — растёт с оружием и Силой.
+    effects: (tier) => [{ type: 'finisher', pct: t(50, 65, 80)(tier), target: 'enemy' }],
+    describe: (tier) => `${t(50, 65, 80)(tier)} % среднего урона оружия за каждую атаку, сделанную в этом ходу; сам атакой не считается, усталости нет. КД 2`,
   },
   {
     id: 'echo_strike',

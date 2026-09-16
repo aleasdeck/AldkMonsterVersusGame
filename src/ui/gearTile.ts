@@ -49,7 +49,7 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
       case 'breakBlock':
         return `блок цели ×${e.mult}`;
       case 'finisher':
-        return `${e.per} × атаки`;
+        return `${Math.max(1, Math.round((((s.dmgMin + s.dmgMax) / 2 + s.str) * e.pct) / 100))} × атаки`;
       case 'chain':
         return `${e.amount} вдогонку`;
       case 'enchant':
