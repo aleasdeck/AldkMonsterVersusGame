@@ -157,7 +157,10 @@ const list: EnemyDef[] = [
     rank: 'elite',
     actions: [
       act('paw', 'Лапа', [{ type: 'attack', amount: 9 }]),
-      act('roar', 'Рёв', [{ type: 'buffStr', amount: 3, target: 'self' }]),
+      act('roar', 'Рёв', [
+        { type: 'buffStr', amount: 3, target: 'self' },
+        { type: 'block', amount: 6 },
+      ]),
       act('hug', 'Объятия', [
         { type: 'attack', amount: 7 },
         { type: 'debuff', status: 'exhaust', value: 1, turns: 1 },
@@ -174,7 +177,10 @@ const list: EnemyDef[] = [
     rank: 'elite',
     actions: [
       act('club', 'Дубина', [{ type: 'attack', amount: 10 }]),
-      act('regen', 'Регенерация', [{ type: 'heal', amount: 7, target: 'self' }], hurt),
+      act('regen', 'Регенерация', [
+        { type: 'heal', amount: 7, target: 'self' },
+        { type: 'block', amount: 5 },
+      ], hurt),
       act('stomp', 'Топот', [
         { type: 'attack', amount: 6 },
         { type: 'debuff', status: 'exhaust', value: 1, turns: 1 },
@@ -331,7 +337,10 @@ const list: EnemyDef[] = [
     actions: [
       act('bite', 'Укус', [{ type: 'attack', amount: 9, drain: true }]),
       act('mist', 'Туман', [{ type: 'dodge', value: 1 }], noDodge),
-      act('hypnosis', 'Гипноз', [{ type: 'debuff', status: 'weak', value: 1, turns: 2 }]),
+      act('hypnosis', 'Гипноз', [
+        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+        { type: 'block', amount: 5 },
+      ]),
     ],
     ai: { type: 'cycle', order: ['bite', 'mist', 'bite', 'hypnosis'] },
     sprite: humanoid('bare', { s: '#e6e0f0', h: '#1a1a2a', b: '#3a0a1a', l: '#1a0a10', w: '#c0c0c0' }),
@@ -362,7 +371,10 @@ const list: EnemyDef[] = [
     actions: [
       withFx({ kind: 'orb', color: '#7a3fb0' }, act('bolt', 'Тёмная стрела', [{ type: 'attack', amount: 10 }])),
       act('raise', 'Поднять скелета', [{ type: 'summon', enemyId: 'skeleton_warrior', count: 1 }], (ctx) => hasRoom(ctx) && countKind(ctx, 'skeleton_warrior') < 2),
-      act('curse', 'Проклятие', [{ type: 'debuff', status: 'weak', value: 1, turns: 2 }]),
+      act('curse', 'Проклятие', [
+        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+        { type: 'block', amount: 8 },
+      ]),
     ],
     ai: { type: 'cycle', order: ['bolt', 'raise', 'curse'] },
     sprite: humanoid('hood', { o: '#1b1b2a', e: '#111111', s: '#cdbde0', h: '#2d1b4e', b: '#1e1433', l: '#120b22', w: '#7cf0a0' }),
@@ -556,7 +568,10 @@ const list: EnemyDef[] = [
     rank: 'normal',
     actions: [
       act('dagger', 'Кинжал', [{ type: 'attack', amount: 8 }]),
-      act('sacrifice', 'Жертва', [{ type: 'buffStr', amount: 2, target: 'allies' }]),
+      act('sacrifice', 'Жертва', [
+        { type: 'buffStr', amount: 2, target: 'allies' },
+        { type: 'block', amount: 5 },
+      ]),
       act('prayer', 'Тёмная молитва', [{ type: 'heal', amount: 10, target: 'allies' }]),
     ],
     ai: { type: 'cycle', order: ['dagger', 'sacrifice', 'prayer'] },
@@ -569,7 +584,10 @@ const list: EnemyDef[] = [
     location: 'caves',
     rank: 'normal',
     actions: [
-      act('bless', 'Благословение', [{ type: 'buffStr', amount: 3, target: 'allies' }]),
+      act('bless', 'Благословение', [
+        { type: 'buffStr', amount: 3, target: 'allies' },
+        { type: 'block', amount: 6 },
+      ]),
       act('prayer', 'Огненная молитва', [{ type: 'heal', amount: 14, target: 'allies' }]),
       act('flame', 'Пламя', [{ type: 'attack', amount: 11 }]),
     ],
@@ -584,7 +602,10 @@ const list: EnemyDef[] = [
     rank: 'normal',
     actions: [
       act('whip', 'Кнут', [{ type: 'attack', amount: 9, hits: 2 }]),
-      act('torture', 'Пытка', [{ type: 'debuff', status: 'bleed', value: 4, turns: 3 }]),
+      act('torture', 'Пытка', [
+        { type: 'debuff', status: 'bleed', value: 4, turns: 3 },
+        { type: 'block', amount: 8 },
+      ]),
     ],
     ai: { type: 'cycle', order: ['whip', 'torture', 'whip'] },
     sprite: humanoid('horns', { s: '#8b1e2d', h: '#4a0a10', b: '#2a0a10', l: '#1a0508', w: '#e0e0e0' }),
@@ -634,7 +655,7 @@ const list: EnemyDef[] = [
     rank: 'elite',
     actions: [
       withFx({ kind: 'melee', color: '#c9ccd1' }, act('axe', 'Секира', [{ type: 'attack', amount: 18 }])),
-      act('windup', 'Замах', [{ type: 'none' }]),
+      act('windup', 'Замах', [{ type: 'block', amount: 12 }]),
       withFx({ kind: 'melee', color: '#c9ccd1' }, act('smash', 'Сокрушительный удар', [{ type: 'attack', amount: 30 }])),
       act('roar', 'Рёв', [{ type: 'buffStr', amount: 3, target: 'self' }]),
     ],
@@ -754,7 +775,10 @@ const list: EnemyDef[] = [
     actions: [
       act('morok', 'Морок', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 2 }]),
       act('scratch', 'Царапины', [{ type: 'attack', amount: 4, hits: 2 }]),
-      act('cackle', 'Хохот', [{ type: 'heal', amount: 3, target: 'allies' }]),
+      act('cackle', 'Хохот', [
+        { type: 'heal', amount: 3, target: 'allies' },
+        { type: 'block', amount: 3 },
+      ]),
     ],
     ai: { type: 'cycle', order: ['morok', 'scratch', 'cackle'] },
     sprite: humanoid('hood', { s: '#7a9a6a', h: '#2a3a20', b: '#3a4a2a', l: '#1a2a14', w: '#a0c090' }),
@@ -794,7 +818,10 @@ const list: EnemyDef[] = [
     rank: 'elite',
     actions: [
       act('maws', 'Три пасти', [{ type: 'attack', amount: 3, hits: 3 }]),
-      act('regrow', 'Отрастить головы', [{ type: 'heal', amount: 6, target: 'self' }], hurt),
+      act('regrow', 'Отрастить головы', [
+        { type: 'heal', amount: 6, target: 'self' },
+        { type: 'block', amount: 6 },
+      ], hurt),
       act('miasma', 'Ядовитое облако', [{ type: 'debuff', status: 'poison', value: 2, turns: 3 }]),
     ],
     ai: { type: 'cycle', order: ['maws', 'regrow', 'maws', 'miasma'] },
@@ -988,7 +1015,10 @@ const list: EnemyDef[] = [
         { type: 'debuff', status: 'bleed', value: 2, turns: 2 },
       ]),
       act('command', 'Приказ', [{ type: 'summon', enemyId: 'wasp', count: 1 }], (ctx) => hasRoom(ctx) && countKind(ctx, 'wasp') < 2),
-      act('pheromones', 'Феромоны', [{ type: 'buffStr', amount: 2, target: 'allies' }]),
+      act('pheromones', 'Феромоны', [
+        { type: 'buffStr', amount: 2, target: 'allies' },
+        { type: 'block', amount: 8 },
+      ]),
     ],
     ai: { type: 'cycle', order: ['sting', 'command', 'pheromones'] },
     sprite: blob('#1a1020', '#e0b030', '#9a7010', '#ff3050', 22),
@@ -1043,7 +1073,11 @@ const list: EnemyDef[] = [
     hp: 44,
     location: 'ship',
     rank: 'normal',
-    actions: [act('cutlass', 'Сабля', [{ type: 'attack', amount: 12 }]), act('rum', 'Глоток рома', [{ type: 'heal', amount: 8, target: 'self' }], hurt)],
+    actions: [act('cutlass', 'Сабля', [{ type: 'attack', amount: 12 }]), act('rum', 'Глоток рома', [
+        { type: 'heal', amount: 8, target: 'self' },
+        { type: 'block', amount: 6 },
+      ], hurt),
+    ],
     ai: { type: 'cycle', order: ['cutlass', 'cutlass', 'rum'] },
     sprite: humanoid('hood', { s: '#d9a06b', h: '#a02030', b: '#3a3a5a', l: '#2a2a3a', w: '#c0c0c0' }),
   },
@@ -1054,7 +1088,7 @@ const list: EnemyDef[] = [
     location: 'ship',
     rank: 'normal',
     actions: [
-      act('load', 'Заряжает пушку', [{ type: 'none' }]),
+      act('load', 'Заряжает пушку', [{ type: 'block', amount: 5 }]),
       act('volley', 'Пушечный залп', [{ type: 'attack', amount: 16 }]),
       act('grapeshot', 'Картечь', [{ type: 'attack', amount: 5, hits: 2 }]),
     ],
@@ -1067,7 +1101,11 @@ const list: EnemyDef[] = [
     hp: 50,
     location: 'ship',
     rank: 'normal',
-    actions: [act('whip', 'Плеть', [{ type: 'attack', amount: 9, hits: 2 }]), act('order', 'Приказ', [{ type: 'buffStr', amount: 3, target: 'allies' }])],
+    actions: [act('whip', 'Плеть', [{ type: 'attack', amount: 9, hits: 2 }]), act('order', 'Приказ', [
+        { type: 'buffStr', amount: 3, target: 'allies' },
+        { type: 'block', amount: 6 },
+      ]),
+    ],
     ai: { type: 'cycle', order: ['whip', 'order', 'whip'] },
     sprite: humanoid('plume', { s: '#c9946b', h: '#3a2a1a', b: '#6a2a2a', l: '#2a2a3a', w: '#8a5a2a' }),
   },
@@ -1125,6 +1163,7 @@ const list: EnemyDef[] = [
       act('song', 'Песнь', [
         { type: 'debuff', status: 'vulnerable', value: 1, turns: 2 },
         { type: 'drainMp', amount: 3 },
+        { type: 'block', amount: 6 },
       ]),
       act('claws', 'Когти', [{ type: 'attack', amount: 10 }]),
     ],
@@ -1200,7 +1239,7 @@ const list: EnemyDef[] = [
       withFx({ kind: 'melee', color: '#c9ccd1' }, act('sabre', 'Абордажная сабля', [{ type: 'attack', amount: 18 }])),
       withFx({ kind: 'orb', color: '#ffb347' }, act('pistol', 'Пистоль', [{ type: 'attack', amount: 12, pierce: true }])),
       act('all_hands', 'Свистать всех наверх', [{ type: 'summon', enemyId: 'pirate', count: 1 }]),
-      act('aim', 'Наводит пушки', [{ type: 'none' }]),
+      act('aim', 'Наводит пушки', [{ type: 'block', amount: 12 }]),
       withFx({ kind: 'orb', color: '#ff7b00' }, act('broadside', 'Бортовой залп', [{ type: 'attack', amount: 28 }])),
       act('curse', 'Проклятие', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 3 }]),
     ],

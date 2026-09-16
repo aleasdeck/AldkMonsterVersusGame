@@ -6,7 +6,7 @@
  *
  * Дайсов бот не видит: варианты оцениваются на своём генераторе, реальный ход бросает свои кубики.
  */
-import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState } from '../../src/engine/types';
+import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState, StatMods, StatusId } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
 import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
@@ -253,6 +253,9 @@ export function evaluate(b: BattleState): number {
     if (effHp > 0) threat += baseThreat(e.defId) * e.dmgMult + spawn.threat * e.dmgMult * 0.7;
     s -= statusValue(e, 'strength') * 2;
     if (getStatus(e, 'stun')) s += 1;
+    // Уязвимость и Слабость на живом враге — вклад в следующие ходы: четверть урона по нему и четверть его урона (v0.38).
+    if (holdsThroughEnemyTurn(getStatus(e, 'vulnerable'))) s += Math.min(e.hp, dpt) * (VULNERABLE_MULT - 1) * W.enemyHp;
+    if (holdsThroughEnemyTurn(getStatus(e, 'weak'))) s += baseThreat(e.defId) * e.dmgMult * 0.25;
   }
   s -= threat * W.threat;
   s -= (effTotal / dpt) * (W.turnCost + threat * 0.5);
@@ -422,13 +425,72 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
   if (inst.id === run.hero.signature) return artifactValueRaw(run, inst) * 2;
   return artifactValueRaw(run, inst);
 }
-function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
+/** Все статусы, которые герой вешает на врагов своими вещами (кроме `except`): приёмы, заклинания, перки оружия — заводки для связок. */
+function heroApplies(run: RunState, except?: string): Set<StatusId> {
+  const out = new Set<StatusId>();
+  const s = heroStats(run);
+  if (s.onHitBleed > 0) out.add('bleed');
+  if (s.markOnHit > 0) out.add('vulnerable');
+  if (s.stunOnCrit > 0) out.add('stun');
+  for (const ref of socketRefs(run.hero)) {
+    if (!ref.art || ref.art.id === except) continue;
+    const def = artifactDef(ref.art.id);
+    for (const e of def.effects?.(ref.art.tier) ?? []) if (e.type === 'status' && e.target !== 'self') out.add(e.status);
+  }
+  return out;
+}
+
+/** Статусы, на которых у героя есть выплата (кроме `except`): взрыв ран, заражение, «по крови», «Гниль», «Раздуть», крит по оглушённым. */
+function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
+  const out = new Set<StatusId>();
+  for (const ref of socketRefs(run.hero)) {
+    if (!ref.art || ref.art.id === except) continue;
+    const def = artifactDef(ref.art.id);
+    const m = def.mods?.(ref.art.tier) ?? {};
+    if (m.vsBleed) out.add('bleed');
+    if (m.dotLeech) out.add('bleed').add('poison');
+    if (m.poisonVuln) out.add('poison');
+    if (m.spellVsBurn) out.add('burn');
+    if (m.stunCrit) out.add('stun');
+    if (m.perDebuff) for (const id of ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable'] as StatusId[]) out.add(id);
+    for (const e of def.effects?.(ref.art.tier) ?? []) {
+      if (e.type === 'detonate' || e.type === 'spread') for (const id of e.statuses) out.add(id);
+      if (e.type === 'spell' && e.vsWeak) out.add('weak');
+    }
+  }
+  return out;
+}
+
+/** Число вставленных приёмов и заклинаний (кроме `except`) — столько раз за ход сработает «Цепная атака». */
+function activeCount(hero: HeroPersistent, except?: string): number {
+  return socketRefs(hero).filter((r) => r.art && r.art.id !== except && artifactDef(r.art.id).kind === 'active').length;
+}
+
+/** Есть ли физический приём (кроме `except`) — вторая половина «Перекрёстного тока». */
+function hasPhysicalActive(hero: HeroPersistent, except?: string): boolean {
+  return socketRefs(hero).some((s) => s.art && s.art.id !== except && artifactDef(s.art.id).kind === 'active' && artifactDef(s.art.id).school === 'physical');
+}
+
+/**
+ * Цена стамины в HP врага с усталостью (v0.38): приём вытесняет не первые удары хода, а последние, самые слабые — второй удар
+ * идёт на 0.7 кубика, третий на 0.49. Без этого приём за 2 STA сравнивался с двумя полными ударами и не стоил ничего.
+ */
+function staValue(s: { sta: number; fatigue: number }, avg: number, cost: number): number {
+  let v = 0;
+  for (let i = 0; i < cost; i++) v += avg * s.fatigue ** Math.max(0, s.sta - 1 - i);
+  return v * W.enemyHp;
+}
+
+/** Ценность пассивных модов в HP за бой — у пассивок целиком, у приёма с модами («Оглушающий удар») сверх его эффектов. */
+function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
   const def = artifactDef(inst.id);
   const s = heroStats(run);
   const avg = (s.dmgMin + s.dmgMax) / 2 + s.str;
-  if (def.kind === 'passive') {
-    const m = def.mods?.(inst.tier) ?? {};
+  {
     const magic = hasMagicActive(run.hero, inst.id);
+    // Связки (v0.38): выплата стоит полной цены только при заводке в руках, заводка — дороже при выплате (см. artifactValueRaw).
+    const applies = heroApplies(run, inst.id);
+    const src = (id: StatusId) => (applies.has(id) ? 1 : 0.2);
     let v = 0;
     v += (m.str ?? 0) * 4;
     v += (m.maxHp ?? 0) * 0.7;
@@ -461,9 +523,38 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
     v += (m.lowHpStr ?? 0) * 4 * 0.5 + (m.lowHpSta ?? 0) * avg * W.enemyHp * 0.5 + (m.lowHpReduce ?? 0) * 5 * 0.5;
     // «Ответный удар»: примерно один ответ за ход врага, пока герой держит блок — около половины ходов.
     v += ((m.riposte ?? 0) / 100) * avg * W.enemyHp * 0.5;
+    // «Кровавый след»: Сила по кровоточащей цели — как Камень силы, пока кровь есть.
+    v += (m.vsBleed ?? 0) * 4 * src('bleed') * 0.8;
+    // «Пиявка»: тик на каждом враге по два хода — полтора врага под кровью или ядом.
+    v += (m.dotLeech ?? 0) * 3 * Math.max(src('bleed'), src('poison'));
+    // «Гниль»: доля урона всех ударов по отравленному — два хода из трёх.
+    v += (m.poisonVuln ?? 0) * avg * s.sta * W.enemyHp * 2 * src('poison');
+    // «Раздуть»: заклинание в ход по горящей цели.
+    v += (m.spellVsBurn ?? 0) * 6 * W.enemyHp * 3 * (magic ? src('burn') : 0);
+    // «Резонанс»: за каждое проклятие, которое герой умеет вешать, — примерно две трети ходов оно на цели.
+    v += (m.perDebuff ?? 0) * 4 * Math.min(3, applies.size * 0.7 + 0.2);
+    // «Цепная атака»: удар за каждый приём в ходу — обычно один-два приёма за ход, три хода на бой.
+    v += (m.chainDmg ?? 0) * Math.min(2, activeCount(run.hero, inst.id)) * 3 * W.enemyHp * (activeCount(run.hero, inst.id) > 0 ? 1 : 0.2);
+    // «Перекрёстный ток»: очко стамины за заклинание (ослабленный удар), мана за приём.
+    v += (m.spellSta ?? 0) * (magic ? avg * s.fatigue * W.enemyHp * 3 : 0.3);
+    v += (m.skillMp ?? 0) * (magic && hasPhysicalActive(run.hero, inst.id) ? W.mp * 3 : 0.2);
+    // Крит по оглушённому: один-два удара за оглушение.
+    v += (m.stunCrit ?? 0) * avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5 * (def.kind === 'active' || applies.has('stun') ? 1 : 0.2);
     return v;
   }
+}
+
+function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
+  const def = artifactDef(inst.id);
+  const s = heroStats(run);
+  const avg = (s.dmgMin + s.dmgMax) / 2 + s.str;
+  if (def.kind === 'passive') return modsValue(run, def.mods?.(inst.tier) ?? {}, inst);
   const cost = artifactCost(def, inst.tier);
+  const applies = heroApplies(run, inst.id);
+  const pays = heroPaysFor(run, inst.id);
+  /** Выплата без заводки почти пуста; заводка при выплате — дороже. */
+  const src = (ids: StatusId[]) => (ids.some((id) => applies.has(id)) ? 1 : 0.15);
+  const payoff = (id: StatusId) => (pays.has(id) ? 1.5 : 1);
   if ((cost.mp ?? 0) > s.maxMp) return 0.3;
   // Ближний боец с приёмом через ряд выбирает цель сам — стрелка или шамана за спиной брута; остальным дальность ничего не добавляет.
   const weaponFar = weaponReach(run.hero.weapon) === 'any';
@@ -475,6 +566,26 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
       case 'attack':
         per += (avg * (e.mult ?? 1) + e.bonus) * (e.sureCrit ? 2 : 1) * (e.target === 'allEnemies' ? 1.8 : far) * W.enemyHp;
         if (e.blockPct) per += avg * (e.mult ?? 1) * e.blockPct * 0.8;
+        // «Добивание»: возврат стамины срабатывает примерно на каждом третьем ударе.
+        if (e.refundOnKill) per += e.refundOnKill * avg * s.fatigue * W.enemyHp * 0.35;
+        break;
+      case 'detonate': {
+        // Взрыв ран: сколько раны ещё нанесли бы — при заводке в руках примерно два тика средней силы; по всем — суммой каждому.
+        const stock = e.statuses.reduce((sum, id) => sum + (applies.has(id) ? 7 : 1), 0);
+        per += stock * e.mult * (e.pooled ? 1.8 * 1.5 : e.target === 'allEnemies' ? 1.8 : 1) * W.enemyHp;
+        break;
+      }
+      case 'spread':
+        // Заражение: яд с одной цели на остальных полторы — при заводке.
+        per += 9 * 1.5 * W.enemyHp * src(e.statuses);
+        break;
+      case 'breakBlock':
+        // Пролом щита: блок у врага бывает через ход, средний — около шести.
+        per += 6 * e.mult * W.enemyHp * 0.6;
+        break;
+      case 'finisher':
+        // Финишер после двух ударов хода.
+        per += e.per * Math.max(1, s.sta - 1) * W.enemyHp;
         break;
       case 'blockStrike':
         // Блок в момент тарана — обычно то, что дала «Защититься».
@@ -482,6 +593,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         break;
       case 'spell':
         per += (e.amount + s.spellPower) * (e.target === 'allEnemies' ? 1.8 : far) * W.enemyHp + (e.drain ? e.amount * 0.7 : 0);
+        // Ледяной осколок: удвоение по Слабому — второй осколок подряд или чужая Слабость.
+        if (e.vsWeak) per += (e.amount + s.spellPower) * (e.vsWeak - 1) * W.enemyHp * (applies.has('weak') ? 0.7 : 0.4);
         break;
       case 'block':
         per += e.amount * 0.8;
@@ -518,12 +631,13 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           if (e.status === 'strength') per += e.value * turns * 1.5;
           else if (e.status === 'dodge') per += 4;
           else if (e.status === 'stealth') per += turns * 10;
+          else if (e.status === 'echo') per += avg * W.enemyHp * 0.9;
           else if (e.status === 'regen') per += e.value * turns;
           else if (e.status === 'thorns') per += e.value * turns * 1.5;
           else if (e.status === 'exhaust') per -= e.value * avg * W.enemyHp;
           else per += 2;
         } else {
-          const many = e.target === 'allEnemies' ? 1.8 : far;
+          const many = (e.target === 'allEnemies' ? 1.8 : far) * payoff(e.status);
           if (e.status === 'stun') per += 6 * many;
           else if (e.status === 'vulnerable') per += turns * avg * (VULNERABLE_MULT - 1) * many;
           else if (e.status === 'weak') per += turns * 2 * many;
@@ -534,11 +648,12 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
     }
   }
   const staCost = cost.sta === 'all' ? Math.max(1, s.sta) : (cost.sta ?? 0);
-  per -= staCost * avg * W.enemyHp;
+  per -= staValue(s, avg, staCost);
   const cd = def.cooldown?.(inst.tier) ?? 0;
   let uses = cd > 0 ? 6 / (cd + 1) : 3;
   if (cost.mp) uses = Math.min(uses, (s.maxMp + s.mpRegen * 5) / cost.mp);
-  return Math.max(0, per) * uses;
+  // Приём с модами (Оглушающий удар): пассивная часть работает весь бой, сверх применений.
+  return Math.max(0, per) * uses + (def.mods ? modsValue(run, def.mods(inst.tier), inst) : 0);
 }
 
 /** Насколько предмет лучше надетого: тир, кубик в руках героя или защита, владение, аффикс, потеря слотов. */

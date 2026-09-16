@@ -44,6 +44,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   vulnerable: 'Уязвимость',
   doom: 'Предсмертие',
   evade: 'Уворот',
+  echo: 'Эхо удара',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -62,7 +63,22 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
+  echo: 'Следующая атака героя в этом ходу повторяется: удар и удары приёма бьют дважды, усталость считает их одной атакой',
 };
+
+/** Проклятия на враге, которые считает «Резонанс»: всё, что герой навесил ему во вред. */
+export const DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable'];
+
+export function debuffCount(c: Combatant): number {
+  return c.statuses.filter((s) => DEBUFFS.includes(s.id)).length;
+}
+
+/** Урон, который ещё нанесут раны: сила × оставшиеся ходы (бессрочная — как три). Его и взрывает `detonate`. */
+export function remainingDot(c: Combatant, statuses: StatusId[]): number {
+  let total = 0;
+  for (const st of c.statuses) if (statuses.includes(st.id)) total += st.value * (st.turns === -1 ? 3 : st.turns);
+  return total;
+}
 
 /**
  * Уязвимость: удары и заклинания по цели сильнее на четверть. Округление к ближайшему, не вниз:
@@ -272,12 +288,14 @@ interface HitDetail {
   reduced: number;
   /** Гашение удара «Боевым трансом». */
   tranced: number;
+  /** Урон после «Гнили» (отравленная цель), если она сработала; 0 — нет. */
+  rot: number;
   /** Почему урон не дошёл вовсе: уклонение, неуязвимость, тень, дым. */
   miss: string;
 }
 
 function newDetail(): HitDetail {
-  return { blocked: 0, vuln: 0, reduced: 0, tranced: 0, miss: '' };
+  return { blocked: 0, vuln: 0, reduced: 0, tranced: 0, rot: 0, miss: '' };
 }
 
 /** Хвост строки лога по деталям удара: «→ 4 по HP (уязвимость ×1.25, кольчуга −1, блок −3)». */
@@ -285,6 +303,7 @@ function hitTail(dmg: number, dealt: number, d: HitDetail, pierce = false): stri
   if (d.miss) return ` → 0 по HP (${d.miss})`;
   const notes: string[] = [];
   if (d.vuln) notes.push(`уязвимость ×${VULNERABLE_MULT} = ${d.vuln}`);
+  if (d.rot) notes.push(`гниль = ${d.rot}`);
   if (d.reduced) notes.push(`кольчуга −${d.reduced}`);
   if (d.tranced) notes.push(`транс −${d.tranced}`);
   if (d.blocked) notes.push(`блок −${d.blocked}`);
@@ -353,6 +372,11 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   if ((kind === 'hit' || kind === 'spell') && getStatus(e, 'vulnerable')) {
     rest = Math.round(rest * VULNERABLE_MULT);
     detail.vuln = rest;
+  }
+  // «Гниль»: отравленная цель получает от ударов и заклинаний больше — поверх уязвимости, своим множителем.
+  if ((kind === 'hit' || kind === 'spell') && state.hero.stats.poisonVuln > 0 && getStatus(e, 'poison')) {
+    rest = Math.round(rest * (1 + state.hero.stats.poisonVuln));
+    detail.rot = rest;
   }
   // Шипы — такой же физический ответ, как удар: блок их держит (v0.30.1). Раны (dot) блок не трогает.
   if ((kind === 'hit' && !opts.pierce) || kind === 'spell' || kind === 'thorns') {
@@ -630,6 +654,21 @@ export function heroStr(h: HeroBattle): number {
   return h.stats.str + statusValue(h, 'strength') + tranceStr(h);
 }
 
+/**
+ * Прибавки удара, зависящие от цели (v0.38): «Кровавый след» — по кровоточащей, «Резонанс» — за каждое проклятие на ней.
+ * Считаются и в бою, и в предпросмотре, поэтому вынесены отдельно.
+ */
+export function vsTargetBonus(h: HeroBattle, target: Combatant): { bleed: number; debuffs: number; total: number } {
+  const bleed = getStatus(target, 'bleed') ? h.stats.vsBleed : 0;
+  const debuffs = h.stats.perDebuff * debuffCount(target);
+  return { bleed, debuffs, total: bleed + debuffs };
+}
+
+/** Удар по этой цели выйдет критом наверняка: из тени или по оглушённой с «Оглушающим ударом». */
+export function sureCritOn(h: HeroBattle, target?: Combatant): boolean {
+  return isHidden(h) || (!!target && h.stats.stunCrit > 0 && !!getStatus(target, 'stun'));
+}
+
 /** Бонус первого удара в ходу (Прицел лука): пока атак в этом ходу не было. */
 function firstHitBonus(state: BattleState): number {
   return state.hero.attacks === 0 ? state.hero.stats.firstHit : 0;
@@ -651,7 +690,9 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
   add('приём', bonus);
   add('первый удар', firstHitBonus(state));
   add('в спину', stealthed ? h.stats.backstab : 0);
-  const flat = heroStr(h) + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0);
+  add('по крови', target ? vsTargetBonus(h, target).bleed : 0);
+  add('резонанс', target ? vsTargetBonus(h, target).debuffs : 0);
+  const flat = heroStr(h) + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0);
   const base = roll + flat;
   const steps: string[] = [parts.length > 1 ? `${parts.join(' + ')} = ${base}` : parts[0]];
   const fatigue = fatigueMult(state);
@@ -663,7 +704,9 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
   // Шанс крита: свой стат + накопленное «Азартом» + добивание раненой цели («Клеймо палача»).
   const wounded = !!target && target.hp <= target.maxHp * EXECUTE_HP_PCT;
   const critChance = Math.min(1, h.stats.crit + h.critStack + (wounded ? h.stats.executeCrit : 0));
-  const crit = sureCrit || stealthed || (critChance > 0 && chance(rng, critChance));
+  // «Оглушающий удар»: по оглушённой цели бьют наверняка.
+  const stunned = !!target && h.stats.stunCrit > 0 && !!getStatus(target, 'stun');
+  const crit = sureCrit || stealthed || stunned || (critChance > 0 && chance(rng, critChance));
   if (crit) {
     dmg = Math.floor((dmg * h.stats.critDmg) / 100);
     steps.push(`крит ${h.stats.critDmg} % = ${dmg}`);
@@ -732,9 +775,9 @@ export interface DamageRange {
 }
 
 /** Предпросмотр разброса урона атаки без крита — для интерфейса. */
-export function previewAttack(state: BattleState, bonus = 0, mult = 1): DamageRange {
+export function previewAttack(state: BattleState, bonus = 0, mult = 1, target?: Combatant): DamageRange {
   const h = state.hero;
-  const flat = heroStr(h) + bonus + firstHitBonus(state) + (isHidden(h) ? h.stats.backstab : 0);
+  const flat = heroStr(h) + bonus + firstHitBonus(state) + (isHidden(h) ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0);
   const scale = mult * fatigueMult(state);
   let min = Math.floor((h.stats.dmgMin + flat) * scale);
   let max = Math.floor((h.stats.dmgMax + flat) * scale);
@@ -750,13 +793,16 @@ export function previewAttack(state: BattleState, bonus = 0, mult = 1): DamageRa
  * Удар гасится блоком, если оружие не пробивает его (pierceBlock); заклинание — всегда. Неуязвимость и уклонение
  * (для удара) съедают урон целиком. min — после максимального урона, max — после минимального.
  */
-export function previewOnTarget(state: BattleState, e: EnemyState, range: DamageRange, kind: 'hit' | 'spell' = 'hit'): DamageRange {
+export function previewOnTarget(state: BattleState, e: EnemyState, range: DamageRange, kind: 'hit' | 'spell' | 'dot' = 'hit'): DamageRange {
   const untouched = { min: e.hp, max: e.hp };
   if (getStatus(e, 'invuln')) return untouched;
+  // Рана (взрыв ран, пролом щита): мимо блока, уклонения и уязвимости.
+  if (kind === 'dot') return { min: Math.max(0, e.hp - range.max), max: Math.max(0, e.hp - range.min) };
   if (kind === 'hit' && getStatus(e, 'dodge')) return untouched;
   const block = kind === 'spell' || state.hero.stats.pierceBlock <= 0 ? e.block : 0;
   const vuln = getStatus(e, 'vulnerable') ? VULNERABLE_MULT : 1;
-  const after = (dmg: number) => Math.max(0, e.hp - Math.max(0, Math.round(dmg * vuln) - block));
+  const rot = state.hero.stats.poisonVuln > 0 && getStatus(e, 'poison') ? 1 + state.hero.stats.poisonVuln : 1;
+  const after = (dmg: number) => Math.max(0, e.hp - Math.max(0, Math.round(Math.round(dmg * vuln) * rot) - block));
   return { min: after(range.max), max: after(range.min) };
 }
 
@@ -796,6 +842,8 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
         if (eff.type === 'selfDamage' && h.hp <= eff.amount) return 'Слишком мало HP';
         if (eff.type === 'blockStrike' && h.block <= 0) return 'Нет блока';
         if (eff.type === 'pull' && state.enemies[0]?.uid === action.target) return 'Уже первый в ряду';
+        if (eff.type === 'breakBlock' && (findEnemy(state, action.target ?? -1)?.block ?? 0) <= 0) return 'У цели нет блока';
+        if (eff.type === 'finisher' && h.attacks <= 0) return 'Сначала атакуйте';
       }
       return null;
     }
@@ -825,6 +873,11 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       }
       // Щитовой удар: блок — доля урона замаха, а не того, что дошло до HP: блок и уклонение врага щит не отменяют.
       if (eff.blockPct && swung > 0) gainBlock(state, h, 'hero', Math.round(swung * eff.blockPct), `${Math.round(eff.blockPct * 100)} % замаха ${swung}`);
+      // «Добивание»: убитая цель возвращает стамину — удар, который заканчивает врага, почти бесплатен.
+      if (eff.refundOnKill && targetsFor(state, eff.target, targetUid).some((e) => e.hp <= 0)) {
+        h.sta += eff.refundOnKill;
+        log(state, `Добивание: +${eff.refundOnKill} STA`);
+      }
       break;
     }
     case 'blockStrike': {
@@ -838,13 +891,24 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       break;
     }
     case 'spell': {
-      const amount = eff.amount + h.stats.spellPower;
+      const base = eff.amount + h.stats.spellPower;
       const why = h.stats.spellPower > 0 ? `${eff.amount} + сила заклинаний ${h.stats.spellPower}` : '';
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const detail = newDetail();
+        // «Раздуть»: по горящей цели заклинание сильнее и подкидывает огню ещё ход.
+        const burn = h.stats.spellVsBurn > 0 ? getStatus(e, 'burn') : undefined;
+        // Ледяной осколок: по уже Слабой цели вдвое — Слабость этого же приёма ляжет позже и не считается.
+        const weak = eff.vsWeak && getStatus(e, 'weak') ? eff.vsWeak : 1;
+        const amount = Math.round(base * (burn ? 1 + h.stats.spellVsBurn : 1) * weak);
         const dealt = damageEnemy(state, e, amount, 'spell', { detail, rng });
-        log(state, `Заклинание по ${e.name}: ${amount}${why ? ` (${why})` : ''}${hitTail(amount, dealt, detail)}`);
+        const notes = [why, burn ? `раздуть ×${1 + h.stats.spellVsBurn}` : '', weak > 1 ? `по слабому ×${weak}` : ''].filter(Boolean).join(', ');
+        log(state, `Заклинание по ${e.name}: ${amount}${notes ? ` (${notes})` : ''}${hitTail(amount, dealt, detail)}`);
+        if (burn && burn.turns > 0 && e.hp > 0) {
+          burn.turns += 1;
+          log(state, `${e.name}: Горение продлено на ход`);
+        }
       }
+      const amount = base;
       if (eff.drain) healHero(state, amount, 'осушение');
       if (h.stats.spellLeech > 0) healHero(state, h.stats.spellLeech, 'перк оружия');
       if (h.stats.blockOnSpell > 0) gainBlock(state, h, 'hero', h.stats.blockOnSpell, 'перк брони');
@@ -894,6 +958,74 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
         log(state, `${e.name} вытянут в первый ряд`);
       }
       break;
+    case 'detonate': {
+      // Взрыв ран: что раны нанесли бы за оставшиеся ходы, наносится сейчас — как рана, мимо блока и уворота, без крита и уязвимости.
+      const targets = targetsFor(state, eff.target, targetUid);
+      const names = eff.statuses.map((id) => STATUS_NAMES[id]).join(', ');
+      let pooled = 0;
+      if (eff.pooled) {
+        for (const e of targets) {
+          pooled += remainingDot(e, eff.statuses);
+          for (const id of eff.statuses) removeStatus(e, id);
+        }
+      }
+      let any = false;
+      for (const e of targets) {
+        let raw = pooled;
+        if (!eff.pooled) {
+          raw = remainingDot(e, eff.statuses);
+          for (const id of eff.statuses) removeStatus(e, id);
+        }
+        const dmg = Math.floor(raw * eff.mult);
+        if (dmg <= 0) continue;
+        any = true;
+        const dealt = damageEnemy(state, e, dmg, 'dot');
+        log(state, `Взрыв ран по ${e.name}: ${dmg} (${names} ${raw} × ${eff.mult}) → ${dealt} по HP`);
+      }
+      if (!any) log(state, `Взрывать нечего: ${names.toLowerCase()} на цели нет`);
+      break;
+    }
+    case 'spread': {
+      // Заражение: те же статусы с той же силой и сроком — на всех остальных; стакаются по обычным правилам.
+      const src = targetsFor(state, eff.target, targetUid)[0];
+      if (!src) break;
+      const found = src.statuses.filter((st) => eff.statuses.includes(st.id)).map((st) => ({ ...st }));
+      if (found.length === 0) {
+        log(state, `Заражать нечем: на ${src.name} нет ${eff.statuses.map((id) => STATUS_NAMES[id].toLowerCase()).join(', ')}`);
+        break;
+      }
+      for (const e of state.enemies) {
+        if (e === src || e.hp <= 0) continue;
+        for (const st of found) addStatus(state, e, e.uid, st.id, st.value, st.turns);
+      }
+      break;
+    }
+    case 'breakBlock': {
+      // Пролом щита: блок цели снимается целиком и бьёт по ней уроном — без кубика, усталости и крита; шипы не отвечают.
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        const b = e.block;
+        if (b <= 0) {
+          log(state, `У ${e.name} нет блока — ломать нечего`);
+          continue;
+        }
+        e.block = 0;
+        const dmg = Math.floor(b * eff.mult);
+        const detail = newDetail();
+        const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: true, noThorns: true, detail, rng });
+        log(state, `Пролом щита по ${e.name}: блок ${b} снят, ${dmg} урона (${b} × ${eff.mult})${hitTail(dmg, dealt, detail)}`);
+      }
+      break;
+    }
+    case 'finisher': {
+      // Финишер: за каждую атаку в этом ходу — свой урон; сам атакой не считается, усталость и кубик не участвуют.
+      const dmg = eff.per * h.attacks;
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        const detail = newDetail();
+        const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
+        log(state, `Финишер по ${e.name}: ${dmg} (${eff.per} × ${h.attacks} атак)${hitTail(dmg, dealt, detail)}`);
+      }
+      break;
+    }
     case 'push':
       // Щитовой удар: цель меняется местами со следующим в ряду. Последнего толкать некуда, убитого — незачем:
       // приём этим не запрещён (блок он даёт всё равно), просто строй не двигается.
@@ -915,11 +1047,24 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   const h = state.hero;
   if (action.type === 'attack') {
     h.sta -= 1;
-    if (h.stats.sweep > 0) {
-      // Плеть: один замах хлещет по всему ряду на долю урона; сквозного удара копья у неё нет.
-      for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, label: 'Герой хлещет' });
-    } else {
-      heroStrike(state, rng, findEnemy(state, action.target)!, { single: true });
+    const swing = (target: EnemyState) => {
+      if (h.stats.sweep > 0) {
+        // Плеть: один замах хлещет по всему ряду на долю урона; сквозного удара копья у неё нет.
+        for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, label: 'Герой хлещет' });
+      } else {
+        heroStrike(state, rng, target, { single: true });
+      }
+    };
+    swing(findEnemy(state, action.target)!);
+    // «Эхо удара»: та же атака ещё раз, с той же усталостью — счётчик атак растёт один раз.
+    if (getStatus(h, 'echo')) {
+      removeStatus(h, 'echo');
+      const again = findEnemy(state, action.target);
+      const alive = again && again.hp > 0 ? again : state.enemies.find((e) => e.hp > 0);
+      if (alive) {
+        log(state, 'Эхо удара');
+        swing(alive);
+      }
     }
     h.attacks += 1;
     if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal, 'вампиризм');
@@ -954,14 +1099,49 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     const effects = def.effects?.(inst.tier) ?? [];
     // Скрытность спадает после каждого бьющего эффекта, а не после всего приёма: у Двойного выпада в спину бьёт только первый
     // удар. Один эффект по всем (Вихрь) по-прежнему целиком из тени. Счётчик атак растёт один раз — приём и есть одна атака.
+    const hits = (eff: Effect) => eff.type === 'attack' || eff.type === 'spell' || eff.type === 'blockStrike' || eff.type === 'detonate' || eff.type === 'breakBlock' || eff.type === 'finisher';
     for (const eff of effects) {
       applyEffect(state, eff, action.target, rng);
-      if (eff.type === 'attack' || eff.type === 'spell' || eff.type === 'blockStrike') breakStealth(state);
+      if (hits(eff)) breakStealth(state);
+    }
+    // «Эхо удара»: удары приёма повторяются — только бьющие оружием эффекты, статусы и блок второй раз не идут.
+    if (effects.some((e) => e.type === 'attack') && getStatus(h, 'echo')) {
+      removeStatus(h, 'echo');
+      log(state, 'Эхо удара');
+      const again = findEnemy(state, action.target ?? -1);
+      const uid = again && again.hp > 0 ? again.uid : state.enemies.find((e) => e.hp > 0)?.uid;
+      if (uid !== undefined) for (const eff of effects) if (eff.type === 'attack') applyEffect(state, eff, uid, rng);
     }
     if (effects.some((e) => e.type === 'attack')) h.attacks += 1;
+    // «Перекрёстный ток»: первое заклинание в ходу возвращает стамину, первый физический приём — ману.
+    if (def.school === 'magic' && h.stats.spellSta > 0 && !h.uses[CROSS_STA]) {
+      h.uses[CROSS_STA] = 1;
+      h.sta += h.stats.spellSta;
+      log(state, `Перекрёстный ток: +${h.stats.spellSta} STA`);
+    } else if (def.school === 'physical' && h.stats.skillMp > 0 && !h.uses[CROSS_MP]) {
+      h.uses[CROSS_MP] = 1;
+      const gained = Math.min(h.maxMp, h.mp + h.stats.skillMp) - h.mp;
+      h.mp += gained;
+      log(state, `Перекрёстный ток: +${gained} MP`);
+    }
+    // «Цепная атака»: после любого приёма или заклинания — бесплатный удар по его цели, иначе по первому в ряду.
+    if (h.stats.chainDmg > 0 && state.phase === 'player') {
+      const aimed = findEnemy(state, action.target ?? -1);
+      const victim = aimed && aimed.hp > 0 ? aimed : state.enemies.find((e) => e.hp > 0);
+      if (victim) {
+        const detail = newDetail();
+        const dealt = damageEnemy(state, victim, h.stats.chainDmg, 'hit', { pierce: h.stats.pierceBlock > 0, noThorns: true, detail, rng });
+        log(state, `Цепная атака по ${victim.name}: ${h.stats.chainDmg}${hitTail(h.stats.chainDmg, dealt, detail)}`);
+        breakStealth(state);
+      }
+    }
   }
   cleanupDead(state, rng);
 }
+
+/** Ключи в `hero.uses` для «Перекрёстного тока»: раз в ход на каждый ресурс; с id артефактов не пересекаются. */
+const CROSS_STA = '_cross_sta';
+const CROSS_MP = '_cross_mp';
 
 function startPlayerTurn(state: BattleState): void {
   const h = state.hero;
@@ -1236,7 +1416,8 @@ function stripArtifactMods(state: BattleState, art: ArtifactInstance): void {
   // Активный приём: его плитка пропала, следы в кулдаунах и лимите за ход больше не нужны.
   delete h.cooldowns[art.id];
   delete h.uses[art.id];
-  if (def.kind !== 'passive' || !def.mods) return;
+  // Моды бывают и у приёма («Оглушающий удар» несёт крит по оглушённым): снимаем у любого, у кого они есть.
+  if (!def.mods) return;
   const mods = def.mods(art.tier);
   for (const key of Object.keys(mods) as (keyof DerivedStats)[]) h.stats[key] -= mods[key] ?? 0;
   // Те же границы, что в computeStats: шанс крита 0..1, крит-урон не ниже 100 %, усталость не выше 1.
@@ -1274,6 +1455,8 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   if (dot > 0) {
     log(state, `${e.name} теряет ${dot} HP от ран`);
     damageEnemy(state, e, dot, 'dot');
+    // «Пиявка»: кровь и яд врага питают героя с каждого тика.
+    if (state.hero.stats.dotLeech > 0 && statusValue(e, 'bleed') + statusValue(e, 'poison') > 0) healHero(state, state.hero.stats.dotLeech, 'пиявка');
     if (e.hp <= 0) return;
   }
   if (getStatus(e, 'stun')) {

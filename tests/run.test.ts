@@ -502,7 +502,7 @@ describe('забег', () => {
 
   it('«Заменить» ставит вытесненный артефакт в очередь: его можно переставить или выбросить, отмена после этого закрыта', () => {
     const run = newRun('warrior', 11);
-    run.hero.weapon.slots = [{ id: 'shield_bash', tier: 1 }, { id: 'heavy_strike', tier: 1 }];
+    run.hero.weapon.slots = [{ id: 'shield_bash', tier: 1 }, { id: 'crippling_shot', tier: 1 }];
     run.hero.weapon.slotKinds = ['weapon', 'any'];
     enterRoom(run);
     winCurrentBattle(run);
@@ -512,15 +512,15 @@ describe('забег', () => {
     // Шар вместо Мощного удара: удар не пропал, а ждёт своей очереди; награда уже потрачена — отмены нет.
     expect(pendingPlace(run, 'weapon', 1)).toBe(true);
     expect(run.hero.weapon.slots[1]?.id).toBe('fireball');
-    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['heavy_strike']);
-    expect(run.pending?.displaced).toEqual(['heavy_strike']);
+    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['crippling_shot']);
+    expect(run.pending?.displaced).toEqual(['crippling_shot']);
     expect(run.pending?.cancellable).toBe(false);
     expect(run.phase).toBe('reward');
     expect(run.rewards.length).toBe(1);
     // Мощный удар — в бронный сокет нельзя, вместо Щитового удара — можно: тот в свою очередь встаёт в очередь.
     expect(canPendingPlace(run, 'armor', 0)).toMatch(/Бронный сокет/);
     expect(pendingPlace(run, 'weapon', 0)).toBe(true);
-    expect(run.hero.weapon.slots.map((a) => a?.id)).toEqual(['heavy_strike', 'fireball']);
+    expect(run.hero.weapon.slots.map((a) => a?.id)).toEqual(['crippling_shot', 'fireball']);
     expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['shield_bash']);
     pendingDiscard(run);
     expect(run.pending).toBeNull();
@@ -900,7 +900,7 @@ describe('персональные артефакты', () => {
     expect(canDropFor(second.hero, 'riposte')).toBe(true);
     expect(canDropFor(second.hero, 'shield_bash')).toBe(false);
     expect(canDropFor(plain.hero, 'riposte')).toBe(false);
-    expect(canDropFor(plain.hero, 'heavy_strike')).toBe(true);
+    expect(canDropFor(plain.hero, 'crippling_shot')).toBe(true);
     expect(() => newRun('warrior', 1, 0, 'rage')).toThrow(/Not a signature/);
     // Бронная сигнатура стартует в броне, оружие пустое.
     const pal = newRun('paladin', 1, 0, 'vengeance_halo');
