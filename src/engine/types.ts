@@ -665,7 +665,7 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.38.9';
+export const GAME_VERSION = '0.38.10';
 
 export const SAVE_VERSION = 29;
 
