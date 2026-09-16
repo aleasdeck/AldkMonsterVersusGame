@@ -876,7 +876,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
         if (eff.type === 'blockStrike' && h.block <= 0) return 'Нет блока';
         if (eff.type === 'pull' && state.enemies[0]?.uid === action.target) return 'Уже первый в ряду';
         if (eff.type === 'breakBlock' && (findEnemy(state, action.target ?? -1)?.block ?? 0) <= 0) return 'У цели нет блока';
-        if (eff.type === 'finisher' && h.attacks <= 0) return 'Сначала атакуйте';
+        if (eff.type === 'finisher' && h.strikes <= 0) return 'Сначала атакуйте';
         if (eff.type === 'chain' && chainCharges(h) <= 0) return 'Сначала примените приём';
       }
       return null;
@@ -901,6 +901,8 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
   switch (eff.type) {
     case 'attack': {
       let swung = 0;
+      // Удар засчитан Финишеру здесь, а не в performAction: у приёма из двух эффектов их два, у одного удара по всем врагам — один.
+      h.strikes += 1;
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy', label: 'Удар по', lowHp: eff.lowHp });
         swung += dmg;
@@ -1053,11 +1055,11 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'finisher': {
       // Финишер: доля среднего урона оружия с Силой за каждую атаку в этом ходу (v0.38.8: растёт с оружием); сам атакой не считается, усталость и кубик не участвуют.
       const per = finisherPer(h, eff.pct);
-      const dmg = per * h.attacks;
+      const dmg = per * h.strikes;
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const detail = newDetail();
         const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
-        log(state, `Финишер по ${e.name}: ${dmg} (${per} × ${h.attacks} атак; ${eff.pct} % от среднего удара ${heroAvgDamage(h)})${hitTail(dmg, dealt, detail)}`);
+        log(state, `Финишер по ${e.name}: ${dmg} (${per} × ${h.strikes} удар(ов); ${eff.pct} % от среднего удара ${heroAvgDamage(h)})${hitTail(dmg, dealt, detail)}`);
       }
       break;
     }
@@ -1098,6 +1100,8 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   if (action.type === 'attack') {
     h.sta -= 1;
     const swing = (target: EnemyState) => {
+      // Замах — один удар для Финишера: плеть по всему ряду и эхо считаются как обычная атака, каждое своё.
+      h.strikes += 1;
       if (h.stats.sweep > 0) {
         // Плеть: один замах хлещет по всему ряду на долю урона; сквозного удара копья у неё нет.
         for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, label: 'Герой хлещет' });
@@ -1209,6 +1213,7 @@ function startPlayerTurn(state: BattleState): void {
   h.block = Math.min(h.block, h.stats.blockKeep);
   h.defended = false;
   h.attacks = 0;
+  h.strikes = 0;
   h.uses = {};
   const ex = getStatus(h, 'exhaust');
   h.sta = Math.max(0, h.maxSta - (ex?.value ?? 0));
@@ -1228,8 +1233,11 @@ function startPlayerTurn(state: BattleState): void {
   if (regen > 0) healHero(state, regen, 'регенерация');
   const dot = statusValue(h, 'bleed') + statusValue(h, 'burn') + statusValue(h, 'poison');
   if (dot > 0) {
-    log(state, `Герой теряет ${dot} HP от ран`);
-    damageHero(state, dot, 'dot');
+    // «Мазь знахаря» гасит общий тик ран, как кольчуга — удар: бьёт то, что осталось, но раны с героя не снимает.
+    const soothed = Math.min(dot, h.stats.dotReduce);
+    const left = dot - soothed;
+    log(state, soothed > 0 ? `Герой теряет ${left} HP от ран (${dot} − мазь ${soothed})` : `Герой теряет ${dot} HP от ран`);
+    if (left > 0) damageHero(state, left, 'dot');
   }
 }
 
@@ -1334,13 +1342,23 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
   return e;
 }
 
-function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, rng: Rng): void {
+/**
+ * Что уже случилось в этом приёме врага: был ли удар и дошёл ли он хоть раз. Рана-довесок (Ядовитый укус, Поджог)
+ * — часть удара, а не отдельное проклятие, поэтому уклонение, скрытность и неуязвимость уносят её вместе с уроном (v0.40.2).
+ */
+interface EnemyActionCtx {
+  attacked: boolean;
+  landed: boolean;
+}
+
+function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, rng: Rng, ctx?: EnemyActionCtx): void {
   const h = state.hero;
   switch (eff.type) {
     case 'attack': {
       let dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
       if (getStatus(e, 'weak')) dmg = Math.floor(dmg * 0.75);
       const hits = eff.hits ?? 1;
+      if (ctx) ctx.attacked = true;
       for (let i = 0; i < hits; i++) {
         if (state.phase === 'lost') break;
         const ally = state.allies[0];
@@ -1348,12 +1366,16 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
           const dealt = damageAlly(state, ally, dmg, eff.pierce);
           log(state, `${e.name} атакует ${ally.name}: ${dmg} (${dealt} по HP)`);
           if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
+          // Удар принял союзник: герой цел, но замах состоялся — довесок ложится как прежде.
+          if (ctx) ctx.landed = true;
           continue;
         }
         const detail = newDetail();
         const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, detail);
         log(state, `${e.name} атакует: ${dmg}${hitTail(dmg, dealt, detail, !!eff.pierce && h.block > 0)}`);
         if (eff.drain && dealt > 0) healEnemy(state, e, dealt, 'вампиризм');
+        // Блок — не промах: удар дошёл, просто его съел щит.
+        if (ctx && !detail.miss) ctx.landed = true;
       }
       break;
     }
@@ -1377,6 +1399,11 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
     case 'debuff':
       if (getStatus(h, 'stealth')) {
         log(state, `${e.name} не видит героя`);
+        break;
+      }
+      // Рана приходит с ударом: удар прошёл мимо — крови, огня и яда тоже нет. Проклятия без удара (Сглаз, Слабость) ложатся сами.
+      if (ctx?.attacked && !ctx.landed && isDot(eff.status)) {
+        log(state, `Удар прошёл мимо: ${STATUS_NAMES[eff.status].toLowerCase()} не ложится`);
         break;
       }
       addStatus(state, h, 'hero', eff.status, isDot(eff.status) ? scaled(e.dmgMult, eff.value) : eff.value, eff.turns);
@@ -1407,9 +1434,12 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       addStatus(state, e, e.uid, 'dodge', eff.value, -1);
       break;
     case 'selfDestruct': {
-      const dealt = damageHero(state, scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength'), 'hit', e, false);
-      log(state, `${e.name} взрывается: ${dealt} по HP`);
-      if (eff.burn && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
+      const blast = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
+      const detail = newDetail();
+      const dealt = damageHero(state, blast, 'hit', e, false, detail);
+      log(state, `${e.name} взрывается: ${blast}${hitTail(blast, dealt, detail)}`);
+      // Уклонился от взрыва — не горит: огонь приходит с ударной волной.
+      if (eff.burn && !detail.miss && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
       // Взрыв уже случился: гасим «Предсмертие», иначе тот же порох рванёт второй раз в разборе мёртвых.
       removeStatus(e, 'doom');
       e.hp = 0;
@@ -1513,8 +1543,9 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     else {
       log(state, `${e.name} теряет ${dot} HP от ран`);
       damageEnemy(state, e, dot, 'dot');
-      // «Пиявка»: кровь и яд врага питают героя с каждого тика.
-      if (state.hero.stats.dotLeech > 0 && statusValue(e, 'bleed') + statusValue(e, 'poison') > 0) healHero(state, state.hero.stats.dotLeech, 'пиявка');
+      // «Пиявка»: кровь и яд врага питают героя с каждого тика — за каждую рану отдельно (v0.40.2: на отравленном и кровоточащем пьётся вдвое).
+      const leeched = state.hero.stats.dotLeech > 0 ? [statusValue(e, 'bleed') > 0, statusValue(e, 'poison') > 0].filter(Boolean).length : 0;
+      if (leeched > 0) healHero(state, state.hero.stats.dotLeech * leeched, leeched > 1 ? 'пиявка: кровь и яд' : 'пиявка');
       if (e.hp <= 0) return;
     }
   }
@@ -1530,7 +1561,8 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   const action = enemyAction(def, e.intent);
   state.events.push({ type: 'enemyAction', target: e.uid, name: action.name });
   log(state, action.id === PHASE_SHIFT ? `${e.name} собирается с силами: ${action.name} — без атаки` : `${e.name}: ${action.name}`);
-  for (const eff of action.effects) applyEnemyEffect(state, e, eff, rng);
+  const ctx: EnemyActionCtx = { attacked: false, landed: false };
+  for (const eff of action.effects) applyEnemyEffect(state, e, eff, rng, ctx);
   e.uses[action.id] = (e.uses[action.id] ?? 0) + 1;
   e.lastUsedTurn[action.id] = state.turn;
   e.lastAction = action.id;
@@ -1593,6 +1625,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       potion: hero.potion,
       defended: false,
       attacks: 0,
+      strikes: 0,
       critStack: 0,
     },
     enemies: [],
@@ -1625,6 +1658,12 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
 export type IntentKind = 'attack' | 'defend' | 'buff' | 'debuff' | 'heal' | 'summon' | 'special';
 
 /**
+ * Свойство самого удара, которое надо видеть до его прилёта: `pierce` — блок не спасёт, `drain` — врагу вернётся HP.
+ * Пилюля намерения рисует их своей иконкой рядом с числом урона (v0.40.2): в подсказке это было, но подсказку читают уже после.
+ */
+export type ActionMark = 'pierce' | 'drain';
+
+/**
  * Описание приёма врага: вид для иконки, короткая подпись (урон/блок) и текст подсказки.
  * `kinds` — все виды эффектов приёма по убыванию важности (первый — `kind`), `statuses` — что он вешает на героя:
  * пилюля показывает их рядом с главной иконкой, чтобы дебаф при ударе не прятался в подсказке.
@@ -1641,6 +1680,8 @@ export interface ActionInfo {
   statuses: StatusId[];
   /** Статусы, которые враг вешает на себя (шипы, уклонение): хвост пилюли рисует их иконкой, а не общей стрелкой. */
   selfStatuses: StatusId[];
+  /** Свойства удара — пробитие блока и вампиризм: своя иконка в голове пилюли. */
+  marks: ActionMark[];
 }
 
 export interface IntentInfo extends ActionInfo {
@@ -1678,6 +1719,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
   const kinds: IntentKind[] = [];
   const statuses: StatusId[] = [];
   const selfStatuses: StatusId[] = [];
+  const marks: ActionMark[] = [];
   let label = '';
   for (const eff of a.effects) {
     switch (eff.type) {
@@ -1686,6 +1728,8 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         if (s.weak) dmg = Math.floor(dmg * 0.75);
         const hits = eff.hits ?? 1;
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
+        if (eff.pierce) marks.push('pierce');
+        if (eff.drain) marks.push('drain');
         const notes = [eff.pierce ? 'сквозь блок' : '', eff.drain ? 'вампиризм' : ''].filter(Boolean);
         parts.push(`Атака ${label}${notes.length ? ` (${notes.join(', ')})` : ''}`);
         kinds.push('attack');
@@ -1781,6 +1825,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: statuses.filter((id, i) => statuses.indexOf(id) === i),
     selfStatuses: selfStatuses.filter((id, i) => selfStatuses.indexOf(id) === i),
+    marks: marks.filter((id, i) => marks.indexOf(id) === i),
   };
 }
 
@@ -1884,6 +1929,7 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: [],
     selfStatuses: [],
+    marks: [],
     stunned: false,
     target,
   };

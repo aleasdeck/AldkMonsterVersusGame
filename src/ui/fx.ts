@@ -91,7 +91,7 @@ function weaponShot(run: RunState): { kind: FxKind; color: string } {
 /**
  * Анимация по списку эффектов приёма: есть эффект по врагам — снаряд по ним (род из `fx`, иначе атака — оружием,
  * заклинание — шаром; один статус без урона летит только если `fx` задан, иначе хватит облака из события);
- * только на себя — свечение героя, у зелья — глоток.
+ * только на себя — свечение героя, у зелья — глоток. `echo` — на герое висит «Эхо удара»: движок повторит все удары приёма.
  */
 function planEffects(
   plan: FxPlan,
@@ -103,6 +103,7 @@ function planEffects(
   all: number[],
   selfColor: string,
   potion: boolean,
+  echo = false,
 ): void {
   const hostile = effects.find(
     (e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status' || e.type === 'pull' || e.type === 'push' || e.type === 'detonate' || e.type === 'spread' || e.type === 'breakBlock' || e.type === 'finisher' || e.type === 'chain') && e.target !== 'self',
@@ -125,7 +126,19 @@ function planEffects(
       color ??= '#b388ff';
     } else return;
   }
-  addShots(plan, kind, color ?? DEFAULT_BLADE, blade, 'hero', targets);
+  // Сколько раз приём бьёт: у Двойного выпада два удара своими эффектами, «Эхо удара» повторяет их все ещё раз.
+  // Каждый удар — свой взмах с шагом HIT_GAP, как у многоударного приёма элиты (v0.40.2).
+  const attacks = effects.filter((e) => e.type === 'attack').length;
+  addSwings(plan, kind, color ?? DEFAULT_BLADE, blade, targets, Math.max(1, attacks * (echo && attacks > 0 ? 2 : 1)));
+}
+
+/**
+ * Несколько взмахов подряд по тем же целям. Перерисовка — по первому удару (`impact`): остальные снаряды доигрываются
+ * в перенесённом слое `.fx-layer`, а цифры подтягивает playEvents с тем же шагом HIT_GAP — взмах и число сходятся.
+ */
+function addSwings(plan: FxPlan, kind: FxKind, color: string, blade: string, targets: EventTarget[], swings: number): void {
+  for (let i = 0; i < swings; i++) addShots(plan, kind, color, blade, 'hero', targets, i * HIT_GAP);
+  if (swings > 1) plan.impact = FLIGHT[kind];
 }
 
 /** План анимации действия героя. Считается до применения действия: цели ещё живы, зелье ещё в слоте. */
@@ -137,14 +150,16 @@ export function planHeroFx(run: RunState, action: PlayerAction): FxPlan {
   const blade = (hero.sprite.type === 'humanoid' && hero.sprite.palette.w) || DEFAULT_BLADE;
   const all = b.enemies.map((e) => e.uid);
   const weapon = weaponShot(run);
+  // «Эхо удара» повторит атаку ещё раз — значит, и взмахов будет два.
+  const echo = b.hero.statuses.some((st) => st.id === 'echo');
   if (action.type === 'attack') {
     // Плеть хлещет весь ряд: взмах по каждому врагу.
-    addShots(plan, weapon.kind, weapon.color, blade, 'hero', b.hero.stats.sweep > 0 ? all : [action.target]);
+    addSwings(plan, weapon.kind, weapon.color, blade, b.hero.stats.sweep > 0 ? all : [action.target], echo ? 2 : 1);
   } else if (action.type === 'artifact') {
     const def = artifactDef(action.artifactId);
     const inst = b.hero.artifacts.find((a) => a.id === def.id);
     const effects = def.effects?.(inst?.tier ?? 1) ?? [];
-    planEffects(plan, effects, def.fx, weapon, blade, action.target, all, def.school === 'magic' ? '#b388ff' : '#ffd166', false);
+    planEffects(plan, effects, def.fx, weapon, blade, action.target, all, def.school === 'magic' ? '#b388ff' : '#ffd166', false, echo);
   } else if (action.type === 'potion' && b.hero.potion) {
     const def = potionDef(b.hero.potion);
     planEffects(plan, def.effects, { kind: 'flask', ...def.fx }, weapon, blade, action.target, all, '#ffffff', true);

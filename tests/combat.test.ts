@@ -186,6 +186,14 @@ describe('намерения', () => {
     expect(computeIntent(m)).toMatchObject({ kind: 'special', label: '', text: 'Пульсация' });
   });
 
+  it('свойства удара помечены: пробитие блока и вампиризм — своими метками, обычный удар без них', () => {
+    const { state } = mkBattle('warrior', ['goblin', 'bat', 'wolf']);
+    const [goblin, bat, wolf] = state.enemies;
+    expect(computeIntent(goblin).marks).toEqual(['pierce']);
+    expect(computeIntent(bat).marks).toEqual(['drain']);
+    expect(computeIntent(wolf).marks).toEqual([]);
+  });
+
   it('предпросмотр остатка HP цели: блок гасит удар, но не пробивающий и не заклинание', () => {
     const { state } = mkBattle('warrior', ['wolf']);
     const wolf = first(state);
@@ -1406,6 +1414,49 @@ describe('v0.38: связки', () => {
     expect(state.log).toContain('Герой: +1 HP (пиявка)');
   });
 
+  it('Пиявка: кровь и яд на одной цели лечат за обе раны, а не за одну', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'bleed_cut', tier: 1 }, { id: 'poison_vial', tier: 1 }, { id: 'leech_charm', tier: 1 }] });
+    const boar = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: boar.uid }, rng);
+    performAction(state, { type: 'artifact', artifactId: 'poison_vial', target: boar.uid }, rng);
+    state.hero.hp = 10;
+    boar.intent = 'bristle';
+    pass(state, rng);
+    // Кровь 3 + яд 2 одним тиком, пиявка пьёт с каждой раны: +1 и +1.
+    expect(boar.hp).toBe(18 - 5);
+    expect(state.hero.hp).toBe(12);
+    expect(state.log).toContain('Герой: +2 HP (пиявка: кровь и яд)');
+  });
+
+  it('Мазь знахаря: общий тик ран героя слабее, сами раны остаются', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'healer_salve', tier: 2 }] });
+    const boar = first(state);
+    boar.intent = 'bristle';
+    state.hero.hp = 20;
+    state.hero.statuses.push({ id: 'bleed', value: 3, turns: 2 }, { id: 'burn', value: 1, turns: 2 });
+    pass(state, rng);
+    // Кровь 3 + горение 1 = 4, мазь второго тира гасит 2.
+    expect(state.hero.hp).toBe(18);
+    expect(getStatus(state.hero, 'bleed')?.value).toBe(3);
+    expect(state.log).toContain('Герой теряет 2 HP от ран (4 − мазь 2)');
+  });
+
+  it('Уклонение уносит и рану: яд ложится только с дошедшего укуса', () => {
+    // Без уклонения укус паука вешает яд как обычно.
+    const plain = mkBattle('warrior', ['spider']);
+    pass(plain.state, plain.rng);
+    expect(getStatus(plain.state.hero, 'poison')?.value).toBe(1);
+
+    const { state, rng } = mkBattle('warrior', ['spider'], { extra: [{ id: 'dodge', tier: 1 }] });
+    const spider = first(state);
+    state.hero.hp = 30;
+    performAction(state, { type: 'artifact', artifactId: 'dodge', target: spider.uid }, rng);
+    pass(state, rng);
+    expect(state.hero.hp).toBe(30);
+    expect(getStatus(state.hero, 'poison')).toBeUndefined();
+    expect(state.log).toContain('Удар прошёл мимо: яд не ложится');
+  });
+
   it('Гниль: отравленная цель получает больше от ударов, предпросмотр это видит', () => {
     const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'poison_vial', tier: 1 }, { id: 'rot', tier: 1 }] });
     const boar = first(state);
@@ -1497,6 +1548,20 @@ describe('v0.38: связки', () => {
     performAction(state, { type: 'artifact', artifactId: 'finisher', target: boar.uid }, rng);
     expect(boar.hp).toBe(18 - 5 - 3 - 6);
     expect(state.hero.attacks).toBe(2);
+  });
+
+  it('Финишер считает удары, а не действия: Двойной выпад даёт ему два', () => {
+    const { state, rng } = mkBattle('assassin', ['boar'], { extra: [{ id: 'double_lunge', tier: 3 }, { id: 'finisher', tier: 1 }] });
+    const boar = first(state);
+    const avg = (state.hero.stats.dmgMin + state.hero.stats.dmgMax) / 2 + state.hero.stats.str;
+    performAction(state, { type: 'artifact', artifactId: 'double_lunge', target: boar.uid }, rng);
+    // Два удара одним действием: усталость считает их одной атакой, Финишер — двумя ударами.
+    expect(state.hero.attacks).toBe(1);
+    expect(state.hero.strikes).toBe(2);
+    const hp = boar.hp;
+    performAction(state, { type: 'artifact', artifactId: 'finisher', target: boar.uid }, rng);
+    expect(hp - boar.hp).toBe(Math.max(1, Math.round((avg * 50) / 100)) * 2);
+    expect(state.log.some((l) => l.includes('× 2 удар(ов)'))).toBe(true);
   });
 
   it('Эхо удара: следующая атака бьёт дважды с той же усталостью', () => {

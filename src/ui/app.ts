@@ -764,6 +764,12 @@ export class App {
     return this.root.querySelector<HTMLElement>(sel);
   }
 
+  /** Полоска HP бойца в свежем дереве: у героя она в блоке консоли, у врагов и союзников — на плитке. */
+  private hpBar(target: EventTarget): HTMLElement | null {
+    const sel = target === 'hero' ? '.c-hero .bar-hp' : `[data-uid="${target}"] .bar-hp`;
+    return this.root.querySelector<HTMLElement>(sel);
+  }
+
   /** Свечение бафа — герою, союзникам, элите и боссам; рядовые враги только наскакивают. Облако дебафа — всем. */
   private glows(target: EventTarget): boolean {
     if (target === 'hero') return true;
@@ -781,12 +787,43 @@ export class App {
   }
 
   /**
+   * Кому отматывать полоску HP (v0.40.2): у бойца, по которому в этом пакете прошло несколько ударов, движок уже снял все HP разом,
+   * а цифры идут по очереди. Считаем, сколько HP снимет каждый следующий удар (`left[i]` — хвост после i-го), и ведём полоску за
+   * цифрами. Лечение в том же пакете (вампиризм, регенерация) сбивает счёт — такую цель не трогаем.
+   */
+  private planDrains(events: BattleEvent[]): Map<string, { el: HTMLElement; hp: number; left: number[] }> {
+    const hits = new Map<string, number[]>();
+    const healed = new Set<string>();
+    for (const ev of events) {
+      if (ev.type === 'damage') {
+        const key = String(ev.target);
+        const list = hits.get(key) ?? [];
+        list.push(ev.amount);
+        hits.set(key, list);
+      } else if (ev.type === 'heal') healed.add(String(ev.target));
+    }
+    const out = new Map<string, { el: HTMLElement; hp: number; left: number[] }>();
+    for (const [key, list] of hits) {
+      if (list.length < 2 || healed.has(key) || list.reduce((a, b) => a + b, 0) <= 0) continue;
+      const el = this.hpBar(key === 'hero' ? 'hero' : Number(key));
+      const now = el ? readBar(el) : null;
+      if (!el || !now) continue;
+      // Хвост с конца: left[i] — сколько HP снимут удары после i-го, left[list.length] = 0.
+      const left = new Array<number>(list.length + 1).fill(0);
+      for (let i = list.length - 1; i >= 0; i--) left[i] = left[i + 1] + list[i];
+      out.set(key, { el, hp: now.hp, left });
+    }
+    return out;
+  }
+
+  /**
    * Всплывающие цифры и эффекты по событиям боя. Удары одного приёма по одной цели идут по очереди с шагом HIT_GAP:
-   * каждый — своя цифра, своя тряска и свой наскок бьющего. Возвращает, через сколько мс отыграет последний удар.
+   * каждый — своя цифра, своя тряска, свой наскок бьющего и свой кусок полоски HP. Возвращает, через сколько мс отыграет последний удар.
    */
   playEvents(events: BattleEvent[], plan?: FxPlan): number {
     const counters = new Map<string, number>();
     const hitSeq = new Map<string, number>();
+    const drains = this.planDrains(events);
     let actor: EventTarget | null = plan?.lunged.has('hero') ? 'hero' : null;
     let longest = 0;
     const done = new Set<string>();
@@ -827,9 +864,12 @@ export class App {
           const who = actor;
           const hurt = ev.kind !== 'blocked';
           // Цифры ударов разнесены по времени, а не по высоте: каждая стартует с той же строки, что и первая.
+          const drain = drains.get(key);
           const land = () => {
             if (hurt) shake(wrap);
             if (seq > 0 && who !== null) lungeAgain(this.root, who);
+            // Полоска догоняет цифру: первый удар отматывает её назад без перехода, остальные снимают HP по своему куску.
+            if (drain) setBarHp(drain.el, drain.hp + drain.left[seq + 1], seq === 0);
             floatText(wrap, text, cls, n - seq);
           };
           if (seq === 0) land();
@@ -878,6 +918,33 @@ export class App {
     }
     return longest;
   }
+}
+
+/** Числа на полоске: она и есть источник — движок уже посчитал итог, а показ мы отматываем назад. */
+function readBar(el: HTMLElement): { hp: number; max: number } | null {
+  const m = /(\d+)\/(\d+)/.exec(el.querySelector('.bar-text')?.firstChild?.nodeValue ?? '');
+  return m ? { hp: Number(m[1]), max: Number(m[2]) } : null;
+}
+
+/**
+ * Промежуточное значение на полоске HP. `instant` — отмотка назад перед первым ударом: с переходом полоска сперва поехала бы
+ * вверх, к уже снятым HP. Дальше ширина меняется обычным переходом в 200 мс — ровно шаг между ударами (HIT_GAP).
+ */
+function setBarHp(el: HTMLElement, hp: number, instant: boolean): void {
+  const node = el.querySelector('.bar-text')?.firstChild;
+  const now = readBar(el);
+  const fill = el.querySelector<HTMLElement>('.bar-fill');
+  if (!node?.nodeValue || !now || !fill) return;
+  const shown = Math.max(0, hp);
+  node.nodeValue = node.nodeValue.replace(/\d+(?=\/)/, String(shown));
+  const pct = now.max > 0 ? Math.max(0, Math.min(100, (shown / now.max) * 100)) : 0;
+  if (instant) {
+    fill.style.transition = 'none';
+    fill.style.width = `${pct}%`;
+    // Чтение размера фиксирует кадр без перехода — иначе браузер склеит обе ширины в одну анимацию.
+    void fill.offsetWidth;
+    fill.style.transition = '';
+  } else fill.style.width = `${pct}%`;
 }
 
 function shake(el: HTMLElement): void {

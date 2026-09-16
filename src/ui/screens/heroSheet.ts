@@ -35,6 +35,7 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
     s.onHitPoison ? row('Яд с удара', `${s.onHitPoison}`, 'Яд с каждого удара на 3 хода') : null,
     s.regen ? row('Регенерация', `${s.regen}`, 'HP в начале хода') : null,
     s.hitReduce ? row('Гашение удара', `−${s.hitReduce}`, 'На столько слабее каждый удар врага по герою, до блока') : null,
+    s.dotReduce ? row('Гашение ран', `−${s.dotReduce}`, 'На столько слабее общий тик Кровотечения, Горения и Яда на герое за ход; сами раны остаются висеть') : null,
     s.riposte ? row('Ответный удар', `${s.riposte} %`, 'Когда блок гасит удар врага, ударивший получает столько процентов среднего урона оружия с Силой, раз за его ход') : null,
     s.lowHpStr || s.lowHpSta || s.lowHpReduce
       ? row('Боевой транс', [s.lowHpStr ? `+${s.lowHpStr} Сила` : '', s.lowHpSta ? `+${s.lowHpSta} STA` : '', s.lowHpReduce ? `−${s.lowHpReduce} удар` : ''].filter(Boolean).join(', '), 'Пока HP ниже половины: Сила, стамина в начале хода и гашение каждого удара врага')
