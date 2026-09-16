@@ -23,7 +23,7 @@ import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, pick, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef, PHASE_SHIFT } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
-import { artifactCost, artifactDef } from '../data/artifacts';
+import { ARTIFACTS, artifactCost, artifactDef } from '../data/artifacts';
 import { SWEEP_MULT } from '../data/gear';
 import { potionDef } from '../data/potions';
 import { computeStats, socketedArtifacts } from './stats';
@@ -844,6 +844,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
         if (eff.type === 'pull' && state.enemies[0]?.uid === action.target) return 'Уже первый в ряду';
         if (eff.type === 'breakBlock' && (findEnemy(state, action.target ?? -1)?.block ?? 0) <= 0) return 'У цели нет блока';
         if (eff.type === 'finisher' && h.attacks <= 0) return 'Сначала атакуйте';
+        if (eff.type === 'chain' && chainCharges(h) <= 0) return 'Сначала примените приём';
       }
       return null;
     }
@@ -1026,6 +1027,15 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       }
       break;
     }
+    case 'chain': {
+      // Цепная атака: фиксированный удар вдогонку приёму — без кубика, усталости и крита; шипы не отвечают.
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        const detail = newDetail();
+        const dealt = damageEnemy(state, e, eff.amount, 'hit', { pierce: h.stats.pierceBlock > 0, noThorns: true, detail, rng });
+        log(state, `Цепная атака по ${e.name}: ${eff.amount}${hitTail(eff.amount, dealt, detail)}`);
+      }
+      break;
+    }
     case 'push':
       // Щитовой удар: цель меняется местами со следующим в ряду. Последнего толкать некуда, убитого — незачем:
       // приём этим не запрещён (блок он даёт всё равно), просто строй не двигается.
@@ -1099,7 +1109,7 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     const effects = def.effects?.(inst.tier) ?? [];
     // Скрытность спадает после каждого бьющего эффекта, а не после всего приёма: у Двойного выпада в спину бьёт только первый
     // удар. Один эффект по всем (Вихрь) по-прежнему целиком из тени. Счётчик атак растёт один раз — приём и есть одна атака.
-    const hits = (eff: Effect) => eff.type === 'attack' || eff.type === 'spell' || eff.type === 'blockStrike' || eff.type === 'detonate' || eff.type === 'breakBlock' || eff.type === 'finisher';
+    const hits = (eff: Effect) => eff.type === 'attack' || eff.type === 'spell' || eff.type === 'blockStrike' || eff.type === 'detonate' || eff.type === 'breakBlock' || eff.type === 'finisher' || eff.type === 'chain';
     for (const eff of effects) {
       applyEffect(state, eff, action.target, rng);
       if (hits(eff)) breakStealth(state);
@@ -1124,19 +1134,24 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
       h.mp += gained;
       log(state, `Перекрёстный ток: +${gained} MP`);
     }
-    // «Цепная атака»: после любого приёма или заклинания — бесплатный удар по его цели, иначе по первому в ряду.
-    if (h.stats.chainDmg > 0 && state.phase === 'player') {
-      const aimed = findEnemy(state, action.target ?? -1);
-      const victim = aimed && aimed.hp > 0 ? aimed : state.enemies.find((e) => e.hp > 0);
-      if (victim) {
-        const detail = newDetail();
-        const dealt = damageEnemy(state, victim, h.stats.chainDmg, 'hit', { pierce: h.stats.pierceBlock > 0, noThorns: true, detail, rng });
-        log(state, `Цепная атака по ${victim.name}: ${h.stats.chainDmg}${hitTail(h.stats.chainDmg, dealt, detail)}`);
-        breakStealth(state);
-      }
-    }
   }
   cleanupDead(state, rng);
+}
+
+/**
+ * Заряды «Цепной атаки»: каждый другой приём или заклинание в этом ходу даёт один, каждая цепная атака тратит один.
+ * Считается по `hero.uses`, отдельного состояния нет; служебные ключи «Перекрёстного тока» не считаются.
+ */
+export function chainCharges(h: HeroBattle): number {
+  let charges = 0;
+  for (const [id, n] of Object.entries(h.uses)) {
+    if (id.startsWith('_')) continue;
+    const def = ARTIFACTS[id];
+    if (!def) continue;
+    const chain = def.effects?.(1).some((e) => e.type === 'chain');
+    charges += chain ? -n : n;
+  }
+  return Math.max(0, charges);
 }
 
 /** Ключи в `hero.uses` для «Перекрёстного тока»: раз в ход на каждый ресурс; с id артефактов не пересекаются. */

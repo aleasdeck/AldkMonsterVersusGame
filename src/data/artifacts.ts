@@ -225,15 +225,6 @@ const list: ArtifactDef[] = [
     describe: (tier) => `Удары +${t(1, 2, 3)(tier)} урона за каждое проклятие на цели (Слабость, Кровотечение, Горение, Яд, Оглушение, Уязвимость)`,
   },
   {
-    id: 'chain_strike',
-    name: 'Цепная атака',
-    glyph: '⛓',
-    kind: 'passive',
-    slot: 'weapon',
-    mods: (tier) => ({ chainDmg: t(2, 3, 4)(tier) }),
-    describe: (tier) => `После каждого приёма или заклинания — бесплатный удар ${t(2, 3, 4)(tier)} по его цели (без цели — по первому в ряду)`,
-  },
-  {
     id: 'cross_current',
     name: 'Перекрёстный ток',
     glyph: '⇄',
@@ -662,6 +653,21 @@ const list: ArtifactDef[] = [
     target: 'self',
     effects: () => [{ type: 'status', target: 'self', status: 'echo', value: 1, turns: 1 }],
     describe: (tier) => `Следующая атака в этом ходу повторяется: удар и удары приёма бьют дважды, усталость считает их одной атакой. КД ${t(4, 3, 2)(tier)}`,
+  },
+  {
+    id: 'chain_strike',
+    fx: { color: '#c9ccd1' },
+    name: 'Цепная атака',
+    glyph: '⛓',
+    kind: 'active',
+    slot: 'weapon',
+    school: 'physical',
+    cost: () => ({ sta: 0 }),
+    target: 'enemy',
+    reach: 'any',
+    // Активный приём, а не пассивка (решение пользователя): игрок сам выбирает, кого добить вдогонку. Заряд — каждый другой приём в ходу.
+    effects: (tier) => [{ type: 'chain', amount: t(2, 3, 4)(tier), target: 'enemy' }],
+    describe: (tier) => `Удар ${t(2, 3, 4)(tier)} по любой цели, бесплатно; доступен по одному разу за каждый другой приём или заклинание в этом ходу`,
   },
   {
     id: 'execute_strike',

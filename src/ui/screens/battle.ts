@@ -261,6 +261,8 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return [range ? rangeText(range) : '—', h('small', null, `⛨×${e.mult}`)];
       case 'finisher':
         return [range ? rangeText(range) : '—', h('small', null, `×${e.per}`)];
+      case 'chain':
+        return [`${e.amount}`, h('small', null, 'вдогонку')];
       default:
         continue;
     }
@@ -363,6 +365,7 @@ export function actionSpecs(app: App): TileSpec[] {
     const detEff = effects.find((e) => e.type === 'detonate');
     const breakEff = effects.find((e) => e.type === 'breakBlock');
     const finEff = effects.find((e) => e.type === 'finisher');
+    const chainEff = effects.find((e) => e.type === 'chain');
     let kind: 'hit' | 'spell' | 'dot' = 'hit';
     /** Разброс приёма: без цели — общий (плитка), с целью — по ней (ридаут): взрыв ран, пролом и прибавки по цели зависят от врага. */
     const rangeOn = (t?: number): DamageRange | null => {
@@ -395,6 +398,7 @@ export function actionSpecs(app: App): TileSpec[] {
         const dmg = finEff.per * b.hero.attacks;
         return { min: dmg, max: dmg };
       }
+      if (chainEff && chainEff.type === 'chain') return { min: chainEff.amount, max: chainEff.amount };
       if (spellEff && spellEff.type === 'spell') {
         let dmg = spellEff.amount + b.hero.stats.spellPower;
         // «Раздуть» и удвоение по Слабому — только когда цель известна.
