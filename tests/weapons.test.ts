@@ -269,7 +269,7 @@ describe('ярость берсерка', () => {
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
     expect(state.hero.hp).toBe(hp0 - 2);
     expect(state.hero.sta).toBe(5); // +2 STA на первом тире
-    expect(getStatus(state.hero, 'strength')?.value).toBe(1);
+    expect(getStatus(state.hero, 'strength')?.value).toBe(2);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'rage' })).toMatch(/Перезарядка/);
     endTurn(state);
     resolveEnemyTurn(state, rng);

@@ -349,9 +349,10 @@ const list: ArtifactDef[] = [
       // Цена крови 2/1/1 (v0.14): с одной Яростью на старте и без Клича при 3/2/2 Берсерк давал 34 % у бота, с 2/1/1 — 47 %.
       { type: 'selfDamage', amount: t(2, 1, 1)(tier) },
       { type: 'gainSta', amount: t(2, 2, 3)(tier) },
-      { type: 'status', target: 'self', status: 'strength', value: t(1, 2, 3)(tier), turns: 1 },
+      // v0.38: +2/3/4 вместо +1/2/3 — компенсация Берсерку за ушедшие Камень силы и Мощный удар (он лёг на 21 % у бота).
+      { type: 'status', target: 'self', status: 'strength', value: t(2, 3, 4)(tier), turns: 1 },
     ],
-    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(2, 2, 3)(tier)} стамины и +${t(1, 2, 3)(tier)} к Силе на этот ход. КД 2`,
+    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(2, 2, 3)(tier)} стамины и +${t(2, 3, 4)(tier)} к Силе на этот ход. КД 2`,
   },
   {
     id: 'second_wind',
@@ -807,8 +808,9 @@ const list: ArtifactDef[] = [
     // Без перезарядки, но не бесконечно: с 10 маны и без лимита Маг выносил бои за ход — «имба» по отзыву пользователя.
     usesPerTurn: (tier) => t(2, 3, 4)(tier),
     target: 'enemy',
-    effects: (tier) => [{ type: 'spell', amount: t(3, 4, 5)(tier), target: 'enemy' }],
-    describe: (tier) => `${t(3, 4, 5)(tier)} урона заклинанием. До ${t(2, 3, 4)(tier)} раз за ход`,
+    // v0.38: 2/3/4 вместо 3/4/5 — Маг с первой сигнатурой один остался над коридором бота (42 %).
+    effects: (tier) => [{ type: 'spell', amount: t(2, 3, 4)(tier), target: 'enemy' }],
+    describe: (tier) => `${t(2, 3, 4)(tier)} урона заклинанием. До ${t(2, 3, 4)(tier)} раз за ход`,
   },
   {
     id: 'spark',
