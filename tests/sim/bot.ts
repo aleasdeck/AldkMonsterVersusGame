@@ -449,7 +449,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
     v += (m.spellPower ?? 0) * (magic ? 4 : 0);
     v += (m.dmgMax ?? 0) * 2;
     v += (m.onKillHeal ?? 0) * 3;
-    v += (m.blockStart ?? 0) * 1.5;
+    // «Плащ странника» с v0.37 даёт блок каждый ход — цена та же, что у гашения удара (hitReduce), только блок иногда пропадает зря.
+    v += (m.blockTurn ?? 0) * 4;
     v += (m.markOnHit ?? 0) * avg * 0.3;
     // Бронные пассивки v0.31.1: единица с каждого удара — около двух ударов за ход врага; промах первой атаки — средний удар врага.
     v += (m.hitReduce ?? 0) * 5;
@@ -506,6 +507,10 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
       case 'pull':
         // Вытянуть стрелка под удар стоит примерно одного лишнего удара по нужной цели; дальнобойному не нужно.
         per += weaponFar ? 0.5 : avg * W.enemyHp * 1.5;
+        break;
+      case 'push':
+        // Толчок слабее Крюка: до задних очередь доходит, но цель уходит из-под добивания. Дальнобойному ряд безразличен.
+        per += weaponFar ? 0 : avg * W.enemyHp * 0.3;
         break;
       case 'status': {
         const turns = e.turns === -1 ? 3 : e.turns;

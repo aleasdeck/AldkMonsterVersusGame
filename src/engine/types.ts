@@ -114,8 +114,8 @@ export interface DerivedStats {
   backstab: number;
   /** Лечение героя за каждого убитого врага («Кровавый жетон»). */
   onKillHeal: number;
-  /** Блок в начале боя («Плащ странника»). */
-  blockStart: number;
+  /** Блок в начале каждого хода («Плащ странника»). */
+  blockTurn: number;
   /** Первый удар героя в ходу вешает Уязвимость на N ходов («Метка охотника»). */
   markOnHit: number;
   /** >0 — оружие достаёт любого врага в ряду (дальнее, магическое, копьё); 0 — только первого. */
@@ -162,8 +162,6 @@ export type Effect =
       sureCrit?: boolean;
       /** Доля нанесённого урона, которая становится Блоком героя (Щитовой удар): блок растёт вместе с оружием. */
       blockPct?: number;
-      /** Своя доля сквозного урона следующему врагу: приём расталкивает строй даже мечом. Не складывается со splash копья — берётся большая. */
-      splashPct?: number;
     }
   /** Удар щитом (Таран): урон равен текущему Блоку героя × mult. Кубик оружия, Сила и усталость не участвуют, блок не тратится. */
   | { type: 'blockStrike'; mult: number; target: 'enemy' }
@@ -180,7 +178,9 @@ export type Effect =
   /** Снять с героя раны и проклятия: кровотечение, горение, яд, слабость, изнурение, уязвимость; statuses — только перечисленные (Глухая оборона). */
   | { type: 'cleanse'; statuses?: StatusId[] }
   /** Притянуть цель в первый ряд (Крюк-кошка): она встаёт под удар ближнего боя, остальные сдвигаются назад. */
-  | { type: 'pull'; target: 'enemy' };
+  | { type: 'pull'; target: 'enemy' }
+  /** Отбросить цель на клетку назад (Щитовой удар): следующий в ряду встаёт первым. Последнего в ряду толкать некуда. */
+  | { type: 'push'; target: 'enemy' };
 
 export interface ArtifactCost {
   sta?: number | 'all';
@@ -621,9 +621,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.36';
+export const GAME_VERSION = '0.37';
 
-export const SAVE_VERSION = 24;
+export const SAVE_VERSION = 25;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

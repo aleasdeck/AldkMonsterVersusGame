@@ -443,7 +443,7 @@ describe('новые механики врагов', () => {
     h.statuses.push({ id: 'bleed', value: 3, turns: 3 }, { id: 'weak', value: 1, turns: 2 }, { id: 'exhaust', value: 1, turns: 2 });
     const block0 = h.block;
     performAction(state, { type: 'artifact', artifactId: 'deaf_defense' }, rng);
-    expect(h.block).toBe(block0 + 3);
+    expect(h.block).toBe(block0 + 4);
     expect(getStatus(h, 'weak')).toBeUndefined();
     expect(getStatus(h, 'exhaust')).toBeUndefined();
     expect(getStatus(h, 'bleed')).toBeDefined();
@@ -1105,9 +1105,14 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     expect(bear.hp).toBe(35 - 5 - 4);
   });
 
-  it('кровавый жетон лечит за убийство, плащ странника даёт блок в начале боя', () => {
+  it('кровавый жетон лечит за убийство, плащ странника даёт блок в начале каждого хода', () => {
     const { state, rng } = mkBattle('warrior', ['rat'], { extra: [{ id: 'blood_token', tier: 1 }, { id: 'wanderer_cloak', tier: 2 }] });
     expect(state.hero.block).toBe(5);
+    // v0.37: блок сгорает в начале хода, плащ тут же выдаёт свой заново — на каждом ходу, а не только в первом.
+    const cloak = mkBattle('warrior', ['rat'], { extra: [{ id: 'wanderer_cloak', tier: 2 }] });
+    cloak.state.hero.block += 4;
+    pass(cloak.state, cloak.rng);
+    expect(cloak.state.hero.block).toBe(5);
     state.hero.hp = 20;
     first(state).hp = 3;
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
@@ -1127,9 +1132,9 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     const w = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_bash', tier: 1 }] });
     const bear = first(w.state);
     performAction(w.state, { type: 'artifact', artifactId: 'shield_bash', target: bear.uid }, w.rng);
-    // 5 × 0.75 = 3.75 → 3 урона; блок — 60 % от них: 1.8 → 2
-    expect(bear.hp).toBe(35 - 3);
-    expect(w.state.hero.block).toBe(2);
+    // v0.37: полный удар оружия — 5 урона; блок — 60 % от них: 3
+    expect(bear.hp).toBe(35 - 5);
+    expect(w.state.hero.block).toBe(3);
 
     const p = mkBattle('paladin', ['bear'], { extra: [{ id: 'light_hammer', tier: 1 }] });
     p.state.hero.hp = 10;
@@ -1145,8 +1150,8 @@ describe('v0.33: вторые персональные артефакты', () =
   it('Ответный удар: блок погасил удар — ударивший получает долю среднего урона оружия, раз за свой ход, без блока ответа нет', () => {
     const { state, rng } = mkBattle('warrior', ['wolf'], { extra: [{ id: 'riposte', tier: 1 }] });
     const wolf = first(state);
-    expect(state.hero.stats.riposte).toBe(50);
-    // Меч 4–6 → среднее 5, Силы нет: 50 % = 2.5 → 3.
+    expect(state.hero.stats.riposte).toBe(60);
+    // Меч 4–6 → среднее 5, Силы нет: 60 % = 3.
     expect(riposteDamage(state.hero)).toBe(3);
     performAction(state, { type: 'defend' }, rng);
     expect(state.hero.block).toBeGreaterThan(0);
@@ -1253,14 +1258,31 @@ describe('v0.33: вторые персональные артефакты', () =
 });
 
 describe('v0.18: блок от урона и удар блоком', () => {
-  it('щитовой удар: блок растёт с уроном, на третьем тире равен ему', () => {
+  it('щитовой удар: блок растёт с уроном, на третьем тире — 80 % от него', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'shield_bash', tier: 3 }] });
     state.hero.stats.str = 10;
     const bear = first(state);
     performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: bear.uid }, rng);
-    // (5 + 10) × 0.75 = 11.25 → 11 урона и столько же блока
-    expect(bear.hp).toBe(35 - 11);
-    expect(state.hero.block).toBe(11);
+    // v0.37: удар оружия целиком — 5 + 10 = 15, блок 80 % от него — 12
+    expect(bear.hp).toBe(35 - 15);
+    expect(state.hero.block).toBe(12);
+  });
+
+  it('щитовой удар отбрасывает цель на клетку назад, последнего в ряду толкать некуда', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf', 'bear', 'rat'], { extra: [{ id: 'shield_bash', tier: 1 }] });
+    const wolf = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: wolf.uid }, rng);
+    // Волк ушёл на вторую клетку, медведь встал первым — до него теперь достаёт ближний бой.
+    expect(state.enemies.map((e) => e.name)).toEqual(['Медведь', 'Волк', 'Крыса']);
+    expect(state.log.some((l) => /Волк отброшен назад/.test(l))).toBe(true);
+    // Последнего толкать некуда: строй тот же, приём всё равно доступен ради блока.
+    const last = state.enemies[2];
+    state.hero.cooldowns.shield_bash = 0;
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'shield_bash', target: last.uid })).toBe('Только первый в ряду');
+    state.enemies = [last];
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'shield_bash', target: last.uid })).toBe(null);
+    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: last.uid }, rng);
+    expect(state.enemies.map((e) => e.name)).toEqual(['Крыса']);
   });
 
   it('таран: урон равен текущему блоку × множитель, блок не тратится, без блока недоступен', () => {

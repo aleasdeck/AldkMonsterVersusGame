@@ -681,8 +681,6 @@ interface StrikeOpts {
   sureCrit?: boolean;
   /** Одиночный удар: сквозной урон копья уходит следующему врагу. */
   single?: boolean;
-  /** Своя доля сквозного урона у приёма: берётся большая из неё и splash оружия, чтобы копьё и щит не складывались. */
-  splash?: number;
   /** Начало строки лога: «Герой бьёт» у базовой атаки, имя приёма у артефакта. */
   label?: string;
 }
@@ -714,7 +712,7 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     log(state, `Азарт: шанс крита +${Math.round(h.stats.critRamp * 100)} % (всего +${Math.round(h.critStack * 100)} %)`);
   }
   if (h.stats.blockOnHit > 0) gainBlock(state, h, 'hero', h.stats.blockOnHit, 'перк оружия');
-  const splash = Math.max(h.stats.splash, opts.splash ?? 0);
+  const splash = h.stats.splash;
   if (opts.single && splash > 0 && dmg > 0) {
     const next = state.enemies.find((x) => x.uid !== e.uid && x.hp > 0);
     if (next) {
@@ -822,7 +820,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'attack': {
       let swung = 0;
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, splash: eff.splashPct, single: eff.target === 'enemy', label: 'Удар по' });
+        const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy', label: 'Удар по' });
         swung += dmg;
       }
       // Щитовой удар: блок — доля урона замаха, а не того, что дошло до HP: блок и уклонение врага щит не отменяют.
@@ -894,6 +892,18 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
         state.enemies.splice(idx, 1);
         state.enemies.unshift(e);
         log(state, `${e.name} вытянут в первый ряд`);
+      }
+      break;
+    case 'push':
+      // Щитовой удар: цель меняется местами со следующим в ряду. Последнего толкать некуда, убитого — незачем:
+      // приём этим не запрещён (блок он даёт всё равно), просто строй не двигается.
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        if (e.hp <= 0) continue;
+        const idx = state.enemies.indexOf(e);
+        if (idx < 0 || idx >= state.enemies.length - 1) continue;
+        state.enemies.splice(idx, 1);
+        state.enemies.splice(idx + 1, 0, e);
+        log(state, `${e.name} отброшен назад`);
       }
       break;
   }
@@ -976,6 +986,8 @@ function startPlayerTurn(state: BattleState): void {
   else h.mp = Math.min(h.maxMp, h.mp + h.stats.mpRegen);
   for (const k of Object.keys(h.cooldowns)) if (h.cooldowns[k] > 0) h.cooldowns[k] -= 1;
   log(state, `— Ход ${state.turn} —`);
+  // «Плащ странника»: свежий блок каждый ход — после того, как старый сгорел.
+  if (h.stats.blockTurn > 0) gainBlock(state, h, 'hero', h.stats.blockTurn, 'плащ');
   const regen = h.stats.regen + statusValue(h, 'regen');
   if (regen > 0) healHero(state, regen, 'регенерация');
   const dot = statusValue(h, 'bleed') + statusValue(h, 'burn') + statusValue(h, 'poison');
@@ -1358,10 +1370,9 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
   if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
   startPlayerTurn(state);
-  // Тень покрова и «Плащ странника» — после старта первого хода: иначе тик начала хода съел бы ход скрытности,
-  // а блок сгорел бы вместе с остальным.
+  // Тень покрова — после старта первого хода: иначе тик начала хода съел бы ход скрытности. Блок «Плаща странника»
+  // первый ход получает уже в startPlayerTurn, вместе со всеми остальными.
   if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
-  if (stats.blockStart > 0) gainBlock(state, state.hero, 'hero', stats.blockStart, 'в начале боя');
   return state;
 }
 
