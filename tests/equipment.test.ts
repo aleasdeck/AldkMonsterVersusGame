@@ -36,9 +36,9 @@ describe('артефакты и слоты', () => {
     expect(HERO_LIST.filter((d) => artifactDef(d.signatures[1]).slot === 'armor').map((d) => d.id)).toEqual(['paladin', 'berserk']);
   });
 
-  it('типы артефактов: 38 оружейных и 25 бронных, у каждого тип задан', () => {
+  it('типы артефактов: 39 оружейных и 25 бронных, у каждого тип задан', () => {
     const ids = Object.keys(ARTIFACTS);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(38);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(39);
     expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(25);
   });
 

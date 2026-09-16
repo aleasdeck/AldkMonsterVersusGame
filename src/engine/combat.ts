@@ -46,6 +46,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   doom: 'Предсмертие',
   evade: 'Уворот',
   echo: 'Эхо удара',
+  enchant: 'Стихийная заточка',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -65,7 +66,11 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
   echo: 'Следующая атака героя в этом ходу повторяется: удар и удары приёма бьют дважды, усталость считает их одной атакой',
+  enchant: 'Каждый удар героя вешает на цель рану своей стихии силой N на 2 хода',
 };
+
+/** Стихии заточки: какую рану может получить оружие. */
+export const ENCHANT_ELEMENTS: StatusId[] = ['burn', 'poison', 'bleed'];
 
 /** Проклятия на враге, которые считает «Резонанс»: всё, что герой навесил ему во вред. */
 export const DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable'];
@@ -209,20 +214,23 @@ const STACKING: StatusId[] = ['strength', 'thorns', 'regen', 'bleed', 'burn', 'p
  */
 const STACKING_TURNS: StatusId[] = ['stealth'];
 
-function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: StatusId, value: number, turns: number): void {
+function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: StatusId, value: number, turns: number, element?: StatusId): void {
   const ex = getStatus(c, id);
   if (ex) {
+    // Новая заточка поверх старой меняет стихию: оружие держит одну.
+    if (element) ex.element = element;
     if (STACKING.includes(id)) ex.value += value;
     else ex.value = Math.max(ex.value, value);
     if (ex.turns === -1 || turns === -1) ex.turns = -1;
     else if (STACKING_TURNS.includes(id)) ex.turns += turns;
     else ex.turns = Math.max(ex.turns, turns);
   } else {
-    c.statuses.push({ id, value, turns });
+    c.statuses.push(element ? { id, value, turns, element } : { id, value, turns });
   }
   state.events.push({ type: 'status', target: ref, status: id, value });
-  const amount = STACKING.includes(id) || id === 'exhaust' ? ` ${value}` : '';
-  log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount} ${turnsText(turns)}`);
+  const amount = STACKING.includes(id) || id === 'exhaust' || id === 'enchant' ? ` ${value}` : '';
+  const flavor = element ? ` (${STATUS_NAMES[element]})` : '';
+  log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount}${flavor} ${turnsText(turns)}`);
 }
 
 /**
@@ -752,6 +760,9 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     // Праща: оглушает только критом, и то не каждым — бросок делается лишь после крита, чтобы не тратить RNG на обычных ударах.
     if (h.stats.stunOnCrit > 0 && crit && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnCrit)) addStatus(state, e, e.uid, 'stun', 1, -1);
     if (h.stats.onHitBleed > 0) addStatus(state, e, e.uid, 'bleed', h.stats.onHitBleed, 2);
+    // «Стихийная заточка»: рана стихии с каждого удара, пока заточка держится.
+    const ench = getStatus(h, 'enchant');
+    if (ench?.element) addStatus(state, e, e.uid, ench.element, ench.value, 2);
     // «Метка охотника»: первый удар в ходу открывает цель для остальных.
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
   }
@@ -1034,6 +1045,12 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
         const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
         log(state, `Финишер по ${e.name}: ${dmg} (${eff.per} × ${h.attacks} атак)${hitTail(dmg, dealt, detail)}`);
       }
+      break;
+    }
+    case 'enchant': {
+      // Стихия бросается здесь, при наложении: игрок видит её на бейдже и в логе и строит ход под неё.
+      const element = pick(rng, ENCHANT_ELEMENTS);
+      addStatus(state, h, 'hero', 'enchant', eff.value, eff.turns, element);
       break;
     }
     case 'chain': {

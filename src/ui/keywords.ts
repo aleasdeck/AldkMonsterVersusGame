@@ -35,6 +35,7 @@ const STATUS_STEMS: Record<StatusId, string> = {
   vulnerable: 'уязвим[а-яё]*',
   doom: 'предсмерти[а-яё]*|предсмертн[а-яё]*',
   echo: 'эхо',
+  enchant: 'заточк[а-яё]*',
 };
 
 const KEYWORDS: Keyword[] = [

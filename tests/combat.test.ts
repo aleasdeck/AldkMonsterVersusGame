@@ -1561,6 +1561,28 @@ describe('v0.38: связки', () => {
     expect(state.log).toContain('Добивание: +1 STA');
   });
 
+  it('Стихийная заточка: случайная стихия на 2 хода, каждый удар вешает её рану', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'elemental_edge', tier: 2 }] });
+    const boar = first(state);
+    state.hero.mp = 4;
+    performAction(state, { type: 'artifact', artifactId: 'elemental_edge' }, rng);
+    const ench = getStatus(state.hero, 'enchant');
+    expect(ench).toBeDefined();
+    expect(['burn', 'poison', 'bleed']).toContain(ench!.element);
+    expect(ench!.value).toBe(2);
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    expect(getStatus(boar, ench!.element!)).toEqual({ id: ench!.element, value: 2, turns: 2 });
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    expect(getStatus(boar, ench!.element!)?.value).toBe(4);
+    // Второй ход заточка ещё держится, на третьем спадает
+    boar.intent = 'bristle';
+    pass(state, rng);
+    expect(getStatus(state.hero, 'enchant')?.turns).toBe(1);
+    pass(state, rng);
+    expect(getStatus(state.hero, 'enchant')).toBeUndefined();
+    expect(state.log.some((l) => l.startsWith('Герой: Стихийная заточка 2 ('))).toBe(true);
+  });
+
   it('Оглушающий удар: пока вставлен, удар по оглушённому — крит', () => {
     const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'stun_strike', tier: 1 }] });
     const boar = first(state);

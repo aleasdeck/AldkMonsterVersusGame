@@ -52,6 +52,8 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return `${e.per} × атаки`;
       case 'chain':
         return `${e.amount} вдогонку`;
+      case 'enchant':
+        return `стихия ${e.value}`;
       case 'push':
         return 'толчок назад';
       default:

@@ -144,6 +144,16 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '.#.##.#.',
     '..####..',
   ],
+  enchant: [
+    '...#....',
+    '..###...',
+    '.#####..',
+    '..###...',
+    '...#....',
+    '....#...',
+    '.....#..',
+    '......#.',
+  ],
   echo: [
     '..#..#..',
     '.#..#...',
@@ -183,6 +193,7 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   vulnerable: '#ff6b6b',
   doom: '#d264ff',
   echo: '#5cf0ff',
+  enchant: '#b388ff',
 };
 
 const OUTLINE = '#0b0b12';

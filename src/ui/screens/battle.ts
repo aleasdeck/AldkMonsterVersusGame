@@ -263,6 +263,8 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return [range ? rangeText(range) : '—', h('small', null, `×${e.per}`)];
       case 'chain':
         return [`${e.amount}`, h('small', null, 'вдогонку')];
+      case 'enchant':
+        return [statusIcon('enchant', 18), ` ${e.value}`];
       default:
         continue;
     }

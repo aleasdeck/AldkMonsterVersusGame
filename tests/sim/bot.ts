@@ -435,7 +435,10 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
   for (const ref of socketRefs(run.hero)) {
     if (!ref.art || ref.art.id === except) continue;
     const def = artifactDef(ref.art.id);
-    for (const e of def.effects?.(ref.art.tier) ?? []) if (e.type === 'status' && e.target !== 'self') out.add(e.status);
+    for (const e of def.effects?.(ref.art.tier) ?? []) {
+      if (e.type === 'status' && e.target !== 'self') out.add(e.status);
+      if (e.type === 'enchant') for (const id of ['burn', 'poison', 'bleed'] as StatusId[]) out.add(id);
+    }
   }
   return out;
 }
@@ -585,6 +588,10 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
       case 'finisher':
         // Финишер после двух ударов хода.
         per += e.per * Math.max(1, s.sta - 1) * W.enemyHp;
+        break;
+      case 'enchant':
+        // Заточка: два хода по два удара, каждый — рана на два тика; выплата любого из трёх семейств её усиливает.
+        per += e.value * e.turns * 2 * 2 * W.enemyHp * Math.max(payoff('burn'), payoff('poison'), payoff('bleed'));
         break;
       case 'chain':
         // Цепная атака: бесплатный удар за каждый другой приём в ходу — обычно один-два.
