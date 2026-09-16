@@ -1493,6 +1493,7 @@ describe('v0.38: связки', () => {
     performAction(state, { type: 'attack', target: boar.uid }, rng);
     performAction(state, { type: 'attack', target: boar.uid }, rng);
     expect(boar.hp).toBe(18 - 5 - 3);
+    // 50 % от среднего удара 5 = 2.5 → 3 за атаку, две атаки — 6
     performAction(state, { type: 'artifact', artifactId: 'finisher', target: boar.uid }, rng);
     expect(boar.hp).toBe(18 - 5 - 3 - 6);
     expect(state.hero.attacks).toBe(2);

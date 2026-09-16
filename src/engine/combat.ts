@@ -687,6 +687,16 @@ function firstHitBonus(state: BattleState): number {
  * Урон атаки героя и его раскладка для лога: «кубик 4 + Сила 2 + первый удар 1 = 7, усталость ×0.75 = 5, крит ×2 = 10».
  * Слагаемые с нулём и множители, равные единице, не пишутся.
  */
+/** Средний удар героя без кубика: середина разброса оружия плюс Сила — основа Финишера и Ответного удара. */
+export function heroAvgDamage(h: HeroBattle): number {
+  return (h.stats.dmgMin + h.stats.dmgMax) / 2 + heroStr(h);
+}
+
+/** Урон Финишера за одну атаку хода: pct процентов среднего удара, не меньше 1. */
+export function finisherPer(h: HeroBattle, pct: number): number {
+  return Math.max(1, Math.round((heroAvgDamage(h) * pct) / 100));
+}
+
 /** Прибавка «Добивания»: цель ранена не выше доли pct от максимума HP. */
 export function lowHpBonus(target: Combatant | undefined, lowHp?: { pct: number; bonus: number }): number {
   return target && lowHp && target.hp <= target.maxHp * lowHp.pct ? lowHp.bonus : 0;
@@ -1038,12 +1048,13 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       break;
     }
     case 'finisher': {
-      // Финишер: за каждую атаку в этом ходу — свой урон; сам атакой не считается, усталость и кубик не участвуют.
-      const dmg = eff.per * h.attacks;
+      // Финишер: доля среднего урона оружия с Силой за каждую атаку в этом ходу (v0.38.8: растёт с оружием); сам атакой не считается, усталость и кубик не участвуют.
+      const per = finisherPer(h, eff.pct);
+      const dmg = per * h.attacks;
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const detail = newDetail();
         const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
-        log(state, `Финишер по ${e.name}: ${dmg} (${eff.per} × ${h.attacks} атак)${hitTail(dmg, dealt, detail)}`);
+        log(state, `Финишер по ${e.name}: ${dmg} (${per} × ${h.attacks} атак; ${eff.pct} % от среднего удара ${heroAvgDamage(h)})${hitTail(dmg, dealt, detail)}`);
       }
       break;
     }
