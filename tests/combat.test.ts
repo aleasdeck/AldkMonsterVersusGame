@@ -1584,6 +1584,24 @@ describe('v0.38: связки', () => {
     expect(state.log.some((l) => l.startsWith('Герой: Стихийная заточка 2 ('))).toBe(true);
   });
 
+  it('раны не бьют неуязвимого: тик идёт до снятия неуязвимости, взрыв ран тоже мимо', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'bleed_cut', tier: 1 }, { id: 'bleed_burst', tier: 1 }] });
+    const boar = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: boar.uid }, rng);
+    boar.statuses.push({ id: 'invuln', value: 1, turns: 1 });
+    performAction(state, { type: 'artifact', artifactId: 'bleed_burst', target: boar.uid }, rng);
+    expect(boar.hp).toBe(18);
+    expect(getStatus(boar, 'bleed')).toBeUndefined();
+    boar.statuses.push({ id: 'bleed', value: 3, turns: 3 });
+    boar.intent = 'bristle';
+    pass(state, rng);
+    expect(boar.hp).toBe(18);
+    expect(state.log).toContain('Кабан неуязвим: раны не берут');
+    expect(getStatus(boar, 'invuln')).toBeUndefined();
+    pass(state, rng);
+    expect(boar.hp).toBe(18 - 3);
+  });
+
   it('Оглушающий удар: пока вставлен, удар по оглушённому — крит', () => {
     const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'stun_strike', tier: 1 }] });
     const boar = first(state);

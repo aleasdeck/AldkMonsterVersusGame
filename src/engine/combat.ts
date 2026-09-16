@@ -1502,16 +1502,21 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   const def = enemyDef(e.defId);
   e.block = 0;
   e.riposted = false;
-  // Неуязвимость отработала ход героя — снимаем её до действия, а не после.
-  tickDurations(e, 'start');
+  // Раны тикают до того, как сгорит неуязвимость (v0.38.9): Топяной ужас и Дракон на взлёте не получают и ран —
+  // до этого тик шёл уже после снятия статуса, и яд с кровью били сквозь неуязвимость, которая должна была накрыть ход целиком.
   const dot = statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison');
   if (dot > 0) {
-    log(state, `${e.name} теряет ${dot} HP от ран`);
-    damageEnemy(state, e, dot, 'dot');
-    // «Пиявка»: кровь и яд врага питают героя с каждого тика.
-    if (state.hero.stats.dotLeech > 0 && statusValue(e, 'bleed') + statusValue(e, 'poison') > 0) healHero(state, state.hero.stats.dotLeech, 'пиявка');
-    if (e.hp <= 0) return;
+    if (getStatus(e, 'invuln')) log(state, `${e.name} неуязвим: раны не берут`);
+    else {
+      log(state, `${e.name} теряет ${dot} HP от ран`);
+      damageEnemy(state, e, dot, 'dot');
+      // «Пиявка»: кровь и яд врага питают героя с каждого тика.
+      if (state.hero.stats.dotLeech > 0 && statusValue(e, 'bleed') + statusValue(e, 'poison') > 0) healHero(state, state.hero.stats.dotLeech, 'пиявка');
+      if (e.hp <= 0) return;
+    }
   }
+  // Неуязвимость отработала ход героя — снимаем её до действия, а не после.
+  tickDurations(e, 'start');
   if (getStatus(e, 'stun')) {
     removeStatus(e, 'stun');
     state.events.push({ type: 'stunned', target: e.uid });

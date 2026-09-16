@@ -179,8 +179,8 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
   let dot = 0;
   for (const e of b.enemies) {
     if (getStatus(e, 'stun')) continue;
-    // Умрёт от своих ран до действия.
-    if (e.hp <= statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison')) continue;
+    // Умрёт от своих ран до действия (неуязвимого раны не берут).
+    if (!getStatus(e, 'invuln') && e.hp <= statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison')) continue;
     const a = enemyAction(enemyDef(e.defId), e.intent);
     for (const eff of a.effects) {
       if (eff.type === 'attack' || eff.type === 'selfDestruct') {
