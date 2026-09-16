@@ -564,8 +564,9 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
       case 'attack':
         per += (avg * (e.mult ?? 1) + e.bonus) * (e.sureCrit ? 2 : 1) * (e.target === 'allEnemies' ? 1.8 : far) * W.enemyHp;
         if (e.blockPct) per += avg * (e.mult ?? 1) * e.blockPct * 0.8;
-        // «Добивание»: возврат стамины срабатывает примерно на каждом третьем ударе.
+        // «Добивание»: возврат стамины срабатывает примерно на каждом третьем ударе; прибавка по раненому — на каждом третьем тоже.
         if (e.refundOnKill) per += e.refundOnKill * avg * s.fatigue * W.enemyHp * 0.35;
+        if (e.lowHp) per += e.lowHp.bonus * W.enemyHp * 0.35;
         break;
       case 'detonate': {
         // Взрыв ран: сколько раны ещё нанесли бы — при заводке в руках примерно два тика средней силы; по всем — суммой каждому.
