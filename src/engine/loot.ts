@@ -11,11 +11,12 @@ import type {
   RewardScreen,
   RewardSource,
   RoomKind,
+  DerivedStats,
   ShopState,
   StatusId,
 } from './types';
 import { chance, pick, shuffle, weighted, type Rng } from './rng';
-import { ARTIFACT_IDS, artifactDef } from '../data/artifacts';
+import { ARTIFACT_IDS, artifactCost, artifactDef } from '../data/artifacts';
 import { makeGear } from '../data/gear';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { EVENT_WEIGHTS, type ActDef } from '../data/locations';
@@ -167,8 +168,7 @@ function artifactStatuses(id: string): ArtifactStatuses {
 }
 
 /** Что герой уже вешает на врагов: аффиксы и перки снаряжения (они лежат в статах) плюс эффекты вставленных артефактов. */
-function heroApplies(hero: HeroPersistent): Set<StatusId> {
-  const s = computeStats(heroDef(hero.defId), hero.weapon, hero.armor);
+function heroApplies(hero: HeroPersistent, s: DerivedStats): Set<StatusId> {
   const out = new Set<StatusId>();
   if (s.onHitBleed > 0) out.add('bleed');
   if (s.onHitBurn > 0) out.add('burn');
@@ -186,25 +186,51 @@ function heroPaysFor(hero: HeroPersistent): Set<StatusId> {
   return out;
 }
 
-/** Вес артефакта в броске: втрое за дубликат, втрое за связку с тем, что уже в руках, девятеро — за то и другое сразу. */
-function artifactWeight(id: string, owned: Set<string>, applies: Set<StatusId>, pays: Set<StatusId>): number {
+/**
+ * Множитель дропа для приёмов, которые стоят маны (v0.40.1): ступени по текущему максимуму MP героя.
+ * Берсерку с нулевой маной заклинание — мёртвая карточка, Магу и Паладину оно и есть игра, а до этого
+ * всем сыпалось одинаково: Ледяной осколок был самым частым приёмом Лучника и вторым у Ассасина.
+ * Ключ — цена, а не школа: Молот света помечен физическим, но стоит 1 MP и без маны бесполезен.
+ */
+function manaWeight(maxMp: number): number {
+  if (maxMp <= 0) return 0;
+  if (maxMp <= 2) return 0.5;
+  if (maxMp <= 4) return 1;
+  return 2;
+}
+
+/** Стоит ли приём маны хоть на одном тире: цена бывает функцией тира, поэтому смотрим все три. */
+const manaCostCache = new Map<string, boolean>();
+
+function costsMana(id: string): boolean {
+  const hit = manaCostCache.get(id);
+  if (hit !== undefined) return hit;
+  const def = artifactDef(id);
+  const out = ([1, 2, 3] as ArtTier[]).some((tier) => (artifactCost(def, tier).mp ?? 0) > 0);
+  manaCostCache.set(id, out);
+  return out;
+}
+
+/** Вес артефакта в броске: втрое за дубликат, втрое за связку с тем, что уже в руках, плюс ступень маны у приёмов с ценой MP. */
+function artifactWeight(id: string, owned: Set<string>, applies: Set<StatusId>, pays: Set<StatusId>, spell: number): number {
   const st = artifactStatuses(id);
   const linked = st.pays.some((s) => applies.has(s)) || st.applies.some((s) => pays.has(s));
-  return (owned.has(id) ? DUPLICATE_WEIGHT : 1) * (linked ? SYNERGY_WEIGHT : 1);
+  return (owned.has(id) ? DUPLICATE_WEIGHT : 1) * (linked ? SYNERGY_WEIGHT : 1) * (costsMana(id) ? spell : 1);
 }
 
 /** Артефакт из пула: `slot` сужает до оружейных или бронных (пул награды «Нападение» / «Защита»); торговец, алтарь и вор катят из всех. */
 export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], exclude: string[], slot?: GearKind): ArtifactInstance | null {
   const ids = ARTIFACT_IDS.filter((id) => !exclude.includes(id) && !isMaxed(hero, id) && canDropFor(hero, id) && (!slot || artifactDef(id).slot === slot));
   if (ids.length === 0) return null;
-  const applies = heroApplies(hero);
+  const stats = computeStats(heroDef(hero.defId), hero.weapon, hero.armor);
+  const applies = heroApplies(hero, stats);
   const pays = heroPaysFor(hero);
   const owned = new Set(socketRefs(hero).flatMap((ref) => (ref.art ? [ref.art.id] : [])));
-  const id = weighted(
-    rng,
-    ids.map((candidate) => ({ item: candidate, weight: artifactWeight(candidate, owned, applies, pays) })),
-  );
-  return { id, tier: pick(rng, tiers) };
+  const spell = manaWeight(stats.maxMp);
+  const items = ids.map((candidate) => ({ item: candidate, weight: artifactWeight(candidate, owned, applies, pays, spell) }));
+  // Весь пул обнулился (у безманового героя остались одни заклинания) — берём равновероятно, иначе weighted бросит.
+  const total = items.reduce((sum, it) => sum + it.weight, 0);
+  return { id: total > 0 ? weighted(rng, items) : pick(rng, ids), tier: pick(rng, tiers) };
 }
 
 /** Экипировка под героя: оружие выпадает с учётом его владения, броня — с учётом умения носить. */
