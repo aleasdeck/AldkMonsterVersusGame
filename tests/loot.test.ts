@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ACTS } from '../src/data/locations';
-import { rollGear, rollRewards, rollShop } from '../src/engine/loot';
+import { rollArtifact, rollGear, rollRewards, rollShop } from '../src/engine/loot';
 import { createRng } from '../src/engine/rng';
 import { newRun } from '../src/engine/run';
 
@@ -32,5 +32,86 @@ describe('редкий тир в пуле акта (loot.ts, v0.35)', () => {
       for (const it of rollRewards(rng, hero, ACTS[1], 'elite', 'defense')) if (it.kind === 'gear') expect([3, 4]).toContain(it.gear.tier);
       for (const it of rollRewards(rng, hero, ACTS[0], 'fight', 'defense')) if (it.kind === 'gear') expect([1, 2]).toContain(it.gear.tier);
     }
+  });
+});
+
+describe('состав тройки награды (loot.ts, v0.40)', () => {
+  it('в каждой тройке есть и предмет, и артефакт; предмет не закреплён за позицией', () => {
+    const hero = newRun('warrior', 1).hero;
+    const rng = createRng(3);
+    let artifacts = 0;
+    const gearAt = [0, 0, 0];
+    for (let i = 0; i < 600; i++) {
+      const items = rollRewards(rng, hero, ACTS[0], 'fight', 'attack');
+      expect(items).toHaveLength(3);
+      expect(items.some((it) => it.kind === 'gear')).toBe(true);
+      expect(items.some((it) => it.kind === 'artifact')).toBe(true);
+      items.forEach((it, idx) => {
+        if (it.kind === 'gear') gearAt[idx] += 1;
+        else artifacts += 1;
+      });
+    }
+    // Третья карточка по-прежнему катится с ARTIFACT_CHANCE 0.55 — в среднем полтора артефакта на тройку.
+    expect(artifacts / 600).toBeGreaterThan(1.4);
+    expect(artifacts / 600).toBeLessThan(1.7);
+    // Порядок перемешан: предмет не сидит всегда на первой карточке.
+    for (const n of gearAt) expect(n).toBeGreaterThan(100);
+  });
+
+  it('два артефакта в одной тройке всегда разные', () => {
+    const hero = newRun('mage', 5).hero;
+    const rng = createRng(21);
+    for (let i = 0; i < 300; i++) {
+      const ids = rollRewards(rng, hero, ACTS[2], 'elite', 'attack').flatMap((it) => (it.kind === 'artifact' ? [it.artifact.id] : []));
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
+});
+
+describe('сходимость дропа артефактов (loot.ts, v0.40)', () => {
+  /** Как часто из пула слота выпадает именно этот артефакт. */
+  function rate(hero: ReturnType<typeof newRun>['hero'], id: string, slot: 'weapon' | 'armor'): number {
+    const rng = createRng(7);
+    let n = 0;
+    for (let i = 0; i < 4000; i++) if (rollArtifact(rng, hero, [1], [], slot)?.id === id) n += 1;
+    return n / 4000;
+  }
+
+  it('дубликат стоящего в сокете выпадает примерно втрое чаще: только так артефакт растёт в тире', () => {
+    const plain = newRun('warrior', 1).hero;
+    const owner = newRun('warrior', 1).hero;
+    owner.armor.slots[0] = { id: 'turtle_shell', tier: 1 };
+    const before = rate(plain, 'turtle_shell', 'armor');
+    const after = rate(owner, 'turtle_shell', 'armor');
+    expect(before).toBeGreaterThan(0.02);
+    expect(after / before).toBeGreaterThan(2.2);
+    expect(after / before).toBeLessThan(4);
+  });
+
+  it('выплата чаще приходит к заводке: с Кровопусканием в руках чаще выпадают Вскрытие и Кровавый след', () => {
+    const plain = newRun('warrior', 1).hero;
+    const bleeder = newRun('warrior', 1).hero;
+    bleeder.weapon.slots[0] = { id: 'bleed_cut', tier: 1 };
+    for (const id of ['bleed_burst', 'blood_trail']) {
+      const before = rate(plain, id, 'weapon');
+      const after = rate(bleeder, id, 'weapon');
+      expect(after / before).toBeGreaterThan(1.8);
+      expect(after / before).toBeLessThan(4);
+    }
+    // Несвязанное оружейное не дорожает: тяга адресная, а не «всё чаще».
+    const neutral = rate(bleeder, 'war_cry', 'weapon') / rate(plain, 'war_cry', 'weapon');
+    expect(neutral).toBeLessThan(1.3);
+  });
+
+  it('выпадать не перестаёт ничто: за 4000 бросков пул отдаёт почти все свои артефакты', () => {
+    const hero = newRun('warrior', 1).hero;
+    hero.weapon.slots[0] = { id: 'bleed_cut', tier: 1 };
+    const rng = createRng(13);
+    const seen = new Set<string>();
+    for (let i = 0; i < 4000; i++) {
+      const a = rollArtifact(rng, hero, [1], [], 'weapon');
+      if (a) seen.add(a.id);
+    }
+    expect(seen.size).toBeGreaterThan(30);
   });
 });
