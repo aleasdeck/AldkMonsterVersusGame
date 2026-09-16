@@ -32,17 +32,9 @@ const list: ArtifactDef[] = [
     glyph: '◆',
     kind: 'passive',
     slot: 'armor',
-    mods: (tier) => ({ maxMp: t(3, 6, 9)(tier) }),
-    describe: (tier) => `+${t(3, 6, 9)(tier)} к максимуму маны`,
-  },
-  {
-    id: 'mana_rune',
-    name: 'Руна восполнения',
-    glyph: 'ᚱ',
-    kind: 'passive',
-    slot: 'armor',
-    mods: (tier) => ({ mpRegen: t(1, 2, 3)(tier) }),
-    describe: (tier) => `+${t(1, 2, 3)(tier)} к регену маны за ход`,
+    // v0.38.4: мана и реген в одном камне (решение пользователя), Руна восполнения убрана.
+    mods: (tier) => ({ maxMp: t(1, 2, 3)(tier), mpRegen: t(1, 2, 3)(tier) }),
+    describe: (tier) => `+${t(1, 2, 3)(tier)} к максимуму маны и +${t(1, 2, 3)(tier)} к регену маны за ход`,
   },
   {
     id: 'stamina_ring',
@@ -147,15 +139,6 @@ const list: ArtifactDef[] = [
     describe: (tier) => `Первый удар героя в ходу вешает Уязвимость на ${t(1, 2, 2)(tier)} ход(а)`,
   },
   // Четыре бронные пассивки v0.31.1 — на статах перков брони (Кольца, Стойкость, Панцирь, Тень), чтобы выровнять 28/19 после типов сокетов.
-  {
-    id: 'stone_hide',
-    name: 'Каменная кожа',
-    glyph: '▣',
-    kind: 'passive',
-    slot: 'armor',
-    mods: (tier) => ({ hitReduce: t(1, 1, 2)(tier) }),
-    describe: (tier) => `Каждый удар по герою слабее на ${t(1, 1, 2)(tier)}`,
-  },
   {
     id: 'evasion_amulet',
     name: 'Амулет уклонения',
