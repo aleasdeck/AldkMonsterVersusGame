@@ -533,8 +533,6 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.spellVsBurn ?? 0) * 6 * W.enemyHp * 3 * (magic ? src('burn') : 0);
     // «Резонанс»: за каждое проклятие, которое герой умеет вешать, — примерно две трети ходов оно на цели.
     v += (m.perDebuff ?? 0) * 4 * Math.min(3, applies.size * 0.7 + 0.2);
-    // «Цепная атака»: удар за каждый приём в ходу — обычно один-два приёма за ход, три хода на бой.
-    v += (m.chainDmg ?? 0) * Math.min(2, activeCount(run.hero, inst.id)) * 3 * W.enemyHp * (activeCount(run.hero, inst.id) > 0 ? 1 : 0.2);
     // «Перекрёстный ток»: очко стамины за заклинание (ослабленный удар), мана за приём.
     v += (m.spellSta ?? 0) * (magic ? avg * s.fatigue * W.enemyHp * 3 : 0.3);
     v += (m.skillMp ?? 0) * (magic && hasPhysicalActive(run.hero, inst.id) ? W.mp * 3 : 0.2);
@@ -586,6 +584,10 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
       case 'finisher':
         // Финишер после двух ударов хода.
         per += e.per * Math.max(1, s.sta - 1) * W.enemyHp;
+        break;
+      case 'chain':
+        // Цепная атака: бесплатный удар за каждый другой приём в ходу — обычно один-два.
+        per += e.amount * W.enemyHp * Math.min(2, activeCount(run.hero, inst.id)) * (activeCount(run.hero, inst.id) > 0 ? 1 : 0.2);
         break;
       case 'blockStrike':
         // Блок в момент тарана — обычно то, что дала «Защититься».

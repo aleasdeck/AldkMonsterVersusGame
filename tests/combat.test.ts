@@ -1509,11 +1509,18 @@ describe('v0.38: связки', () => {
     expect(boar.hp).toBe(18 - 5 - 5 - 3);
   });
 
-  it('Цепная атака: после приёма бесплатный удар по его цели', () => {
-    const { state, rng } = mkBattle('warrior', ['wolf'], { extra: [{ id: 'chain_strike', tier: 1 }] });
-    const wolf = first(state);
-    performAction(state, { type: 'artifact', artifactId: 'crippling_shot', target: wolf.uid }, rng);
-    expect(wolf.hp).toBe(12 - 5 - 2);
+  it('Цепная атака: бесплатный удар по любой цели, по заряду за каждый другой приём в ходу', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], { extra: [{ id: 'chain_strike', tier: 1 }] });
+    const [a, b] = state.enemies;
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'chain_strike', target: b.uid })).toBe('Сначала примените приём');
+    performAction(state, { type: 'artifact', artifactId: 'crippling_shot', target: a.uid }, rng);
+    expect(a.hp).toBe(12 - 5);
+    // Заряд есть, цель — задний волк: мечом его не достать, а цепной атакой можно
+    performAction(state, { type: 'artifact', artifactId: 'chain_strike', target: b.uid }, rng);
+    expect(b.hp).toBe(12 - 2);
+    expect(state.hero.sta).toBe(2);
+    expect(state.hero.attacks).toBe(1);
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'chain_strike', target: b.uid })).toBe('Сначала примените приём');
     expect(state.log.some((l) => l.startsWith('Цепная атака по Волк: 2'))).toBe(true);
   });
 

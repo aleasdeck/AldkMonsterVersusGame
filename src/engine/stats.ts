@@ -74,7 +74,6 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     poisonVuln: 0,
     spellVsBurn: 0,
     perDebuff: 0,
-    chainDmg: 0,
     spellSta: 0,
     skillMp: 0,
     stunCrit: 0,

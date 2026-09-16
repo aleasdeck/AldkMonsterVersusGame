@@ -50,6 +50,8 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return `блок цели ×${e.mult}`;
       case 'finisher':
         return `${e.per} × атаки`;
+      case 'chain':
+        return `${e.amount} вдогонку`;
       case 'push':
         return 'толчок назад';
       default:
