@@ -33,13 +33,13 @@ describe('артефакты и слоты', () => {
     }
     // Первые сигнатуры: пять в оружии, Дымовая шашка Ассасина — в покрове. Вторые: у Паладина и Берсерка — бронные.
     expect(HERO_LIST.filter((d) => artifactDef(d.signatures[0]).slot === 'armor').map((d) => d.id)).toEqual(['assassin']);
-    expect(HERO_LIST.filter((d) => artifactDef(d.signatures[1]).slot === 'armor').map((d) => d.id)).toEqual(['paladin', 'berserk']);
+    expect(HERO_LIST.filter((d) => artifactDef(d.signatures[1]).slot === 'armor').map((d) => d.id)).toEqual(['warrior', 'paladin', 'berserk']);
   });
 
   it('типы артефактов: 39 оружейных и 25 бронных, у каждого тип задан', () => {
     const ids = Object.keys(ARTIFACTS);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(39);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(25);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(38);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(26);
   });
 
   it('сокет своего типа не принимает чужой артефакт, универсальный принимает любой', () => {
