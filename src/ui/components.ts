@@ -377,6 +377,9 @@ export function statsGrid(s: DerivedStats): HTMLElement {
     s.spellPower ? row('Закл.', `+${s.spellPower}`, 'Бонус к урону заклинаний') : null,
     s.thorns ? row('Шипы', `${s.thorns}`, 'Урон атакующему') : null,
     s.lifesteal ? row('Вамп.', `${s.lifesteal}`, 'Лечение при базовой атаке') : null,
+    s.onHitBleed ? row('Кровь', `${s.onHitBleed}`, 'Кровотечение с каждого удара на 2 хода') : null,
+    s.onHitBurn ? row('Горение', `${s.onHitBurn}`, 'Горение с каждого удара на 2 хода') : null,
+    s.onHitPoison ? row('Яд', `${s.onHitPoison}`, 'Яд с каждого удара на 3 хода') : null,
     s.regen ? row('Реген', `${s.regen}`, 'HP в начале хода') : null,
   );
 }
