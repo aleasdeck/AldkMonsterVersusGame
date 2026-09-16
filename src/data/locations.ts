@@ -260,12 +260,22 @@ export const ACT_DMG_BONUS: [number, number, number] = [1.25, 1.4, 1.6];
  * Множители для врага с «родной» локации tier, попавшего в акт act (0..2):
  * числа врага заданы под его tier, нужно привести их к акту и добавить надбавку акта к урону.
  */
+/**
+ * Надбавка к HP (а с ней к блоку и лечению) элит и боссов по акту: +15 % в первом, дальше ничего (v0.37.1).
+ * Первый акт — единственный, где «родной» множитель равен 1, поэтому элита и босс там были самыми хлипкими
+ * за забег. На бота рычаг слабый (3–5 пунктов на +40 %), зато гибели на боссе первого акта он двигает вдвое —
+ * взято +15 % как доза «босс ощущается боссом», а не как балансовая компенсация (см. CLAUDE.md).
+ * Рядовых врагов не касается: толстые рядовые плодят паты.
+ */
+export const ACT_TOUGH_HP: [number, number, number] = [1.15, 1, 1];
+
 export function enemyScale(homeTier: LocationTier, act: number, rank: 'normal' | 'elite' | 'boss' = 'normal'): EnemyScale {
   const table = ACT_SCALE[rank === 'normal' ? 'normal' : 'elite'];
   const idx = Math.max(0, Math.min(ACTS_PER_RUN - 1, act));
   const from = table[homeTier - 1];
   const to = table[idx];
-  return { hp: to.hp / from.hp, dmg: (to.dmg / from.dmg) * ACT_DMG_BONUS[idx] };
+  const tough = rank === 'normal' ? 1 : ACT_TOUGH_HP[idx];
+  return { hp: (to.hp / from.hp) * tough, dmg: (to.dmg / from.dmg) * ACT_DMG_BONUS[idx] };
 }
 
 /**

@@ -274,11 +274,14 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     school: 'physical',
     cost: { sta: 1 },
+    // Кровь стакается, идёт мимо блока и держится 3 хода: без лимита герой с запасом стамины вешал по 4 пореза
+    // за ход и снимал элиту одним ходом. Лимит как у Флакона яда (v0.37.1).
+    usesPerTurn: (tier) => t(1, 2, 2)(tier),
     target: 'enemy',
     // Порез — клинком в упор, каким бы ни было оружие.
     reach: 'melee',
     effects: (tier) => [{ type: 'status', target: 'enemy', status: 'bleed', value: t(3, 4, 5)(tier), turns: 3 }],
-    describe: (tier) => `Кровотечение ${t(3, 4, 5)(tier)} на 3 хода (стакается)`,
+    describe: (tier) => `Кровотечение ${t(3, 4, 5)(tier)} на 3 хода (стакается). ${t(1, 2, 2)(tier) === 1 ? 'Раз в ход' : `До ${t(1, 2, 2)(tier)} раз за ход`}`,
   },
   {
     id: 'war_cry',

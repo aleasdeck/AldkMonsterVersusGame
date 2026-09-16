@@ -205,6 +205,25 @@ describe('намерения', () => {
 
 describe('статусы', () => {
   it('кровотечение тикает 3 хода, стакается и игнорирует блок', () => {
+    // Второй тир: на первом Кровопускание применяется раз в ход (v0.37.1), а здесь нужен стак в один ход.
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'bleed_cut', tier: 2 }] });
+    const boar = first(state);
+    boar.hp = 50;
+    boar.maxHp = 50;
+    boar.intent = 'bristle';
+    performAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: boar.uid }, rng);
+    expect(getStatus(boar, 'bleed')).toMatchObject({ value: 4, turns: 3 });
+    performAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: boar.uid }, rng);
+    expect(getStatus(boar, 'bleed')).toMatchObject({ value: 8, turns: 3 });
+    const hp0 = boar.hp;
+    pass(state, rng);
+    expect(boar.hp).toBe(hp0 - 8);
+    pass(state, rng, 2);
+    expect(boar.hp).toBe(hp0 - 24);
+    expect(getStatus(boar, 'bleed')).toBeUndefined();
+  });
+
+  it('v0.37.1: Кровопускание на первом тире — раз в ход, на следующем ходу снова доступно', () => {
     const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'bleed_cut', tier: 1 }] });
     const boar = first(state);
     boar.hp = 50;
@@ -212,14 +231,10 @@ describe('статусы', () => {
     boar.intent = 'bristle';
     performAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: boar.uid }, rng);
     expect(getStatus(boar, 'bleed')).toMatchObject({ value: 3, turns: 3 });
-    performAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: boar.uid }, rng);
-    expect(getStatus(boar, 'bleed')).toMatchObject({ value: 6, turns: 3 });
-    const hp0 = boar.hp;
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: boar.uid })).toMatch(/Не больше 1 раз за ход/);
+    expect(state.hero.sta).toBe(2); // стамина осталась, дело не в ней
     pass(state, rng);
-    expect(boar.hp).toBe(hp0 - 6);
-    pass(state, rng, 2);
-    expect(boar.hp).toBe(hp0 - 18);
-    expect(getStatus(boar, 'bleed')).toBeUndefined();
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: boar.uid })).toBeNull();
   });
 
   it('оглушение заставляет врага пропустить действие', () => {
