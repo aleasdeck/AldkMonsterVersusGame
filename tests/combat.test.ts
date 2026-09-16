@@ -468,13 +468,16 @@ describe('новые механики врагов', () => {
   it('бронные пассивки v0.31.1 работают как перки брони: удар слабее, первая атака мимо', () => {
     const { state } = mkBattle('warrior', ['spider'], {
       extra: [
-        { id: 'stone_hide', tier: 3 },
         { id: 'evasion_amulet', tier: 3 },
+        { id: 'mana_crystal', tier: 2 },
       ],
     });
     const s = state.hero.stats;
-    expect(s.hitReduce).toBe(2 + 1); // + Кольца стартовой кольчуги
+    expect(s.hitReduce).toBe(1); // Кольца стартовой кольчуги; Каменная кожа убрана в v0.38.4
     expect(s.dodgeStart).toBe(2);
+    // Кристалл маны с v0.38.4 — мана и реген вместе
+    expect(s.maxMp).toBe(2 + 2);
+    expect(s.mpRegen).toBe(0 + 2);
     // Уклонение из Амулета вешается в начале боя, как Тень плаща.
     expect(getStatus(state.hero, 'dodge')?.value).toBe(2);
   });
