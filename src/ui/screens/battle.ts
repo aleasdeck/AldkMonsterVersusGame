@@ -251,6 +251,8 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return ['✚'];
       case 'pull':
         return ['⇤', h('small', null, 'в ряд')];
+      case 'push':
+        return ['⇥', h('small', null, 'назад')];
       default:
         continue;
     }

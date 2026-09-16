@@ -169,19 +169,8 @@ describe('перки баз в бою', () => {
     expect(b.hp).toBe(12 - 3);
   });
 
-  it('щитовой удар расталкивает строй: часть урона уходит следующему врагу', () => {
-    const { state, rng } = mkBattle('warrior', ['wolf', 'wolf']);
-    const [a, b] = state.enemies;
-    const hpA = a.hp;
-    const hpB = b.hp;
-    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: a.uid }, rng);
-    const dealt = hpA - a.hp;
-    expect(dealt).toBeGreaterThan(0);
-    expect(hpB - b.hp).toBe(Math.floor(dealt * 0.3)); // тир 1 — 30 %
-  });
-
-  it('сквозной урон щита и копья не складываются: берётся большая доля', () => {
-    // Копьё 5 тира даёт 50 %, Щитовой удар 1 тира — 30 %: сквозняк должен пойти по 50 %.
+  it('сквозняк копья достаётся и приёму: Щитовой удар бьёт копьём по двоим', () => {
+    // Копьё 5 тира даёт 50 % следующему врагу — приём бьёт тем же оружием, значит расталкивает строй так же.
     const spear = weapon('spear', 10, 5);
     spear.slots = [{ id: 'shield_bash', tier: 1 }, null, null, null];
     const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], spear);

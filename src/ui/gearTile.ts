@@ -42,6 +42,8 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return e.target === 'self' ? 'бафф' : 'дебафф';
       case 'pull':
         return 'в первый ряд';
+      case 'push':
+        return 'толчок назад';
       default:
         continue;
     }

@@ -61,7 +61,7 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     stealthStart: 0,
     backstab: 0,
     onKillHeal: 0,
-    blockStart: 0,
+    blockTurn: 0,
     markOnHit: 0,
     reachAny: 0,
     sweep: 0,
