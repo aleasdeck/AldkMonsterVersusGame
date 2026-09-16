@@ -679,7 +679,12 @@ function firstHitBonus(state: BattleState): number {
  * Урон атаки героя и его раскладка для лога: «кубик 4 + Сила 2 + первый удар 1 = 7, усталость ×0.75 = 5, крит ×2 = 10».
  * Слагаемые с нулём и множители, равные единице, не пишутся.
  */
-function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false, target?: EnemyState): { dmg: number; crit: boolean; why: string } {
+/** Прибавка «Добивания»: цель ранена не выше доли pct от максимума HP. */
+export function lowHpBonus(target: Combatant | undefined, lowHp?: { pct: number; bonus: number }): number {
+  return target && lowHp && target.hp <= target.maxHp * lowHp.pct ? lowHp.bonus : 0;
+}
+
+function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false, target?: EnemyState, lowHp?: { pct: number; bonus: number }): { dmg: number; crit: boolean; why: string } {
   const h = state.hero;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
   const stealthed = isHidden(h);
@@ -693,7 +698,8 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
   add('в спину', stealthed ? h.stats.backstab : 0);
   add('по крови', target ? vsTargetBonus(h, target).bleed : 0);
   add('резонанс', target ? vsTargetBonus(h, target).debuffs : 0);
-  const flat = heroStr(h) + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0);
+  add('добивание', lowHpBonus(target, lowHp));
+  const flat = heroStr(h) + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0) + lowHpBonus(target, lowHp);
   const base = roll + flat;
   const steps: string[] = [parts.length > 1 ? `${parts.join(' + ')} = ${base}` : parts[0]];
   const fatigue = fatigueMult(state);
@@ -727,6 +733,8 @@ interface StrikeOpts {
   single?: boolean;
   /** Начало строки лога: «Герой бьёт» у базовой атаки, имя приёма у артефакта. */
   label?: string;
+  /** Прибавка по раненой цели («Добивание»). */
+  lowHp?: { pct: number; bonus: number };
 }
 
 /**
@@ -735,7 +743,7 @@ interface StrikeOpts {
  */
 function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpts = {}): { dmg: number; crit: boolean } {
   const h = state.hero;
-  const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit, e);
+  const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit, e, opts.lowHp);
   const detail = newDetail();
   const pierce = h.stats.pierceBlock > 0;
   const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce, detail, rng });
@@ -776,9 +784,9 @@ export interface DamageRange {
 }
 
 /** Предпросмотр разброса урона атаки без крита — для интерфейса. */
-export function previewAttack(state: BattleState, bonus = 0, mult = 1, target?: Combatant): DamageRange {
+export function previewAttack(state: BattleState, bonus = 0, mult = 1, target?: Combatant, lowHp?: { pct: number; bonus: number }): DamageRange {
   const h = state.hero;
-  const flat = heroStr(h) + bonus + firstHitBonus(state) + (isHidden(h) ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0);
+  const flat = heroStr(h) + bonus + firstHitBonus(state) + (isHidden(h) ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0) + lowHpBonus(target, lowHp);
   const scale = mult * fatigueMult(state);
   let min = Math.floor((h.stats.dmgMin + flat) * scale);
   let max = Math.floor((h.stats.dmgMax + flat) * scale);
@@ -870,7 +878,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'attack': {
       let swung = 0;
       for (const e of targetsFor(state, eff.target, targetUid)) {
-        const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy', label: 'Удар по' });
+        const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus, mult: eff.mult ?? 1, sureCrit: eff.sureCrit, single: eff.target === 'enemy', label: 'Удар по', lowHp: eff.lowHp });
         swung += dmg;
       }
       // Щитовой удар: блок — доля урона замаха, а не того, что дошло до HP: блок и уклонение врага щит не отменяют.

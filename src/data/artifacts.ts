@@ -681,8 +681,9 @@ const list: ArtifactDef[] = [
     cost: { sta: 1 },
     cooldown: () => 1,
     target: 'enemy',
-    effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', refundOnKill: t(1, 1, 2)(tier) }],
-    describe: (tier) => `Удар; если цель погибает, возвращает ${t(1, 1, 2)(tier)} STA. Раз в ход`,
+    // v0.38.3: +3/5/7 по цели ниже 30 % HP (решение пользователя) — приём для добивания, а не просто удар с возвратом.
+    effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', refundOnKill: t(1, 1, 2)(tier), lowHp: { pct: 0.3, bonus: t(3, 5, 7)(tier) } }],
+    describe: (tier) => `Удар, +${t(3, 5, 7)(tier)} по цели ниже 30 % HP; если цель погибает, возвращает ${t(1, 1, 2)(tier)} STA. Раз в ход`,
   },
   // ─── Активные магические (MP) ────────────────────────────────────────────
   {

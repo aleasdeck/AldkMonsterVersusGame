@@ -311,9 +311,9 @@ export function actionSpecs(app: App): TileSpec[] {
   // Плеть хлещет весь ряд на долю урона — число на плитке уже с ней, с пометкой «всем».
   const sweep = b.hero.stats.sweep > 0;
   /** Разброс удара по конкретной цели: прибавки по крови и за проклятия («Кровавый след», «Резонанс») и крит по оглушённой видны только с целью. */
-  const atkRangeOn = (bonus: number, mult: number, sure: boolean, t?: number): DamageRange => {
+  const atkRangeOn = (bonus: number, mult: number, sure: boolean, t?: number, lowHp?: { pct: number; bonus: number }): DamageRange => {
     const e = t === undefined ? undefined : findEnemy(b, t);
-    const r = previewAttack(b, bonus, mult, e);
+    const r = previewAttack(b, bonus, mult, e, lowHp);
     return sure || sureCritOn(b.hero, e) ? critX(r) : r;
   };
   const atkRange = atkRangeOn(0, sweep ? SWEEP_MULT : 1, false);
@@ -371,7 +371,7 @@ export function actionSpecs(app: App): TileSpec[] {
     const rangeOn = (t?: number): DamageRange | null => {
       const e = t === undefined ? undefined : findEnemy(b, t);
       if (atkEff && atkEff.type === 'attack') {
-        const r = atkRangeOn(atkEff.bonus, atkEff.mult ?? 1, !!atkEff.sureCrit, t);
+        const r = atkRangeOn(atkEff.bonus, atkEff.mult ?? 1, !!atkEff.sureCrit, t, atkEff.lowHp);
         // Вскрытие: удар плюс взрыв крови на цели — на плитке только удар, по цели вместе.
         if (detEff && detEff.type === 'detonate' && e) {
           const burst = Math.floor(remainingDot(e, detEff.statuses) * detEff.mult);

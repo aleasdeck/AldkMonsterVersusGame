@@ -1539,13 +1539,22 @@ describe('v0.38: связки', () => {
     expect(state.hero.mp).toBe(4);
   });
 
-  it('Добивание: убитая цель возвращает стамину', () => {
-    const { state, rng } = mkBattle('warrior', ['rat', 'wolf'], { extra: [{ id: 'execute_strike', tier: 1 }] });
-    const rat = first(state);
-    rat.hp = 3;
-    performAction(state, { type: 'artifact', artifactId: 'execute_strike', target: rat.uid }, rng);
+  it('Добивание: +3 по цели ниже 30 % HP, убитая цель возвращает стамину', () => {
+    const { state, rng } = mkBattle('warrior', ['boar', 'wolf'], { extra: [{ id: 'execute_strike', tier: 1 }] });
+    const boar = first(state);
+    expect(previewAttack(state, 0, 1, boar, { pct: 0.3, bonus: 3 })).toEqual({ min: 5, max: 5 });
+    boar.hp = 7;
+    performAction(state, { type: 'artifact', artifactId: 'execute_strike', target: boar.uid }, rng);
+    // 7 из 18 — выше 30 %, прибавки нет: 5 урона
+    expect(boar.hp).toBe(2);
+    expect(state.hero.sta).toBe(2);
+    pass(state, rng);
+    // 2 из 18 — ниже 30 %: 5 + 3 = 8, кабан убит, стамина возвращена
+    expect(previewAttack(state, 0, 1, boar, { pct: 0.3, bonus: 3 })).toEqual({ min: 8, max: 8 });
+    performAction(state, { type: 'artifact', artifactId: 'execute_strike', target: boar.uid }, rng);
     expect(state.enemies.length).toBe(1);
     expect(state.hero.sta).toBe(3);
+    expect(state.log.some((l) => l.includes('добивание 3'))).toBe(true);
     expect(state.log).toContain('Добивание: +1 STA');
   });
 
