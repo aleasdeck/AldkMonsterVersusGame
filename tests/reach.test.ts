@@ -103,10 +103,10 @@ describe('плеть', () => {
   });
 
   it('Хлёст — перк: приёмы плетью бьют только первого, а у не владеющего и удар бьёт только первого', () => {
-    const { state } = mkBattle('warrior', ['wolf', 'wolf'], weapon('whip', 10, 4, [{ id: 'heavy_strike', tier: 1 }]));
+    const { state } = mkBattle('warrior', ['wolf', 'wolf'], weapon('whip', 10, 4, [{ id: 'crippling_shot', tier: 1 }]));
     const far = state.enemies[1];
-    expect(actionReach(state, { type: 'artifact', artifactId: 'heavy_strike', target: far.uid })).toBe('melee');
-    expect(canUseAction(state, { type: 'artifact', artifactId: 'heavy_strike', target: far.uid })).toBe(REACH_ERR);
+    expect(actionReach(state, { type: 'artifact', artifactId: 'crippling_shot', target: far.uid })).toBe('melee');
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'crippling_shot', target: far.uid })).toBe(REACH_ERR);
 
     const mage = mkBattle('mage', ['wolf', 'wolf'], weapon('whip', 10));
     expect(mage.state.hero.stats.sweep).toBe(0);
@@ -130,14 +130,14 @@ describe('плеть', () => {
 
 describe('дальность приёмов', () => {
   it('физический приём бьёт как оружие: с мечом только первого, с луком любого', () => {
-    const sword = mkBattle('warrior', ['wolf', 'wolf'], weapon('sword', 5), [{ id: 'heavy_strike', tier: 1 }]);
+    const sword = mkBattle('warrior', ['wolf', 'wolf'], weapon('sword', 5), [{ id: 'crippling_shot', tier: 1 }]);
     const far = sword.state.enemies[1];
-    expect(actionReach(sword.state, { type: 'artifact', artifactId: 'heavy_strike', target: far.uid })).toBe('melee');
-    expect(canUseAction(sword.state, { type: 'artifact', artifactId: 'heavy_strike', target: far.uid })).toBe(REACH_ERR);
+    expect(actionReach(sword.state, { type: 'artifact', artifactId: 'crippling_shot', target: far.uid })).toBe('melee');
+    expect(canUseAction(sword.state, { type: 'artifact', artifactId: 'crippling_shot', target: far.uid })).toBe(REACH_ERR);
 
-    const bow = mkBattle('warrior', ['wolf', 'wolf'], weapon('bow', 5), [{ id: 'heavy_strike', tier: 1 }]);
+    const bow = mkBattle('warrior', ['wolf', 'wolf'], weapon('bow', 5), [{ id: 'crippling_shot', tier: 1 }]);
     const far2 = bow.state.enemies[1];
-    expect(canUseAction(bow.state, { type: 'artifact', artifactId: 'heavy_strike', target: far2.uid })).toBeNull();
+    expect(canUseAction(bow.state, { type: 'artifact', artifactId: 'crippling_shot', target: far2.uid })).toBeNull();
   });
 
   it('заклинание и флакон яда достают любого даже с мечом', () => {
@@ -152,7 +152,8 @@ describe('дальность приёмов', () => {
       expect(canUseAction(state, { type: 'artifact', artifactId: id, target: far.uid })).toBeNull();
     }
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: far.uid }, rng);
-    expect(far.hp).toBe(12 - 7);
+    // Огненный шар тира 1 с v0.38 бьёт на 5
+    expect(far.hp).toBe(12 - 5);
   });
 
   it('щит, порез и Молот света — всегда в упор, даже с луком в руках', () => {

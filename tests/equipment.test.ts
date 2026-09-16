@@ -11,7 +11,7 @@ import type { HeroPersistent } from '../src/engine/types';
 function mkHero(id = 'warrior'): HeroPersistent {
   const def = heroDef(id);
   const gear = makeStartingGear(def);
-  gear.weapon.slots = [{ id: 'heavy_strike', tier: 1 }];
+  gear.weapon.slots = [{ id: 'crippling_shot', tier: 1 }];
   gear.armor.slots = [{ id: 'troll_heart', tier: 1 }];
   return { defId: id, signature: def.signatures[0], hp: 40, weapon: gear.weapon, armor: gear.armor, potion: null };
 }
@@ -36,10 +36,10 @@ describe('артефакты и слоты', () => {
     expect(HERO_LIST.filter((d) => artifactDef(d.signatures[1]).slot === 'armor').map((d) => d.id)).toEqual(['paladin', 'berserk']);
   });
 
-  it('типы артефактов: 31 оружейный и 25 бронных, у каждого тип задан', () => {
+  it('типы артефактов: 39 оружейных и 27 бронных, у каждого тип задан', () => {
     const ids = Object.keys(ARTIFACTS);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(31);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(25);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(39);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(27);
   });
 
   it('сокет своего типа не принимает чужой артефакт, универсальный принимает любой', () => {
@@ -74,13 +74,13 @@ describe('артефакты и слоты', () => {
 
   it('при смене предмета артефакты переезжают по типам: свои сокеты занимают первыми, лишние возвращаются', () => {
     const h = mkHero();
-    h.weapon.slots = [{ id: 'fireball', tier: 1 }, { id: 'thorns', tier: 1 }, { id: 'sage_eye', tier: 1 }];
+    h.weapon.slots = [{ id: 'fireball', tier: 1 }, { id: 'thorns', tier: 1 }, { id: 'luck_talisman', tier: 1 }];
     h.weapon.slotKinds = ['any', 'any', 'any'];
     const next = makeGear(createRng(2), 'weapon', 4);
     next.slotKinds = ['any', 'weapon', 'weapon'];
     // Два оружейных садятся в оружейные сокеты, универсальный достаётся Шипам — никто не пропал.
     expect(equipGear(h, next)).toEqual([]);
-    expect(h.weapon.slots.map((a) => a?.id)).toEqual(['thorns', 'fireball', 'sage_eye']);
+    expect(h.weapon.slots.map((a) => a?.id)).toEqual(['thorns', 'fireball', 'luck_talisman']);
     // Три оружейных сокета — Шипам места нет, хотя сокетов хватает по счёту.
     const strict = makeGear(createRng(2), 'weapon', 4);
     strict.slotKinds = ['weapon', 'weapon', 'weapon'];
@@ -109,7 +109,7 @@ describe('артефакты и слоты', () => {
     const h = mkHero();
     const refs = socketRefs(h);
     expect(refs.length).toBe(2);
-    expect(refs.map((r) => r.art?.id)).toEqual(['heavy_strike', 'troll_heart']);
+    expect(refs.map((r) => r.art?.id)).toEqual(['crippling_shot', 'troll_heart']);
   });
 
   it('дубликат апгрейдит, третий дубликат бесполезен', () => {
@@ -124,7 +124,7 @@ describe('артефакты и слоты', () => {
 
   it('дубликат высокого тира поднимает сразу до него', () => {
     const h = mkHero();
-    expect(addArtifact(h, { id: 'heavy_strike', tier: 3 })).toBe('upgraded');
+    expect(addArtifact(h, { id: 'crippling_shot', tier: 3 })).toBe('upgraded');
     expect(h.weapon.slots[0]?.tier).toBe(3);
   });
 
@@ -142,7 +142,7 @@ describe('артефакты и слоты', () => {
     weapon.slotKinds = ['weapon', 'any'];
     const overflow = equipGear(h, weapon);
     expect(overflow).toEqual([]);
-    expect(h.weapon.slots[0]?.id).toBe('heavy_strike');
+    expect(h.weapon.slots[0]?.id).toBe('crippling_shot');
     expect(h.weapon.slots[1]).toBeNull();
     expect(addArtifact(h, { id: 'thorns', tier: 1 })).toBe('placed');
     expect(h.weapon.slots[1]?.id).toBe('thorns');
@@ -155,10 +155,10 @@ describe('артефакты и слоты', () => {
     big.slotKinds = ['weapon', 'any', 'weapon'];
     equipGear(h, big);
     addArtifact(h, { id: 'thorns', tier: 1 });
-    addArtifact(h, { id: 'sage_eye', tier: 1 });
+    addArtifact(h, { id: 'luck_talisman', tier: 1 });
     expect(h.weapon.slots.filter(Boolean).length).toBe(3);
     const overflow = equipGear(h, makeGear(rng, 'weapon', 1));
-    expect(overflow.map((a) => a.id).sort()).toEqual(['sage_eye', 'thorns']);
+    expect(overflow.map((a) => a.id).sort()).toEqual(['luck_talisman', 'thorns']);
     expect(h.weapon.slots.length).toBe(1);
   });
 
@@ -172,7 +172,7 @@ describe('артефакты и слоты', () => {
   it('кузница видит только артефакты ниже 3 тира', () => {
     const h = mkHero();
     addArtifact(h, { id: 'troll_heart', tier: 3 });
-    expect(upgradableSockets(h).map((s) => s.art?.id)).toEqual(['heavy_strike']);
+    expect(upgradableSockets(h).map((s) => s.art?.id)).toEqual(['crippling_shot']);
   });
 });
 

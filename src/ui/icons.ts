@@ -144,6 +144,16 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '.#.##.#.',
     '..####..',
   ],
+  echo: [
+    '..#..#..',
+    '.#..#...',
+    '#..#..#.',
+    '#..#..#.',
+    '#..#..#.',
+    '#..#..#.',
+    '.#..#...',
+    '..#..#..',
+  ],
   evade: [
     '........',
     '..##....',
@@ -172,6 +182,7 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   stealth: '#9aa6c8',
   vulnerable: '#ff6b6b',
   doom: '#d264ff',
+  echo: '#5cf0ff',
 };
 
 const OUTLINE = '#0b0b12';

@@ -104,7 +104,9 @@ function planEffects(
   selfColor: string,
   potion: boolean,
 ): void {
-  const hostile = effects.find((e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status' || e.type === 'pull' || e.type === 'push') && e.target !== 'self');
+  const hostile = effects.find(
+    (e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status' || e.type === 'pull' || e.type === 'push' || e.type === 'detonate' || e.type === 'spread' || e.type === 'breakBlock' || e.type === 'finisher') && e.target !== 'self',
+  );
   if (!hostile || !('target' in hostile)) {
     // Приём на себя: зелье — глоток, блок — щит перед героем, остальное — свечение.
     const kind = potion ? 'drink' : effects.some((e) => e.type === 'block') ? 'shield' : 'glow';
@@ -115,10 +117,10 @@ function planEffects(
   let kind = fx?.kind;
   let color = fx?.color;
   if (!kind) {
-    if (effects.some((e) => e.type === 'attack' || e.type === 'blockStrike')) {
+    if (effects.some((e) => e.type === 'attack' || e.type === 'blockStrike' || e.type === 'breakBlock' || e.type === 'finisher')) {
       kind = weapon.kind;
       color ??= weapon.color;
-    } else if (effects.some((e) => e.type === 'spell')) {
+    } else if (effects.some((e) => e.type === 'spell' || e.type === 'detonate')) {
       kind = 'orb';
       color ??= '#b388ff';
     } else return;

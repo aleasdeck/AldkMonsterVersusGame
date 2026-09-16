@@ -3,7 +3,7 @@ import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, isHidden, previewAttack, rangeText, reachableEnemies, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, findEnemy, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
@@ -253,6 +253,14 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return ['⇤', h('small', null, 'в ряд')];
       case 'push':
         return ['⇥', h('small', null, 'назад')];
+      case 'detonate':
+        return [range ? rangeText(range) : '—', h('small', null, e.target === 'allEnemies' ? 'взрыв всем' : 'взрыв')];
+      case 'spread':
+        return ['☣', h('small', null, 'на всех')];
+      case 'breakBlock':
+        return [range ? rangeText(range) : '—', h('small', null, `⛨×${e.mult}`)];
+      case 'finisher':
+        return [range ? rangeText(range) : '—', h('small', null, `×${e.per}`)];
       default:
         continue;
     }
@@ -290,7 +298,7 @@ export function actionSpecs(app: App): TileSpec[] {
     return last;
   };
   /** Хвост предпросмотра по цели: по ней можно — штриховка и остаток HP, нельзя — причина. */
-  const onTarget = (action: (t: number) => PlayerAction, target: number | undefined, range: DamageRange | undefined, kind: 'hit' | 'spell'): Partial<PreviewSpec> => {
+  const onTarget = (action: (t: number) => PlayerAction, target: number | undefined, range: DamageRange | undefined, kind: 'hit' | 'spell' | 'dot'): Partial<PreviewSpec> => {
     if (target === undefined) return {};
     const err = canUseAction(b, action(target));
     if (err) return { err };
@@ -300,7 +308,13 @@ export function actionSpecs(app: App): TileSpec[] {
   const atkAction = (t: number): PlayerAction => ({ type: 'attack', target: t });
   // Плеть хлещет весь ряд на долю урона — число на плитке уже с ней, с пометкой «всем».
   const sweep = b.hero.stats.sweep > 0;
-  const atkRange = stealthed ? critX(previewAttack(b, 0, sweep ? SWEEP_MULT : 1)) : previewAttack(b, 0, sweep ? SWEEP_MULT : 1);
+  /** Разброс удара по конкретной цели: прибавки по крови и за проклятия («Кровавый след», «Резонанс») и крит по оглушённой видны только с целью. */
+  const atkRangeOn = (bonus: number, mult: number, sure: boolean, t?: number): DamageRange => {
+    const e = t === undefined ? undefined : findEnemy(b, t);
+    const r = previewAttack(b, bonus, mult, e);
+    return sure || sureCritOn(b.hero, e) ? critX(r) : r;
+  };
+  const atkRange = atkRangeOn(0, sweep ? SWEEP_MULT : 1, false);
   const atkTargets = uids(atkAction(first));
   const atkName = stealthed ? 'Удар в спину' : 'Ударить';
   specs.push({
@@ -317,7 +331,7 @@ export function actionSpecs(app: App): TileSpec[] {
       title: atkName,
       parts: ['1 STA', `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}`, reachWord(actionReach(b, atkAction(first))), `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`],
       targets: atkTargets,
-      ...onTarget(atkAction, t, atkRange, 'hit'),
+      ...onTarget(atkAction, t, atkRangeOn(0, sweep ? SWEEP_MULT : 1, false, t), 'hit'),
     }),
   });
 
@@ -346,20 +360,58 @@ export function actionSpecs(app: App): TileSpec[] {
     const atkEff = effects.find((e) => e.type === 'attack');
     const spellEff = effects.find((e) => e.type === 'spell');
     const ramEff = effects.find((e) => e.type === 'blockStrike');
-    let range: DamageRange | null = null;
-    let kind: 'hit' | 'spell' = 'hit';
-    if (atkEff && atkEff.type === 'attack') {
-      const r = previewAttack(b, atkEff.bonus, atkEff.mult);
-      range = atkEff.sureCrit || stealthed ? critX(r) : r;
-    } else if (ramEff && ramEff.type === 'blockStrike') {
-      // Таран бьёт текущим блоком: без кубика, крита и усталости.
-      const dmg = Math.floor(b.hero.block * ramEff.mult);
-      range = { min: dmg, max: dmg };
-    } else if (spellEff && spellEff.type === 'spell') {
-      const dmg = spellEff.amount + b.hero.stats.spellPower;
-      range = { min: dmg, max: dmg };
-      kind = 'spell';
-    }
+    const detEff = effects.find((e) => e.type === 'detonate');
+    const breakEff = effects.find((e) => e.type === 'breakBlock');
+    const finEff = effects.find((e) => e.type === 'finisher');
+    let kind: 'hit' | 'spell' | 'dot' = 'hit';
+    /** Разброс приёма: без цели — общий (плитка), с целью — по ней (ридаут): взрыв ран, пролом и прибавки по цели зависят от врага. */
+    const rangeOn = (t?: number): DamageRange | null => {
+      const e = t === undefined ? undefined : findEnemy(b, t);
+      if (atkEff && atkEff.type === 'attack') {
+        const r = atkRangeOn(atkEff.bonus, atkEff.mult ?? 1, !!atkEff.sureCrit, t);
+        // Вскрытие: удар плюс взрыв крови на цели — на плитке только удар, по цели вместе.
+        if (detEff && detEff.type === 'detonate' && e) {
+          const burst = Math.floor(remainingDot(e, detEff.statuses) * detEff.mult);
+          return { min: r.min + burst, max: r.max + burst };
+        }
+        return r;
+      }
+      if (ramEff && ramEff.type === 'blockStrike') {
+        // Таран бьёт текущим блоком: без кубика, крита и усталости.
+        const dmg = Math.floor(b.hero.block * ramEff.mult);
+        return { min: dmg, max: dmg };
+      }
+      if (detEff && detEff.type === 'detonate') {
+        // Взрыв пламени: сумма по всем врагам каждому; на плитке — по всем, по цели — то же число.
+        const pool = detEff.pooled ? b.enemies.reduce((sum, x) => sum + remainingDot(x, detEff.statuses), 0) : e ? remainingDot(e, detEff.statuses) : 0;
+        const dmg = Math.floor(pool * detEff.mult);
+        return { min: dmg, max: dmg };
+      }
+      if (breakEff && breakEff.type === 'breakBlock') {
+        const dmg = Math.floor((e?.block ?? b.enemies[0]?.block ?? 0) * breakEff.mult);
+        return { min: dmg, max: dmg };
+      }
+      if (finEff && finEff.type === 'finisher') {
+        const dmg = finEff.per * b.hero.attacks;
+        return { min: dmg, max: dmg };
+      }
+      if (spellEff && spellEff.type === 'spell') {
+        let dmg = spellEff.amount + b.hero.stats.spellPower;
+        // «Раздуть» и удвоение по Слабому — только когда цель известна.
+        if (e && b.hero.stats.spellVsBurn > 0 && e.statuses.some((st) => st.id === 'burn')) dmg = Math.round(dmg * (1 + b.hero.stats.spellVsBurn));
+        if (e && spellEff.vsWeak && e.statuses.some((st) => st.id === 'weak')) dmg = Math.round(dmg * spellEff.vsWeak);
+        kind = 'spell';
+        return { min: dmg, max: dmg };
+      }
+      return null;
+    };
+    const range = rangeOn();
+    // Взрыв ран бьёт мимо блока, как рана; пролом — по уже снятому блоку: штриховка без вычета блока.
+    if ((detEff && !atkEff) || breakEff) kind = 'dot';
+    const kindOn = (t?: number): 'hit' | 'spell' | 'dot' => {
+      rangeOn(t);
+      return kind;
+    };
     const total = ad.cooldown?.(inst.tier) ?? 0;
     const limit = ad.usesPerTurn?.(inst.tier) ?? 0;
     const err = tileErr(action, targeted);
@@ -381,7 +433,7 @@ export function actionSpecs(app: App): TileSpec[] {
         title: `${ad.name} · тир ${inst.tier}`,
         parts: [artifactCostText(ad, inst.tier), ad.describe(inst.tier), targeted ? reachWord(actionReach(b, action(first))) : '', total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
         targets,
-        ...(targeted ? onTarget(action, t, range ?? undefined, kind) : {}),
+        ...(targeted ? onTarget(action, t, rangeOn(t) ?? undefined, kindOn(t)) : {}),
       }),
     });
   }

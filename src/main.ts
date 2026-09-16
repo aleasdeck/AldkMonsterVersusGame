@@ -168,7 +168,7 @@ function mockRuns(): RunsFeed {
   const killers = ['Вожак стаи', 'Лич', 'Королева улья', 'Капитан', 'Кладка', 'Гоблин-шаман'];
   const weapons = ['sword', 'axe', 'bow', 'staff', 'spear', 'mace', 'stiletto', 'whip'];
   const armors = ['mail', 'plate', 'robe', 'cloak', 'harness', 'shroud'];
-  const arts = ['fireball', 'heavy_strike', 'troll_heart', 'thorns', 'shield_bash', 'magic_missile', 'rage', 'aimed_shot', 'stone_hide', 'hex', 'whirlwind', 'regen_amulet'];
+  const arts = ['fireball', 'bleed_burst', 'troll_heart', 'thorns', 'shield_bash', 'magic_missile', 'rage', 'aimed_shot', 'stone_hide', 'hex', 'whirlwind', 'regen_amulet'];
   const rng = createRng(42);
   const rows: unknown[][] = [];
   for (let i = 0; i < 90; i++) {

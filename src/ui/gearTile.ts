@@ -42,6 +42,14 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return e.target === 'self' ? 'бафф' : 'дебафф';
       case 'pull':
         return 'в первый ряд';
+      case 'detonate':
+        return e.target === 'allEnemies' ? 'взрыв ран всем' : 'взрыв ран';
+      case 'spread':
+        return 'заражение';
+      case 'breakBlock':
+        return `блок цели ×${e.mult}`;
+      case 'finisher':
+        return `${e.per} × атаки`;
       case 'push':
         return 'толчок назад';
       default:

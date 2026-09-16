@@ -21,7 +21,8 @@ export interface PreviewSpec {
   /** Цель и разброс урона: полоска цели получает штриховку, ридаут — хвост «останется N HP». */
   target?: number;
   range?: DamageRange;
-  kind?: 'hit' | 'spell';
+  /** Чем бьём: удар гасится блоком и уклонением, заклинание — блоком, рана (взрыв ран, пролом) — ничем. */
+  kind?: 'hit' | 'spell' | 'dot';
 }
 
 function readoutNode(app: App): HTMLElement | null {
