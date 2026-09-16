@@ -7,13 +7,14 @@ import type {
   GearTier,
   HeroPersistent,
   LootItem,
+  RewardFocus,
   RewardScreen,
   RewardSource,
   RoomKind,
   ShopState,
 } from './types';
 import { chance, pick, weighted, type Rng } from './rng';
-import { ARTIFACT_IDS } from '../data/artifacts';
+import { ARTIFACT_IDS, artifactDef } from '../data/artifacts';
 import { makeGear } from '../data/gear';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { EVENT_WEIGHTS, type ActDef } from '../data/locations';
@@ -109,8 +110,9 @@ export function canDropFor(hero: HeroPersistent, id: string): boolean {
   return !owner || (owner === hero.defId && id === hero.signature);
 }
 
-export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], exclude: string[]): ArtifactInstance | null {
-  const ids = ARTIFACT_IDS.filter((id) => !exclude.includes(id) && !isMaxed(hero, id) && canDropFor(hero, id));
+/** Артефакт из пула: `slot` сужает до оружейных или бронных (пул награды «Нападение» / «Защита»); торговец, алтарь и вор катят из всех. */
+export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], exclude: string[], slot?: GearKind): ArtifactInstance | null {
+  const ids = ARTIFACT_IDS.filter((id) => !exclude.includes(id) && !isMaxed(hero, id) && canDropFor(hero, id) && (!slot || artifactDef(id).slot === slot));
   if (ids.length === 0) return null;
   return { id: pick(rng, ids), tier: pick(rng, tiers) };
 }
@@ -123,26 +125,30 @@ export function rollGear(rng: Rng, hero: HeroPersistent, tiers: GearTier[], kind
   return makeGear(rng, k, tier, heroDef(hero.defId));
 }
 
-export function rollRewards(rng: Rng, hero: HeroPersistent, act: ActDef, source: 'fight' | 'elite'): LootItem[] {
+/** Какой тип предметов и сокетов соответствует пулу награды. */
+export function focusGearKind(focus: RewardFocus): GearKind {
+  return focus === 'attack' ? 'weapon' : 'armor';
+}
+
+/**
+ * Три варианта награды из выбранного пула (v0.39): «Нападение» — оружие и оружейные артефакты, «Защита» — броня и бронные.
+ * Каждая карточка с шансом ARTIFACT_CHANCE артефакт, иначе предмет; когда артефакты пула у героя все на максимуме, катится предмет.
+ */
+export function rollRewards(rng: Rng, hero: HeroPersistent, act: ActDef, source: 'fight' | 'elite', focus: RewardFocus): LootItem[] {
   const gearTiers = source === 'elite' ? bump(act.gearTiers, 5 as GearTier) : act.gearTiers;
   const artTiers = source === 'elite' ? bump(act.artTiers, 3 as ArtTier) : act.artTiers;
+  const kind = focusGearKind(focus);
   const items: LootItem[] = [];
   const usedArts: string[] = [];
-  const gearKinds: GearKind[] = [];
   for (let i = 0; i < 3; i++) {
     if (chance(rng, ARTIFACT_CHANCE)) {
-      const a = rollArtifact(rng, hero, artTiers, usedArts);
+      const a = rollArtifact(rng, hero, artTiers, usedArts, kind);
       if (a) {
         usedArts.push(a.id);
         items.push({ kind: 'artifact', artifact: a });
         continue;
       }
     }
-    let kind: GearKind;
-    if (gearKinds.includes('weapon') && !gearKinds.includes('armor')) kind = 'armor';
-    else if (gearKinds.includes('armor') && !gearKinds.includes('weapon')) kind = 'weapon';
-    else kind = pick(rng, ['weapon', 'armor'] as GearKind[]);
-    gearKinds.push(kind);
     items.push({ kind: 'gear', gear: rollGear(rng, hero, gearTiers, kind, source === 'fight' ? act.rareGear : undefined) });
   }
   return items;
@@ -170,12 +176,13 @@ function rollBossArts(rng: Rng, hero: HeroPersistent, act: ActDef): LootItem[] {
   return arts;
 }
 
-/** Варианты награды по источнику — так же перебрасываются за золото. */
-export function rollRewardOptions(rng: Rng, hero: HeroPersistent, act: ActDef, source: RewardSource): LootItem[] {
+/** Варианты награды по источнику — так же перебрасываются за золото. Награде за бой нужен выбранный пул. */
+export function rollRewardOptions(rng: Rng, hero: HeroPersistent, act: ActDef, source: RewardSource, focus?: RewardFocus): LootItem[] {
   switch (source) {
     case 'fight':
     case 'elite':
-      return rollRewards(rng, hero, act, source);
+      if (!focus) return [];
+      return rollRewards(rng, hero, act, source, focus);
     case 'bossGear':
       return rollBossGear(rng, hero, act);
     case 'bossArt':

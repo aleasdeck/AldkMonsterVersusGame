@@ -2852,3 +2852,47 @@ p {
 .event-card .card-foot {
   margin-top: auto;
 }
+
+/* ─── Награда: выбор пула «Нападение» / «Защита» (v0.39) ─────────────── */
+
+/* Две карточки пула по центру: не тянутся на всю ширину трёх обычных карточек, чтобы выбор читался как два крупных варианта. */
+.hub-main .cards.focus-cards {
+  justify-content: center;
+  gap: 24px;
+}
+.hub-main .cards.focus-cards .focus-card {
+  flex: 0 1 300px;
+  max-width: 300px;
+}
+.focus-card .card-head {
+  gap: 12px;
+}
+.focus-card .glyph.big {
+  width: 52px;
+}
+.focus-card.attack .glyph,
+.focus-card.attack .card-name,
+.focus-chip.attack {
+  color: #ff9b6b;
+}
+.focus-card.defense .glyph,
+.focus-card.defense .card-name,
+.focus-chip.defense {
+  color: #7fd0ff;
+}
+.focus-card .card-sub.key {
+  margin-left: auto;
+  border: 2px solid var(--border);
+  padding: 0 7px;
+  line-height: 22px;
+}
+.focus-card .card-foot .btn {
+  margin-left: auto;
+}
+/* Чип выбранного пула в заголовке экрана награды. */
+.focus-chip {
+  font-size: 18px;
+  border: 2px solid var(--border);
+  padding: 0 8px;
+  line-height: 24px;
+}

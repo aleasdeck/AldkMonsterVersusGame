@@ -5,7 +5,7 @@ import { WEAPON_BASES, baseDamage, baseOf, makeGear, makeStartingGear, weaponDic
 import { canUseAction, createBattle, endTurn, getStatus, performAction, previewAttack, resolveEnemyTurn } from '../src/engine/combat';
 import { computeStats, previewGearSwap } from '../src/engine/stats';
 import { REROLL_COST, START_GOLD, goldReward } from '../src/engine/loot';
-import { battleAction, battleEndTurn, battleEnemyStep, canReroll, enterRoom, finishBattle, newRun, rerollReward } from '../src/engine/run';
+import { battleAction, battleEndTurn, battleEnemyStep, canReroll, chooseRewardFocus, enterRoom, finishBattle, newRun, rerollReward } from '../src/engine/run';
 import type { GearInstance, GearTier, HeroPersistent, RunState, WeaponType } from '../src/engine/types';
 
 /** Оружие с фиксированным уроном, без аффикса и слотов. */
@@ -319,6 +319,7 @@ describe('золото и переброс', () => {
     winBattle(run);
     expect(run.phase).toBe('reward');
     expect(run.gold).toBe(START_GOLD + goldReward('fight'));
+    chooseRewardFocus(run, 'attack');
     expect(canReroll(run)).toBeNull();
     const before = run.rewards[0].options;
     expect(rerollReward(run)).toBe(true);
@@ -334,6 +335,7 @@ describe('золото и переброс', () => {
     const run = newRun('warrior', 22);
     enterRoom(run);
     winBattle(run);
+    chooseRewardFocus(run, 'attack');
     run.gold = REROLL_COST - 1;
     expect(canReroll(run)).toMatch(/золота/);
     expect(rerollReward(run)).toBe(false);

@@ -6,7 +6,7 @@
  *
  * Дайсов бот не видит: варианты оцениваются на своём генераторе, реальный ход бросает свои кубики.
  */
-import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RunState, StatMods, StatusId } from '../../src/engine/types';
+import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RewardFocus, RunState, StatMods, StatusId } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
 import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
@@ -15,12 +15,15 @@ import { heroDef } from '../../src/data/heroes';
 import { SWEEP_MULT, canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
 import { potionDef } from '../../src/data/potions';
 import { equipGear, findSameArtifact, freeSocketFor, gearOf, slotAccepts, slotKindAt, socketRefs, type SocketRef } from '../../src/engine/equipment';
-import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, forgePrice, gearPrice } from '../../src/engine/loot';
+import { REROLL_COST, SHOP_HEAL_COST, SHOP_POTION_PRICE, artifactPrice, focusGearKind, forgePrice, gearPrice } from '../../src/engine/loot';
 import {
   altarHealAmount,
   altarPray,
   altarSacrifice,
   altarSacrificeCost,
+  awaitsFocus,
+  chooseRewardFocus,
+  currentAct,
   battleAction,
   battleEndTurn,
   battleEnemyStep,
@@ -98,6 +101,11 @@ export const W = {
   anySocket: 0,
   reseatOverflow: true,
   displacedReplace: true,
+  /**
+   * Пул награды (v0.39): свободный сокет под артефакты пула стоит примерно средний артефакт; занятый более слабым — половину недостачи до этого уровня.
+   * Сверх сокетов пул ценит отставание предмета от верхнего тира акта (по 4 за тир, как gearGain) и чужое оружие в руках.
+   */
+  focusSocket: 6,
 };
 
 /** Счётчик применений приёмов и зелий — печатается симулятором. */
@@ -800,8 +808,34 @@ function rewardScore(run: RunState, o: RunState['rewards'][number]['options'][nu
   return artifactGain(run, o.artifact);
 }
 
-/** Награда: лучший вариант по выигрышу; если всё бесполезно и золото есть — переброс, иначе пропуск. */
+/**
+ * Пул награды («Нападение» / «Защита», v0.39) — куда герою нужнее: свободные и слабо занятые сокеты под артефакты пула,
+ * отставание предмета от верхнего тира акта, чужое оружие в руках. Универсальные сокеты идут в счёт обоим. Ничья — нападение.
+ */
+export function chooseFocus(run: RunState): RewardFocus {
+  const def = heroDef(run.hero.defId);
+  const topTier = Math.max(...currentAct(run).gearTiers);
+  const score = (focus: RewardFocus): number => {
+    const kind = focusGearKind(focus);
+    const gear = gearOf(run.hero, kind);
+    let s = Math.max(0, topTier - gear.tier) * 4;
+    if (kind === 'weapon' && !canWieldWeapon(def, gear)) s += 8;
+    if (kind === 'armor' && !canWearArmor(def, gear)) s += 3;
+    for (const ref of socketRefs(run.hero)) {
+      if (!slotAccepts(ref.slot, kind)) continue;
+      s += ref.art ? Math.max(0, W.focusSocket - artifactValue(run, ref.art)) * 0.5 : W.focusSocket;
+    }
+    return s;
+  };
+  return score('attack') >= score('defense') ? 'attack' : 'defense';
+}
+
+/** Награда: сначала пул, потом лучший вариант по выигрышу; если всё бесполезно и золото есть — переброс, иначе пропуск. */
 export function chooseReward(run: RunState): void {
+  if (awaitsFocus(run.rewards[0])) {
+    chooseRewardFocus(run, chooseFocus(run));
+    return;
+  }
   const opts = run.rewards[0]?.options ?? [];
   let best = -1;
   let bestScore = 0.5;

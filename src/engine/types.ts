@@ -599,11 +599,19 @@ export interface ShopState {
 /** Откуда награда — по нему же перебрасываются варианты. Зелье выпало с монстра — его не перебросить. */
 export type RewardSource = 'fight' | 'elite' | 'bossGear' | 'bossArt' | 'potion';
 
+/**
+ * Пул награды за обычный бой и элиту (v0.39): «Нападение» — оружие и оружейные артефакты, «Защита» — броня и бронные.
+ * Игрок выбирает пул вслепую, до броска: категорию рулит он, предмет внутри — случай. Пул того же типа, что и сокеты артефактов.
+ */
+export type RewardFocus = 'attack' | 'defense';
+
 export interface RewardScreen {
   title: string;
   /** Подзаголовок вместо стандартного: «Раны затянулись: +12 HP» после босса. */
   note?: string;
   source: RewardSource;
+  /** Выбранный пул у награды за бой и элиту; пока не выбран — `options` пусты и экран ждёт выбора (`awaitsFocus`). У босса и зелья не бывает. */
+  focus?: RewardFocus;
   options: LootItem[];
   /** Переброс уже потрачен (один на экран). */
   rerolled: boolean;
@@ -669,9 +677,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.38.11';
+export const GAME_VERSION = '0.39';
 
-export const SAVE_VERSION = 29;
+export const SAVE_VERSION = 30;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

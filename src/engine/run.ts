@@ -1,4 +1,4 @@
-import type { ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RoomKind, RunState } from './types';
+import type { ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
 import { SAVE_VERSION } from './types';
 import { chance, createRng, pick } from './rng';
 import { defaultSignature, heroDef } from '../data/heroes';
@@ -267,8 +267,9 @@ export function finishBattle(run: RunState): void {
     run.rewards = rollBossRewards(run.rng, run.hero, act);
     if (run.rewards[0] && heal > 0) run.rewards[0].note = `Раны затянулись: +${heal} HP (${run.hero.hp}/${heroStats(run).maxHp}). Можно взять только одно.`;
   } else {
+    // Пул («Нападение» / «Защита») игрок выбирает вслепую, бросок — после выбора (chooseRewardFocus).
     const source = kind === 'elite' ? 'elite' : 'fight';
-    run.rewards = [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', source, options: rollRewards(run.rng, run.hero, act, source), rerolled: false }];
+    run.rewards = [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', source, options: [], rerolled: false }];
   }
   // С любого монстра может выпасть зелье — отдельным экраном после награды. После финального босса некуда: забег окончен.
   const finalBoss = kind === 'boss' && !act.bossGearTier;
@@ -370,6 +371,30 @@ function afterReward(run: RunState): void {
   if (run.rewards.length === 0) advanceRoom(run);
 }
 
+/** Экран награды ждёт выбора пула: награда за бой или элиту, пул ещё не выбран. */
+export function awaitsFocus(screen: RewardScreen | undefined): boolean {
+  return !!screen && (screen.source === 'fight' || screen.source === 'elite') && !screen.focus;
+}
+
+/** Почему сейчас нельзя выбрать пул награды; null — можно. */
+export function canChooseFocus(run: RunState): string | null {
+  if (run.phase !== 'reward' || run.pending) return 'Сейчас нельзя';
+  if (!awaitsFocus(run.rewards[0])) return 'Пул уже выбран';
+  return null;
+}
+
+/**
+ * Выбор пула награды (v0.39): «Нападение» — оружие и оружейные артефакты, «Защита» — броня и бронные.
+ * Выбор слепой: три варианта катятся только после него, переброс перебрасывает внутри выбранного пула.
+ */
+export function chooseRewardFocus(run: RunState, focus: RewardFocus): boolean {
+  if (canChooseFocus(run)) return false;
+  const screen = run.rewards[0];
+  screen.focus = focus;
+  screen.options = rollRewards(run.rng, run.hero, currentAct(run), screen.source as 'fight' | 'elite', focus);
+  return true;
+}
+
 export function takeReward(run: RunState, index: number): void {
   if (run.phase !== 'reward' || run.pending) return;
   const screen = run.rewards[0];
@@ -405,6 +430,7 @@ export function canReroll(run: RunState): string | null {
   const screen = run.rewards[0];
   if (!screen) return 'Нет награды';
   if (screen.source === 'potion') return 'Зелье не перебросить';
+  if (awaitsFocus(screen)) return 'Сначала выберите пул';
   if (screen.rerolled) return 'Переброс уже использован';
   if (run.gold < REROLL_COST) return `Нужно ${REROLL_COST} золота`;
   return null;
@@ -416,7 +442,7 @@ export function rerollReward(run: RunState): boolean {
   const screen = run.rewards[0];
   run.gold -= REROLL_COST;
   screen.rerolled = true;
-  screen.options = rollRewardOptions(run.rng, run.hero, currentAct(run), screen.source);
+  screen.options = rollRewardOptions(run.rng, run.hero, currentAct(run), screen.source, screen.focus);
   return true;
 }
 

@@ -11,7 +11,7 @@ describe('редкий тир в пуле акта (loot.ts, v0.35)', () => {
     let gear = 0;
     let mythic = 0;
     for (let i = 0; i < 300; i++) {
-      for (const it of rollRewards(rng, hero, ACTS[1], 'fight')) {
+      for (const it of rollRewards(rng, hero, ACTS[1], 'fight', 'attack')) {
         if (it.kind !== 'gear') continue;
         gear += 1;
         expect([2, 3, 4]).toContain(it.gear.tier);
@@ -29,8 +29,8 @@ describe('редкий тир в пуле акта (loot.ts, v0.35)', () => {
     expect(shop4).toBeGreaterThan(5);
     // Элита второго акта — пул 3–4 без редкого броска, первый акт — только 1–2.
     for (let i = 0; i < 100; i++) {
-      for (const it of rollRewards(rng, hero, ACTS[1], 'elite')) if (it.kind === 'gear') expect([3, 4]).toContain(it.gear.tier);
-      for (const it of rollRewards(rng, hero, ACTS[0], 'fight')) if (it.kind === 'gear') expect([1, 2]).toContain(it.gear.tier);
+      for (const it of rollRewards(rng, hero, ACTS[1], 'elite', 'defense')) if (it.kind === 'gear') expect([3, 4]).toContain(it.gear.tier);
+      for (const it of rollRewards(rng, hero, ACTS[0], 'fight', 'defense')) if (it.kind === 'gear') expect([1, 2]).toContain(it.gear.tier);
     }
   });
 });

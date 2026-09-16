@@ -1,5 +1,5 @@
 import { h } from './dom';
-import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RunState } from '../engine/types';
+import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RewardFocus, RunState } from '../engine/types';
 import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
@@ -128,7 +128,8 @@ export class App {
     const r = this.run;
     this.settleArmed();
     this.aim = null;
-    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending].join('|');
+    // Выбор пула награды (v0.39) — тоже смена экрана: «Выбрать» стоит там же, где потом «Надеть», второй клик двойного не должен брать предмет.
+    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0])].join('|');
     if (key !== this.screenKey) {
       this.screenKey = key;
       this.screenChangedAt = performance.now();
@@ -651,6 +652,12 @@ export class App {
   rerollReward(): void {
     if (!this.run) return;
     if (R.rerollReward(this.run)) this.commit();
+  }
+
+  /** Пул награды за бой: «Нападение» или «Защита» (v0.39), после выбора катятся три карточки. */
+  chooseRewardFocus(focus: RewardFocus): void {
+    if (!this.run) return;
+    if (R.chooseRewardFocus(this.run, focus)) this.commit();
   }
 
   pendingPlace(kind: GearKind, index: number): void {
