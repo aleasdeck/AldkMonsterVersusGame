@@ -104,6 +104,9 @@ if (heroParam) {
     // &phase=won — остаться на плашке победы, не забирая награду; &log=1 — сразу раскрыть лог боя.
     if (phase === 'reward') app.finishBattle();
     else if (params.get('log')) app.toggleLog();
+    // &focus=attack|defense — сразу выбрать пул награды (без него экран ждёт выбора); &take=art выбирает «Нападение» сам.
+    const focus = params.get('focus') ?? (params.get('take') === 'art' ? 'attack' : null);
+    if (focus === 'attack' || focus === 'defense') app.chooseRewardFocus(focus);
     // &take=art — сразу взять первый артефакт из награды (открывает выбор слота)
     if (params.get('take') === 'art') {
       const i = run.rewards[0]?.options.findIndex((o) => o.kind === 'artifact') ?? -1;

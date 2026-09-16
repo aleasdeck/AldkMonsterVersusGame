@@ -20,6 +20,7 @@ import {
   canForge,
   canPendingPlace,
   canReroll,
+  rerollReward,
   canShopBuyGear,
   canShopBuyPotion,
   canShopHeal,
@@ -46,6 +47,9 @@ import {
   startEvent,
   takeChest,
   takeReward,
+  awaitsFocus,
+  canChooseFocus,
+  chooseRewardFocus,
 } from '../src/engine/run';
 import { POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, canDropFor, forgePrice, gearPrice, rollArtifact, rollEventKind } from '../src/engine/loot';
 import { POTION_IDS } from '../src/data/potions';
@@ -115,7 +119,9 @@ function playRun(run: RunState, immortal = false): void {
         playBattle(run);
         break;
       case 'reward':
-        takeReward(run, 0);
+        // Пул простой бот чередует по клетке: так забег видит оба пула.
+        if (awaitsFocus(run.rewards[0])) chooseRewardFocus(run, run.roomIndex % 2 === 0 ? 'attack' : 'defense');
+        else takeReward(run, 0);
         break;
       case 'event':
         if (run.event?.kind === 'chest') takeChest(run);
@@ -439,10 +445,78 @@ describe('забег', () => {
     enterRoom(run);
     winCurrentBattle(run);
     expect(run.phase).toBe('reward');
+    // Сначала слепой выбор пула (v0.39), три карточки катятся после него.
+    expect(awaitsFocus(run.rewards[0])).toBe(true);
+    expect(run.rewards[0].options.length).toBe(0);
+    expect(chooseRewardFocus(run, 'attack')).toBe(true);
     expect(run.rewards[0].options.length).toBe(3);
     skipReward(run);
     expect(run.phase).toBe('map');
     expect(run.roomIndex).toBe(1);
+  });
+
+  describe('пул награды «Нападение» / «Защита» (v0.39)', () => {
+    it('«Нападение» — только оружие и оружейные артефакты, «Защита» — броня и бронные; переброс остаётся в пуле', () => {
+      for (const [focus, kind] of [
+        ['attack', 'weapon'],
+        ['defense', 'armor'],
+      ] as const) {
+        for (let seed = 1; seed <= 30; seed++) {
+          const run = newRun('mage', seed);
+          run.gold = 100;
+          enterRoom(run);
+          winCurrentBattle(run);
+          expect(chooseRewardFocus(run, focus)).toBe(true);
+          expect(run.rewards[0].focus).toBe(focus);
+          const check = () => {
+            expect(run.rewards[0].options).toHaveLength(3);
+            for (const o of run.rewards[0].options) {
+              if (o.kind === 'gear') expect(o.gear.kind).toBe(kind);
+              else if (o.kind === 'artifact') expect(artifactDef(o.artifact.id).slot).toBe(kind);
+              else throw new Error('зелье в тройке награды');
+            }
+          };
+          check();
+          expect(rerollReward(run)).toBe(true);
+          check();
+        }
+      }
+    });
+
+    it('пока пул не выбран: переброса и взятия нет, повторный выбор невозможен, пропустить можно', () => {
+      const run = newRun('warrior', 7);
+      enterRoom(run);
+      winCurrentBattle(run);
+      expect(canChooseFocus(run)).toBeNull();
+      expect(canReroll(run)).toMatch(/пул/);
+      expect(rerollReward(run)).toBe(false);
+      takeReward(run, 0);
+      expect(run.phase).toBe('reward');
+      expect(chooseRewardFocus(run, 'defense')).toBe(true);
+      expect(canChooseFocus(run)).toMatch(/уже/);
+      expect(chooseRewardFocus(run, 'attack')).toBe(false);
+      expect(run.rewards[0].focus).toBe('defense');
+      expect(canReroll(run)).toBeNull();
+
+      const run2 = newRun('warrior', 8);
+      enterRoom(run2);
+      winCurrentBattle(run2);
+      skipReward(run2);
+      expect(run2.rewards.some((r) => r.source === 'fight')).toBe(false);
+    });
+
+    it('элита тоже выбирает пул с тиром на ступень выше; босс и зелье пула не ждут', () => {
+      const run = newRun('warrior', 4);
+      run.roomIndex = 2;
+      startEvent(run, 'elite');
+      winCurrentBattle(run);
+      expect(awaitsFocus(run.rewards[0])).toBe(true);
+      chooseRewardFocus(run, 'defense');
+      for (const o of run.rewards[0].options) if (o.kind === 'gear') expect([2, 3]).toContain(o.gear.tier);
+      expect(awaitsFocus({ title: 'x', source: 'bossGear', options: [], rerolled: false })).toBe(false);
+      expect(awaitsFocus({ title: 'x', source: 'potion', options: [], rerolled: false })).toBe(false);
+      expect(awaitsFocus(undefined)).toBe(false);
+    });
   });
 
   it('артефакт из награды: выбор слота, отмена возвращает к награде, замена завершает', () => {
