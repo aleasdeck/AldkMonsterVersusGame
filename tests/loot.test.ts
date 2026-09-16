@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ACTS } from '../src/data/locations';
 import { rollArtifact, rollGear, rollRewards, rollShop } from '../src/engine/loot';
+import { artifactCost, artifactDef } from '../src/data/artifacts';
 import { createRng } from '../src/engine/rng';
 import { newRun } from '../src/engine/run';
 
@@ -113,5 +114,52 @@ describe('сходимость дропа артефактов (loot.ts, v0.40)'
       if (a) seen.add(a.id);
     }
     expect(seen.size).toBeGreaterThan(30);
+  });
+});
+
+describe('дроп заклинаний по мане (loot.ts, v0.40.1)', () => {
+  /** Стоит ли приём маны хоть на одном тире — тот же ключ, что и у дропа: цена, а не школа. */
+  const costsMana = (id: string) => ([1, 2, 3] as const).some((t) => (artifactCost(artifactDef(id), t).mp ?? 0) > 0);
+
+  /** Доля приёмов с ценой MP среди выпавших артефактов пула. */
+  function spellShare(hero: ReturnType<typeof newRun>['hero'], slot: 'weapon' | 'armor'): number {
+    const rng = createRng(5);
+    let spells = 0;
+    let total = 0;
+    for (let i = 0; i < 3000; i++) {
+      const a = rollArtifact(rng, hero, [1], [], slot);
+      if (!a) continue;
+      total += 1;
+      if (costsMana(a.id)) spells += 1;
+    }
+    return spells / total;
+  }
+
+  it('безманового героя заклинания обходят стороной, но пул для него не пустеет', () => {
+    const berserk = newRun('berserk', 1).hero;
+    expect(spellShare(berserk, 'weapon')).toBe(0);
+    expect(spellShare(berserk, 'armor')).toBe(0);
+    const rng = createRng(13);
+    const seen = new Set<string>();
+    for (let i = 0; i < 3000; i++) {
+      const a = rollArtifact(rng, berserk, [1], [], 'weapon');
+      if (a) seen.add(a.id);
+    }
+    expect(seen.size).toBeGreaterThan(20);
+  });
+
+  it('ступени монотонны: у Мага заклинаний больше, чем у Ассасина, у Ассасина — чем у Воина', () => {
+    const mage = spellShare(newRun('mage', 1).hero, 'weapon');
+    const assassin = spellShare(newRun('assassin', 1).hero, 'weapon');
+    const warrior = spellShare(newRun('warrior', 1).hero, 'weapon');
+    expect(mage).toBeGreaterThan(assassin * 1.5);
+    expect(assassin).toBeGreaterThan(warrior * 1.3);
+    expect(warrior).toBeGreaterThan(0);
+  });
+
+  it('мана со снаряжения открывает заклинания: ступень считается по computeStats, а не по базе героя', () => {
+    const rich = newRun('berserk', 1).hero;
+    rich.armor.affix = { stat: 'maxMp', value: 3 };
+    expect(spellShare(rich, 'weapon')).toBeGreaterThan(0.1);
   });
 });
