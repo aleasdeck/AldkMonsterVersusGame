@@ -1,6 +1,7 @@
 import type {
   AiCtx,
   AllyState,
+  ArtifactDef,
   ArtifactInstance,
   BattleState,
   Combatant,
@@ -23,7 +24,7 @@ import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, pick, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef, PHASE_SHIFT } from '../data/enemies';
 import { enemyScale, locationDef } from '../data/locations';
-import { ARTIFACTS, artifactCost, artifactDef } from '../data/artifacts';
+import { artifactCost, artifactDef } from '../data/artifacts';
 import { SWEEP_MULT } from '../data/gear';
 import { potionDef } from '../data/potions';
 import { computeStats, socketedArtifacts } from './stats';
@@ -1105,6 +1106,8 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     const cd = def.cooldown?.(inst.tier) ?? 0;
     if (cd > 0) h.cooldowns[def.id] = cd;
     h.uses[def.id] = (h.uses[def.id] ?? 0) + 1;
+    // Цепная атака тратит свой единственный заряд, любой другой приём его взводит (но не копит).
+    h.uses[CHAIN_READY] = isChainArtifact(def) ? 0 : 1;
     log(state, `Герой: ${def.name}`);
     const effects = def.effects?.(inst.tier) ?? [];
     // Скрытность спадает после каждого бьющего эффекта, а не после всего приёма: у Двойного выпада в спину бьёт только первый
@@ -1139,24 +1142,23 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
 }
 
 /**
- * Заряды «Цепной атаки»: каждый другой приём или заклинание в этом ходу даёт один, каждая цепная атака тратит один.
- * Считается по `hero.uses`, отдельного состояния нет; служебные ключи «Перекрёстного тока» не считаются.
+ * Заряд «Цепной атаки»: один, не копится (v0.38.1, решение пользователя). Любой другой приём или заклинание взводит его,
+ * цепная атака тратит; два приёма подряд дают всё тот же один заряд. Живёт в `hero.uses` под служебным ключом,
+ * сбрасывается вместе с ним в начале хода.
  */
 export function chainCharges(h: HeroBattle): number {
-  let charges = 0;
-  for (const [id, n] of Object.entries(h.uses)) {
-    if (id.startsWith('_')) continue;
-    const def = ARTIFACTS[id];
-    if (!def) continue;
-    const chain = def.effects?.(1).some((e) => e.type === 'chain');
-    charges += chain ? -n : n;
-  }
-  return Math.max(0, charges);
+  return h.uses[CHAIN_READY] ?? 0;
+}
+
+function isChainArtifact(def: ArtifactDef): boolean {
+  return !!def.effects?.(1).some((e) => e.type === 'chain');
 }
 
 /** Ключи в `hero.uses` для «Перекрёстного тока»: раз в ход на каждый ресурс; с id артефактов не пересекаются. */
 const CROSS_STA = '_cross_sta';
 const CROSS_MP = '_cross_mp';
+/** Ключ заряда «Цепной атаки» в `hero.uses`: 1 — приём взвёл её, 0 или нет — нечем бить вдогонку. */
+const CHAIN_READY = '_chain_ready';
 
 function startPlayerTurn(state: BattleState): void {
   const h = state.hero;
