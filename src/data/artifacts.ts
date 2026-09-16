@@ -857,6 +857,21 @@ const list: ArtifactDef[] = [
   },
   // ── Связки (v0.38) ──
   {
+    id: 'elemental_edge',
+    fx: { color: '#7ddc5a' },
+    name: 'Стихийная заточка',
+    glyph: '✧',
+    kind: 'active',
+    slot: 'weapon',
+    school: 'magic',
+    cost: { mp: 2 },
+    cooldown: () => 3,
+    target: 'self',
+    // Заводка для всех трёх семейств ран сразу (решение пользователя): стихия случайная, оружие держит одну.
+    effects: (tier) => [{ type: 'enchant', value: t(1, 2, 3)(tier), turns: 2 }],
+    describe: (tier) => `Оружие на 2 хода получает случайную стихию: каждый удар вешает Горение, Яд или Кровотечение ${t(1, 2, 3)(tier)} на 2 хода. КД 3`,
+  },
+  {
     id: 'flame_burst',
     fx: { color: '#ff7b00' },
     name: 'Взрыв пламени',
