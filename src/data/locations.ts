@@ -254,7 +254,7 @@ export function pickRunLocations(rng: Rng): LocationId[] {
  * и без этой правки бот терял 5–11 пунктов побед на каждом герое. Второй акт 1.45 → 1.4 в v0.33.1:
  * по статистике живых игроков гибели копятся во втором акте (12 из 20), в третьем — ни одной.
  */
-export const ACT_DMG_BONUS: [number, number, number] = [1.25, 1.4, 1.6];
+export const ACT_DMG_BONUS: [number, number, number] = [1.2, 1.4, 1.6];
 
 /**
  * Множители для врага с «родной» локации tier, попавшего в акт act (0..2):
