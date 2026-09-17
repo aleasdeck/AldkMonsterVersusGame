@@ -7,7 +7,7 @@
 - `docs/GDD.md` — дизайн-документ: числа героев/врагов/предметов, правила боя, §8 «Экраны и интерфейс» (раскладка кадра, плитки, оверлеи, клавиши), §12 «Принятые решения», §13 «Статус» (история версий с цифрами бота).
 - `docs/adr/` — разборы отложенных решений: что выяснено, какие варианты рассмотрены и почему пока не делаем. Сейчас там `0001-obshchie-sidy.md` (почему один сид не даёт одинаковый забег и как это чинить) и `0002-sunduki-posle-zabega.md` (как были устроены сундуки за забег и как их вернуть).
 - `docs/statistika.md` — статистика забегов: что уходит в Google Таблицу, когда не уходит, как подключить и проверить таблицу.
-- `docs/art.md` — метод работы над HD-графикой: формат ассетов (мастер 1024 на белом → скрипт → 256 с прозрачностью), промпт из блоков STYLE + FRAME + CHARACTER (STYLE и FRAME не редактировать — это и есть единый стиль), эталон — Воин, чек-лист приёмки, раскладка файлов, порядок ввода персонажей.
+- `docs/art.md` — метод работы над HD-графикой: формат ассетов (мастер 1024 на белом → скрипт → 256 с прозрачностью), промпт из блоков STYLE + FRAME + CHARACTER (STYLE и FRAME не редактировать — это и есть единый стиль), эталон — Воин, чек-лист приёмки, раскладка файлов, порядок ввода персонажей; в конце — фоны локаций (мастер 3:1 → два кадра 960×320, что просить у генератора).
 - Этот файл — карта кода, рабочие соглашения и ловушки.
 
 ## Команды
@@ -62,7 +62,7 @@ src/ui/       рендер и клики
   preview.ts    ридаут, подсветка целей (ok/far) и штриховка предпросмотра урона в бою (пишет в DOM без перерисовки, покой — по app.armed); diff.ts — дельты к надетому в карточках
   fx.ts         типовые анимации боя: planHeroFx/planEnemyFx (план до применения действия), playShots (снаряды на старом поле, возвращает impact), playAfter/eventFx (облако дебафа, свечение бафа, щит блока перед бойцом, глоток); спрайты снарядов процедурные
   hotkeys.ts    1–9, Space, C, L, Esc; на экране пула награды 1/2 — Нападение/Защита
-  sprites.ts, backgrounds.ts, icons.ts   процедурная пиксель-графика (data URL) врагов и союзников; в icons.ts, кроме иконок статусов, метки удара markIcon('pierce' | 'drain') — тот же шаблон 8×8 с автоконтуром
+  sprites.ts, backgrounds.ts, icons.ts   процедурная пиксель-графика (data URL) врагов, союзников и фонов; у фона локации может быть рисованный вариант — PAINTED в backgrounds.ts (сейчас лес, кадры 960×320 в src/assets/backgrounds/, режет tools/location-bg.py), остальные локации рисует DRAWERS; в icons.ts, кроме иконок статусов, метки удара markIcon('pierce' | 'drain') — тот же шаблон 8×8 с автоконтуром
   heroSprite.ts рисованные герои: лист на героя src/assets/heroes/<id>.png (ряд — клип, 8 кадров), манифест HERO_SHEETS (cell, body — печатает tools/hero-sheet.py), heroSprite(id, px, base) и playHeroClip; кадры листает CSS .hero-sprite. SpriteSpec героя в данных остаётся ради цвета клинка в fx.ts
   save.ts       localStorage: забег (mv_run_v1, сброс при смене SAVE_VERSION) и профиль (mv_profile_v1, переживает версии; статистика, коллекция, бестиарий — recordFinds/recordEnemies из App.render()); playerId — анонимный id для статистики; sigPick/unlocks и signatureUnlocked/pickedSignature — выбор и открытие второго персонального артефакта (heroWins[id] > 0 или отладочный mv.unlockAll())
   telemetry.ts  reportRun(run, event, profile): STATS_URL (адрес веб-приложения Apps Script, пусто — не шлём), отсечка localhost/домашней сети (кроме &stats=1), пометка debug, fetch no-cors keepalive; fetchRuns() — GET ?data=runs для экрана «Статистика», читается и с localhost; своего кэша нет с v0.40.5 (запрос на каждом заходе, кэширует сам Apps Script), dropRunsCache() чистит ключ mv_runs_v1 прежних версий
@@ -70,6 +70,7 @@ src/main.ts   монтирование, масштаб кадра 960×540, ра
 src/style.css один файл, секции /* ─── … */
 tests/        vitest; sim/bot.ts — умный бот (W — веса оценки, planTurn, playRun, chooseReward; chooseFocus — пул награды по сокетам и тиру предмета, вес W.focusSocket)
 tools/hero-sheet.py         сборка листа героя из картинки генератора (numpy, Pillow, scipy): `python tools/hero-sheet.py art/knight.png --hero warrior --clips idle,battle,slash,thrust,block,hurt,death` или `--heroes ,mage,... --clip idle` (пустое имя — пропустить ряд). Сырой лист НЕ резать по сетке руками; исходники — в art/
+tools/location-bg.py        два кадра фона локации из мастера генератора (Pillow): `python tools/location-bg.py art/forest-bg.png --loc forest --zoom 1.6 --center 0.36` — wide (вся сцена, поле боя) и tall (кусок покрупнее по земле, карта и хабы), оба 960×320: в логическом кадре 1:1, на FullHD ×2, pixelated ничего не пересчитывает
 tools/apps-script/Code.gs   приёмник статистики: отдельный проект с SPREADSHEET_ID (таблица «Monster Versus Metrics» в Drive пользователя), лист runs, колонки по ключам записи (новый ключ — новая колонка справа); GET ?data=runs отдаёт последние 2000 без отладочных и без player/detail
 ```
 

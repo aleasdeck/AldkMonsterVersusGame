@@ -1,11 +1,25 @@
 import type { LocationId } from '../engine/types';
 import { createRng, hashString, int, next, pick, type Rng } from '../engine/rng';
+import forestTall from '../assets/backgrounds/forest-tall.png';
+import forestWide from '../assets/backgrounds/forest-wide.png';
 
 /**
  * Фоны локаций рисуются в низком разрешении и растягиваются с pixelated.
- * Две пропорции: wide — поле боя (≈3:1), tall — правая панель карты/награды (≈1.3:1).
+ * Два варианта: wide — поле боя, tall — карта и хабы; процедурный tall рисуется выше кадра (≈1.3:1)
+ * и ложится в тот же прямоугольник 960×320 с `cover`, то есть виден его средний кусок.
  */
 export type BgVariant = 'wide' | 'tall';
+
+/**
+ * Рисованные фоны (v0.41.1): мастер из генератора лежит в `art/`, кадры режет `tools/location-bg.py`.
+ * Оба варианта — 960×320, ровно центр кадра забега: в логическом кадре 1:1, на FullHD ×2, поэтому
+ * pixelated нигде не пересчитывает пиксели. Разница не в пропорции, а в приближении: wide — вся
+ * сцена под поле боя, tall — кусок крупнее под хабы (у леса фонарь у тропы), как процедурный tall,
+ * который на хабе всё равно обрезался по центру. Локации без арта рисует `DRAWERS` ниже.
+ */
+const PAINTED: Partial<Record<LocationId, Record<BgVariant, string>>> = {
+  forest: { wide: forestWide, tall: forestTall },
+};
 
 const SIZES: Record<BgVariant, [number, number]> = {
   wide: [240, 78],
@@ -322,6 +336,8 @@ const DRAWERS: Record<LocationId, (ctx: Ctx, rng: Rng, W: number, H: number) => 
 };
 
 export function locationBackground(id: LocationId, variant: BgVariant = 'tall'): string {
+  const painted = PAINTED[id];
+  if (painted) return painted[variant];
   const key = `${id}:${variant}`;
   const hit = cache.get(key);
   if (hit) return hit;
