@@ -183,19 +183,30 @@ def read_grid():
             x0, x1 = bounds(vs, vcand, c)
             sub = rgb[y0:y1, x0:x1]
             # Фон ячейки бывает прозрачным (тогда маска уже готова) или залитым: во втором случае заливаем от краёв.
-            a = rgba[y0:y1, x0:x1, 3] > ALPHA if CUTOUT else ~flood_bg(sub)
-            h = y1 - y0
-            lab, _ = ndimage.label(a)
-            for i, sl in enumerate(ndimage.find_objects(lab), 1):
-                area = int((lab[sl] == i).sum())
-                # номер кадра (он стоит у края ячейки — снизу или в промежутке над ней) и пыль генератора
-                if area < 60 or (area < 500 and (sl[0].start > h - 16 or sl[0].stop < 16)):
-                    a[sl][lab[sl] == i] = False
+            src_a = rgba[y0:y1, x0:x1, 3]
+            a = src_a > ALPHA if CUTOUT else ~flood_bg(sub)
+            h, w = y1 - y0, x1 - x0
+            drop = np.zeros_like(a)
+            # Чистим только залитый лист: там в ячейке лежит номер кадра и пыль генератора. У вырезанного
+            # номер остаётся за резом, а всё внутри — рисунок: искорки вокруг заклинания как раз мелкие,
+            # и «мелкое у края» выкусывало их дырками.
+            if not CUTOUT:
+                lab, _ = ndimage.label(a)
+                for i, sl in enumerate(ndimage.find_objects(lab), 1):
+                    area = int((lab[sl] == i).sum())
+                    mid = (sl[1].start + sl[1].stop) / 2
+                    number = area < 500 and sl[0].start > h - 16 and abs(mid - w / 2) < w * 0.2
+                    if area < 60 or number:
+                        drop[sl] |= lab[sl] == i
+            a &= ~drop
             if not a.any():
                 raise SystemExit(f'ячейка {r}:{c} вышла пустой — проверь --inset')
-            px = np.dstack([sub, a.astype(np.uint8) * 255]).astype(np.uint8)
-            px[~a] = 0
-            ys, xs = np.nonzero(a)
+            # Прозрачность берём из исходника как есть: порог годится искать мусор, но не рисовать край —
+            # обрезанное по нему мягкое свечение превращается в рваную корку. Выкинутое гасим с запасом.
+            out_a = np.where(ndimage.binary_dilation(drop, iterations=3), 0, src_a) if CUTOUT else a.astype(np.uint8) * 255
+            px = np.dstack([sub, out_a]).astype(np.uint8)
+            px[out_a == 0] = 0
+            ys, xs = np.nonzero(out_a > 8)
             frames.append(px[ys.min():ys.max() + 1, xs.min():xs.max() + 1])
         out.append(frames)
     return out

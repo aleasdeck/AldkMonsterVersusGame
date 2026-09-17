@@ -25,7 +25,7 @@ interface HeroSheet {
 
 const HERO_SHEETS: Record<string, HeroSheet> = {
   warrior: { url: warriorSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 162, body: 107 },
-  mage: { url: mageSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 182, body: 127 },
+  mage: { url: mageSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 186, body: 134 },
   assassin: { url: assassinSheet, clips: ['idle'], frames: 8, cell: 182, body: 166 },
   paladin: { url: paladinSheet, clips: ['idle'], frames: 8, cell: 188, body: 180 },
   berserk: { url: berserkSheet, clips: ['idle'], frames: 8, cell: 194, body: 186 },
