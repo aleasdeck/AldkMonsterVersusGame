@@ -1578,6 +1578,33 @@ describe('v0.38: связки', () => {
     expect(boar.hp).toBe(18 - 5 - 5 - 3);
   });
 
+  it('Эхо удара повторяет Финишер: он бьёт дважды, атакой по-прежнему не считается', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'echo_strike', tier: 1 }, { id: 'finisher', tier: 1 }] });
+    const boar = first(state);
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    performAction(state, { type: 'artifact', artifactId: 'echo_strike', target: boar.uid }, rng);
+    // Один удар в ходу: Финишер бьёт 50 % от среднего удара 5 = 3, эхо повторяет — ещё 3.
+    performAction(state, { type: 'artifact', artifactId: 'finisher', target: boar.uid }, rng);
+    expect(boar.hp).toBe(18 - 5 - 3 - 3);
+    expect(getStatus(state.hero, 'echo')).toBeUndefined();
+    expect(state.hero.attacks).toBe(1);
+    expect(state.hero.strikes).toBe(1);
+    expect(state.log.filter((l) => l.startsWith('Финишер по')).length).toBe(2);
+  });
+
+  it('Эхо удара повторяет Таран: блок не тратится, значит оба удара одинаковы', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'echo_strike', tier: 1 }, { id: 'shield_ram', tier: 1 }] });
+    const boar = first(state);
+    performAction(state, { type: 'defend' }, rng);
+    const block = state.hero.block;
+    expect(block).toBeGreaterThan(0);
+    performAction(state, { type: 'artifact', artifactId: 'echo_strike', target: boar.uid }, rng);
+    performAction(state, { type: 'artifact', artifactId: 'shield_ram', target: boar.uid }, rng);
+    expect(18 - boar.hp).toBe(block * 2);
+    expect(state.hero.block).toBe(block);
+    expect(getStatus(state.hero, 'echo')).toBeUndefined();
+  });
+
   it('Цепная атака: бесплатный удар по любой цели, один заряд после приёма, два приёма подряд заряд не копят', () => {
     const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], { extra: [{ id: 'chain_strike', tier: 1 }, { id: 'net', tier: 1 }] });
     const [a, b] = state.enemies;
