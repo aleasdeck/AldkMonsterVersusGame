@@ -26,6 +26,7 @@ from PIL import Image
 
 W, H = 960, 320   # кадр забега: центр между топбаром и консолью
 DARK = 12         # ярче этого линия у края уже не кромка, а сцена
+FLOOR = 75        # на столько px над низом кадра должна начинаться полоса пола: ступни героя на 38, врага на 64
 
 ap = argparse.ArgumentParser()
 ap.add_argument('src', help='мастер из генератора, пропорция примерно 3:1')
@@ -34,6 +35,8 @@ ap.add_argument('--zoom', type=float, default=1.6, help='во сколько р�
 ap.add_argument('--center', type=float, default=0.5, help='середина куска для хабов, доля ширины мастера')
 ap.add_argument('--colors', type=int, default=128, help='размер палитры; 0 — оставить полный цвет')
 ap.add_argument('--no-trim', action='store_true', help='не срезать чёрные кромки мастера')
+ap.add_argument('--ground', type=float, default=0, help='где полоса пола начинается сейчас: px от низа готового кадра (0 — не наращивать)')
+ap.add_argument('--floor', type=float, default=FLOOR, help=f'где она должна начинаться, px от низа (по умолчанию {FLOOR})')
 ap.add_argument('--out', default='src/assets/backgrounds', help='куда класть готовые кадры')
 args = ap.parse_args()
 
@@ -57,6 +60,22 @@ if not args.no_trim:
         master = master.crop((left, top, master.width - right, master.height - bottom))
         print(f'срезаны чёрные кромки: верх {top}, низ {bottom}, слева {left}, справа {right}')
 
+if args.ground:
+    # Бойцы стоят в полосе 38–64 px над низом кадра, и полоса пола должна начинаться выше них. Подвинуть
+    # кадр некуда (мастер и так 3:1), поэтому нижнюю полосу растягиваем вниз, а сверху срезаем ровно
+    # столько же: сцена остаётся на месте, пола под ногами становится вдвое больше. Растяжение идёт по
+    # перспективе — ближние ряды и так самые крупные, поэтому шов у верхней кромки пола не виден.
+    scale = master.height / H
+    k = round(args.ground * scale)            # высота полосы пола в мастере
+    grow = round(args.floor * scale) - k      # сколько к ней добавить
+    if grow > 0:
+        floor = master.crop((0, master.height - k, master.width, master.height)).resize((master.width, k + grow), Image.BICUBIC)
+        grown = Image.new('RGB', (master.width, master.height + grow))
+        grown.paste(master.crop((0, 0, master.width, master.height - k)), (0, 0))
+        grown.paste(floor, (0, master.height - k))
+        master = grown
+        print(f'полоса пола {k} → {k + grow} px мастера (в кадре {args.ground:.0f} → {args.floor:.0f}), сверху уйдёт {grow}')
+
 mw, mh = master.size
 
 
@@ -72,7 +91,7 @@ out_dir.mkdir(parents=True, exist_ok=True)
 # wide: вся сцена — наибольший кадр 3:1 по центру мастера. Лишнее срезаем, а не сжимаем: у мастера
 # после обрезки кромок пропорция уходит от 3:1 на несколько процентов, и сжатие было бы заметно на кладке.
 crop_w, crop_h = min(mw, round(mh * W / H)), min(mh, round(mw * H / W))
-frames = {'wide': ((mw - crop_w) // 2, (mh - crop_h) // 2, (mw - crop_w) // 2 + crop_w, (mh - crop_h) // 2 + crop_h)}
+frames = {'wide': ((mw - crop_w) // 2, mh - crop_h, (mw - crop_w) // 2 + crop_w, mh)}
 
 # tall: кусок крупнее, прижатый к низу мастера, — в хабе под текстом остаётся земля.
 zw = min(mw, round(mw / args.zoom))
