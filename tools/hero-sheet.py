@@ -204,6 +204,7 @@ def read_grid():
             # Прозрачность берём из исходника как есть: порог годится искать мусор, но не рисовать край —
             # обрезанное по нему мягкое свечение превращается в рваную корку. Выкинутое гасим с запасом.
             out_a = np.where(ndimage.binary_dilation(drop, iterations=3), 0, src_a) if CUTOUT else a.astype(np.uint8) * 255
+            out_a = np.where(out_a < 8, 0, out_a)   # генератор оставляет под нулевой прозрачностью цветной мусор
             px = np.dstack([sub, out_a]).astype(np.uint8)
             px[out_a == 0] = 0
             ys, xs = np.nonzero(out_a > 8)

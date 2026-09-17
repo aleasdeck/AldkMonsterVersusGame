@@ -378,15 +378,19 @@ function animate(el: HTMLElement, frames: Keyframe[], opts: KeyframeAnimationOpt
 }
 
 /**
- * Клип героя под его приём. Роль, а не название из листа: `attack` — обычная атака оружием и любой приём в упор,
- * `power` — заклинание или бросок, `block` — «Защититься» и приёмы со щитом. У Воина это рубящий удар и выпад,
- * у Мага — обычный и усиленный каст; род уже решён планом, своей таблицы приёмов заводить не надо.
+ * Клип героя под его приём. Клипы названы по роли, а не по рисунку: `attack` — обычная атака оружием,
+ * `heavy` — приём в упор, `power` — заклинание или бросок, `heal` — приём, который лечит, `block` — защита.
+ * Чего у героя не нарисовано, то подменяется по цепочке (heroSprite.ts), так что решение одно на всех.
  */
 export function heroClip(plan: FxPlan, action: PlayerAction): HeroClip | null {
   if (action.type === 'defend') return 'block'; // «Защититься» до плана не доходит: щит ему рисует событие блока
+  if (action.type === 'attack') return 'attack';
+  // Лечащий приём узнаём по эффектам (тир на род не влияет); у зелья лечение видно по глотку ниже.
+  if (action.type === 'artifact' && (artifactDef(action.artifactId).effects?.(1) ?? []).some((e) => e.type === 'heal')) return 'heal';
   const shot = plan.shots.find((s) => s.from === 'hero');
-  if (shot) return action.type === 'attack' || shot.kind === 'melee' ? 'attack' : 'power';
+  if (shot) return shot.kind === 'melee' ? 'heavy' : 'power';
   if (plan.after.some((a) => a.target === 'hero' && a.kind === 'shield')) return 'block';
+  if (plan.after.some((a) => a.target === 'hero' && a.kind === 'drink')) return 'heal';
   return null;
 }
 
