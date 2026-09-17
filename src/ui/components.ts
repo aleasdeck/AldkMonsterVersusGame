@@ -185,6 +185,19 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Chil
   );
 }
 
+/**
+ * Что будет с дубликатом: такой артефакт уже стоит в сокете, взятый сольётся с ним.
+ * Описание нового тира не пишем (v0.41.3): на карточке уже стоит описание — при выпавшем тире
+ * выше стоящего оно совпадало с заметкой слово в слово, и карточка вырастала вдвое ни за что.
+ */
+export function artifactMergeNote(run: RunState, inst: ArtifactInstance): string | null {
+  const same = findSameArtifact(run.hero, inst.id);
+  if (!same?.art) return null;
+  if (same.art.tier >= 3) return 'Уже стоит на максимальном тире';
+  const next = Math.min(3, Math.max(same.art.tier + 1, inst.tier)) as ArtTier;
+  return `Дубликат: тир стоящего ${same.art.tier} → ${next}`;
+}
+
 /** Сокеты предмета чипами: стоящий артефакт или пустой чип с типом сокета. */
 export function slotsRow(gear: GearInstance): HTMLElement {
   return h('div', { class: 'slots' }, ...gear.slots.map((s, i) => (s ? artifactChip(s) : socketChip(slotKindAt(gear, i)))));
