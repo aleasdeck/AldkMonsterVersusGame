@@ -39,7 +39,7 @@ const HERO_SHEETS: Record<string, HeroSheet> = {
 };
 
 /**
- * Аватарки героев (v0.41.3): портрет в рисованной рамке, лист генератора режет `tools/hero-avatars.py`.
+ * Аватарки героев (v0.41.1): портрет в рисованной рамке, лист генератора режет `tools/hero-avatars.py`.
  * Рамка — часть рисунка и заодно цвет героя, поэтому своей в разметке нет.
  */
 const HERO_AVATARS: Record<string, string> = {
