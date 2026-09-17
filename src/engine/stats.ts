@@ -56,6 +56,7 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     blockOnHit: 0,
     spellLeech: 0,
     hitReduce: 0,
+    dotReduce: 0,
     defendBonus: 0,
     blockKeep: 0,
     blockOnSpell: 0,

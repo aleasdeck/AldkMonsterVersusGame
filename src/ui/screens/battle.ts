@@ -3,14 +3,14 @@ import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
 import { MAX_ALLIES } from '../../engine/types';
 import { bar, coin, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
-import { statusIcon } from '../icons';
+import { markIcon, statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
@@ -46,12 +46,23 @@ function fatigueBadge(b: BattleState): HTMLElement | null {
   );
 }
 
+/** Что значит пометка удара: подсказка у иконки на пилюле. */
+const MARK_TIPS: Record<ActionMark, { title: string; text: string }> = {
+  pierce: { title: 'Сквозь блок', text: 'Удар не тратит блок героя и бьёт прямо по HP: щит от него не спасает' },
+  drain: { title: 'Вампиризм', text: 'Враг вылечится на столько, сколько урона дошло до HP' },
+};
+
 /**
- * Хвост пилюли: остальные виды эффектов приёма мелкими иконками — дебаф и бафф на себя иконкой самого статуса, чтобы «⚔ 7» с Кровотечением
- * или «⛨ 12» с Шипами читались без подсказки; лечение и призыв — иконкой вида.
+ * Хвост пилюли: сначала свойства самого удара (пробитие блока, вампиризм), потом остальные виды эффектов приёма мелкими иконками —
+ * дебаф и бафф на себя иконкой самого статуса, чтобы «⚔ 7» с Кровотечением или «⛨ 12» с Шипами читались без подсказки;
+ * лечение и призыв — иконкой вида.
  */
 function intentExtras(intent: IntentInfo): Child[] {
   const out: Child[] = [];
+  for (const mark of intent.marks) {
+    const tip = MARK_TIPS[mark];
+    out.push(h('span', { class: 'pill-extra intent-mark', tip: tip.text, tipTitle: tip.title }, markIcon(mark, 16)));
+  }
   for (const kind of intent.kinds.slice(1)) {
     if (kind === 'debuff') {
       for (const id of intent.statuses) out.push(h('span', { class: 'pill-extra intent-debuff' }, statusIcon(id, 16)));
@@ -291,7 +302,7 @@ export function actionSpecs(app: App): TileSpec[] {
   const critX = (r: DamageRange) => ({ min: Math.floor((r.min * b.hero.stats.critDmg) / 100), max: Math.floor((r.max * b.hero.stats.critDmg) / 100) });
   const fatigue = Math.round((1 - b.hero.stats.fatigue) * 100);
   const uids = (action: PlayerAction) => reachableEnemies(b, actionReach(b, action)).map((e) => e.uid);
-  /** Причина недоступности плитки: приёму с целью — по лучшей из целей, чтобы «Уже первый в ряду» не гасил Крюк при второй цели. */
+  /** Причина недоступности плитки: приёму с целью — по лучшей из целей, чтобы «Только первый в ряду» не гасил плитку, когда достать можно хотя бы кого-то. */
   const tileErr = (action: (t: number) => PlayerAction, targeted: boolean): string | null => {
     if (!targeted) return canUseAction(b, action(first));
     let last: string | null = 'Нет цели';
@@ -397,7 +408,7 @@ export function actionSpecs(app: App): TileSpec[] {
         return { min: dmg, max: dmg };
       }
       if (finEff && finEff.type === 'finisher') {
-        const dmg = finisherPer(b.hero, finEff.pct) * b.hero.attacks;
+        const dmg = finisherPer(b.hero, finEff.pct) * b.hero.strikes;
         return { min: dmg, max: dmg };
       }
       if (chainEff && chainEff.type === 'chain') return { min: chainEff.amount, max: chainEff.amount };

@@ -108,6 +108,8 @@ export interface DerivedStats {
   // ── Перки брони ──
   /** На сколько слабее каждый удар врага по герою (после уклонения, до блока). */
   hitReduce: number;
+  /** На сколько слабее общий тик ран героя за ход — кровотечение, горение и яд вместе («Мазь знахаря», v0.40.2). */
+  dotReduce: number;
   /** Блок сверх DEF за «Защититься». */
   defendBonus: number;
   /** Столько блока переживает начало хода вместо полного сгорания. */
@@ -472,6 +474,11 @@ export interface HeroBattle extends Combatant {
   defended: boolean;
   /** Сколько атакующих действий сделано в этом ходу — каждое следующее слабее. */
   attacks: number;
+  /**
+   * Сколько отдельных ударов сделано в этом ходу: приём из двух ударов даёт два, удар по всем врагам — один.
+   * Усталость считает действия (`attacks`, Двойной выпад — одна атака), а Финишер — удары (v0.40.2).
+   */
+  strikes: number;
   /** Накопленный «Азартом» шанс крита: растёт с каждого некрита, крит обнуляет. */
   critStack: number;
 }
@@ -677,9 +684,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.40.1';
+export const GAME_VERSION = '0.40.3';
 
-export const SAVE_VERSION = 30;
+export const SAVE_VERSION = 31;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

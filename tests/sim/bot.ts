@@ -529,6 +529,8 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.markOnHit ?? 0) * avg * 0.3;
     // Бронные пассивки v0.31.1: единица с каждого удара — около двух ударов за ход врага; промах первой атаки — средний удар врага.
     v += (m.hitReduce ?? 0) * 5;
+    // «Мазь знахаря»: тик ран гасится раз в ход и только пока раны висят — примерно половина ходов боя (v0.40.2).
+    v += (m.dotReduce ?? 0) * 2.5;
     v += (m.defendBonus ?? 0) * 2.5;
     v += (m.blockKeep ?? 0) * 1.5;
     v += (m.dodgeStart ?? 0) * 5;
