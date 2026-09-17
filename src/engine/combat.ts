@@ -874,7 +874,6 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       for (const eff of def.effects?.(inst.tier) ?? []) {
         if (eff.type === 'selfDamage' && h.hp <= eff.amount) return 'Слишком мало HP';
         if (eff.type === 'blockStrike' && h.block <= 0) return 'Нет блока';
-        if (eff.type === 'pull' && state.enemies[0]?.uid === action.target) return 'Уже первый в ряду';
         if (eff.type === 'breakBlock' && (findEnemy(state, action.target ?? -1)?.block ?? 0) <= 0) return 'У цели нет блока';
         if (eff.type === 'finisher' && h.strikes <= 0) return 'Сначала атакуйте';
         if (eff.type === 'chain' && chainCharges(h) <= 0) return 'Сначала примените приём';
@@ -985,7 +984,8 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       if (state.allies.length < MAX_ALLIES) spawnAlly(state, eff.enemyId, eff.hpBonus);
       break;
     case 'pull':
-      // Крюк-кошка: цель встаёт первой, остальные сдвигаются назад в прежнем порядке.
+      // Крюк-кошка: цель встаёт первой, остальные сдвигаются назад в прежнем порядке. По первому в ряду приём тоже
+      // применим (v0.40.3, ради крови на боссе один на один) — тянуть там просто некуда, строй не двигается.
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const idx = state.enemies.indexOf(e);
         if (idx <= 0) continue;

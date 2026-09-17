@@ -302,7 +302,7 @@ export function actionSpecs(app: App): TileSpec[] {
   const critX = (r: DamageRange) => ({ min: Math.floor((r.min * b.hero.stats.critDmg) / 100), max: Math.floor((r.max * b.hero.stats.critDmg) / 100) });
   const fatigue = Math.round((1 - b.hero.stats.fatigue) * 100);
   const uids = (action: PlayerAction) => reachableEnemies(b, actionReach(b, action)).map((e) => e.uid);
-  /** Причина недоступности плитки: приёму с целью — по лучшей из целей, чтобы «Уже первый в ряду» не гасил Крюк при второй цели. */
+  /** Причина недоступности плитки: приёму с целью — по лучшей из целей, чтобы «Только первый в ряду» не гасил плитку, когда достать можно хотя бы кого-то. */
   const tileErr = (action: (t: number) => PlayerAction, targeted: boolean): string | null => {
     if (!targeted) return canUseAction(b, action(first));
     let last: string | null = 'Нет цели';

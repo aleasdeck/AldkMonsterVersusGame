@@ -181,19 +181,30 @@ describe('дальность приёмов', () => {
 });
 
 describe('Крюк-кошка', () => {
-  it('притягивает цель в первый ряд, остальные сдвигаются назад в прежнем порядке; первого тянуть нельзя', () => {
+  it('притягивает цель в первый ряд, остальные сдвигаются назад в прежнем порядке; по первому применим, но строй не двигает', () => {
     const { state, rng } = mkBattle('warrior', ['wolf', 'boar', 'rat'], weapon('sword', 5), [{ id: 'grapple_hook', tier: 1 }]);
     const [wolf, boar, rat] = state.enemies;
-    expect(canUseAction(state, { type: 'artifact', artifactId: 'grapple_hook', target: wolf.uid })).toBe('Уже первый в ряду');
+    // v0.40.3: крюк вешает кровь, поэтому первого в ряду он тоже цепляет — просто тянуть там некуда.
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'grapple_hook', target: wolf.uid })).toBeNull();
     expect(actionReach(state, { type: 'artifact', artifactId: 'grapple_hook', target: rat.uid })).toBe('any');
     performAction(state, { type: 'artifact', artifactId: 'grapple_hook', target: rat.uid }, rng);
     expect(state.enemies.map((e) => e.uid)).toEqual([rat.uid, wolf.uid, boar.uid]);
+    expect(getStatus(rat, 'bleed')?.value).toBe(2);
     expect(state.hero.sta).toBe(2);
     // Теперь крыса под ударом меча, волк — нет.
     expect(canUseAction(state, { type: 'attack', target: rat.uid })).toBeNull();
     expect(canUseAction(state, { type: 'attack', target: wolf.uid })).toBe(REACH_ERR);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'grapple_hook', target: boar.uid })).toMatch(/Перезарядка/);
     expect(state.log.some((l) => l.includes('вытянут в первый ряд'))).toBe(true);
+  });
+
+  it('один на один: крюк вешает кровь, строй не двигается', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], weapon('sword', 5), [{ id: 'grapple_hook', tier: 2 }]);
+    const boar = state.enemies[0];
+    performAction(state, { type: 'artifact', artifactId: 'grapple_hook', target: boar.uid }, rng);
+    expect(state.enemies.map((e) => e.uid)).toEqual([boar.uid]);
+    expect(getStatus(boar, 'bleed')?.value).toBe(3);
+    expect(state.log.some((l) => l.includes('вытянут в первый ряд'))).toBe(false);
   });
 
   it('на третьем тире перезаряжается за ход', () => {
