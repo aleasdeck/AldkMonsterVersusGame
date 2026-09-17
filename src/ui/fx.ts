@@ -378,22 +378,18 @@ function animate(el: HTMLElement, frames: Keyframe[], opts: KeyframeAnimationOpt
 }
 
 /**
- * Клип героя под его приём: бьёт оружием ближнего боя — рубящий удар, летит снаряд или заклинание — выпад,
- * приём на себя со щитом — блок. Род уже решён планом, своей таблицы приёмов заводить не надо.
+ * Клип героя под его приём. Роль, а не название из листа: `attack` — обычная атака оружием и любой приём в упор,
+ * `power` — заклинание или бросок, `block` — «Защититься» и приёмы со щитом. У Воина это рубящий удар и выпад,
+ * у Мага — обычный и усиленный каст; род уже решён планом, своей таблицы приёмов заводить не надо.
  */
 export function heroClip(plan: FxPlan, action: PlayerAction): HeroClip | null {
   if (action.type === 'defend') return 'block'; // «Защититься» до плана не доходит: щит ему рисует событие блока
   const shot = plan.shots.find((s) => s.from === 'hero');
-  if (shot) return shot.kind === 'melee' ? 'slash' : 'thrust';
+  if (shot) return action.type === 'attack' || shot.kind === 'melee' ? 'attack' : 'power';
   if (plan.after.some((a) => a.target === 'hero' && a.kind === 'shield')) return 'block';
   return null;
 }
 
-/**
- * Разыграть снаряды и взмахи на текущем поле. Возвращает, через сколько мс они попадут (0 — нечего играть).
- * Наскок бьющего в ближнем бою — класс acting его зоне, как у наскока врагов; у героя с нарисованным
- * клипом (`plan.clipped`) наскока нет — замах уже в самой анимации.
- */
 export function playShots(root: HTMLElement, plan: FxPlan): number {
   const layer = root.querySelector<HTMLElement>('.fx-layer');
   if (!layer || plan.shots.length === 0) return 0;

@@ -10,7 +10,7 @@ import warriorSheet from '../assets/heroes/warrior.png';
  * собранный из картинки генератора скриптом `tools/hero-sheet.py` — цифры манифеста печатает он же.
  * Кадры листает CSS (`.hero-sprite` в style.css), клипы боя запускает `playHeroClip`.
  */
-export type HeroClip = 'idle' | 'battle' | 'slash' | 'thrust' | 'block' | 'hurt' | 'death';
+export type HeroClip = 'idle' | 'battle' | 'attack' | 'power' | 'block' | 'hurt' | 'death';
 
 interface HeroSheet {
   url: string;
@@ -24,8 +24,8 @@ interface HeroSheet {
 }
 
 const HERO_SHEETS: Record<string, HeroSheet> = {
-  warrior: { url: warriorSheet, clips: ['idle', 'battle', 'slash', 'thrust', 'block', 'hurt', 'death'], frames: 8, cell: 172, body: 108 },
-  mage: { url: mageSheet, clips: ['idle'], frames: 8, cell: 190, body: 181 },
+  warrior: { url: warriorSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 162, body: 107 },
+  mage: { url: mageSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 182, body: 127 },
   assassin: { url: assassinSheet, clips: ['idle'], frames: 8, cell: 182, body: 166 },
   paladin: { url: paladinSheet, clips: ['idle'], frames: 8, cell: 188, body: 180 },
   berserk: { url: berserkSheet, clips: ['idle'], frames: 8, cell: 194, body: 186 },
@@ -33,7 +33,7 @@ const HERO_SHEETS: Record<string, HeroSheet> = {
 };
 
 /** Длительность клипа, мс. У боевых — под тайминг боя: удар приходится на середину клипа, к попаданию снаряда (FLIGHT в fx.ts). */
-const CLIP_MS: Record<HeroClip, number> = { idle: 1600, battle: 1300, slash: 520, thrust: 520, block: 560, hurt: 400, death: 1000 };
+const CLIP_MS: Record<HeroClip, number> = { idle: 1600, battle: 1300, attack: 520, power: 560, block: 560, hurt: 400, death: 1000 };
 
 /** Зацикленные клипы; остальные играются один раз и замирают на последнем кадре. */
 const LOOPS = new Set<HeroClip>(['idle', 'battle']);

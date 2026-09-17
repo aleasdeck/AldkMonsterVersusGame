@@ -11,7 +11,7 @@
 по первому кадру, чтобы не убить нарисованный выпад или падение. Готовый лист — квадратные ячейки
 одного размера, общий центр, в `src/assets/heroes/<герой>.png`.
 
-    python tools/hero-sheet.py art/knight.png --hero warrior --clips idle,battle,slash,thrust,block,hurt,death
+    python tools/hero-sheet.py art/knight.png --hero warrior --clips idle,battle,attack,power,block,hurt,death
     python tools/hero-sheet.py art/heroes-idle.png --heroes warrior,mage,assassin,paladin,berserk,archer --clip idle
 
 В конце печатается строка манифеста для `HERO_SHEETS` в src/ui/heroSprite.ts — цифры оттуда, не на глаз.
@@ -38,7 +38,9 @@ ap.add_argument('--heroes', help='несколько героев через з�
 ap.add_argument('--clips', default='idle', help='имена клипов по рядам, через запятую')
 ap.add_argument('--clip', default='idle', help='клип для режима --heroes')
 ap.add_argument('--cols', type=int, default=8, help='кадров в ряду')
+ap.add_argument('--layout', choices=('grid', 'scattered'), default='grid', help='grid — кадры по ячейкам с рамками (лист генератора); scattered — фигуры россыпью на прозрачном фоне (первый лист покоя)')
 ap.add_argument('--out-dir', default=str(Path(__file__).resolve().parent.parent / 'src' / 'assets' / 'heroes'))
+ap.add_argument('--inset', type=int, default=4, help='отступ внутрь ячейки от границы, px: столько занимают рамка и её свечение')
 ap.add_argument('--overlay')
 args = ap.parse_args()
 
@@ -47,9 +49,12 @@ if bool(args.hero) == bool(args.heroes):
 heroes = [args.hero] if args.hero else args.heroes.split(',')
 clips = args.clips.split(',') if args.hero else [args.clip]
 COLS = args.cols
+INSET = args.inset
 ROWS = len(clips) if args.hero else len(heroes)
 
 rgba = np.array(Image.open(args.src).convert('RGBA'))
+# лист с вырезанным фоном: прозрачного много, значит маска персонажа — это сама альфа
+CUTOUT = (rgba[:, :, 3] < ALPHA).mean() > 0.2
 
 
 # ─── Чтение листа: два вида ────────────────────────────────────────────────
@@ -78,62 +83,116 @@ def read_scattered():
     return out
 
 
-def grid_lines(d, axis):
-    """Позиции линий сетки: пиксели чуть светлее фона, тянущиеся через всё поле."""
-    lin = (d >= 4) & (d <= 30)
-    frac = lin.mean(axis=axis)
-    groups = []
-    for i in [i for i in range(len(frac)) if frac[i] > 0.55]:
-        if groups and i - groups[-1][-1] <= 8:      # рамка нарисована двойной линией
-            groups[-1].append(i)
-        else:
-            groups.append([i])
-    cent = [sum(g) / len(g) for g in groups]
-    # сетка кадров — самый длинный отрезок равномерно расставленных линий (остальное: заголовок, колонка подписей)
-    best = (0, 0)
-    for a in range(len(cent)):
-        for b in range(a + 2, len(cent) + 1):
-            gaps = [cent[i + 1] - cent[i] for i in range(a, b - 1)]
-            med = sorted(gaps)[len(gaps) // 2]
-            if all(abs(g - med) <= 0.2 * med for g in gaps) and b - a > best[1] - best[0]:
-                best = (a, b)
-    return cent[best[0]:best[1]]
+def lineness(L):
+    """Насколько ряд пикселей похож на линию рамки: доля строк, где он заметно отличается от своей округи.
+    Сравнение местное, поэтому мера одинаково работает и на плоском фоне, и на градиентном."""
+    N = L.shape[1]
+    out = np.zeros(N)
+    for x in range(5, N - 5):
+        out[x] = (np.abs(L[:, x] - np.median(L[:, x - 4:x + 5], axis=1)) > 6).mean()
+    return out
+
+
+def grid_lines(L, n):
+    """
+    Границы ячеек по одной оси: цепочка из n+1 линий, где ярче линия и ровнее меняется шаг, та и выбирается.
+    Просто «самые яркие» не годятся — в листе есть и внешняя рамка, и колонка подписей в такой же рамке;
+    равномерная сетка тоже не годится — у генератора крайние ячейки бывают шире. Возвращает (границы, все линии).
+    """
+    ln = lineness(L)
+    N = len(ln)
+    cand = [x for x in range(6, N - 6) if ln[x] > 0.25 and ln[x] == ln[max(0, x - 8):x + 9].max()]
+    if len(cand) < n + 1:
+        raise SystemExit(f'нашлось линий: {len(cand)}, нужно {n + 1} — проверь --cols/--clips')
+    mingap = N / (n + 1) * 0.45
+    best = {}
+    for i in range(len(cand)):
+        for j in range(i + 1, len(cand)):
+            if cand[j] - cand[i] >= mingap:
+                best[(2, i, j)] = (ln[cand[i]] + ln[cand[j]], None)
+    for k in range(2, n + 1):
+        for (kk, i, j), (sc, _) in [(key, v) for key, v in best.items() if key[0] == k]:
+            for l in range(j + 1, len(cand)):
+                g1, g2 = cand[j] - cand[i], cand[l] - cand[j]
+                if g2 < mingap:
+                    continue
+                s = sc + ln[cand[l]] - 0.02 * abs(g2 - g1)   # шаг сетки меняется плавно, скачок штрафуем
+                key = (k + 1, j, l)
+                if key not in best or best[key][0] < s:
+                    best[key] = (s, (k, i, j))
+    fin = [(v[0], key) for key, v in best.items() if key[0] == n + 1]
+    if not fin:
+        raise SystemExit('не сложилась сетка из найденных линий — проверь --cols/--clips')
+    key = max(fin)[1]
+    seq = []
+    while True:
+        seq.append(cand[key[2]])
+        prev = best[key][1]
+        if prev is None:
+            seq.append(cand[key[1]])
+            break
+        key = prev
+    # для границ ячеек отдаём только уверенные линии: слабые пики бывают и на самом персонаже
+    return sorted(seq), [c for c in cand if ln[c] > 0.5]
+
+
+def flood_bg(px, tol=10):
+    """
+    Фон ячейки заливкой от её краёв: пиксель уходит в фон, если он близок к уже фоновому соседу.
+    Сравниваем с соседом, а не с одним цветом на весь лист, — тогда плавный градиент заливается целиком,
+    а резкая граница персонажа останавливает заливку.
+    """
+    c = px.astype(np.int16)
+    bg = np.zeros(c.shape[:2], bool)
+    bg[0, :] = bg[-1, :] = True
+    bg[:, 0] = bg[:, -1] = True
+    for _ in range(max(c.shape) * 2):
+        prev = bg.sum()
+        near = np.abs(np.diff(c, axis=1)).max(axis=2) <= tol       # сосед слева/справа
+        bg[:, 1:] |= bg[:, :-1] & near
+        bg[:, :-1] |= bg[:, 1:] & near
+        near = np.abs(np.diff(c, axis=0)).max(axis=2) <= tol       # сверху/снизу
+        bg[1:, :] |= bg[:-1, :] & near
+        bg[:-1, :] |= bg[1:, :] & near
+        if bg.sum() == prev:
+            break
+    return bg
 
 
 def read_grid():
-    """Сетка: фон непрозрачный, ячейки обведены рамкой, под кадром стоит его номер."""
-    rgb = rgba[:, :, :3].astype(int)
-    flat = rgb.reshape(-1, 3)[::7]
-    vals, counts = np.unique(flat, axis=0, return_counts=True)
-    bg = vals[counts.argmax()]
-    d = np.abs(rgb - bg).max(axis=2)
-    vs, hs = grid_lines(d, 0), grid_lines(d, 1)
-    if len(vs) != COLS + 1 or len(hs) != ROWS + 1:
-        raise SystemExit(f'сетка {len(vs) - 1}x{len(hs) - 1}, ждали {COLS}x{ROWS}')
-    # Рамка бывает и бледной, и яркой, и двойной, поэтому ищем её не по цвету, а по длине: линия идёт через
-    # весь лист, а персонаж — нет. Такие строки и столбцы гасим целиком, тогда рез не обязан попасть между ними.
-    bx0, bx1, by0, by1 = int(vs[0]), int(vs[-1]) + 1, int(hs[0]), int(hs[-1]) + 1
-    band = d[by0:by1, bx0:bx1] > 12
-    d = d.copy()
-    d[by0:by1, bx0:bx1][band.mean(axis=1) > 0.9, :] = 0
-    d[by0:by1, bx0:bx1][:, band.mean(axis=0) > 0.9] = 0
-    print(f'сетка {COLS}x{ROWS}, фон {tuple(bg)}, снято линий рамки: {int((band.mean(axis=1) > 0.9).sum())} строк, {int((band.mean(axis=0) > 0.9).sum())} столбцов')
+    """Сетка: фон непрозрачный, кадры разложены по ячейкам с рамками, у кадра стоит номер."""
+    rgb = rgba[:, :, :3]
+    L = rgb.astype(float).mean(axis=2)
+    vs, vcand = grid_lines(L, COLS)
+    hs, hcand = grid_lines(L.T, ROWS)
+    print(f'сетка {COLS}x{ROWS}: столбцы {vs}, строки {hs}')
+
+    def bounds(edges, cand, i):
+        """Нутро ячейки — по самой внутренней линии рамки у каждой её границы. Так рез попадает внутрь рамки,
+        даже когда между ячейками широкий промежуток с язычком номера, а выбранной границей стала рамка соседа."""
+        a, b = edges[i], edges[i + 1]
+        lo = max([c for c in cand if a - 4 <= c <= min(a + 30, (a + b) / 2)] or [a])
+        hi = min([c for c in cand if max(b - 30, (a + b) / 2) <= c <= b + 4] or [b])
+        return lo + INSET, hi - INSET
+
     out = []
     for r in range(ROWS):
         frames = []
+        y0, y1 = bounds(hs, hcand, r)
         for c in range(COLS):
-            # режем по самим линиям, а не по усреднённому шагу: художник ставит их с разбросом в пару пикселей
-            x0, x1 = int(vs[c]) + 2, int(vs[c + 1]) - 1
-            y0, y1 = int(hs[r]) + 2, int(hs[r + 1]) - 1
-            sub, dd = rgba[y0:y1, x0:x1, :3], d[y0:y1, x0:x1]
+            x0, x1 = bounds(vs, vcand, c)
+            sub = rgb[y0:y1, x0:x1]
+            # Фон ячейки бывает прозрачным (тогда маска уже готова) или залитым: во втором случае заливаем от краёв.
+            a = rgba[y0:y1, x0:x1, 3] > ALPHA if CUTOUT else ~flood_bg(sub)
             h = y1 - y0
-            a = dd > 12
             lab, _ = ndimage.label(a)
             for i, sl in enumerate(ndimage.find_objects(lab), 1):
                 area = int((lab[sl] == i).sum())
-                # номер кадра под персонажем и пыль генератора
-                if area < 60 or (area < 500 and sl[0].start > h - 14):
+                # номер кадра (он стоит у края ячейки — снизу или в промежутке над ней) и пыль генератора
+                if area < 60 or (area < 500 and (sl[0].start > h - 16 or sl[0].stop < 16)):
                     a[sl][lab[sl] == i] = False
+            if not a.any():
+                raise SystemExit(f'ячейка {r}:{c} вышла пустой — проверь --inset')
             px = np.dstack([sub, a.astype(np.uint8) * 255]).astype(np.uint8)
             px[~a] = 0
             ys, xs = np.nonzero(a)
@@ -142,7 +201,7 @@ def read_grid():
     return out
 
 
-rows = read_scattered() if (rgba[:, :, 3] < 250).any() else read_grid()
+rows = read_grid() if args.layout == 'grid' else read_scattered()
 
 
 # ─── Выравнивание и упаковка ───────────────────────────────────────────────
