@@ -56,7 +56,7 @@ src/ui/       рендер и клики
                 и добавляет оверлеи, commit() = saveRun + render, ход врагов с таймером ENEMY_STEP_MS (под оверлеем ждёт), таймер забега
   frame.ts      runFrame(app, parts): топбар 40 + центр 320 + консоль 180 — все шесть экранов забега
   topbar.ts     кнопка «Персонаж» (☻), золото, акт/локация, лента комнат (ROOM_ICONS), ход, таймер, меню; console.ts — блок героя, hubGear, кнопка лога
-  screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи; runLog.ts — тело лога за весь забег (runLogBody: прошлые бои свёрнуты, текущий строками) и оверлей лога вне боя; bestiary.ts — альбом врагов по локациям (describeAction из combat.ts); stats.ts — «Статистика»: главные вкладки app.statsScope (all — все игроки с вкладками app.statsTab: герои / гибели / убийцы / оружие / броня / артефакты; mine — своя из профиля), каждая на весь кадр; app.statsFeed из fetchRuns, statsLoading/statsError, &mock=1 → statsMock
+  screens/*.ts  один экран — одна функция xxxScreen(app): HTMLElement; heroSheet.ts и pause.ts — оверлеи; runLog.ts — тело лога за весь забег (runLogBody: прошлые бои свёрнуты, текущий строками) и оверлей лога вне боя; bestiary.ts — альбом врагов по локациям (describeAction из combat.ts); stats.ts — «Статистика»: главные вкладки app.statsScope (all — все игроки с вкладками app.statsTab: герои / гибели / убийцы / оружие / броня / артефакты; mine — своя из профиля), каждая на весь кадр; app.statsFeed из fetchRuns (App.showStats перезапрашивает на каждом заходе, прошлая таблица висит до ответа, в шапке «обновляем…» / «не обновилось»), statsLoading/statsError, &mock=1 → statsMock
   components.ts карточки предметов, бары, чипы, иконки типов, pendingModal; gearTile.ts — плитка экипировки с сокетами 2×2; dom.ts — h()/button()
   tooltip.ts    свои подсказки: атрибуты tip / tipTitle в h() → data-tip; keywords.ts — подсветка ключевых слов в описаниях
   preview.ts    ридаут, подсветка целей (ok/far) и штриховка предпросмотра урона в бою (пишет в DOM без перерисовки, покой — по app.armed); diff.ts — дельты к надетому в карточках
@@ -64,7 +64,7 @@ src/ui/       рендер и клики
   hotkeys.ts    1–9, Space, C, L, Esc; на экране пула награды 1/2 — Нападение/Защита
   sprites.ts, backgrounds.ts, icons.ts   процедурная пиксель-графика (data URL); в icons.ts, кроме иконок статусов, метки удара markIcon('pierce' | 'drain') — тот же шаблон 8×8 с автоконтуром
   save.ts       localStorage: забег (mv_run_v1, сброс при смене SAVE_VERSION) и профиль (mv_profile_v1, переживает версии; статистика, коллекция, бестиарий — recordFinds/recordEnemies из App.render()); playerId — анонимный id для статистики; sigPick/unlocks и signatureUnlocked/pickedSignature — выбор и открытие второго персонального артефакта (heroWins[id] > 0 или отладочный mv.unlockAll())
-  telemetry.ts  reportRun(run, event, profile): STATS_URL (адрес веб-приложения Apps Script, пусто — не шлём), отсечка localhost/домашней сети (кроме &stats=1), пометка debug, fetch no-cors keepalive; fetchRuns(force) — GET ?data=runs для экрана «Статистика», кэш mv_runs_v1 на RUNS_CACHE_MS, читается и с localhost
+  telemetry.ts  reportRun(run, event, profile): STATS_URL (адрес веб-приложения Apps Script, пусто — не шлём), отсечка localhost/домашней сети (кроме &stats=1), пометка debug, fetch no-cors keepalive; fetchRuns() — GET ?data=runs для экрана «Статистика», читается и с localhost; своего кэша нет с v0.40.5 (запрос на каждом заходе, кэширует сам Apps Script), dropRunsCache() чистит ключ mv_runs_v1 прежних версий
 src/main.ts   монтирование, масштаб кадра 960×540, разбор debug-параметров URL
 src/style.css один файл, секции /* ─── … */
 tests/        vitest; sim/bot.ts — умный бот (W — веса оценки, planTurn, playRun, chooseReward; chooseFocus — пул награды по сокетам и тиру предмета, вес W.focusSocket)
@@ -121,6 +121,8 @@ tools/apps-script/Code.gs   приёмник статистики: отдель�
 - После правок UI: README (управление, параметры) и GDD §8.
 
 ## Баланс
+
+v0.40.5 (Взрыв пламени ×1/1.25/1.5 вместо ×1/1.5/2, Огненная склянка 5 + Горение 3 на 2 хода вместо 8) на 300, v0.40.4 → нерф взрыва → плюс зелье, первая сигнатура: Воин 49.3 → 49.3 → 47.7 %, Маг 52.0 → 48.7 → 49.7, Ассасин 51.3 → 49.7 → 52.3, Паладин 59.7 → 60.3 → 57.7, Берсерк 59.3 → 59.3 → 59.0, Лучник 45.3 → 47.0 → 46.7; вторая: 44.0 → 43.3 → 41.0 / 58.0 → 56.3 → 56.7 / 42.0 → 43.3 → 41.0 / 55.3 → 56.0 → 56.0 / 57.7 → 57.7 → 58.3 / 47.3 → 46.3 → 46.7. Итого среднее −0.7, крайние −3.0 и +1.3. Нерф взрыва двинул за шум только Мага ① (−3.3) — он один собирает огонь; склянка дала ещё около −1 в среднем (мгновенные 8 по всем бот ценит выше отложенных 11). Оба замера промежуточные — файлы `sim-burst-*` и `sim-v405-*` в scratchpad сессии.
 
 v0.40.4 («Эхо удара» повторяет `finisher`, `blockStrike`, `breakBlock` и `chain`, а не только `attack`) на 300, v0.40.3 → v0.40.4: первая сигнатура 49.3 / 52.0 / 51.3 / 59.7 / 59.3 / 45.3 — совпало с базой ровно, вторая 44.0 / 58.0 / 42.0 / 55.3 / 57.7 / 47.3 — только Паладин +0.3. Правка не трогает поток RNG, а эхо в одной руке с Финишером или Тараном боту почти не выпадает; проверяется тестами в `combat.test.ts`, а не симулятором.
 

@@ -51,8 +51,13 @@ const list: PotionDef[] = [
     fx: { color: '#ff7b00' },
     name: 'Огненная склянка',
     glyph: '✹',
-    effects: [{ type: 'spell', amount: 8, target: 'allEnemies' }],
-    describe: '8 урона заклинанием всем врагам. Выводит из скрытности.',
+    // v0.40.5 (просьба пользователя): меньше урона в лоб, зато поджигает — склянка стала заводкой огня (Взрыв пламени,
+    // Раздуть) и бьёт мимо блока второй половиной. Суммарно 5 + 3 × 2 = 11 на каждого против прежних 8 разом.
+    effects: [
+      { type: 'spell', amount: 5, target: 'allEnemies' },
+      { type: 'status', target: 'allEnemies', status: 'burn', value: 3, turns: 2 },
+    ],
+    describe: '5 урона заклинанием всем врагам и Горение 3 на 2 хода. Выводит из скрытности.',
   },
   {
     id: 'antidote',
