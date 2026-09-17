@@ -1,4 +1,10 @@
+import archerAvatar from '../assets/heroes/archer-avatar.png';
 import archerSheet from '../assets/heroes/archer.png';
+import assassinAvatar from '../assets/heroes/assassin-avatar.png';
+import berserkAvatar from '../assets/heroes/berserk-avatar.png';
+import mageAvatar from '../assets/heroes/mage-avatar.png';
+import paladinAvatar from '../assets/heroes/paladin-avatar.png';
+import warriorAvatar from '../assets/heroes/warrior-avatar.png';
 import assassinSheet from '../assets/heroes/assassin.png';
 import berserkSheet from '../assets/heroes/berserk.png';
 import mageSheet from '../assets/heroes/mage.png';
@@ -30,6 +36,19 @@ const HERO_SHEETS: Record<string, HeroSheet> = {
   paladin: { url: paladinSheet, clips: ['idle'], frames: 8, cell: 188, body: 180 },
   berserk: { url: berserkSheet, clips: ['idle'], frames: 8, cell: 194, body: 186 },
   archer: { url: archerSheet, clips: ['idle'], frames: 8, cell: 186, body: 170 },
+};
+
+/**
+ * Аватарки героев (v0.41.1): портрет в рисованной рамке, лист генератора режет `tools/hero-avatars.py`.
+ * Рамка — часть рисунка и заодно цвет героя, поэтому своей в разметке нет.
+ */
+const HERO_AVATARS: Record<string, string> = {
+  warrior: warriorAvatar,
+  mage: mageAvatar,
+  assassin: assassinAvatar,
+  paladin: paladinAvatar,
+  berserk: berserkAvatar,
+  archer: archerAvatar,
 };
 
 /** Длительность клипа, мс. У боевых — под тайминг боя: удар приходится на середину клипа, к попаданию снаряда (FLIGHT в fx.ts). */
@@ -84,6 +103,23 @@ export function heroSprite(heroId: string, px: number, base: HeroClip = 'idle'):
     const p = pick(sheet, base);
     setClip(el, p.clip, p.row);
   }
+  return el;
+}
+
+/**
+ * Аватарка героя — квадрат `px`. Стоит там, где нужен сам герой, а не его поза: блок героя в консоли,
+ * плитка выбора, шапка листа персонажа. В бою, на выборе крупно и на итогах остаётся спрайт — там важны
+ * стойка, снаряжение и падение.
+ */
+export function heroAvatar(heroId: string, px: number): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'hero-avatar';
+  el.setAttribute('role', 'img');
+  el.setAttribute('aria-label', heroId);
+  const url = HERO_AVATARS[heroId];
+  if (!url) return el;
+  el.style.setProperty('--box', `${px}px`);
+  el.style.setProperty('--pic', `url(${url})`);
   return el;
 }
 

@@ -4,7 +4,7 @@ import { makeStartingGear } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
 import { artifactCard, skillLine, statsGrid } from '../components';
-import { heroSprite } from '../heroSprite';
+import { heroAvatar, heroSprite } from '../heroSprite';
 import { pickedSignature, signatureUnlocked } from '../save';
 import type { HeroDef } from '../../engine/types';
 import type { App } from '../app';
@@ -16,7 +16,7 @@ function parseSeed(raw: string): number | undefined {
   return /^\d+$/.test(s) ? Number(s) >>> 0 : hashString(s);
 }
 
-/** Плитка в сетке слева: спрайт и имя. Клик — превью, двойной клик — сразу в забег. */
+/** Плитка в сетке слева: аватарка во всю ширину и имя. Клик — превью, двойной клик — сразу в забег. */
 function heroTile(app: App, def: HeroDef): HTMLElement {
   const selected = app.heroPick === def.id;
   return h(
@@ -27,7 +27,7 @@ function heroTile(app: App, def: HeroDef): HTMLElement {
       onclick: () => app.selectHero(def.id),
       ondblclick: () => app.newRun(def.id, parseSeed(app.seedText)),
     },
-    heroSprite(def.id, 64),
+    heroAvatar(def.id, 112),
     h('div', { class: 'hero-tile-name' }, def.name),
   );
 }
