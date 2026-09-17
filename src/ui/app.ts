@@ -5,7 +5,7 @@ import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/co
 import { enemyDef } from '../data/enemies';
 import { HIT_GAP, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
 import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
-import { fetchRuns, reportRun } from './telemetry';
+import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
 import { loadoutFinds } from '../data/collection';
 import { HERO_LIST, heroDef } from '../data/heroes';
@@ -365,19 +365,26 @@ export class App {
     this.render();
   }
 
-  /** Открыть статистику и подтянуть общую: из кэша сразу, иначе — запрос, экран перерисуется по ответу. `force` — мимо кэша. */
-  showStats(force = false): void {
+  /**
+   * Открыть статистику: общая тянется заново **на каждом заходе** (v0.40.5, просьба пользователя) — мимо кэша `fetchRuns`.
+   * До этого ответ жил десять минут в localStorage и ещё столько же в уже загруженном `statsFeed`, так что свой только что
+   * законченный забег в таблице не появлялся. Прошлые данные остаются на экране, пока летит запрос: заход не моргает
+   * «Загружаем…», в шапке видно «обновляем…». Запрос не стакается — пока летит один, второй не шлём.
+   */
+  showStats(): void {
     this.screen = 'stats';
+    dropRunsCache();
     if (this.statsMock) this.statsFeed = this.statsMock;
-    else if ((!this.statsFeed || force) && !this.statsLoading) {
+    else if (!this.statsLoading) {
       this.statsLoading = true;
       this.statsError = null;
-      fetchRuns(force)
+      fetchRuns()
         .then((feed) => {
           this.statsFeed = feed;
+          this.statsError = null;
         })
         .catch((err: unknown) => {
-          this.statsFeed = null;
+          // Сеть подвела — старую таблицу не выбрасываем, а пишем в шапке, что обновиться не вышло.
           this.statsError = `Не удалось загрузить: ${err instanceof Error ? err.message : String(err)}`;
         })
         .finally(() => {

@@ -54,43 +54,28 @@ export function reportRun(run: RunState, event: RunReportEvent, profile: Profile
 
 // ─── Общая статистика: чтение ───────────────────────────────────────────────
 
-/** Ключ кэша ответа ?data=runs в localStorage и его срок: скрипт и сам кэширует на 10 минут, чаще спрашивать незачем. */
-const RUNS_CACHE_KEY = 'mv_runs_v1';
-export const RUNS_CACHE_MS = 10 * 60 * 1000;
-
-function readCache(now: number): RunsFeed | null {
-  try {
-    const raw = localStorage.getItem(RUNS_CACHE_KEY);
-    if (!raw) return null;
-    const c = JSON.parse(raw) as { at: number; feed: RunsFeed };
-    if (!c || typeof c.at !== 'number' || now - c.at > RUNS_CACHE_MS) return null;
-    return c.feed;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(feed: RunsFeed, now: number): void {
-  try {
-    localStorage.setItem(RUNS_CACHE_KEY, JSON.stringify({ at: now, feed }));
-  } catch {
-    /* нет места или приватный режим — обойдёмся без кэша */
-  }
-}
-
 /**
  * Список забегов всех игроков для экрана «Статистика»: GET ?data=runs с того же адреса. Читать можно и с localhost —
- * это чтение, а не запись. `force` — мимо кэша (кнопка «Повторить»). Бросает при недоступности сети или скрипта.
+ * это чтение, а не запись. Бросает при недоступности сети или скрипта.
+ *
+ * Своего кэша в localStorage больше нет (v0.40.5, просьба пользователя «загружать заново при каждом заходе»): ответ
+ * жил десять минут, и свой только что законченный забег в таблице не появлялся. Частых запросов бояться нечего —
+ * Apps Script кэширует ответ у себя на `CACHE_SEC`, так что повторный заход стоит ему одного чтения кэша.
  */
-export async function fetchRuns(force = false): Promise<RunsFeed> {
+export async function fetchRuns(): Promise<RunsFeed> {
   if (!STATS_URL) throw new Error('Адрес статистики не задан');
-  const now = Date.now();
-  const cached = force ? null : readCache(now);
-  if (cached) return cached;
   const res = await fetch(`${STATS_URL}?data=runs`, { method: 'GET' });
   if (!res.ok) throw new Error(`Ответ ${res.status}`);
   const feed = (await res.json()) as RunsFeed;
   if (!feed || !Array.isArray(feed.keys) || !Array.isArray(feed.rows)) throw new Error('Неожиданный ответ');
-  writeCache(feed, now);
   return feed;
+}
+
+/** Убрать кэш прежних версий: он больше не читается, но занимает место в localStorage. */
+export function dropRunsCache(): void {
+  try {
+    localStorage.removeItem('mv_runs_v1');
+  } catch {
+    /* приватный режим — и не надо */
+  }
 }

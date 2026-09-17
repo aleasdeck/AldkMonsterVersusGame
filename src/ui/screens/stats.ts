@@ -106,16 +106,24 @@ function tabBody(app: App, s: GlobalSummary): HTMLElement[] {
   }
 }
 
+/** Правый край шапки: сколько записей в таблице, а во время обновления — что она сейчас перезапрашивается (v0.40.5). */
+function headNote(app: App): HTMLElement {
+  if (app.statsLoading) return h('span', { class: 'dim', tip: 'Статистика перезапрашивается при каждом заходе на экран' }, 'обновляем…');
+  if (app.statsError && app.statsFeed) return h('span', { class: 'dim', tip: app.statsError }, 'не обновилось');
+  return h('span', { class: 'dim' }, app.statsFeed ? `${app.statsFeed.rows.length} записей` : '');
+}
+
 function everyone(app: App): HTMLElement {
-  const head = h('div', { class: 'coll-head' }, h('span', null, 'Все игроки'), h('span', { class: 'dim' }, app.statsFeed ? `${app.statsFeed.rows.length} записей` : ''));
-  if (app.statsLoading) return h('div', { class: 'gs-panel' }, head, h('div', { class: 'dim' }, 'Загружаем…'));
+  const head = h('div', { class: 'coll-head' }, h('span', null, 'Все игроки'), headNote(app));
+  // «Загружаем…» — только когда показывать нечего: при повторном заходе на экране остаётся прошлая таблица.
+  if (app.statsLoading && !app.statsFeed) return h('div', { class: 'gs-panel' }, head, h('div', { class: 'dim' }, 'Загружаем…'));
   if (!app.statsFeed) {
     return h(
       'div',
       { class: 'gs-panel' },
       head,
       h('div', { class: 'dim' }, app.statsError ?? 'Общая статистика недоступна.'),
-      app.statsError ? button('Повторить', () => app.showStats(true), { class: 'small' }) : null,
+      app.statsError ? button('Повторить', () => app.showStats(), { class: 'small' }) : null,
     );
   }
   const s = summarize(app.statsFeed, {

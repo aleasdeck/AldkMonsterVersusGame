@@ -1069,13 +1069,17 @@ describe('зелья', () => {
     expect(sta.state.hero.sta).toBe(before + 2);
   });
 
-  it('склянка бьёт всех врагов заклинанием и выводит из скрытности, противоядие снимает раны', () => {
+  it('склянка бьёт всех врагов заклинанием, поджигает их и выводит из скрытности; противоядие снимает раны', () => {
     const { state, rng } = mkBattle('assassin', ['rat', 'rat'], { potion: 'fire_flask' });
     state.hero.stats.spellPower = 0;
     const hp = state.enemies.map((e) => e.hp);
     expect(getStatus(state.hero, 'stealth')).toBeTruthy();
     performAction(state, { type: 'potion' }, rng);
-    for (const [i, e] of state.enemies.entries()) expect(e.hp).toBe(Math.max(0, hp[i] - 8));
+    // v0.40.5: 5 урона в лоб вместо 8, зато Горение 3 на 2 хода каждому — ещё 6 мимо блока.
+    for (const [i, e] of state.enemies.entries()) {
+      expect(e.hp).toBe(Math.max(0, hp[i] - 5));
+      expect(getStatus(e, 'burn')).toEqual({ id: 'burn', value: 3, turns: 2 });
+    }
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
 
     const cure = mkBattle('warrior', ['rat'], { potion: 'antidote' });
@@ -1490,6 +1494,17 @@ describe('v0.38: связки', () => {
     expect(b.hp).toBe(12 - 4);
     expect(getStatus(a, 'burn')).toBeUndefined();
     expect(state.hero.mp).toBe(7 - 4);
+  });
+
+  it('Взрыв пламени третьего тира: пул умножается на 1.5, а не на 2 (v0.40.5)', () => {
+    const { state, rng } = mkBattle('mage', ['boar', 'boar'], { extra: [{ id: 'flame_burst', tier: 3 }] });
+    const [a, b] = state.enemies;
+    performAction(state, { type: 'artifact', artifactId: 'fireball', target: a.uid }, rng);
+    expect(a.hp).toBe(18 - 6);
+    // Горение 2 × 2 хода = пул 4, ×1.5 = 6 каждому (до нерфа было 8).
+    performAction(state, { type: 'artifact', artifactId: 'flame_burst', target: a.uid }, rng);
+    expect(a.hp).toBe(18 - 6 - 6);
+    expect(b.hp).toBe(18 - 6);
   });
 
   it('Раздуть: заклинание по горящей цели сильнее и продлевает горение', () => {
