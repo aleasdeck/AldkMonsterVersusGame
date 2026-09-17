@@ -1,14 +1,13 @@
 import { button, h } from '../dom';
-import { artifactDef } from '../../data/artifacts';
 import { heroDef } from '../../data/heroes';
-import { findSameArtifact, slotAccepts, socketRefs } from '../../engine/equipment';
+import { slotAccepts, socketRefs } from '../../engine/equipment';
 import { REROLL_COST, focusGearKind } from '../../engine/loot';
 import { awaitsFocus, canReroll, currentLocation } from '../../engine/run';
-import { artifactCard, coin, gearCard, pendingModal, pickable, potionCard, potionReplaceNote } from '../components';
+import { artifactCard, artifactMergeNote, coin, gearCard, pendingModal, pickable, potionCard, potionReplaceNote } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
-import type { ArtTier, RewardFocus } from '../../engine/types';
+import type { RewardFocus } from '../../engine/types';
 import { gearDiffLines } from '../diff';
 import type { App } from '../app';
 
@@ -58,15 +57,7 @@ export function rewardScreen(app: App): HTMLElement {
   const cards = (screen?.options ?? []).map((item, i) => {
     if (item.kind === 'artifact') {
       // Заметка только про слияние с уже стоящим артефактом; дельт у артефакта нет — они повторяли бы описание.
-      const same = findSameArtifact(run.hero, item.artifact.id);
-      let note: string | null = null;
-      if (same?.art) {
-        if (same.art.tier >= 3) note = 'Уже стоит на максимальном тире';
-        else {
-          const nextTier = Math.min(3, Math.max(same.art.tier + 1, item.artifact.tier)) as ArtTier;
-          note = `Улучшит стоящий до тира ${nextTier}: ${artifactDef(item.artifact.id).describe(nextTier)}`;
-        }
-      }
+      const note = artifactMergeNote(run, item.artifact);
       return pickable(
         artifactCard(item.artifact, button('Взять', () => app.takeReward(i), { class: 'primary' }), note ? h('div', { class: 'note' }, note) : null),
         () => app.takeReward(i),
