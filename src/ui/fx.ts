@@ -6,6 +6,7 @@ import { heroDef } from '../data/heroes';
 import { weaponBase } from '../data/gear';
 import { drawGrid } from './sprites';
 import { STATUS_COLORS } from './icons';
+import { echoesEffect } from '../engine/combat';
 
 /**
  * Типовые анимации боя. Их пять, под каждый приём подставляется одна и меняется только цвет:
@@ -126,10 +127,10 @@ function planEffects(
       color ??= '#b388ff';
     } else return;
   }
-  // Сколько раз приём бьёт: у Двойного выпада два удара своими эффектами, «Эхо удара» повторяет их все ещё раз.
-  // Каждый удар — свой взмах с шагом HIT_GAP, как у многоударного приёма элиты (v0.40.2).
-  const attacks = effects.filter((e) => e.type === 'attack').length;
-  addSwings(plan, kind, color ?? DEFAULT_BLADE, blade, targets, Math.max(1, attacks * (echo && attacks > 0 ? 2 : 1)));
+  // Сколько раз приём бьёт: у Двойного выпада два удара своими эффектами, «Эхо удара» повторяет все бьющие оружием ещё раз
+  // (тот же список, что в движке, — Финишер и Таран с v0.40.4 тоже). Каждый удар — свой взмах с шагом HIT_GAP, как у элиты (v0.40.2).
+  const hits = effects.filter((e) => echoesEffect(e.type)).length;
+  addSwings(plan, kind, color ?? DEFAULT_BLADE, blade, targets, Math.max(1, hits * (echo && hits > 0 ? 2 : 1)));
 }
 
 /**

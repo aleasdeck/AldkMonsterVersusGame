@@ -65,7 +65,7 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
-  echo: 'Следующая атака героя в этом ходу повторяется: удар и удары приёма бьют дважды, усталость считает их одной атакой',
+  echo: 'Следующий удар оружием в этом ходу повторяется: атака, удары приёма, Финишер, Таран, Пролом щита и Цепная атака бьют дважды, усталость считает их одной атакой. Заклинания эхо не повторяет',
   enchant: 'Каждый удар героя вешает на цель рану своей стихии силой N на 2 хода',
 };
 
@@ -1160,13 +1160,14 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
       applyEffect(state, eff, action.target, rng);
       if (hits(eff)) breakStealth(state);
     }
-    // «Эхо удара»: удары приёма повторяются — только бьющие оружием эффекты, статусы и блок второй раз не идут.
-    if (effects.some((e) => e.type === 'attack') && getStatus(h, 'echo')) {
+    // «Эхо удара»: удары приёма повторяются — только бьющие оружием эффекты (ECHO_EFFECTS), статусы и блок второй раз не идут.
+    // Цель повтора ищется заново: первую могло не стать, тогда эхо достаётся следующему живому.
+    if (effects.some((e) => echoesEffect(e.type)) && getStatus(h, 'echo')) {
       removeStatus(h, 'echo');
       log(state, 'Эхо удара');
       const again = findEnemy(state, action.target ?? -1);
       const uid = again && again.hp > 0 ? again.uid : state.enemies.find((e) => e.hp > 0)?.uid;
-      if (uid !== undefined) for (const eff of effects) if (eff.type === 'attack') applyEffect(state, eff, uid, rng);
+      if (uid !== undefined) for (const eff of effects) if (echoesEffect(eff.type)) applyEffect(state, eff, uid, rng);
     }
     if (effects.some((e) => e.type === 'attack')) h.attacks += 1;
     // «Перекрёстный ток»: первое заклинание в ходу возвращает стамину, первый физический приём — ману.
@@ -1182,6 +1183,19 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
     }
   }
   cleanupDead(state, rng);
+}
+
+/**
+ * Что повторяет «Эхо удара» (v0.40.4): всё, что бьёт оружием, — сама атака, Финишер, Таран, Пролом щита и Цепная атака.
+ * Заклинания намеренно за бортом: это «Эхо удара», а не эхо любого приёма. Статусы, блок и взрыв ран второй раз не идут —
+ * взрывать после первого раза всё равно нечего, а порез и клич эхо не за что повторять.
+ * До v0.40.4 список был короче на один тип (`attack`), и Финишер с Тараном эхо не замечали вовсе: оно даже не тратилось на них.
+ */
+const ECHO_EFFECTS: Effect['type'][] = ['attack', 'finisher', 'blockStrike', 'breakBlock', 'chain'];
+
+/** Повторится ли этот эффект приёма под «Эхом удара». */
+export function echoesEffect(type: Effect['type']): boolean {
+  return ECHO_EFFECTS.includes(type);
 }
 
 /**
