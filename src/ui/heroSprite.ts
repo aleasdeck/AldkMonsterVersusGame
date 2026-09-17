@@ -16,7 +16,7 @@ import warriorSheet from '../assets/heroes/warrior.png';
  * собранный из картинки генератора скриптом `tools/hero-sheet.py` — цифры манифеста печатает он же.
  * Кадры листает CSS (`.hero-sprite` в style.css), клипы боя запускает `playHeroClip`.
  */
-export type HeroClip = 'idle' | 'battle' | 'slash' | 'thrust' | 'block' | 'hurt' | 'death';
+export type HeroClip = 'idle' | 'battle' | 'attack' | 'heavy' | 'power' | 'heal' | 'block' | 'hurt' | 'death';
 
 interface HeroSheet {
   url: string;
@@ -30,10 +30,10 @@ interface HeroSheet {
 }
 
 const HERO_SHEETS: Record<string, HeroSheet> = {
-  warrior: { url: warriorSheet, clips: ['idle', 'battle', 'slash', 'thrust', 'block', 'hurt', 'death'], frames: 8, cell: 172, body: 108 },
-  mage: { url: mageSheet, clips: ['idle'], frames: 8, cell: 190, body: 181 },
+  warrior: { url: warriorSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 162, body: 107 },
+  mage: { url: mageSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 186, body: 134 },
   assassin: { url: assassinSheet, clips: ['idle'], frames: 8, cell: 182, body: 166 },
-  paladin: { url: paladinSheet, clips: ['idle'], frames: 8, cell: 188, body: 180 },
+  paladin: { url: paladinSheet, clips: ['idle', 'battle', 'attack', 'heavy', 'heal', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 154, body: 93 },
   berserk: { url: berserkSheet, clips: ['idle'], frames: 8, cell: 194, body: 186 },
   archer: { url: archerSheet, clips: ['idle'], frames: 8, cell: 186, body: 170 },
 };
@@ -52,7 +52,10 @@ const HERO_AVATARS: Record<string, string> = {
 };
 
 /** Длительность клипа, мс. У боевых — под тайминг боя: удар приходится на середину клипа, к попаданию снаряда (FLIGHT в fx.ts). */
-const CLIP_MS: Record<HeroClip, number> = { idle: 1600, battle: 1300, slash: 520, thrust: 520, block: 560, hurt: 400, death: 1000 };
+const CLIP_MS: Record<HeroClip, number> = { idle: 1600, battle: 1300, attack: 520, heavy: 640, power: 560, heal: 800, block: 560, hurt: 400, death: 1000 };
+
+/** Чем заменить клип, которого у героя нет: тяжёлый удар — обычным, лечение — приёмом. Без замены клип не играется. */
+const FALLBACK: Partial<Record<HeroClip, HeroClip>> = { heavy: 'attack', heal: 'power', power: 'attack', battle: 'idle' };
 
 /** Зацикленные клипы; остальные играются один раз и замирают на последнем кадре. */
 const LOOPS = new Set<HeroClip>(['idle', 'battle']);
@@ -65,10 +68,18 @@ function rowOf(sheet: HeroSheet, clip: HeroClip): number {
   return sheet.clips.indexOf(clip);
 }
 
-/** Клип и его ряд: чего у героя нет (боевой стойки, гибели), подменяем покоем. */
+/** Клип и его ряд по цепочке замен; null — играть нечего. */
+function resolve(sheet: HeroSheet, clip: HeroClip): { clip: HeroClip; row: number } | null {
+  for (let c: HeroClip | undefined = clip; c; c = FALLBACK[c]) {
+    const row = rowOf(sheet, c);
+    if (row >= 0) return { clip: c, row };
+  }
+  return null;
+}
+
+/** То же для клипа в покое: там замены всегда есть, крайняя — обычный покой. */
 function pick(sheet: HeroSheet, clip: HeroClip): { clip: HeroClip; row: number } {
-  const row = rowOf(sheet, clip);
-  return row >= 0 ? { clip, row } : { clip: 'idle', row: 0 };
+  return resolve(sheet, clip) ?? { clip: 'idle', row: 0 };
 }
 
 function setClip(el: HTMLElement, clip: HeroClip, row: number, elapsed = 0): void {
@@ -127,10 +138,11 @@ export function heroAvatar(heroId: string, px: number): HTMLElement {
  * Проиграть одноразовый клип героя в бою и вернуться в стойку. false — такого клипа у героя нет,
  * и вызывающий оставляет старый наскок (`acting`).
  */
-export function playHeroClip(root: HTMLElement, heroId: string, clip: HeroClip): boolean {
+export function playHeroClip(root: HTMLElement, heroId: string, want: HeroClip): boolean {
   const sheet = HERO_SHEETS[heroId];
-  const row = sheet ? rowOf(sheet, clip) : -1;
-  if (!sheet || row < 0) return false;
+  const found = sheet ? resolve(sheet, want) : null;
+  if (!sheet || !found) return false;
+  const { clip, row } = found;
   running = { hero: heroId, clip, started: Date.now() };
   const mine = ++seq;
   const el = root.querySelector<HTMLElement>('.hero-zone .hero-sprite');

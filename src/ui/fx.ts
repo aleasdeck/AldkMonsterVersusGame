@@ -378,22 +378,22 @@ function animate(el: HTMLElement, frames: Keyframe[], opts: KeyframeAnimationOpt
 }
 
 /**
- * Клип героя под его приём: бьёт оружием ближнего боя — рубящий удар, летит снаряд или заклинание — выпад,
- * приём на себя со щитом — блок. Род уже решён планом, своей таблицы приёмов заводить не надо.
+ * Клип героя под его приём. Клипы названы по роли, а не по рисунку: `attack` — обычная атака оружием,
+ * `heavy` — приём в упор, `power` — заклинание или бросок, `heal` — приём, который лечит, `block` — защита.
+ * Чего у героя не нарисовано, то подменяется по цепочке (heroSprite.ts), так что решение одно на всех.
  */
 export function heroClip(plan: FxPlan, action: PlayerAction): HeroClip | null {
   if (action.type === 'defend') return 'block'; // «Защититься» до плана не доходит: щит ему рисует событие блока
+  if (action.type === 'attack') return 'attack';
+  // Лечащий приём узнаём по эффектам (тир на род не влияет); у зелья лечение видно по глотку ниже.
+  if (action.type === 'artifact' && (artifactDef(action.artifactId).effects?.(1) ?? []).some((e) => e.type === 'heal')) return 'heal';
   const shot = plan.shots.find((s) => s.from === 'hero');
-  if (shot) return shot.kind === 'melee' ? 'slash' : 'thrust';
+  if (shot) return shot.kind === 'melee' ? 'heavy' : 'power';
   if (plan.after.some((a) => a.target === 'hero' && a.kind === 'shield')) return 'block';
+  if (plan.after.some((a) => a.target === 'hero' && a.kind === 'drink')) return 'heal';
   return null;
 }
 
-/**
- * Разыграть снаряды и взмахи на текущем поле. Возвращает, через сколько мс они попадут (0 — нечего играть).
- * Наскок бьющего в ближнем бою — класс acting его зоне, как у наскока врагов; у героя с нарисованным
- * клипом (`plan.clipped`) наскока нет — замах уже в самой анимации.
- */
 export function playShots(root: HTMLElement, plan: FxPlan): number {
   const layer = root.querySelector<HTMLElement>('.fx-layer');
   if (!layer || plan.shots.length === 0) return 0;
