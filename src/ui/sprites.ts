@@ -247,3 +247,22 @@ export function spriteImg(spec: SpriteSpec, key: string, displayPx: number, cls 
   img.alt = key;
   return img;
 }
+
+// ─── Рисованные герои ──────────────────────────────────────────────────────
+
+/** Ряды листа `src/assets/heroes-idle.png` (6 героев × 8 кадров покоя, ячейка квадратная) — в порядке, как нарисован лист. */
+const HERO_ROWS = ['warrior', 'mage', 'assassin', 'paladin', 'berserk', 'archer'];
+
+/**
+ * Спрайт героя с анимацией покоя: квадрат `displayPx`, кадры листает CSS (`.hero-idle` в style.css, там же путь к листу).
+ * `SpriteSpec` героя в данных остаётся — из него fx.ts берёт цвет клинка.
+ */
+export function heroSprite(heroId: string, displayPx: number): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'sprite hero-idle';
+  el.style.setProperty('--px', `${displayPx}px`);
+  el.style.setProperty('--row', String(Math.max(0, HERO_ROWS.indexOf(heroId))));
+  el.setAttribute('role', 'img');
+  el.setAttribute('aria-label', heroId);
+  return el;
+}

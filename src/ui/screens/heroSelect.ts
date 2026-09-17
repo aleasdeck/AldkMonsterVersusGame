@@ -4,7 +4,7 @@ import { makeStartingGear } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
 import { artifactCard, skillLine, statsGrid } from '../components';
-import { spriteImg } from '../sprites';
+import { heroSprite } from '../sprites';
 import { pickedSignature, signatureUnlocked } from '../save';
 import type { HeroDef } from '../../engine/types';
 import type { App } from '../app';
@@ -27,7 +27,7 @@ function heroTile(app: App, def: HeroDef): HTMLElement {
       onclick: () => app.selectHero(def.id),
       ondblclick: () => app.newRun(def.id, parseSeed(app.seedText)),
     },
-    spriteImg(def.sprite, def.id, 64),
+    heroSprite(def.id, 64),
     h('div', { class: 'hero-tile-name' }, def.name),
   );
 }
@@ -67,7 +67,7 @@ function heroPreview(app: App, def: HeroDef): HTMLElement {
     h(
       'div',
       { class: 'preview-head' },
-      spriteImg(def.sprite, def.id, 112, 'bob'),
+      heroSprite(def.id, 112),
       h(
         'div',
         { class: 'preview-title' },

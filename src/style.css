@@ -1302,6 +1302,21 @@ p {
   animation: bob 1.6s ease-in-out infinite;
 }
 
+/* Рисованный герой (heroSprite в sprites.ts): лист 6 рядов × 8 кадров покоя, --px — размер, --row — ряд героя.
+   Лист нарисован без пиксельной сетки, поэтому уменьшение со сглаживанием, а не pixelated. */
+.hero-idle {
+  width: var(--px);
+  height: var(--px);
+  background: url(./assets/heroes-idle.png) no-repeat 0 calc(var(--px) * -1 * var(--row)) / calc(var(--px) * 8) calc(var(--px) * 6);
+  image-rendering: auto;
+  animation: hero-idle 1.6s steps(8) infinite;
+}
+@keyframes hero-idle {
+  to {
+    background-position-x: calc(var(--px) * -8);
+  }
+}
+
 /* Пилюля намерения над врагом: иконка и число, цвет по типу приёма. Название и расшифровка — в подсказке. */
 .pill {
   display: inline-flex;

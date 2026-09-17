@@ -6,7 +6,7 @@ import { heroStats } from '../engine/run';
 import type { PlayerAction } from '../engine/types';
 import { bar, potionChip, potionTitle, segBar } from './components';
 import { gearTile } from './gearTile';
-import { spriteImg } from './sprites';
+import { heroSprite } from './sprites';
 import { bindPreview } from './preview';
 import type { App } from './app';
 
@@ -63,7 +63,7 @@ export function heroBlock(app: App): HTMLElement {
     h(
       'div',
       { class: 'c-hero-head' },
-      spriteImg(def.sprite, def.id, 44),
+      heroSprite(def.id, 44),
       h(
         'div',
         { class: 'c-hero-title' },
