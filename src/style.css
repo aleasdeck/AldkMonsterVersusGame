@@ -1302,19 +1302,40 @@ p {
   animation: bob 1.6s ease-in-out infinite;
 }
 
-/* Рисованный герой (heroSprite в sprites.ts): лист 6 рядов × 8 кадров покоя, --px — размер, --row — ряд героя.
-   Лист нарисован без пиксельной сетки, поэтому уменьшение со сглаживанием, а не pixelated. */
-.hero-idle {
+/* Рисованный герой (heroSprite.ts): ряд листа — клип, --row его номер, --frames кадров в ряду, --dur длительность.
+   В разметке спрайт занимает квадрат --box по фигуре в покое, а сам лист рисуется поверх ячейкой --cell (она шире):
+   так замах мечом и падение вылезают за место героя и не обрезаются. Листы нарисованы без пиксельной сетки,
+   поэтому масштабирование со сглаживанием, а не pixelated. */
+.hero-sprite {
   flex: none; /* пустой div во flex-строке сжимается под текст соседа (у img была своя ширина) — правый край кадра срезало */
-  width: var(--px);
-  height: var(--px);
-  background: url(./assets/heroes-idle.png) no-repeat 0 calc(var(--px) * -1 * var(--row)) / calc(var(--px) * 8) calc(var(--px) * 6);
-  image-rendering: auto;
-  animation: hero-idle 1.6s steps(8) infinite;
+  position: relative;
+  width: var(--box);
+  height: var(--box);
 }
-@keyframes hero-idle {
+.hero-sprite::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--cell);
+  height: var(--cell);
+  margin: calc(var(--cell) / -2) 0 0 calc(var(--cell) / -2);
+  background: var(--sheet) no-repeat 0 calc(var(--cell) * -1 * var(--row)) / calc(var(--cell) * var(--frames)) auto;
+  image-rendering: auto;
+  animation: hero-frames var(--dur) steps(var(--frames)) var(--delay, 0ms) infinite;
+}
+/* Одноразовый клип: кадры идут до последнего и замирают на нём (jump-none, иначе последний кадр проскакивает). */
+.hero-sprite.once::before {
+  animation: hero-frames-once var(--dur) steps(var(--frames), jump-none) var(--delay, 0ms) forwards;
+}
+@keyframes hero-frames {
   to {
-    background-position-x: calc(var(--px) * -8);
+    background-position-x: calc(var(--cell) * -1 * var(--frames));
+  }
+}
+@keyframes hero-frames-once {
+  to {
+    background-position-x: calc(var(--cell) * -1 * (var(--frames) - 1));
   }
 }
 

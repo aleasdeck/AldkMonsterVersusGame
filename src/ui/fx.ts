@@ -5,6 +5,7 @@ import { enemyDef } from '../data/enemies';
 import { heroDef } from '../data/heroes';
 import { weaponBase } from '../data/gear';
 import { drawGrid } from './sprites';
+import type { HeroClip } from './heroSprite';
 import { STATUS_COLORS } from './icons';
 import { echoesEffect } from '../engine/combat';
 
@@ -48,6 +49,8 @@ export interface FxPlan {
   after: AfterFx[];
   /** Бойцы, чей наскок уже сыгран вместе с ударом или заменён снарядом — класс acting им не ставить. */
   lunged: Set<EventTarget>;
+  /** У героя играет нарисованный клип приёма: наскок ему не нужен, движение уже в анимации. */
+  clipped?: boolean;
 }
 
 /** Время полёта снаряда или взмаха до попадания, мс. */
@@ -375,13 +378,26 @@ function animate(el: HTMLElement, frames: Keyframe[], opts: KeyframeAnimationOpt
 }
 
 /**
+ * Клип героя под его приём: бьёт оружием ближнего боя — рубящий удар, летит снаряд или заклинание — выпад,
+ * приём на себя со щитом — блок. Род уже решён планом, своей таблицы приёмов заводить не надо.
+ */
+export function heroClip(plan: FxPlan, action: PlayerAction): HeroClip | null {
+  if (action.type === 'defend') return 'block'; // «Защититься» до плана не доходит: щит ему рисует событие блока
+  const shot = plan.shots.find((s) => s.from === 'hero');
+  if (shot) return shot.kind === 'melee' ? 'slash' : 'thrust';
+  if (plan.after.some((a) => a.target === 'hero' && a.kind === 'shield')) return 'block';
+  return null;
+}
+
+/**
  * Разыграть снаряды и взмахи на текущем поле. Возвращает, через сколько мс они попадут (0 — нечего играть).
- * Наскок бьющего в ближнем бою — класс acting его зоне, как у наскока врагов.
+ * Наскок бьющего в ближнем бою — класс acting его зоне, как у наскока врагов; у героя с нарисованным
+ * клипом (`plan.clipped`) наскока нет — замах уже в самой анимации.
  */
 export function playShots(root: HTMLElement, plan: FxPlan): number {
   const layer = root.querySelector<HTMLElement>('.fx-layer');
   if (!layer || plan.shots.length === 0) return 0;
-  const lunged = new Set<EventTarget>();
+  const lunged = new Set<EventTarget>(plan.clipped ? ['hero' as EventTarget] : []);
   for (const s of plan.shots) {
     if (s.kind === 'melee' && !lunged.has(s.from)) {
       lunged.add(s.from);

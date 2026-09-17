@@ -4,7 +4,7 @@ import { makeStartingGear } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
 import { artifactCard, skillLine, statsGrid } from '../components';
-import { heroSprite } from '../sprites';
+import { heroSprite } from '../heroSprite';
 import { pickedSignature, signatureUnlocked } from '../save';
 import type { HeroDef } from '../../engine/types';
 import type { App } from '../app';

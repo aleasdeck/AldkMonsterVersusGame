@@ -6,7 +6,7 @@ import { heroStats } from '../../engine/run';
 import type { DerivedStats } from '../../engine/types';
 import { bar, potionChip, skillLine } from '../components';
 import { gearTile } from '../gearTile';
-import { heroSprite } from '../sprites';
+import { heroSprite } from '../heroSprite';
 import type { App } from '../app';
 
 /** Статы полными словами; строки с нулевым значением не показываются. */

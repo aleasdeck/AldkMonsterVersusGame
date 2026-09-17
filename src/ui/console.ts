@@ -6,7 +6,7 @@ import { heroStats } from '../engine/run';
 import type { PlayerAction } from '../engine/types';
 import { bar, potionChip, potionTitle, segBar } from './components';
 import { gearTile } from './gearTile';
-import { heroSprite } from './sprites';
+import { heroSprite } from './heroSprite';
 import { bindPreview } from './preview';
 import type { App } from './app';
 

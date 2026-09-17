@@ -3,7 +3,8 @@ import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerA
 import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
-import { HIT_GAP, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
+import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
+import { playHeroClip } from './heroSprite';
 import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
 import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
@@ -552,6 +553,9 @@ export class App {
     if (!run?.battle || this.busy || this.fxTimer !== null) return;
     if (canUseAction(run.battle, action)) return;
     const plan = animate ? planHeroFx(run, action) : null;
+    // Нарисованный клип героя стартует до применения приёма: он играет на старом поле вместе со снарядом.
+    const clip = plan && heroClip(plan, action);
+    if (clip && playHeroClip(this.root, run.hero.defId, clip)) plan!.clipped = true;
     R.battleAction(run, action);
     const events = run.battle.events.splice(0);
     if (!plan) {
@@ -874,6 +878,8 @@ export class App {
           const drain = drains.get(key);
           const land = () => {
             if (hurt) shake(wrap);
+            // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит.
+            if (ev.target === 'hero' && this.run) playHeroClip(this.root, this.run.hero.defId, hurt ? 'hurt' : 'block');
             if (seq > 0 && who !== null) lungeAgain(this.root, who);
             // Полоска догоняет цифру: первый удар отматывает её назад без перехода, остальные снимают HP по своему куску.
             if (drain) setBarHp(drain.el, drain.hp + drain.left[seq + 1], seq === 0);
