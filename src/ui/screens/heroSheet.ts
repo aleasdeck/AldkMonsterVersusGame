@@ -6,7 +6,7 @@ import { heroStats } from '../../engine/run';
 import type { DerivedStats } from '../../engine/types';
 import { bar, potionChip, skillLine } from '../components';
 import { gearTile } from '../gearTile';
-import { spriteImg } from '../sprites';
+import { heroSprite } from '../heroSprite';
 import type { App } from '../app';
 
 /** Статы полными словами; строки с нулевым значением не показываются. */
@@ -66,7 +66,7 @@ export function heroSheet(app: App): HTMLElement {
       h(
         'div',
         { class: 'sheet-left' },
-        h('div', { class: 'sheet-head' }, spriteImg(def.sprite, def.id, 80, 'bob'), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
+        h('div', { class: 'sheet-head' }, heroSprite(def.id, 80), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
         bar('hp', hp, s.maxHp, 'HP'),
         h('div', { class: 'sheet-stats' }, ...statRows(s, hp)),
         skillLine(def),

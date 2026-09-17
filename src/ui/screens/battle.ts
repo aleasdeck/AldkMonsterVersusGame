@@ -10,6 +10,7 @@ import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, E
 import { MAX_ALLIES } from '../../engine/types';
 import { bar, coin, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
+import { heroSprite } from '../heroSprite';
 import { markIcon, statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
@@ -478,7 +479,7 @@ export function battleScreen(app: App): HTMLElement {
     'div',
     { class: `hero-zone ${hasAllies ? 'narrow' : ''}` },
     badges(b.hero, true, undefined, fatigueBadge(b)),
-    h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, hasAllies ? 104 : 128, 'bob')),
+    h('div', { class: 'sprite-wrap' }, heroSprite(def.id, hasAllies ? 104 : 128, 'battle')),
     h('div', { class: 'name' }, def.name),
   );
 

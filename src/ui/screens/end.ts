@@ -3,7 +3,7 @@ import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { ROOM_NAMES } from '../../data/locations';
 import { currentLocation, currentRoomKind } from '../../engine/run';
-import { spriteImg } from '../sprites';
+import { heroSprite } from '../heroSprite';
 import type { App } from '../app';
 
 /** «45 с», «12 мин 34 с», «1 ч 05 мин» — крупнее часа секунды не нужны. */
@@ -36,7 +36,7 @@ export function endScreen(app: App): HTMLElement {
       h(
         'div',
         { class: 'result-body' },
-        spriteImg(def.sprite, def.id, 112),
+        heroSprite(def.id, 112, won ? 'idle' : 'death'),
         h(
           'div',
           { class: 'stats-grid wide' },
