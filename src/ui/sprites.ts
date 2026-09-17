@@ -1,5 +1,6 @@
 import type { SpriteSpec } from '../engine/types';
 import { createRng, hashString, next } from '../engine/rng';
+import { artUrl } from './art';
 
 /** Общее тело гуманоида (строки 7–15). Символы: . пусто, o контур, s кожа, e глаз, h шлем/волосы, b тело, l ноги, w оружие. */
 const BODY = [
@@ -228,7 +229,10 @@ function blobUrl(spec: Extract<SpriteSpec, { type: 'blob' }>, key: string): stri
   return drawGrid(size, size, (x, y) => colors[g[y][x]] ?? null);
 }
 
+/** Нарисованный спрайт (src/assets/sprites/<id>.png) бьёт процедурный: он подменяет его везде. */
 export function spriteDataUrl(spec: SpriteSpec, key: string): string {
+  const drawn = artUrl(key);
+  if (drawn) return drawn;
   const cacheKey = `${key}:${JSON.stringify(spec)}`;
   const hit = cache.get(cacheKey);
   if (hit) return hit;
@@ -245,5 +249,10 @@ export function spriteImg(spec: SpriteSpec, key: string, displayPx: number, cls 
   img.className = `sprite ${cls}`.trim();
   img.draggable = false;
   img.alt = key;
+  // Уменьшение с `pixelated` выедает пиксели (тонкий клинок исчезает целиком), поэтому
+  // всё, что показывается мельче исходника, сглаживаем. Увеличение остаётся чётким.
+  img.addEventListener('load', () => {
+    if (img.naturalWidth > displayPx) img.classList.add('smooth');
+  });
   return img;
 }

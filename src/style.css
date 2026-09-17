@@ -58,6 +58,10 @@ body {
   image-rendering: crisp-edges;
   display: block;
 }
+/* Спрайт мельче исходника: чёткое уменьшение выедает пиксели, поэтому даём сглаживание (sprites.ts). */
+.sprite.smooth {
+  image-rendering: auto;
+}
 
 .screen {
   position: absolute;
