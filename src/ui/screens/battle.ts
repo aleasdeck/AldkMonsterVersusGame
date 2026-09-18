@@ -13,6 +13,7 @@ import { spriteImg, spriteSize } from '../sprites';
 import { heroSprite } from '../heroSprite';
 import { markIcon, statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
+import { tintVar } from '../tint';
 import { runFrame } from '../frame';
 import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
@@ -491,7 +492,7 @@ export function battleScreen(app: App): HTMLElement {
   // Худший случай — шесть бойцов: врагам оставляем по 140 px.
   const crowded = b.allies.length + b.enemies.length >= 5;
   // Слой анимаций поверх поля: снаряды, взмахи, облака и искры (fx.ts) живут в нём между перерисовками.
-  const field = h('div', { class: `field ${crowded ? 'crowded' : ''}`, style: backgroundStyle(loc.id, 0.3, 'wide') }, heroZone, allyZone, enemyZone, h('div', { class: 'fx-layer' }));
+  const field = h('div', { class: `field ${crowded ? 'crowded' : ''}`, style: backgroundStyle(loc.id, 0.3, 'wide') + tintVar(loc.id) }, heroZone, allyZone, enemyZone, h('div', { class: 'fx-layer' }));
 
   // Лог — выдвижная панель поверх поля, плитки при этом остаются на месте.
   if (app.logOpen) {

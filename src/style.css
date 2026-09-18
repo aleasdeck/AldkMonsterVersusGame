@@ -1298,6 +1298,20 @@ p {
 .sprite-wrap {
   position: relative;
 }
+
+/* Тонировка бойцов под свет локации (tint.ts): фильтр вешается на сам спрайт, а не на обёртку,
+   иначе область фильтра обрезала бы лист героя — он рисуется ячейкой шире своего места.
+   `--tint` ставит поле боя, вне боя переменной нет и спрайты остаются в своей палитре. */
+.field .sprite-wrap img.sprite,
+.field .hero-sprite::before {
+  filter: var(--tint, none);
+}
+.tint-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
 .bob {
   animation: bob 1.6s ease-in-out infinite;
 }
