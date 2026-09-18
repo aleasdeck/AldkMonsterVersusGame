@@ -16,7 +16,7 @@
     python tools/location-bg.py art/forest-bg.png --loc forest --zoom 1.6 --center 0.36
 
 Готовые файлы — `src/assets/backgrounds/<локация>-wide.png` и `-tall.png`, их подхватывает
-`PAINTED` в src/ui/backgrounds.ts. Нужен Pillow.
+`BACKGROUNDS` в src/ui/backgrounds.ts. Нужен Pillow.
 """
 import argparse
 from pathlib import Path
