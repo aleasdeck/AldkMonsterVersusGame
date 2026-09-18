@@ -8,6 +8,7 @@ import { ART_TIERS, COLLECTIBLES, findKey } from './data/collection';
 import { ENEMY_LIST, enemyDef } from './data/enemies';
 import { loadProfile, saveProfile } from './ui/save';
 import { upgradeGearTier } from './data/gear';
+import { setTint } from './ui/tint';
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -30,6 +31,18 @@ app.start();
 // ?hero=...&phase=won|reward|shop|event|camp|end — сразу нужный экран (бой выигрывается читом); won — плашка победы, &log=1 — с раскрытым логом.
 // &phase=event&event=chest|altar|forge|elite|shop|camp|gnome|gnome_art — заданное событие в третьей клетке; &events=<вид> — на весь забег.
 const params = new URLSearchParams(window.location.search);
+
+// &tint=off — снять тонировку бойцов под свет локации (сравнить «до/после» на том же бою);
+// &tint=0.5 и &tintc=ff6442 — своя сила и свой цвет света на всех локациях (подбор по скриншоту, см. docs/art.md)
+const tintParam = params.get('tint');
+const tintColor = params.get('tintc');
+if (tintParam === 'off') setTint(false);
+else if (tintParam || tintColor) {
+  setTint(true, {
+    ...(tintParam ? { k: Math.max(0, Math.min(1, Number(tintParam) || 0)) } : {}),
+    ...(tintColor ? { light: `#${tintColor}` } : {}),
+  });
+}
 
 // &mock=1 — демо-профиль: статистика, часть коллекции (у артефактов — часть тиров) и половина бестиария (для отладки экранов);
 // экрану «Статистика» — демо-ответ таблицы вместо сети (mockRuns)
