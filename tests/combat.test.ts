@@ -1493,7 +1493,8 @@ describe('v0.38: связки', () => {
     expect(a.hp).toBe(12 - 6 - 4);
     expect(b.hp).toBe(12 - 4);
     expect(getStatus(a, 'burn')).toBeUndefined();
-    expect(state.hero.mp).toBe(7 - 4);
+    // Огненный шар 2 MP + Взрыв пламени 4 MP (v0.41.6)
+    expect(state.hero.mp).toBe(7 - 6);
   });
 
   it('Взрыв пламени третьего тира: пул умножается на 1.5, а не на 2 (v0.40.5)', () => {
