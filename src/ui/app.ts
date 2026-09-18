@@ -4,7 +4,7 @@ import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
 import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
-import { playHeroClip } from './heroSprite';
+import { heroArtUrls, playHeroClip } from './heroSprite';
 import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
 import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
@@ -29,6 +29,8 @@ import { heroSheet } from './screens/heroSheet';
 import { pauseMenu } from './screens/pause';
 import { logOverlay } from './screens/runLog';
 import { installHotkeys } from './hotkeys';
+import { locationBackground } from './backgrounds';
+import { warmImages } from './preload';
 import { showPreview } from './preview';
 
 const ENEMY_STEP_MS = 600;
@@ -38,6 +40,8 @@ const FLOAT_MS = 900;
  * на карте (кнопки стоят друг под другом) и открывал следующую клетку — событие разыгрывалось без игрока.
  */
 const SETTLE_MS = 400;
+/** С какой клетки акта заказывать фон следующей локации: после босса карта открывается сразу, ждать там нечего. */
+const WARM_NEXT_ROOM = 8;
 
 export class App {
   root: HTMLElement;
@@ -125,6 +129,7 @@ export class App {
     this.noteOutcome();
     this.noteEnemies();
     this.noteFinds();
+    this.warmArt();
     // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
     const r = this.run;
     this.settleArmed();
@@ -181,6 +186,20 @@ export class App {
     if (live && fresh) fresh.replaceWith(live);
     this.root.replaceChildren(el);
     this.syncClock();
+  }
+
+  /**
+   * Картинки забега — фон текущей локации в обоих кадрах и файлы героя — заказываются браузеру заранее (preload.ts):
+   * адреса известны задолго до показа, а весят файлы сотни килобайт. К последним клеткам акта туда же идёт фон
+   * следующей локации. Проверка при каждой перерисовке: повторный заказ preload.ts отсекает сам.
+   */
+  private warmArt(): void {
+    const run = this.run;
+    if (!run) return;
+    const here = R.currentLocation(run).id;
+    warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'), ...heroArtUrls(run.hero.defId));
+    const next = run.locations[run.locationIndex + 1];
+    if (next && run.roomIndex >= WARM_NEXT_ROOM) warmImages(locationBackground(next, 'tall'), locationBackground(next, 'wide'));
   }
 
   /**

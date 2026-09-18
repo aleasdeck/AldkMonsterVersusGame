@@ -40,6 +40,7 @@ ap.add_argument('--clip', default='idle', help='клип для режима --h
 ap.add_argument('--cols', type=int, default=8, help='кадров в ряду')
 ap.add_argument('--layout', choices=('grid', 'scattered'), default='grid', help='grid — кадры по ячейкам с рамками (лист генератора); scattered — фигуры россыпью на прозрачном фоне (первый лист покоя)')
 ap.add_argument('--out-dir', default=str(Path(__file__).resolve().parent.parent / 'src' / 'assets' / 'heroes'))
+ap.add_argument('--colors', type=int, default=256, help='размер палитры готового листа; 0 — оставить полный цвет')
 ap.add_argument('--inset', type=int, default=4, help='отступ внутрь ячейки от границы, px: столько занимают рамка и её свечение')
 ap.add_argument('--overlay')
 args = ap.parse_args()
@@ -299,7 +300,13 @@ for hero, items in frames_by_hero.items():
             pad = np.pad(f, ((S, S), (S, S), (0, 0)))
             sheet[r * S:(r + 1) * S, c * S:(c + 1) * S] = pad[y0 + S:y0 + 2 * S, x0 + S:x0 + 2 * S]
     path = out_dir / f'{hero}.png'
-    Image.fromarray(sheet).save(path, optimize=True)
+    img = Image.fromarray(sheet)
+    if args.colors:
+        # Палитра, как у аватарок и фонов: в полном цвете лист весит мегабайт-полтора и качается в тот момент,
+        # когда героя уже надо показать. 256 цветов дают файл вчетверо меньше; FASTOCTREE — единственный метод
+        # Pillow, который держит прозрачность, а сглаживание при выводе (image-rendering: auto) прячет ступеньки.
+        img = img.quantize(colors=args.colors, method=Image.FASTOCTREE, dither=Image.Dither.NONE)
+    img.save(path, optimize=True)
     names = ', '.join(f"'{n}'" for n, _ in items)
     print(f'\n{path}  {sheet.shape[1]}x{sheet.shape[0]}')
     print(f"  {hero}: {{ clips: [{names}], frames: {COLS}, cell: {S}, body: {body} }},")

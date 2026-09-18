@@ -134,6 +134,11 @@ export function heroAvatar(heroId: string, px: number): HTMLElement {
   return el;
 }
 
+/** Файлы героя — лист кадров и портрет: их заказывает впрок preload.ts, пока герой ещё не на экране. */
+export function heroArtUrls(heroId: string): string[] {
+  return [HERO_SHEETS[heroId]?.url, HERO_AVATARS[heroId]].filter((url): url is string => !!url);
+}
+
 /**
  * Проиграть одноразовый клип героя в бою и вернуться в стойку. false — такого клипа у героя нет,
  * и вызывающий оставляет старый наскок (`acting`).
