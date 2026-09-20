@@ -2,7 +2,7 @@ import { button, h } from '../dom';
 import { ENEMY_LIST } from '../../data/enemies';
 import { LOCATIONS, enemyScale, locationDef } from '../../data/locations';
 import { describeAction, type ActionScale } from '../../engine/combat';
-import { spriteImg } from '../sprites';
+import { enemySprite as spriteImg } from '../enemySprite';
 import type { EnemyDef, LocationId } from '../../engine/types';
 import type { App } from '../app';
 

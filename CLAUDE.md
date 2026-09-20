@@ -32,6 +32,8 @@ SIM=1 SIM_N=200 npx vitest run tests/gnome-odds.test.ts                         
 
 ## Карта кода
 
+Дополнение v0.41.7: `src/ui/enemySprite.ts` — рисованный скелет-воин (canvas/WebP, покой, атака, блок, урон). Используется в `battle.ts` и `bestiary.ts`; `App.step()` синхронизирует контакт, `playEvents()` — реакцию на урон. Клип переживает render благодаря WeakMap экземпляра врага. Мастер/промпты — `art/skeleton-warrior-*`, сборка — `sh tools/enemy-sheet.sh`, подробности — `docs/art.md` → «Скелет-воин». Остальные враги процедурные.
+
 ```
 src/engine/   чистая логика, без DOM, покрыта тестами
   types.ts      ВСЕ типы + SAVE_VERSION, GAME_VERSION (версия в углу меню), MAX_ENEMIES, MAX_ALLIES. Начинать чтение отсюда.

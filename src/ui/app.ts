@@ -5,6 +5,7 @@ import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/co
 import { enemyDef } from '../data/enemies';
 import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
 import { heroArtUrls, playHeroClip } from './heroSprite';
+import { enemyArtUrls, playEnemyAction, playEnemyClip } from './enemySprite';
 import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
 import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
@@ -197,7 +198,7 @@ export class App {
     const run = this.run;
     if (!run) return;
     const here = R.currentLocation(run).id;
-    warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'), ...heroArtUrls(run.hero.defId));
+    warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'), ...heroArtUrls(run.hero.defId), ...enemyArtUrls);
     const next = run.locations[run.locationIndex + 1];
     if (next && run.roomIndex >= WARM_NEXT_ROOM) warmImages(locationBackground(next, 'tall'), locationBackground(next, 'wide'));
   }
@@ -625,7 +626,16 @@ export class App {
     R.battleEnemyStep(run);
     const events = run.battle.events.splice(0);
     const plan = planEnemyFx(run, events, victim);
-    const impact = playShots(this.root, plan);
+    let clipImpact = 0;
+    for (const ev of events) {
+      if (ev.type !== 'enemyAction') continue;
+      const at = playEnemyAction(this.root, ev.target, ev.name);
+      if (at > 0) {
+        clipImpact = Math.max(clipImpact, at);
+        plan.lunged.add(ev.target);
+      }
+    }
+    const impact = Math.max(playShots(this.root, plan), clipImpact);
     const land = () => {
       this.stepTimer = null;
       if (run.battle!.phase === 'enemy') {
@@ -896,7 +906,8 @@ export class App {
           // Цифры ударов разнесены по времени, а не по высоте: каждая стартует с той же строки, что и первая.
           const drain = drains.get(key);
           const land = () => {
-            if (hurt) shake(wrap);
+            const animatedEnemy = playEnemyClip(this.root, ev.target, hurt ? 'hurt' : 'block');
+            if (hurt && !animatedEnemy) shake(wrap);
             // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит.
             if (ev.target === 'hero' && this.run) playHeroClip(this.root, this.run.hero.defId, hurt ? 'hurt' : 'block');
             if (seq > 0 && who !== null) lungeAgain(this.root, who);

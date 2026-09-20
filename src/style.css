@@ -1303,6 +1303,7 @@ p {
    иначе область фильтра обрезала бы лист героя — он рисуется ячейкой шире своего места.
    `--tint` ставит поле боя, вне боя переменной нет и спрайты остаются в своей палитре. */
 .field .sprite-wrap img.sprite,
+.field .sprite-wrap canvas.enemy-sheet,
 .field .hero-sprite::before {
   filter: var(--tint, none);
 }
@@ -1314,6 +1315,10 @@ p {
 }
 .bob {
   animation: bob 1.6s ease-in-out infinite;
+}
+.enemy-sheet {
+  image-rendering: auto;
+  flex: none;
 }
 
 /* Рисованный герой (heroSprite.ts): ряд листа — клип, --row его номер, --frames кадров в ряду, --dur длительность.
