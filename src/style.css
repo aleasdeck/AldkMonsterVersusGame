@@ -1066,6 +1066,8 @@ p {
 /* ─── Бой ───────────────────────────────────────────────────────────── */
 
 .field {
+  --fighter-caption-height: 24px;
+  --fighter-floor-inset: 10px;
   display: flex;
   padding: 10px 20px 0;
   min-height: 0;
@@ -1083,7 +1085,7 @@ p {
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  padding-bottom: 10px;
+  padding-bottom: var(--fighter-floor-inset);
 }
 /* С союзниками герой ужимается: 170 px вместо 220. */
 .hero-zone.narrow {
@@ -1157,7 +1159,8 @@ p {
   display: flex;
   justify-content: space-evenly;
   align-items: flex-end;
-  padding-bottom: 8px;
+  /* У врага ещё 6 px padding + 3 px рамки: компенсируем их до линии стоп героя. */
+  padding-bottom: calc(var(--fighter-floor-inset) - 9px);
 }
 .enemy {
   display: flex;
@@ -1199,10 +1202,36 @@ p {
 }
 .enemy .bar {
   width: 140px;
+  flex-shrink: 0;
+}
+/* Верх и низ canvas прозрачны. Убираем их только из раскладки боя, сохраняя сам холст для оружия. */
+.enemy.drawn .sprite-wrap {
+  display: flex;
+}
+.enemy.drawn .enemy-sheet {
+  margin-top: calc(-1 * var(--sprite-top));
+  margin-bottom: calc(-1 * var(--sprite-foot));
+  pointer-events: none;
+}
+.enemy.drawn > .bar {
+  margin-bottom: 14px;
+}
+.hero-zone > .name,
+.enemy > .name {
+  height: var(--fighter-caption-height);
+  line-height: var(--fighter-caption-height);
+  flex-shrink: 0;
 }
 .enemy .name {
   font-size: 19px;
   color: var(--text);
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.field.crowded .enemy .name {
+  max-width: 120px;
 }
 .rank-boss .name {
   color: var(--bad);
