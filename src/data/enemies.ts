@@ -6,7 +6,7 @@ function act(id: string, name: string, effects: EnemyEffect[], condition?: (ctx:
   return condition ? { id, name, effects, condition } : { id, name, effects };
 }
 
-/** Приём элиты или босса с анимацией героя: снаряд, взмах клинком, склянка. Рядовые враги просто наскакивают. */
+/** Приём с отдельным эффектом: снаряд, взмах клинком, склянка. Без fx враг просто наскакивает. */
 const withFx = (fx: FxSpec, a: EnemyAction): EnemyAction => ({ ...a, fx });
 
 const hasRoom = (ctx: AiCtx) => ctx.enemies.length < MAX_ENEMIES;
@@ -241,7 +241,10 @@ const list: EnemyDef[] = [
     hp: 20,
     location: 'crypt',
     rank: 'normal',
-    actions: [act('shoot', 'Выстрел', [{ type: 'attack', amount: 6 }]), act('volley', 'Залп', [{ type: 'attack', amount: 4, hits: 2 }])],
+    actions: [
+      withFx({ kind: 'arrow', color: '#b9b0a0' }, act('shoot', 'Выстрел', [{ type: 'attack', amount: 6 }])),
+      withFx({ kind: 'arrow', color: '#b9b0a0' }, act('volley', 'Залп', [{ type: 'attack', amount: 4, hits: 2 }])),
+    ],
     ai: { type: 'cycle', order: ['shoot', 'volley'] },
     sprite: humanoid('skull', { o: '#22222a', e: '#111111', s: '#e8e4d8', h: '#e8e4d8', b: '#8f8a7c', l: '#d8d3c5', w: '#a67c52' }),
   },

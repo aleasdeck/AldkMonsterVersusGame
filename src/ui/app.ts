@@ -3,7 +3,7 @@ import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerA
 import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { enemyDef } from '../data/enemies';
-import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, type AfterFx, type FxPlan } from './fx';
+import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
 import { heroArtUrls, playHeroClip } from './heroSprite';
 import { enemyArtUrls, playEnemyAction, playEnemyClip } from './enemySprite';
 import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
@@ -631,6 +631,7 @@ export class App {
       if (ev.type !== 'enemyAction') continue;
       const at = playEnemyAction(this.root, ev.target, ev.name);
       if (at > 0) {
+        delayEnemyShots(plan, ev.target, at);
         clipImpact = Math.max(clipImpact, at);
         plan.lunged.add(ev.target);
       }
@@ -910,7 +911,7 @@ export class App {
             if (hurt && !animatedEnemy) shake(wrap);
             // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит.
             if (ev.target === 'hero' && this.run) playHeroClip(this.root, this.run.hero.defId, hurt ? 'hurt' : 'block');
-            if (seq > 0 && who !== null) lungeAgain(this.root, who);
+            if (seq > 0 && who !== null && !this.root.querySelector(`[data-uid="${who}"] .enemy-sheet`)) lungeAgain(this.root, who);
             // Полоска догоняет цифру: первый удар отматывает её назад без перехода, остальные снимают HP по своему куску.
             if (drain) setBarHp(drain.el, drain.hp + drain.left[seq + 1], seq === 0);
             floatText(wrap, text, cls, n - seq);

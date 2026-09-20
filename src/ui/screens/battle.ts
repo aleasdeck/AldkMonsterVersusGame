@@ -112,23 +112,25 @@ function fleeTimer(e: EnemyState): HTMLElement | null {
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
   const size = spriteSize(def.sprite);
-  const px = hasEnemySheet(def.id) ? 144 : Math.round(size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5) * (def.spriteScale ?? 1));
+  const drawn = hasEnemySheet(def.id);
+  const px = drawn ? 144 : Math.round(size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5) * (def.spriteScale ?? 1));
   const targets = app.armedTargets();
   const cls = targets ? (targets.includes(e.uid) ? 'ok' : 'far') : '';
   const el = h(
     'div',
     {
-      class: `enemy rank-${def.rank} ${cls} ${e.aura ? 'aura' : ''}`,
-      style: e.aura ? `--aura:${e.aura}` : '',
+      class: `enemy rank-${def.rank} ${drawn ? 'drawn' : ''} ${cls} ${e.aura ? 'aura' : ''}`,
+      // Canvas сохраняет место для замаха, но в потоке учитывается видимая стойка 73…252.
+      style: `${e.aura ? `--aura:${e.aura};` : ''}${drawn ? `--sprite-top:${px * 73 / 256}px;--sprite-foot:${px * 4 / 256}px` : ''}`,
       'data-uid': e.uid,
       onclick: () => app.applyArmed(e.uid),
     },
     intentPill(app.run!.battle!, e),
     fleeTimer(e),
-    badges(e, false, e),
+    e.statuses.length ? badges(e, false, e) : null,
+    bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
     h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, px, '', e)),
     h('div', { class: 'name' }, e.name),
-    bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
   );
   return bindPreview(app, el, () => enemyPreview(app, e.uid));
 }

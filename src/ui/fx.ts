@@ -15,8 +15,8 @@ import { echoesEffect } from '../engine/combat';
  * (заклинания и магическое оружие), склянка (зелья и Флакон яда), облако на цели (дебаф) и свечение бойца (баф).
  * Снаряды летят по старому полю до перерисовки: App ждёт `impact` мс, потом рисует новое состояние и всплывающие числа;
  * слой `.fx-layer` при перерисовке переезжает в новое дерево, так что взрыв шара и облако склянки доигрываются в нём.
- * Облако и свечение выводятся из событий боя уже после перерисовки. Рядовые враги анимаций не имеют — только наскок;
- * элита и боссы получают снаряды и взмахи через `fx` своих приёмов.
+ * Облако и свечение выводятся после перерисовки. Враги с `fx` у приёма получают снаряды и взмахи;
+ * остальные используют свой рисованный клип или наскок.
  */
 
 // ─── План ────────────────────────────────────────────────────────────────────
@@ -172,8 +172,7 @@ export function planHeroFx(run: RunState, action: PlayerAction): FxPlan {
 }
 
 /**
- * План анимации шага врагов: приём элиты или босса с `fx` летит в жертву (первый союзник, иначе герой),
- * наскок ему не нужен. Рядовые враги и приёмы без `fx` — наскок как раньше.
+ * Приём с `fx` летит в жертву (первый союзник, иначе герой), независимо от ранга врага.
  */
 export function planEnemyFx(run: RunState, events: BattleEvent[], victim: EventTarget): FxPlan {
   const plan = emptyPlan();
@@ -184,7 +183,6 @@ export function planEnemyFx(run: RunState, events: BattleEvent[], victim: EventT
     const e = b.enemies.find((x) => x.uid === ev.target);
     if (!e) continue;
     const def = enemyDef(e.defId);
-    if (def.rank === 'normal') continue;
     const action = def.actions.find((a) => a.name === ev.name);
     const fx = action?.fx;
     if (!action || !fx?.kind) continue;
@@ -196,6 +194,14 @@ export function planEnemyFx(run: RunState, events: BattleEvent[], victim: EventT
     if (hits > 1) plan.impact = FLIGHT[fx.kind];
   }
   return plan;
+}
+
+/** Снаряды рисованного врага стартуют после замаха; цифры урона ждут первого попадания. */
+export function delayEnemyShots(plan: FxPlan, target: EventTarget, windup: number): void {
+  const shots = plan.shots.filter((s) => s.from === target);
+  if (!shots.length) return;
+  for (const shot of shots) shot.delay += windup;
+  plan.impact = Math.max(plan.impact, Math.min(...shots.map((s) => s.delay + FLIGHT[s.kind])));
 }
 
 /** Облако, свечение или щит по событию боя: статус по своему цвету, блок — щит перед бойцом, лечение — зелёное свечение. */
