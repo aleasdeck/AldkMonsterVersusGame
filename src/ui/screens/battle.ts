@@ -11,6 +11,7 @@ import { MAX_ALLIES } from '../../engine/types';
 import { bar, coin, statusIcons } from '../components';
 import { spriteImg, spriteSize } from '../sprites';
 import { heroSprite } from '../heroSprite';
+import { enemySprite, hasEnemySheet } from '../enemySprite';
 import { markIcon, statusIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
 import { tintVar } from '../tint';
@@ -111,7 +112,7 @@ function fleeTimer(e: EnemyState): HTMLElement | null {
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
   const size = spriteSize(def.sprite);
-  const px = Math.round(size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5) * (def.spriteScale ?? 1));
+  const px = hasEnemySheet(def.id) ? 144 : Math.round(size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5) * (def.spriteScale ?? 1));
   const targets = app.armedTargets();
   const cls = targets ? (targets.includes(e.uid) ? 'ok' : 'far') : '';
   const el = h(
@@ -125,7 +126,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     intentPill(app.run!.battle!, e),
     fleeTimer(e),
     badges(e, false, e),
-    h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, px)),
+    h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, px, '', e)),
     h('div', { class: 'name' }, e.name),
     bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
   );
