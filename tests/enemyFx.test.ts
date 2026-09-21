@@ -31,3 +31,17 @@ describe('стрелы скелета-лучника', () => {
     expect(plan.impact).toBe(0);
   });
 });
+
+it('тёмная стрела некроманта выпускается после жеста и попадает через время полёта', () => {
+  const run = newRun('warrior', 6, 0);
+  run.battle = createBattle(heroDef('warrior'), run.hero, ['necromancer'], run.rng);
+  const target = run.battle.enemies[0].uid;
+  const before = JSON.stringify(run);
+  const plan = planEnemyFx(run, [{ type: 'enemyAction', target, name: 'Тёмная стрела' }], 'hero');
+  expect(plan.shots).toHaveLength(1);
+  expect(plan.shots[0]).toMatchObject({ kind: 'orb', from: target, to: 'hero', color: '#7a3fb0' });
+  delayEnemyShots(plan, target, 420);
+  expect(plan.shots[0].delay).toBe(420);
+  expect(plan.impact).toBe(750);
+  expect(JSON.stringify(run)).toBe(before);
+});

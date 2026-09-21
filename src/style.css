@@ -1145,7 +1145,7 @@ p {
   font-size: 26px;
 }
 .field.crowded .enemy {
-  min-width: 140px;
+  min-width: 0;
   padding: 6px 4px;
 }
 .field.crowded .enemy .bar {
@@ -1156,6 +1156,7 @@ p {
 }
 .enemy-zone {
   flex: 1;
+  min-width: 0;
   display: flex;
   justify-content: space-evenly;
   align-items: flex-end;
@@ -1171,7 +1172,8 @@ p {
   padding: 6px 8px;
   border: 3px solid transparent;
   cursor: pointer;
-  min-width: 150px;
+  flex: 1;
+  min-width: 0;
 }
 .enemy:hover {
   border-color: #55557a;
@@ -1205,10 +1207,14 @@ p {
   flex-shrink: 0;
 }
 /* Верх и низ canvas прозрачны. Убираем их только из раскладки боя, сохраняя сам холст для оружия. */
-.enemy.drawn .sprite-wrap {
+.enemy .sprite-wrap,
+.ally .sprite-wrap {
   display: flex;
+  width: 100%;
+  justify-content: center;
 }
-.enemy.drawn .enemy-sheet {
+.enemy .sprite-wrap > .sprite,
+.ally .sprite-wrap > .sprite {
   margin-top: calc(-1 * var(--sprite-top));
   margin-bottom: calc(-1 * var(--sprite-foot));
   pointer-events: none;
