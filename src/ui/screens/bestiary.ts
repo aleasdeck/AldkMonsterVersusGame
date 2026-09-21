@@ -3,10 +3,20 @@ import { ENEMY_LIST } from '../../data/enemies';
 import { LOCATIONS, enemyScale, locationDef } from '../../data/locations';
 import { describeAction, type ActionScale } from '../../engine/combat';
 import { enemySprite as spriteImg } from '../enemySprite';
+import { enemySize } from '../characterSize';
 import type { EnemyDef, LocationId } from '../../engine/types';
 import type { App } from '../app';
 
 const RANK_NAMES: Record<EnemyDef['rank'], string> = { normal: 'Рядовой', elite: 'Элита', boss: 'Босс' };
+
+/** В альбоме вся шкала уменьшена пропорционально, стопы стоят на нижнем краю слота. */
+function portrait(def: EnemyDef, box: number, cls = ''): HTMLElement {
+  const size = enemySize(def, box / 200);
+  const sprite = spriteImg(def.sprite, def.id, size.px, cls);
+  sprite.style.marginTop = `${-size.top}px`;
+  sprite.style.marginBottom = `${-size.foot}px`;
+  return h('div', { style: `width:${box}px;height:${box}px;display:flex;align-items:flex-end;justify-content:center;flex:none` }, sprite);
+}
 
 /** Враги локации в порядке таблицы: рядовые, элиты, боссы — как в enemies.ts. */
 function enemiesOf(loc: LocationId): EnemyDef[] {
@@ -22,7 +32,7 @@ function enemyTile(app: App, def: EnemyDef, open: boolean, selected: boolean): H
       tip: open ? `${def.name} · ${RANK_NAMES[def.rank]}` : 'Ещё не встречен',
       onclick: () => app.bestiarySelect(def.id),
     },
-    spriteImg(def.sprite, def.id, 48, open ? '' : 'silhouette'),
+    portrait(def, 48, open ? '' : 'silhouette'),
     h('div', { class: 'beast-tile-name' }, open ? def.name : '???'),
   );
 }
@@ -64,7 +74,7 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
     return h(
       'div',
       { class: 'beast-detail' },
-      h('div', { class: 'beast-head' }, spriteImg(def.sprite, def.id, 96, 'silhouette'), h('div', { class: 'beast-title' }, h('div', { class: 'beast-name' }, '???'), h('div', { class: 'beast-rank dim' }, `${RANK_NAMES[def.rank]} · ${loc.name}`))),
+      h('div', { class: 'beast-head' }, portrait(def, 96, 'silhouette'), h('div', { class: 'beast-title' }, h('div', { class: 'beast-name' }, '???'), h('div', { class: 'beast-rank dim' }, `${RANK_NAMES[def.rank]} · ${loc.name}`))),
       h('div', { class: 'beast-empty dim' }, 'Запись откроется, когда этот враг появится в бою — сам, по призыву или отделившись от другого.'),
     );
   }
@@ -75,7 +85,7 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
     h(
       'div',
       { class: 'beast-head' },
-      spriteImg(def.sprite, def.id, 96, 'bob'),
+      portrait(def, 96),
       h(
         'div',
         { class: 'beast-title' },

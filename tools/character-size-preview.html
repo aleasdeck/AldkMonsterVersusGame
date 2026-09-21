@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>Масштаб персонажей</title>
+<style>
+  html { overflow: auto !important; height: auto !important; }
+  body { display: block !important; overflow: auto !important; height: auto !important; padding: 20px; }
+  h1 { margin: 0 0 12px; }
+  h2 { font-size: 20px; margin: 18px 0 6px; }
+  .size-scene { width: 960px; height: 320px; background: #252131 url('/src/assets/backgrounds/crypt-wide.png') center / cover; }
+  .size-scene .field { height: 320px; }
+  .size-scene .sprite-wrap { pointer-events: none; }
+</style>
+<h1>Масштаб персонажей · рост тела</h1>
+<main id="scenes"></main>
+<script type="module">
+  import '../src/style.css';
+  import { enemyDef } from '../src/data/enemies.ts';
+  import { enemySprite, hasEnemySheet } from '../src/ui/enemySprite.ts';
+  import { enemySize, enemySizeStyle } from '../src/ui/characterSize.ts';
+  import { heroSprite } from '../src/ui/heroSprite.ts';
+  import { HERO_BODY_HEIGHT } from '../src/data/characterSizes.ts';
+  import { h } from '../src/ui/dom.ts';
+  const groups = [
+    ['Скелеты — 100 · Некромант — 120 · Воин — 128', ['skeleton_warrior', 'skeleton_archer', 'necromancer'], false],
+    ['Крыса — 40 · Волк — 72 · Тролль — 156', ['rat', 'wolf', 'troll'], false],
+    ['Максимум бойцов: герой, два союзника и три некроманта', ['necromancer', 'necromancer', 'necromancer'], true],
+    ['Дракон — 184', ['dragon'], false],
+    ['Костяной голем — 156 · Слизнёнок — 36 · Некромант — 120', ['bone_golem', 'slimelet', 'necromancer'], false],
+  ];
+  for (const [title, ids, crowded] of groups) {
+    const field = h('div', { class: `field ${crowded ? 'crowded' : ''}` });
+    field.append(h('div', { class: `hero-zone ${crowded ? 'narrow' : ''}` },
+      h('div', { class: 'sprite-wrap' }, heroSprite('warrior', HERO_BODY_HEIGHT.warrior, 'battle')), h('div', { class: 'name' }, 'Воин')));
+    if (crowded) {
+      const allies = h('div', { class: 'ally-zone' });
+      for (let i = 0; i < 2; i++) {
+        const def = enemyDef('wolf'), size = enemySize(def);
+        allies.append(h('div', { class: 'ally', style: enemySizeStyle(size) },
+          h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, size.px)), h('div', { class: 'name' }, 'Волк')));
+      }
+      field.append(allies);
+    }
+    const zone = h('div', { class: 'enemy-zone' });
+    for (const id of ids) {
+      const def = enemyDef(id), size = enemySize(def);
+      zone.append(h('div', { class: `enemy ${hasEnemySheet(id) ? 'drawn' : ''}`, style: enemySizeStyle(size) },
+        h('div', { class: 'pill' }, 'Атака'), h('div', { class: 'bar' }, 'HP'),
+        h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, size.px)), h('div', { class: 'name' }, def.name)));
+    }
+    field.append(zone);
+    document.querySelector('main').append(h('h2', null, title), h('div', { class: 'size-scene' }, field));
+  }
+</script>
+</html>

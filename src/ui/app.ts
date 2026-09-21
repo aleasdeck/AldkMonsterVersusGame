@@ -5,7 +5,7 @@ import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/co
 import { enemyDef } from '../data/enemies';
 import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
 import { heroArtUrls, playHeroClip } from './heroSprite';
-import { enemyArtUrls, playEnemyAction, playEnemyClip } from './enemySprite';
+import { enemyArtUrls, playEnemyAction, playEnemyClip, playEnemyDeaths } from './enemySprite';
 import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
 import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
@@ -587,6 +587,7 @@ export class App {
     const impact = playShots(this.root, plan);
     const land = () => {
       this.fxTimer = null;
+      playEnemyDeaths(this.root, events, HIT_GAP);
       this.render();
       this.playEvents(events, plan);
     };
@@ -639,6 +640,7 @@ export class App {
     const impact = Math.max(playShots(this.root, plan), clipImpact);
     const land = () => {
       this.stepTimer = null;
+      playEnemyDeaths(this.root, events, HIT_GAP);
       if (run.battle!.phase === 'enemy') {
         this.render();
         this.scheduleStep(this.playEvents(events, plan));

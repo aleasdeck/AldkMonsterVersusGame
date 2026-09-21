@@ -1,6 +1,8 @@
 import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
+import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
+import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
 import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
@@ -9,7 +11,6 @@ import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
 import { MAX_ALLIES } from '../../engine/types';
 import { bar, coin, statusIcons } from '../components';
-import { spriteImg, spriteSize } from '../sprites';
 import { heroSprite } from '../heroSprite';
 import { enemySprite, hasEnemySheet } from '../enemySprite';
 import { markIcon, statusIcon } from '../icons';
@@ -111,17 +112,17 @@ function fleeTimer(e: EnemyState): HTMLElement | null {
  */
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
-  const size = spriteSize(def.sprite);
+  const size = enemySize(def);
   const drawn = hasEnemySheet(def.id);
-  const px = drawn ? 144 : Math.round(size * (size >= 20 ? 5 : def.rank === 'boss' ? 7 : def.rank === 'elite' ? 6 : 5) * (def.spriteScale ?? 1));
+  const px = size.px;
   const targets = app.armedTargets();
   const cls = targets ? (targets.includes(e.uid) ? 'ok' : 'far') : '';
   const el = h(
     'div',
     {
       class: `enemy rank-${def.rank} ${drawn ? 'drawn' : ''} ${cls} ${e.aura ? 'aura' : ''}`,
-      // Canvas сохраняет место для замаха, но в потоке учитывается видимая стойка 73…252.
-      style: `${e.aura ? `--aura:${e.aura};` : ''}${drawn ? `--sprite-top:${px * 73 / 256}px;--sprite-foot:${px * 4 / 256}px` : ''}`,
+      // Холст сохраняет запас под движение, прозрачные поля исключены из высоты карточки.
+      style: `${e.aura ? `--aura:${e.aura};` : ''}${enemySizeStyle(size)}`,
       'data-uid': e.uid,
       onclick: () => app.applyArmed(e.uid),
     },
@@ -154,14 +155,15 @@ export function enemyPreview(app: App, uid: number): PreviewSpec {
  */
 function allyView(b: BattleState, a: AllyState, underFire: boolean): HTMLElement {
   const def = enemyDef(a.defId);
+  const size = enemySize(def);
   const intent = computeAllyIntent(b, a);
   const tail = intent.target ? ` → ${intent.target[0]}` : '';
   return h(
     'div',
-    { class: 'ally', 'data-uid': a.uid },
+    { class: 'ally', 'data-uid': a.uid, style: enemySizeStyle(size) },
     h('div', { class: 'pill pill-ally', tip: `${intent.text}\nХодит сам после вашего хода`, tipTitle: `${a.name}: ${intent.name}` }, h('span', { class: 'pill-icon' }, intent.icon), `${intent.label}${tail}`.trim()),
     h('div', { class: 'badges' }, underFire ? h('span', { class: 'under-fire', tip: 'Враги атакуют этого союзника раньше героя' }, '◀ под ударом') : null, a.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${a.block}`) : null, statusIcons(a)),
-    h('div', { class: 'sprite-wrap' }, spriteImg(def.sprite, def.id, spriteSize(def.sprite) * 4)),
+    h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, size.px, '', a)),
     h('div', { class: 'name' }, a.name),
     bar('hp', a.hp, a.maxHp, '', '', a.block),
   );
@@ -483,7 +485,7 @@ export function battleScreen(app: App): HTMLElement {
     'div',
     { class: `hero-zone ${hasAllies ? 'narrow' : ''}` },
     badges(b.hero, true, undefined, fatigueBadge(b)),
-    h('div', { class: 'sprite-wrap' }, heroSprite(def.id, hasAllies ? 104 : 128, 'battle')),
+    h('div', { class: 'sprite-wrap' }, heroSprite(def.id, HERO_BODY_HEIGHT[def.id] ?? 128, 'battle')),
     h('div', { class: 'name' }, def.name),
   );
 

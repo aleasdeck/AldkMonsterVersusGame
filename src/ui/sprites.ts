@@ -237,6 +237,23 @@ export function spriteDataUrl(spec: SpriteSpec, key: string): string {
   return url;
 }
 
+const boundsCache = new Map<string, { top: number; bottom: number; height: number }>();
+/** Границы процедурной фигуры без прозрачных полей; тот же seed, что при отрисовке. */
+export function spriteBounds(spec: SpriteSpec, key: string): { top: number; bottom: number; height: number } {
+  const cacheKey = `${key}:${JSON.stringify(spec)}`;
+  const cached = boundsCache.get(cacheKey);
+  if (cached) return cached;
+  const occupied = spec.type === 'humanoid'
+    ? [...(HEADS[spec.head] ?? HEADS.bare), ...BODY].map((row) => /[^.]/.test(row))
+    : genBlob(hashString(spec.seed ?? key), spec.size ?? 16).map((row) => row.some((pixel) => pixel !== 0));
+  const first = occupied.indexOf(true);
+  const top = first < 0 ? 0 : first;
+  const bottom = first < 0 ? occupied.length : occupied.lastIndexOf(true) + 1;
+  const bounds = { top, bottom, height: bottom - top };
+  boundsCache.set(cacheKey, bounds);
+  return bounds;
+}
+
 export function spriteImg(spec: SpriteSpec, key: string, displayPx: number, cls = ''): HTMLImageElement {
   const img = document.createElement('img');
   img.src = spriteDataUrl(spec, key);

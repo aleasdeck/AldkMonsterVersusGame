@@ -433,8 +433,6 @@ export interface EnemyDef {
   ai: { type: 'cycle'; order: string[] } | { type: 'boss'; rules: BossRule[] };
   /** Процентный уворот при появлении (статус `evade`, 0..100): столько процентов ударов и заклинаний проходит мимо. */
   evade?: number;
-  /** Множитель размера спрайта в бою (1 — как у всех своего ранга): гном мельче элиты, ему 0.7. */
-  spriteScale?: number;
   /** Срабатывает при смерти: деление, взрыв. */
   onDeath?: { name: string; effects: EnemyEffect[] };
   /**
@@ -684,7 +682,7 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.41.12';
+export const GAME_VERSION = '0.41.16';
 
 export const SAVE_VERSION = 31;
 
