@@ -1,7 +1,7 @@
 import type { ArtifactInstance, BattleLog, GearInstance, HeroPersistent, RunPhase, RunState, RunStats } from './types';
 import { GAME_VERSION } from './types';
 import { ROOMS_PER_LOCATION } from '../data/locations';
-import { battleTitle, currentLocation, currentRoomKind, heroStats } from './run';
+import { battleTitle, currentLocation, currentRoomKind, effectiveRoomKind, heroStats } from './run';
 
 // ─── Запись статистики забега ───────────────────────────────────────────────
 // Игра на Pages шлёт одну такую запись на каждый законченный или брошенный забег (ui/telemetry.ts → Google Таблица).
@@ -66,11 +66,16 @@ export interface RunReport {
   /** Заголовок последнего боя — при гибели это и есть «кто убил». */
   lastBattle: string;
   battles: number;
+  /**
+   * Доля урона по HP врагов от базового удара за весь забег, проценты (v0.42). Главная метрика реворка сборок:
+   * у бота до него было 50–97 %; сборка, в которой связка работает, должна опускать её ниже половины.
+   */
+  attackShare: number;
   detail: RunReportDetail;
 }
 
-/** Бой в записи: как в журнале, но без строк лога. Незакрытый бой (забег брошен посреди него) — `unfinished`. */
-export type ReportBattle = Omit<BattleLog, 'lines'> | { title: string; result: 'unfinished'; turns: number };
+/** Бой в записи: как в журнале, но без строк лога и разбора урона. Незакрытый бой (забег брошен посреди него) — `unfinished`. */
+export type ReportBattle = Pick<BattleLog, 'title' | 'kind' | 'result' | 'turns'> | { title: string; kind: BattleLog['kind']; result: 'unfinished'; turns: number };
 
 /** Полная картина для разбора: снаряжение как есть, цифры, бои без строк лога (строки — десятки килобайт). */
 export interface RunReportDetail {
@@ -82,6 +87,8 @@ export interface RunReportDetail {
   /** Вид события, если герой в нём. */
   event: string | null;
   battles: ReportBattle[];
+  /** Урон по HP врагов за забег по источникам (v0.42): `attack`, id артефактов, `dot`, `thorns`, `riposte`, `ally`, `potion`. */
+  dealt: Record<string, number>;
 }
 
 /** «sword@3 +crit»: база, тир и стат аффикса — достаточно, чтобы фильтровать таблицу; имя и цифры лежат в detail. */
@@ -105,13 +112,16 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
   // бой пропал бы из записи целиком (а при гибели это ровно тот бой, который и интересен).
   const b = run.battle;
   const live: ReportBattle | null = b
-    ? { title: battleTitle(run), result: b.phase === 'lost' ? 'lost' : b.phase === 'won' ? (b.fled ? 'fled' : 'won') : 'unfinished', turns: b.turn }
+    ? { title: battleTitle(run), kind: effectiveRoomKind(run), result: b.phase === 'lost' ? 'lost' : b.phase === 'won' ? (b.fled ? 'fled' : 'won') : 'unfinished', turns: b.turn }
     : null;
   const stats: RunStats = b
     ? { ...s, kills: s.kills + b.stats.kills, turns: s.turns + b.turn, damageDealt: s.damageDealt + b.stats.damageDealt, damageTaken: s.damageTaken + b.stats.damageTaken }
     : s;
-  const battles: ReportBattle[] = run.logs.map(({ title, result, turns }) => ({ title, result, turns }));
+  const battles: ReportBattle[] = run.logs.map(({ title, kind, result, turns }) => ({ title, kind, result, turns }));
   if (live) battles.push(live);
+  const dealt: Record<string, number> = {};
+  for (const src of [...run.logs.map((l) => l.dealt ?? {}), b?.dealtBy ?? {}]) for (const [k, v] of Object.entries(src)) dealt[k] = (dealt[k] ?? 0) + v;
+  const dealtTotal = Object.values(dealt).reduce((a, v) => a + v, 0);
   const last = battles.at(-1);
   return {
     event: ctx.event,
@@ -145,6 +155,7 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     potion: run.hero.potion ?? '',
     lastBattle: last?.title ?? '',
     battles: battles.length,
+    attackShare: dealtTotal > 0 ? Math.round(((dealt.attack ?? 0) / dealtTotal) * 100) : 0,
     detail: {
       hero: run.hero,
       stats,
@@ -153,6 +164,7 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
       roomIndex: run.roomIndex,
       event: run.event?.kind ?? null,
       battles,
+      dealt,
     },
   };
 }

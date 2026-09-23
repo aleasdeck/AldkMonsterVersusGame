@@ -6,7 +6,7 @@ import { artifactDef } from '../src/data/artifacts';
 import { ACTS, ACT_DMG_BONUS, ACT_TOUGH_HP, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
 import { createRng } from '../src/engine/rng';
-import { canUseAction } from '../src/engine/combat';
+import { canUseAction, performAction } from '../src/engine/combat';
 import {
   altarPray,
   altarSacrifice,
@@ -1133,7 +1133,7 @@ describe('статистика забега (report.ts)', () => {
     expect(r.damageDealt).toBe(37);
     expect(r.damageTaken).toBe(19);
     expect(r.hp).toBe(0);
-    expect(r.detail.battles).toEqual([{ title: battleTitle(run), result: 'lost', turns: 4 }]);
+    expect(r.detail.battles).toEqual([{ title: battleTitle(run), kind: 'fight', result: 'lost', turns: 4 }]);
     expect(r.detail.stats.kills).toBe(2);
     // Те же цифры, что и у записи после кнопки: клик ничего не добавляет и не теряет.
     finishBattle(run);
@@ -1150,6 +1150,32 @@ describe('статистика забега (report.ts)', () => {
     expect(r.battles).toBe(1);
     expect(r.turns).toBe(3);
     expect(r.damageDealt).toBe(12);
-    expect(r.detail.battles).toEqual([{ title: battleTitle(run), result: 'unfinished', turns: 3 }]);
+    expect(r.detail.battles).toEqual([{ title: battleTitle(run), kind: 'fight', result: 'unfinished', turns: 3 }]);
+  });
+
+  it('доля урона от удара (v0.42): закрытые бои и незакрытый складываются, перебор не считается', () => {
+    const run = newRun('warrior', 3, 1_000_000);
+    enterRoom(run);
+    const b = run.battle!;
+    // Удар по первому врагу засчитывается удару — не больше его остатка HP.
+    const target = b.enemies[0];
+    target.hp = 2;
+    performAction(b, { type: 'attack', target: target.uid }, run.rng);
+    expect(b.dealtBy.attack).toBe(2);
+    b.dealtBy.dot = 6;
+    const r = runReport(run, { ...ctx, event: 'abandoned' });
+    expect(r.detail.dealt).toEqual({ attack: 2, dot: 6 });
+    expect(r.attackShare).toBe(25);
+  });
+
+  it('лог боя хранит вид клетки и разбор урона (v0.42)', () => {
+    const run = newRun('warrior', 3, 1_000_000);
+    enterRoom(run);
+    const b = run.battle!;
+    b.dealtBy = { attack: 10, shield_bash: 5 };
+    b.phase = 'won';
+    finishBattle(run);
+    expect(run.logs[0].kind).toBe('fight');
+    expect(run.logs[0].dealt).toEqual({ attack: 10, shield_bash: 5 });
   });
 });

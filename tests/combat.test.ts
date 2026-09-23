@@ -1736,3 +1736,36 @@ describe('v0.38: связки', () => {
     expect(state.log.some((l) => l.includes('крит 150 %'))).toBe(true);
   });
 });
+
+describe('урон по источникам (v0.42)', () => {
+  it('удар — attack, приём — его id, раны в ход врагов — dot', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'bleed_cut', tier: 1 }] });
+    const bear = first(state);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(state.dealtBy.attack).toBe(5);
+    performAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: bear.uid }, rng);
+    // Порез сам не бьёт — только вешает кровь; урон крови придёт в ход врагов.
+    expect(state.dealtBy.bleed_cut).toBeUndefined();
+    endTurn(state);
+    resolveEnemyTurn(state, rng);
+    expect(state.dealtBy.dot).toBe(3);
+    // Вне хода героя источник пуст — чужие тики не записываются на последний приём.
+    expect(state.source).toBe('');
+  });
+
+  it('перебор сверх остатка HP не считается', () => {
+    const { state, rng } = mkBattle('warrior', ['rat']);
+    const rat = first(state);
+    rat.hp = 1;
+    performAction(state, { type: 'attack', target: rat.uid }, rng);
+    expect(state.dealtBy.attack).toBe(1);
+  });
+
+  it('Ответный удар записывается отдельно', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'riposte', tier: 3 }] });
+    state.hero.block = 20;
+    endTurn(state);
+    resolveEnemyTurn(state, rng);
+    expect(state.dealtBy.riposte).toBe(riposteDamage(state.hero));
+  });
+});

@@ -549,6 +549,17 @@ export interface BattleState {
   /** Враг сбежал, а не погиб: бой закрыт победой, но добыча ушла с ним. */
   fled: boolean;
   stats: { damageDealt: number; damageTaken: number; kills: number };
+  /**
+   * Чьё сейчас действие (v0.42): ключ приёма героя — `attack`, id артефакта, `potion` — пока идёт его ход, пусто — в ход врагов.
+   * По нему `damageEnemy` раскладывает урон в `dealtBy`.
+   */
+  source: string;
+  /**
+   * Урон по HP врагов за бой по источникам (v0.42): `attack` — базовый удар, id артефакта — приём со всем, что он сделал,
+   * `potion` — зелье, `dot` — тики ран, `thorns` — шипы героя, `riposte` — Ответный удар, `ally` — союзники. Перебор сверх
+   * остатка HP не считается. Отсюда метрика «доля урона не от удара» в симуляторе и в статистике игроков.
+   */
+  dealtBy: Record<string, number>;
 }
 
 export type PlayerAction =
@@ -675,6 +686,10 @@ export interface RunStats {
 export interface BattleLog {
   /** «Акт 1 · Лес · Бой 2: Волк, Волк». */
   title: string;
+  /** Вид боя (v0.42): рядовой, элита, босс или событие (вор) — длина боя меряется по рангам. */
+  kind: RoomKind;
+  /** Урон по HP врагов за бой по источникам — копия `BattleState.dealtBy` (v0.42). */
+  dealt: Record<string, number>;
   /** `fled` — враг сбежал (вор): поле пусто, но добыча ушла с ним. */
   result: 'won' | 'lost' | 'fled';
   turns: number;
@@ -682,9 +697,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.41.16';
+export const GAME_VERSION = '0.42.0';
 
-export const SAVE_VERSION = 31;
+export const SAVE_VERSION = 32;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

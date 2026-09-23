@@ -125,6 +125,7 @@ function cloneBattle(b: BattleState): BattleState {
     events: [],
     log: [],
     stats: { ...b.stats },
+    dealtBy: { ...b.dealtBy },
   };
 }
 

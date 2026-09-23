@@ -345,6 +345,18 @@ interface HitOpts {
   detail?: HitDetail;
   /** Нужен цели с процентным уворотом (`evade`): бросок делается на каждый удар и каждое заклинание отдельно. */
   rng?: Rng;
+  /** Источник урона для `dealtBy`, если он не следует из хода и вида урона (Ответный удар). */
+  src?: string;
+}
+
+/**
+ * Куда записать урон по врагу (v0.42): в ход героя — его приём целиком, со взрывом ран и сквозным ударом; в ход врагов — по виду урона.
+ * Перебор сверх остатка HP не считается: иначе добивание слабого врага ударом на 30 выглядело бы главным уроном боя.
+ */
+function noteDealt(state: BattleState, kind: DamageKind, opts: HitOpts, dealt: number): void {
+  if (dealt <= 0) return;
+  const key = opts.src ?? (opts.attacker ? 'ally' : state.source || (kind === 'dot' ? 'dot' : kind === 'thorns' ? 'thorns' : 'other'));
+  state.dealtBy[key] = (state.dealtBy[key] ?? 0) + dealt;
 }
 
 function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, opts: HitOpts = {}): number {
@@ -394,6 +406,7 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     rest -= b;
     detail.blocked = b;
   }
+  noteDealt(state, kind, opts, Math.min(rest, Math.max(0, e.hp)));
   e.hp -= rest;
   state.stats.damageDealt += rest;
   state.events.push({ type: 'damage', target: e.uid, amount: rest, kind: rest === 0 ? 'blocked' : crit ? 'crit' : kind });
@@ -455,7 +468,7 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
         source.riposted = true;
         const r = riposteDamage(h);
         log(state, `Ответный удар: ${r} урона ${source.name} (щит погасил ${b})`);
-        damageEnemy(state, source, r, 'hit', { noThorns: true });
+        damageEnemy(state, source, r, 'hit', { noThorns: true, src: 'riposte' });
       }
     }
   }
@@ -1096,6 +1109,16 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
 export function performAction(state: BattleState, action: PlayerAction, rng: Rng): void {
   const err = canUseAction(state, action);
   if (err) throw new Error(err);
+  // Весь урон этого действия — его: удар, приём со взрывом ран, зелье (dealtBy, v0.42).
+  state.source = action.type === 'artifact' ? action.artifactId : action.type;
+  try {
+    heroAct(state, action, rng);
+  } finally {
+    state.source = '';
+  }
+}
+
+function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
   const h = state.hero;
   if (action.type === 'attack') {
     h.sta -= 1;
@@ -1656,6 +1679,8 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     stolenArtifact: null,
     fled: false,
     stats: { damageDealt: 0, damageTaken: 0, kills: 0 },
+    source: '',
+    dealtBy: {},
   };
   for (const id of enemyIds) spawnEnemy(state, id, rng, false);
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
