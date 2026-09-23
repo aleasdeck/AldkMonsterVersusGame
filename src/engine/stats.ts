@@ -3,6 +3,26 @@ import { ARTIFACTS } from '../data/artifacts';
 import { affixMods, armorPerkMods, canWearArmor, canWieldWeapon, gearPerkText, weaponDice, weaponPerkMods } from '../data/gear';
 import { equipGear } from './equipment';
 import { archetypeCounts, setMods } from '../data/archetypes';
+import { TRAITS } from '../data/traits';
+
+/**
+ * Что сверх снаряжения идёт в статы героя в забеге (v0.44): врождённый навык (его пассивка и метка архетипа в наборе)
+ * и черта. Без контекста — голое снаряжение: так считают тесты оружия и брони и предпросмотр чужого героя.
+ */
+export interface StatCtx {
+  innate?: ArtifactInstance | null;
+  trait?: string | null;
+}
+
+/** Врождённый навык героя как артефакт с тиром = уровнем навыка; без уровня (тестовый герой) — нет навыка. */
+export function innateOf(hero: HeroPersistent): ArtifactInstance | null {
+  return hero.innateTier ? { id: hero.signature, tier: hero.innateTier } : null;
+}
+
+/** Контекст героя в забеге: его навык и черта. */
+export function statCtxOf(hero: HeroPersistent): StatCtx {
+  return { innate: innateOf(hero), trait: hero.trait ?? null };
+}
 
 export function socketedArtifacts(weapon: GearInstance, armor: GearInstance): ArtifactInstance[] {
   const out: ArtifactInstance[] = [];
@@ -24,7 +44,7 @@ export const DEFAULT_CRIT_DMG = 150;
  * Статы героя: база героя → кубик оружия в его руках (владение, тип) → перки оружия и брони
  * (перк работает, только если герой владеет типом оружия и умеет носить тип брони) → аффиксы → пассивные артефакты.
  */
-export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInstance): DerivedStats {
+export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInstance, ctx: StatCtx = {}): DerivedStats {
   const dice = weaponDice(def, weapon);
   const s: DerivedStats = {
     maxHp: def.hp + armor.hp,
@@ -90,18 +110,27 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     burnImmune: 0,
     blockPerBurning: 0,
     spellIgniteAll: 0,
+    spellCharge: 0,
+    backstabPoison: 0,
+    overhealBlock: 0,
+    rageTrait: 0,
+    farShot: 0,
   };
   applyMods(s, weaponPerkMods(weapon, def));
   applyMods(s, armorPerkMods(armor, def));
   applyMods(s, affixMods(weapon));
   applyMods(s, affixMods(armor));
-  const arts = socketedArtifacts(weapon, armor);
+  // Врождённый навык (v0.44) — как вставленный артефакт: его пассивка работает, метка идёт в набор.
+  const arts = ctx.innate ? [...socketedArtifacts(weapon, armor), ctx.innate] : socketedArtifacts(weapon, armor);
   for (const a of arts) {
     const ad = ARTIFACTS[a.id];
     if (ad?.mods) applyMods(s, ad.mods(a.tier));
   }
   // Бонусы наборов (v0.43): две и три вещи одного архетипа — те же статы, что у пассивок.
   for (const m of setMods(archetypeCounts(arts))) applyMods(s, m);
+  // Черта героя (v0.44): растёт вместе с навыком — уровень навыка и есть номер локации.
+  const trait = ctx.trait ? TRAITS[ctx.trait] : undefined;
+  if (trait) applyMods(s, trait.mods(ctx.innate?.tier ?? 1));
   s.crit = Math.min(1, s.crit);
   // Крит слабее обычного удара не бывает.
   s.critDmg = Math.max(100, s.critDmg);
@@ -112,7 +141,7 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
 }
 
 export function heroStatsOf(def: HeroDef, hero: HeroPersistent): DerivedStats {
-  return computeStats(def, hero.weapon, hero.armor);
+  return computeStats(def, hero.weapon, hero.armor, statCtxOf(hero));
 }
 
 export interface GearSwapPreview {
@@ -134,12 +163,12 @@ export interface GearSwapPreview {
  * Считает на копии героя правилами equipGear, самого героя не трогает. Из разницы строятся дельты на карточках.
  */
 export function previewGearSwap(def: HeroDef, hero: HeroPersistent, gear: GearInstance): GearSwapPreview {
-  const before = computeStats(def, hero.weapon, hero.armor);
+  const before = heroStatsOf(def, hero);
   const copy: HeroPersistent = { ...hero, weapon: structuredClone(hero.weapon), armor: structuredClone(hero.armor) };
   const old = gear.kind === 'weapon' ? hero.weapon : hero.armor;
   const overflow = equipGear(copy, gear);
   const fresh = gear.kind === 'weapon' ? copy.weapon : copy.armor;
-  const after = computeStats(def, copy.weapon, copy.armor);
+  const after = heroStatsOf(def, copy);
   const works = (g: GearInstance) => (g.kind === 'weapon' ? canWieldWeapon(def, g) : canWearArmor(def, g));
   return {
     before,

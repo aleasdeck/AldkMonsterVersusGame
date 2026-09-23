@@ -4,6 +4,7 @@ import { makeStartingGear } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
 import { artifactCard, skillLine, statsGrid } from '../components';
+import { traitDef } from '../../data/traits';
 import { heroAvatar, heroSprite } from '../heroSprite';
 import { pickedSignature, signatureUnlocked } from '../save';
 import type { HeroDef } from '../../engine/types';
@@ -44,11 +45,20 @@ function signatureCard(app: App, def: HeroDef, id: string, chosen: string): HTML
     { class: 'sig-note' },
     !open ? 'Откроется после победы за героя' : selected ? '✓ в забег с этим' : 'нажмите, чтобы выбрать',
   );
+  // Врождённый навык (v0.44): уровень растёт с локацией, сокет не занимает.
+
   const card = artifactCard({ id, tier: 1 }, undefined, note);
   card.classList.add('sig-card');
   if (selected) card.classList.add('selected');
   if (!open) card.classList.add('locked');
-  card.setAttribute('tip', open ? (selected ? 'С этим артефактом герой начнёт забег' : 'Нажмите, чтобы начать забег с этим артефактом; второй в этом забеге не выпадет') : `Второй персональный артефакт: откроется, когда ${def.name} пройдёт все три акта`);
+  card.setAttribute(
+    'tip',
+    open
+      ? selected
+        ? 'С этим навыком герой начнёт забег: он не занимает сокет, уровень растёт с каждой локацией (1 → 2 → 3)'
+        : 'Нажмите, чтобы начать забег с этим навыком'
+      : `Второй врождённый навык: откроется, когда ${def.name} пройдёт все три акта`,
+  );
   card.addEventListener('click', () => app.selectSignature(def.id, id));
   return card;
 }
@@ -59,8 +69,9 @@ function signatureCard(app: App, def: HeroDef, id: string, chosen: string): HTML
  */
 function heroPreview(app: App, def: HeroDef): HTMLElement {
   const chosen = pickedSignature(app.profile, def);
-  const gear = makeStartingGear(def, chosen);
-  const s = computeStats(def, gear.weapon, gear.armor);
+  const gear = makeStartingGear(def);
+  const trait = traitDef(def.traits[0]);
+  const s = computeStats(def, gear.weapon, gear.armor, { innate: { id: chosen, tier: 1 }, trait: trait.id });
   return h(
     'div',
     { class: 'hero-preview' },
@@ -74,6 +85,7 @@ function heroPreview(app: App, def: HeroDef): HTMLElement {
         h('div', { class: 'preview-name' }, def.name),
         h('div', { class: 'preview-role' }, def.role),
         skillLine(def),
+        h('div', { class: 'preview-trait', tip: 'Черта героя: своя механика, работает всегда' }, h('span', { class: 'trait-name' }, `${trait.name}: `), trait.describe(1)),
         h('div', { class: 'preview-gear' }, `Старт: ${def.weapon.name} (${gear.weapon.dmgMin}–${gear.weapon.dmgMax}) · ${def.armor.name}`),
       ),
     ),
@@ -90,7 +102,7 @@ function heroPreview(app: App, def: HeroDef): HTMLElement {
       h(
         'div',
         { class: 'preview-col' },
-        h('h3', null, 'Персональный артефакт: один из двух'),
+        h('h3', null, 'Врождённый навык: один из двух'),
         h('div', { class: 'preview-arts' }, ...def.signatures.map((id) => signatureCard(app, def, id, chosen))),
       ),
     ),

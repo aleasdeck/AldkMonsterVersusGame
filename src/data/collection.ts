@@ -145,6 +145,8 @@ export function loadoutFinds(hero: HeroPersistent): string[] {
     add(`${gear.kind}:${gear.base}`);
     for (const slot of gear.slots) if (slot) add(`art:${slot.id}`, slot.tier);
   }
+  // Врождённый навык (v0.44) — не в сокете, но в руках героя: открывает запись своего уровня.
+  if (hero.innateTier) add(`art:${hero.signature}`, hero.innateTier);
   if (hero.potion) add(`potion:${hero.potion}`);
   return keys;
 }

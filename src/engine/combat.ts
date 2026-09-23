@@ -27,7 +27,7 @@ import { enemyScale, locationDef } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
 import { SWEEP_MULT } from '../data/gear';
 import { potionDef } from '../data/potions';
-import { computeStats, socketedArtifacts } from './stats';
+import { computeStats, innateOf, socketedArtifacts, statCtxOf } from './stats';
 
 export const STATUS_NAMES: Record<StatusId, string> = {
   strength: 'Сила',
@@ -47,6 +47,9 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   evade: 'Уворот',
   echo: 'Эхо удара',
   enchant: 'Стихийная заточка',
+  charge: 'Заряд',
+  rage: 'Ярость',
+  fury: 'Неистовство',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -67,6 +70,9 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
   echo: 'Следующий удар оружием в этом ходу повторяется: атака, удары приёма, Финишер, Таран, Пролом щита и Цепная атака бьют дважды, усталость считает их одной атакой. Заклинания эхо не повторяет',
   enchant: 'Каждый удар героя вешает на цель рану своей стихии силой N на 2 хода',
+  charge: 'Заряды заклинаний: обычный удар тратит все и бьёт сильнее за каждый',
+  rage: 'Накопленный урон: набрав треть максимума HP, Берсерк впадает в Неистовство',
+  fury: '+1 STA в начале хода и удары без усталости до конца хода',
 };
 
 /** Стихии заточки: какую рану может получить оружие. */
@@ -500,6 +506,12 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
   }
   h.hp -= rest;
   state.stats.damageTaken += rest;
+  // «Ярость» Берсерка (v0.44): любая потеря HP копится, Неистовство наступает в начале хода героя.
+  if (rest > 0 && h.stats.rageTrait > 0 && h.hp > 0) {
+    const r = getStatus(h, 'rage');
+    if (r) r.value += rest;
+    else h.statuses.push({ id: 'rage', value: rest, turns: -1 });
+  }
   state.events.push({ type: 'damage', target: 'hero', amount: rest, kind: rest === 0 ? 'blocked' : kind });
   if (kind === 'hit' && source) {
     const th = h.stats.thorns + statusValue(h, 'thorns');
@@ -518,11 +530,15 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
 
 function healHero(state: BattleState, amount: number, why?: string): void {
   const h = state.hero;
-  const healed = Math.min(amount, h.maxHp - h.hp);
-  if (healed <= 0) return;
-  h.hp += healed;
-  state.events.push({ type: 'heal', target: 'hero', amount: healed });
-  log(state, `Герой: +${healed} HP${why ? ` (${why})` : ''}`);
+  const healed = Math.max(0, Math.min(amount, h.maxHp - h.hp));
+  if (healed > 0) {
+    h.hp += healed;
+    state.events.push({ type: 'heal', target: 'hero', amount: healed });
+    log(state, `Герой: +${healed} HP${why ? ` (${why})` : ''}`);
+  }
+  // «Вера» Паладина (v0.44): лечение сверх максимума не пропадает — часть его встаёт блоком.
+  const over = amount - healed;
+  if (over > 0 && h.stats.overhealBlock > 0 && h.hp > 0) gainBlock(state, h, 'hero', Math.round(over * h.stats.overhealBlock), `вера: избыток лечения ${over}`);
 }
 
 // ─── Союзники ──────────────────────────────────────────────────────────────
@@ -693,6 +709,8 @@ export function defendBlock(stats: { def: number; defendBonus: number }): number
 
 /** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя. */
 export function fatigueMult(state: BattleState): number {
+  // Неистовство Берсерка (v0.44): удары этого хода без усталости.
+  if (getStatus(state.hero, 'fury')) return 1;
   return state.hero.stats.fatigue ** state.hero.attacks;
 }
 
@@ -717,9 +735,11 @@ export function vsTargetBonus(h: HeroBattle, target: Combatant): { debuffs: numb
  * Множитель удара оружием по этой цели (v0.43): «Кровавый след» — доля сверх по кровоточащей (растёт с оружием, а не плоские +2),
  * ключевые вещи с минусом к удару (`strikeMult`: «Клятва крови», «Пироман»).
  */
-export function strikeMultOn(h: HeroBattle, target?: Combatant): number {
+export function strikeMultOn(h: HeroBattle, target?: Combatant, row = 0): number {
   const bleed = target && getStatus(target, 'bleed') ? h.stats.vsBleed : 0;
-  return Math.max(0.1, 1 + h.stats.strikeMult + bleed);
+  // «Дистанция» Лучника (v0.44): второй и дальше в ряду — сильнее; стрелок за спиной брута перестаёт быть неудобной целью.
+  const far = row >= 1 ? h.stats.farShot : 0;
+  return Math.max(0.1, 1 + h.stats.strikeMult + bleed + far);
 }
 
 /** Удар по этой цели выйдет критом наверняка: из тени или по оглушённой с «Оглушающим ударом». */
@@ -769,13 +789,15 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
   const base = roll + flat;
   const steps: string[] = [parts.length > 1 ? `${parts.join(' + ')} = ${base}` : parts[0]];
   const fatigue = fatigueMult(state);
-  const onTarget = strikeMultOn(h, target);
+  const row = target ? state.enemies.indexOf(target) : 0;
+  const onTarget = strikeMultOn(h, target, row);
   let dmg = Math.floor(base * mult * fatigue * onTarget);
   if (mult !== 1 || fatigue !== 1 || onTarget !== 1) {
     const round = (x: number) => Math.round(x * 100) / 100;
     const bleedPart = target && getStatus(target, 'bleed') && h.stats.vsBleed > 0 ? `по крови +${Math.round(h.stats.vsBleed * 100)} %` : '';
     const keyPart = h.stats.strikeMult !== 0 ? `ключевая вещь ${Math.round(h.stats.strikeMult * 100)} %` : '';
-    const m = [mult !== 1 ? `приём ×${mult}` : '', fatigue !== 1 ? `усталость ×${round(fatigue)}` : '', bleedPart, keyPart].filter(Boolean).join(', ');
+    const farPart = row >= 1 && h.stats.farShot > 0 ? `дистанция +${Math.round(h.stats.farShot * 100)} %` : '';
+    const m = [mult !== 1 ? `приём ×${mult}` : '', fatigue !== 1 ? `усталость ×${round(fatigue)}` : '', bleedPart, keyPart, farPart].filter(Boolean).join(', ');
     steps.push(`${m} = ${dmg}`);
   }
   // Шанс крита: свой стат + накопленное «Азартом» + добивание раненой цели («Клеймо палача»).
@@ -813,6 +835,7 @@ interface StrikeOpts {
  */
 function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpts = {}): { dmg: number; crit: boolean } {
   const h = state.hero;
+  const fromShadow = isHidden(h);
   const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit, e, opts.lowHp);
   const detail = newDetail();
   const pierce = h.stats.pierceBlock > 0;
@@ -830,6 +853,8 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     if (ench?.element) heroInflict(state, e, ench.element, ench.value, 2);
     // «Метка охотника»: первый удар в ходу открывает цель для остальных.
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
+    // «Отравитель» Ассасина (v0.44): удар из тени оставляет яд.
+    if (fromShadow && h.stats.backstabPoison > 0) heroInflict(state, e, 'poison', h.stats.backstabPoison, 3);
   }
   // «Азарт» копит шанс с каждого промаха мимо крита, крит обнуляет счётчик; «Жажда крови» лечит за крит.
   if (crit) {
@@ -863,7 +888,8 @@ export interface DamageRange {
 export function previewAttack(state: BattleState, bonus = 0, mult = 1, target?: Combatant, lowHp?: { pct: number; bonus: number }): DamageRange {
   const h = state.hero;
   const flat = heroStr(h) + bonus + firstHitBonus(state) + (isHidden(h) ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0) + lowHpBonus(target, lowHp);
-  const scale = mult * fatigueMult(state) * strikeMultOn(h, target);
+  const row = target ? state.enemies.indexOf(target as EnemyState) : 0;
+  const scale = mult * fatigueMult(state) * strikeMultOn(h, target, Math.max(0, row));
   let min = Math.floor((h.stats.dmgMin + flat) * scale);
   let max = Math.floor((h.stats.dmgMax + flat) * scale);
   if (getStatus(h, 'weak')) {
@@ -1180,15 +1206,23 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
   const h = state.hero;
   if (action.type === 'attack') {
     h.sta -= 1;
+    // «Заряд» Мага (v0.44): обычный удар тратит все заряды — первый замах сильнее за каждый.
+    const charges = h.stats.spellCharge > 0 ? statusValue(h, 'charge') : 0;
+    let bonus = charges * h.stats.spellCharge;
+    if (charges > 0) {
+      removeStatus(h, 'charge');
+      log(state, `Заряд: ${charges} × ${h.stats.spellCharge} к удару`);
+    }
     const swing = (target: EnemyState) => {
       // Замах — один удар для Финишера: плеть по всему ряду и эхо считаются как обычная атака, каждое своё.
       h.strikes += 1;
       if (h.stats.sweep > 0) {
         // Плеть: один замах хлещет по всему ряду на долю урона; сквозного удара копья у неё нет.
-        for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, label: 'Герой хлещет' });
+        for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, label: 'Герой хлещет', bonus });
       } else {
-        heroStrike(state, rng, target, { single: true });
+        heroStrike(state, rng, target, { single: true, bonus });
       }
+      bonus = 0;
     };
     swing(findEnemy(state, action.target)!);
     // «Эхо удара»: та же атака ещё раз, с той же усталостью — счётчик атак растёт один раз.
@@ -1246,6 +1280,15 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
     if (def.school === 'magic' && h.stats.spellIgniteAll > 0) {
       for (const e of state.enemies) if (e.hp > 0) heroInflict(state, e, 'burn', h.stats.spellIgniteAll, 2);
     }
+    // «Заряд» Мага (v0.44): заклинание копит заряд для обычного удара, до трёх.
+    if (def.school === 'magic' && h.stats.spellCharge > 0) {
+      const c = getStatus(h, 'charge');
+      const n = Math.min(MAX_CHARGES, (c?.value ?? 0) + 1);
+      if (c) c.value = n;
+      else h.statuses.push({ id: 'charge', value: n, turns: -1 });
+      state.events.push({ type: 'status', target: 'hero', status: 'charge', value: n });
+      log(state, `Заряд: ${n}`);
+    }
     // «Эхо удара»: удары приёма повторяются — только бьющие оружием эффекты (ECHO_EFFECTS), статусы и блок второй раз не идут.
     // Цель повтора ищется заново: первую могло не стать, тогда эхо достаётся следующему живому.
     if (effects.some((e) => echoesEffect(e.type)) && getStatus(h, 'echo')) {
@@ -1297,6 +1340,14 @@ function isChainArtifact(def: ArtifactDef): boolean {
   return !!def.effects?.(1).some((e) => e.type === 'chain');
 }
 
+/** Больше трёх зарядов Маг не держит (черта «Заряд», v0.44). */
+export const MAX_CHARGES = 3;
+
+/** Сколько накопленного урона нужно Берсерку для Неистовства: треть максимума HP (черта «Ярость», v0.44). */
+export function rageThreshold(h: HeroBattle): number {
+  return Math.ceil(h.maxHp / 3);
+}
+
 /** Ключи в `hero.uses` для «Перекрёстного тока»: раз в ход на каждый ресурс; с id артефактов не пересекаются. */
 const CROSS_STA = '_cross_sta';
 const CROSS_MP = '_cross_mp';
@@ -1325,6 +1376,15 @@ function startPlayerTurn(state: BattleState): void {
   }
   if (state.turn === 1) h.sta += h.stats.firstTurnSta;
   else h.mp = Math.min(h.maxMp, h.mp + h.stats.mpRegen);
+  // «Ярость» Берсерка (v0.44): набралось на треть HP — Неистовство на этот ход.
+  const rage = getStatus(h, 'rage');
+  if (rage && h.stats.rageTrait > 0 && rage.value >= rageThreshold(h)) {
+    rage.value -= rageThreshold(h);
+    if (rage.value <= 0) removeStatus(h, 'rage');
+    h.sta += 1;
+    addStatus(state, h, 'hero', 'fury', 1, 1);
+    log(state, 'Неистовство: +1 STA, удары без усталости');
+  }
   for (const k of Object.keys(h.cooldowns)) if (h.cooldowns[k] > 0) h.cooldowns[k] -= 1;
   log(state, `— Ход ${state.turn} —`);
   // «Плащ странника»: свежий блок каждый ход — после того, как старый сгорел.
@@ -1563,7 +1623,8 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
     case 'stealArtifact': {
       // Крадём из снимка вставленных: что именно уйдёт из сокета, разберёт забег после боя.
       // Вор не разбирает, чьё и последнее ли: тянет что подвернулось, включая персональный артефакт героя.
-      const pool = h.artifacts;
+      // Врождённый навык (v0.44) — не вещь в сокете, красть нечего.
+      const pool = h.artifacts.filter((a) => a.id !== h.innate);
       if (state.stolenArtifact || pool.length === 0) {
         log(state, `${e.name} шарит по карманам, но брать нечего`);
         break;
@@ -1726,7 +1787,9 @@ export function resolveEnemyTurn(state: BattleState, rng: Rng): void {
 // ─── Создание боя ──────────────────────────────────────────────────────────
 
 export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: string[], rng: Rng, act: number | null = null): BattleState {
-  const stats = computeStats(heroDef, hero.weapon, hero.armor);
+  const stats = computeStats(heroDef, hero.weapon, hero.armor, statCtxOf(hero));
+  // Врождённый навык (v0.44) — в руках героя, как вставленный артефакт: своя плитка, перезарядка и пассивка.
+  const innate = innateOf(hero);
   const state: BattleState = {
     roster: enemyIds.map((id) => enemyDef(id).name),
     hero: {
@@ -1741,12 +1804,13 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       cooldowns: {},
       uses: {},
       stats,
-      artifacts: socketedArtifacts(hero.weapon, hero.armor),
+      artifacts: innate ? [...socketedArtifacts(hero.weapon, hero.armor), innate] : socketedArtifacts(hero.weapon, hero.armor),
       potion: hero.potion,
       defended: false,
       attacks: 0,
       strikes: 0,
       critStack: 0,
+      innate: innate?.id ?? null,
     },
     enemies: [],
     act,

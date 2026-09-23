@@ -96,7 +96,8 @@ describe('сходимость дропа артефактов (loot.ts, v0.40)'
     for (const id of ['bleed_burst', 'blood_trail']) {
       const before = rate(plain, id, 'weapon');
       const after = rate(bleeder, id, 'weapon');
-      expect(after / before).toBeGreaterThan(1.8);
+      // С v0.43 тянет и метка «Кровь»: дорожают все вещи Крови разом, и доля каждой растёт меньше, чем втрое.
+      expect(after / before).toBeGreaterThan(1.5);
       expect(after / before).toBeLessThan(4);
     }
     // Несвязанное оружейное не дорожает: тяга адресная, а не «всё чаще».

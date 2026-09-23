@@ -41,7 +41,10 @@ export type StatusId =
   | 'doom' // предсмертие: метка врага с onDeath — сам ничего не делает, но в подсказке видно, что случится после его гибели (только враги)
   | 'evade' // процентный уворот: удар или заклинание по владельцу с шансом value % мимо; раны (DoT) и шипы бьют всегда (только враги)
   | 'echo' // эхо удара: следующая атака героя в этом ходу повторяется (только герой, v0.38)
-  | 'enchant'; // стихийная заточка: каждый удар героя вешает на цель рану `element` силой value на 2 хода (только герой, v0.38.7)
+  | 'enchant' // стихийная заточка: каждый удар героя вешает на цель рану `element` силой value на 2 хода (только герой, v0.38.7)
+  | 'charge' // заряд Мага (черта, v0.44): value зарядов, обычный удар тратит все (только герой)
+  | 'rage' // ярость Берсерка (черта, v0.44): value накопленного урона до Неистовства (только герой)
+  | 'fury'; // неистовство (v0.44): +1 STA в начале хода и удары без усталости до конца хода (только герой)
 
 export interface Status {
   id: StatusId;
@@ -176,6 +179,17 @@ export interface DerivedStats {
   blockPerBurning: number;
   /** Каждое заклинание поджигает всех врагов: Горение N на 2 хода («Пироман»). */
   spellIgniteAll: number;
+  // ── Черты героев (v0.44) ──
+  /** Урон за каждый Заряд, который тратит обычный удар; заклинание даёт Заряд, до трёх (Маг, «Заряд»). */
+  spellCharge: number;
+  /** Яд, который вешает удар в спину, на 3 хода (Ассасин, «Отравитель»). */
+  backstabPoison: number;
+  /** Доля лечения сверх максимума HP, которая становится блоком (Паладин, «Вера»). */
+  overhealBlock: number;
+  /** >0 — полученный урон копит Ярость, треть максимума HP даёт Неистовство (Берсерк, «Ярость»). */
+  rageTrait: number;
+  /** Доля, на которую удар оружием сильнее по второму и дальше в ряду (Лучник, «Дистанция»). */
+  farShot: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -394,6 +408,8 @@ export interface HeroDef {
    * невыбранный в этом забеге не выпадает никому. Другим героям персональные не попадаются вовсе.
    */
   signatures: [string, string];
+  /** Черты героя (v0.44, data/traits.ts): первая — по умолчанию, вторая открывается мастерством (фаза 4). */
+  traits: string[];
   sprite: SpriteSpec;
 }
 
@@ -510,6 +526,8 @@ export interface HeroBattle extends Combatant {
   strikes: number;
   /** Накопленный «Азартом» шанс крита: растёт с каждого некрита, крит обнуляет. */
   critStack: number;
+  /** id врождённого навыка героя в `artifacts` (v0.44): не сокет, его не стянет вор. null — героя без навыка (тесты). */
+  innate: string | null;
 }
 
 export interface EnemyState extends Combatant {
@@ -621,8 +639,15 @@ export type LootItem = LootArtifact | LootGear | LootPotion;
 
 export interface HeroPersistent {
   defId: string;
-  /** Персональный артефакт, с которым начат забег (один из `HeroDef.signatures`): только он и выпадает герою в этом забеге. */
+  /**
+   * Врождённый навык (v0.44, docs/plan-reworka.md §3.1): один из `HeroDef.signatures`, выбранный перед забегом.
+   * Не занимает сокет и не выпадает в луте; уровень — `innateTier`.
+   */
   signature: string;
+  /** Уровень врождённого навыка = номер локации забега (1–3), растёт при входе в новую локацию. Без поля — навыка нет (тесты). */
+  innateTier?: ArtTier;
+  /** Выбранная черта (v0.44, data/traits.ts). Без поля — черты нет (тесты). */
+  trait?: string;
   hp: number;
   weapon: GearInstance;
   armor: GearInstance;
@@ -728,9 +753,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.43.0';
+export const GAME_VERSION = '0.44.0';
 
-export const SAVE_VERSION = 33;
+export const SAVE_VERSION = 34;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

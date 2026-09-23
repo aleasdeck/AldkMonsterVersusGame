@@ -4,8 +4,10 @@ import { potionDef } from '../../data/potions';
 import { defendBlock } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
 import type { DerivedStats } from '../../engine/types';
-import { bar, potionChip, setCounters, skillLine } from '../components';
-import { socketedArtifacts } from '../../engine/stats';
+import { artifactChip, artifactTitle, bar, potionChip, setCounters, skillLine } from '../components';
+import { innateOf, socketedArtifacts } from '../../engine/stats';
+import { artifactDef } from '../../data/artifacts';
+import { traitDef } from '../../data/traits';
 import { gearTile } from '../gearTile';
 import { heroAvatar } from '../heroSprite';
 import type { App } from '../app';
@@ -55,6 +57,24 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
   return rows.filter((r): r is HTMLElement => !!r);
 }
 
+/** Врождённый навык и черта (v0.44): одна строка — чип навыка с уровнем и имя черты, описания в подсказках. */
+function innateLine(hero: import('../../engine/types').HeroPersistent): HTMLElement | null {
+  const innate = innateOf(hero);
+  if (!innate) return null;
+  const trait = hero.trait ? traitDef(hero.trait) : null;
+  return h(
+    'div',
+    { class: 'sheet-innate' },
+    artifactChip(innate),
+    h(
+      'div',
+      null,
+      h('div', { tip: `${artifactTitle(innate)}\nВрождённый навык: не занимает сокет, уровень = номер локации` }, `Навык: ${artifactDef(innate.id).name}, ур. ${innate.tier}`),
+      trait ? h('div', { class: 'trait-name', tip: trait.describe(innate.tier) }, `Черта: ${trait.name}`) : null,
+    ),
+  );
+}
+
 /**
  * Оверлей «Персонаж»: слева портрет, роль, HP и статы полными словами, умения; справа экипировка с сокетами
  * и описаниями артефактов. Открывается с любого экрана забега, включая бой; в бою статы — боевые.
@@ -78,7 +98,8 @@ export function heroSheet(app: App): HTMLElement {
         { class: 'sheet-left' },
         h('div', { class: 'sheet-head' }, heroAvatar(def.id, 80), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
         bar('hp', hp, s.maxHp, 'HP'),
-        setCounters(socketedArtifacts(run.hero.weapon, run.hero.armor)),
+        innateLine(run.hero),
+        setCounters([...socketedArtifacts(run.hero.weapon, run.hero.armor), ...(innateOf(run.hero) ? [innateOf(run.hero)!] : [])]),
         h('div', { class: 'sheet-stats' }, ...statRows(s, hp)),
         skillLine(def),
         h(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_LIST, SIGNATURE_OWNER, heroDef } from '../src/data/heroes';
+import { HERO_LIST, SIGNATURE_OWNER } from '../src/data/heroes';
 import { runReport } from '../src/engine/report';
 import { GAME_VERSION } from '../src/engine/types';
 import { artifactDef } from '../src/data/artifacts';
@@ -8,6 +8,7 @@ import { enemyDef } from '../src/data/enemies';
 import { createRng } from '../src/engine/rng';
 import { canUseAction, performAction } from '../src/engine/combat';
 import {
+  advanceRoom,
   altarPray,
   altarSacrifice,
   battleAction,
@@ -555,6 +556,7 @@ describe('забег', () => {
 
   it('неподходящий сокет не принимает ожидающий артефакт: причина в canPendingPlace, pendingPlace ничего не делает', () => {
     const run = newRun('warrior', 11);
+    run.hero.weapon.slots = [{ id: 'crippling_shot', tier: 1 }];
     enterRoom(run);
     winCurrentBattle(run);
     // Стартовая кольчуга: один бронный сокет. Огненный шар — оружейный, ему туда нельзя.
@@ -565,11 +567,11 @@ describe('забег', () => {
     expect(pendingPlace(run, 'armor', 0)).toBe(false);
     expect(run.pending).not.toBeNull();
     expect(run.hero.armor.slots[0]).toBeNull();
-    // Оружейный сокет занят Щитовым ударом — замена разрешена, тип совпадает; вытесненный удар ждёт решения.
+    // Оружейный сокет занят Подсечным выстрелом — замена разрешена, тип совпадает; вытесненный ждёт решения.
     expect(canPendingPlace(run, 'weapon', 0)).toBeNull();
     expect(pendingPlace(run, 'weapon', 0)).toBe(true);
     expect(run.hero.weapon.slots[0]?.id).toBe('fireball');
-    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['shield_bash']);
+    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['crippling_shot']);
     pendingDiscard(run);
     expect(run.phase).toBe('map');
   });
@@ -943,20 +945,31 @@ describe('забег', () => {
 });
 
 describe('персональные артефакты', () => {
-  it('выпадают только владельцу: маг никогда не видит шашку, ассасин — видит', () => {
+  it('не выпадают никому (v0.44): выбранный — врождённый навык, невыбранный в забеге не нужен', () => {
     const rng = createRng(3);
     const mage = newRun('mage', 1).hero;
     const assassin = newRun('assassin', 1).hero;
-    const seen = new Set<string>();
     for (let i = 0; i < 400; i++) {
-      const a = rollArtifact(rng, mage, [1], []);
-      expect(SIGNATURE_OWNER[a!.id] ?? 'mage').toBe('mage');
-      seen.add(rollArtifact(rng, assassin, [1], [])!.id);
+      expect(SIGNATURE_OWNER[rollArtifact(rng, mage, [1], [])!.id]).toBeUndefined();
+      expect(SIGNATURE_OWNER[rollArtifact(rng, assassin, [1], [])!.id]).toBeUndefined();
     }
-    expect(seen.has('smoke_bomb')).toBe(true);
-    expect(seen.has('shield_bash')).toBe(false);
-    expect(canDropFor(mage, 'magic_missile')).toBe(true);
+    expect(canDropFor(mage, 'magic_missile')).toBe(false);
     expect(canDropFor(mage, 'rage')).toBe(false);
+    expect(canDropFor(mage, 'fireball')).toBe(true);
+  });
+
+  it('врождённый навык растёт с локацией: уровень = номер локации, в бою — плитка своего тира', () => {
+    const run = newRun('warrior', 1);
+    expect(run.hero.innateTier).toBe(1);
+    expect(run.hero.trait).toBe('stance');
+    run.roomIndex = ROOMS_PER_LOCATION - 1;
+    run.phase = 'reward';
+    advanceRoom(run);
+    expect(run.locationIndex).toBe(1);
+    expect(run.hero.innateTier).toBe(2);
+    enterRoom(run);
+    expect(run.battle!.hero.artifacts.find((a) => a.id === 'shield_bash')).toEqual({ id: 'shield_bash', tier: 2 });
+    expect(run.battle!.hero.innate).toBe('shield_bash');
   });
 
   it('v0.33: у каждого героя пара, забег начинается с выбранным, невыбранный не выпадает никому', () => {
@@ -969,23 +982,14 @@ describe('персональные артефакты', () => {
     expect(plain.hero.signature).toBe('shield_bash');
     const second = newRun('warrior', 1, 0, 'riposte');
     expect(second.hero.signature).toBe('riposte');
-    // Ответный удар бронный (v0.39.1): стартует в сокете кольчуги, сокет меча пуст.
+    // Навык вне сокетов (v0.44): оба стартовых сокета пусты, пассивка навыка — в статах.
     expect(second.hero.weapon.slots).toEqual([null]);
-    expect(second.hero.armor.slots).toEqual([{ id: 'riposte', tier: 1 }]);
-    expect(canDropFor(second.hero, 'riposte')).toBe(true);
-    expect(canDropFor(second.hero, 'shield_bash')).toBe(false);
-    expect(canDropFor(plain.hero, 'riposte')).toBe(false);
+    expect(second.hero.armor.slots).toEqual([null]);
+    expect(heroStats(second).riposte).toBe(60);
+    expect(canDropFor(second.hero, 'riposte')).toBe(false);
     expect(canDropFor(plain.hero, 'crippling_shot')).toBe(true);
     expect(() => newRun('warrior', 1, 0, 'rage')).toThrow(/Not a signature/);
-    // Бронная сигнатура стартует в броне, оружие пустое.
-    const pal = newRun('paladin', 1, 0, 'vengeance_halo');
-    expect(pal.hero.weapon.slots).toEqual([null]);
-    expect(pal.hero.armor.slots).toEqual([{ id: 'vengeance_halo', tier: 1 }]);
-    const rng = createRng(5);
-    for (let i = 0; i < 300; i++) {
-      const a = rollArtifact(rng, second.hero, [1], []);
-      expect(a!.id).not.toBe('shield_bash');
-    }
+    expect(() => newRun('warrior', 1, 0, 'shield_bash', 'charge')).toThrow(/Not a trait/);
   });
 });
 
@@ -1074,7 +1078,8 @@ describe('статистика забега (report.ts)', () => {
     expect(r.maxHp).toBe(heroStats(run).maxHp);
     expect(r.weapon).toBe(`${run.hero.weapon.base}@${run.hero.weapon.tier}`);
     expect(r.armor).toBe(`${run.hero.armor.base}@${run.hero.armor.tier}`);
-    expect(r.artifacts).toBe(`${heroDef('mage').signatures[0]}@1`);
+    // Навык вне сокетов (v0.44): в колонке артефактов только сокеты, навык — в signature.
+    expect(r.artifacts).toBe('');
     expect(r.signature).toBe('magic_missile');
     expect(r.potion).toBe('');
     expect(r.duration).toBe(30);

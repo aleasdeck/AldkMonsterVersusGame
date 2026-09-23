@@ -23,7 +23,7 @@ import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { EVENT_WEIGHTS, type ActDef } from '../data/locations';
 import { POTION_IDS, potionDef } from '../data/potions';
 import { isMaxed, socketRefs } from './equipment';
-import { computeStats } from './stats';
+import { heroStatsOf, innateOf } from './stats';
 
 const ARTIFACT_CHANCE = 0.55;
 
@@ -36,7 +36,7 @@ export const SHOP_POTION_PRICE = 4;
 
 /** Случайное зелье под героя: зелье маны не выпадает тому, у кого маны нет. */
 export function rollPotion(rng: Rng, hero: HeroPersistent): string {
-  const hasMp = computeStats(heroDef(hero.defId), hero.weapon, hero.armor).maxMp > 0;
+  const hasMp = heroStatsOf(heroDef(hero.defId), hero).maxMp > 0;
   const ids = POTION_IDS.filter((id) => hasMp || !potionDef(id).needsMp);
   return pick(rng, ids);
 }
@@ -105,12 +105,18 @@ function bump<T extends number>(tiers: T[], max: T): T[] {
 }
 
 /**
- * Может ли артефакт выпасть герою: персональные — только владельцу и только тот, с которым забег начат
- * (дубликат апгрейдит, выброшенный находится снова); невыбранный из пары в этом забеге не выпадает никому.
+ * Может ли артефакт выпасть герою: персональные не выпадают никому (v0.44) — выбранный стал врождённым навыком
+ * героя с уровнем по локации, невыбранный в этом забеге не нужен.
  */
-export function canDropFor(hero: HeroPersistent, id: string): boolean {
-  const owner = SIGNATURE_OWNER[id];
-  return !owner || (owner === hero.defId && id === hero.signature);
+export function canDropFor(_hero: HeroPersistent, id: string): boolean {
+  return !SIGNATURE_OWNER[id];
+}
+
+/** Вещи героя, которые тянут дроп и связки: вставленные артефакты и врождённый навык. */
+function heroArts(hero: HeroPersistent): string[] {
+  const ids = socketRefs(hero).flatMap((ref) => (ref.art ? [ref.art.id] : []));
+  const innate = innateOf(hero);
+  return innate ? [...ids, innate.id] : ids;
 }
 
 // ─── Сходимость дропа (v0.40) ──────────────────────────────────────────────
@@ -179,14 +185,14 @@ function heroApplies(hero: HeroPersistent, s: DerivedStats): Set<StatusId> {
   if (s.onHitPoison > 0) out.add('poison');
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
-  for (const ref of socketRefs(hero)) if (ref.art) for (const st of artifactStatuses(ref.art.id).applies) out.add(st);
+  for (const id of heroArts(hero)) for (const st of artifactStatuses(id).applies) out.add(st);
   return out;
 }
 
 /** На каких статусах у героя уже есть выплата: взрыв ран, заражение, «Гниль», «Раздуть», крит по оглушённым. */
 function heroPaysFor(hero: HeroPersistent): Set<StatusId> {
   const out = new Set<StatusId>();
-  for (const ref of socketRefs(hero)) if (ref.art) for (const st of artifactStatuses(ref.art.id).pays) out.add(st);
+  for (const id of heroArts(hero)) for (const st of artifactStatuses(id).pays) out.add(st);
   return out;
 }
 
@@ -233,11 +239,12 @@ function artifactWeight(id: string, owned: Set<string>, applies: Set<StatusId>, 
 export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], exclude: string[], slot?: GearKind): ArtifactInstance | null {
   const ids = ARTIFACT_IDS.filter((id) => !exclude.includes(id) && !isMaxed(hero, id) && canDropFor(hero, id) && (!slot || artifactDef(id).slot === slot));
   if (ids.length === 0) return null;
-  const stats = computeStats(heroDef(hero.defId), hero.weapon, hero.armor);
+  const stats = heroStatsOf(heroDef(hero.defId), hero);
   const applies = heroApplies(hero, stats);
   const pays = heroPaysFor(hero);
   const owned = new Set(socketRefs(hero).flatMap((ref) => (ref.art ? [ref.art.id] : [])));
-  const tags = new Set<string>([...owned].flatMap((id) => artifactTags(id)));
+  // Метки навыка тоже тянут дроп: это и есть сродство героя с его архетипом (v0.44).
+  const tags = new Set<string>(heroArts(hero).flatMap((id) => artifactTags(id)));
   const spell = manaWeight(stats.maxMp);
   const items = ids.map((candidate) => ({ item: candidate, weight: artifactWeight(candidate, owned, applies, pays, tags, spell) }));
   // Весь пул обнулился (у безманового героя остались одни заклинания) — берём равновероятно, иначе weighted бросит.

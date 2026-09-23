@@ -3036,3 +3036,46 @@ p {
   margin-top: 6px;
   font-size: 16px;
 }
+
+/* ─── Черты и врождённый навык (v0.44) ──────────────────────────────── */
+
+.preview-trait {
+  font-size: 16px;
+  line-height: 1.1;
+  color: var(--text);
+}
+.trait-name {
+  color: var(--accent);
+}
+/* Чип врождённого навыка справа от имени в блоке героя. */
+.c-innate {
+  margin-left: auto;
+  flex: none;
+}
+.c-innate .chip {
+  width: 30px;
+  height: 30px;
+}
+.sheet-innate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  line-height: 1.05;
+  cursor: help;
+}
+.sheet-innate .chip {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+/* v0.44: навык, черта и наборы добавили строк — блоки листа держат свою высоту, прокручиваются только статы. */
+.sheet-left > * {
+  flex: none;
+}
+.sheet-left > .sheet-stats {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}

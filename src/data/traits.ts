@@ -1,0 +1,74 @@
+import type { StatMods } from '../engine/types';
+
+// ─── Черты героев (v0.44) ──────────────────────────────────────────────────
+// docs/plan-reworka.md §3.2: у каждого героя своя механика, и живёт она на обычном ударе или рядом с ним — герой отличается
+// тем, как ходит, а не цифрами. Черта — статы, как у пассивки: считаются в computeStats (контекст героя в забеге),
+// поэтому бой, лист персонажа и бот видят их без отдельного пути. `level` — уровень врождённого навыка, он же номер
+// локации забега (1–3): черта, которой нужно расти, растёт вместе с ним.
+// С фазы 4 у героя вторая черта на выбор (открывается мастерством); первая в списке `HeroDef.traits` — по умолчанию.
+
+export interface TraitDef {
+  id: string;
+  /** Чья черта. */
+  hero: string;
+  name: string;
+  describe: (level: number) => string;
+  mods: (level: number) => StatMods;
+}
+
+const list: TraitDef[] = [
+  {
+    id: 'stance',
+    hero: 'warrior',
+    name: 'Стойка',
+    // Воин бьёт и прикрывается одним движением: удар — носитель блока, а блок — заводка Щита и Ответного удара.
+    describe: (level) => `Каждый удар оружием даёт ${level >= 3 ? 2 : 1} Блока${level >= 3 ? '' : ' (2 — с третьей локации)'}`,
+    mods: (level) => ({ blockOnHit: level >= 3 ? 2 : 1 }),
+  },
+  {
+    id: 'charge',
+    hero: 'mage',
+    name: 'Заряд',
+    // Удар посохом был 36–51 % урона Мага (v0.42) — черта делает его частью ротации заклинаний, а не пустым ходом.
+    describe: () => 'Каждое заклинание даёт Заряд (до 3); обычный удар тратит все: +3 урона за каждый Заряд',
+    mods: () => ({ spellCharge: 3 }),
+  },
+  {
+    id: 'poisoner',
+    hero: 'assassin',
+    name: 'Отравитель',
+    describe: () => 'Удар в спину вешает Яд 2 на 3 хода',
+    mods: () => ({ backstabPoison: 2 }),
+  },
+  {
+    id: 'faith',
+    hero: 'paladin',
+    name: 'Вера',
+    // Лечение Паладина пропадало на полном HP — теперь избыток становится блоком, лечиться выгодно всегда.
+    describe: () => 'Половина лечения сверх максимума HP становится Блоком',
+    mods: () => ({ overhealBlock: 0.5 }),
+  },
+  {
+    id: 'rage',
+    hero: 'berserk',
+    name: 'Ярость',
+    describe: () => 'Полученный урон копит Ярость; накопив треть максимума HP, следующий ход — +1 STA и удары без усталости (Неистовство)',
+    mods: () => ({ rageTrait: 1 }),
+  },
+  {
+    id: 'range',
+    hero: 'archer',
+    name: 'Дистанция',
+    describe: () => 'Удары оружием по второму и третьему в ряду сильнее на 25 %',
+    mods: () => ({ farShot: 0.25 }),
+  },
+];
+
+export const TRAITS: Record<string, TraitDef> = Object.fromEntries(list.map((t) => [t.id, t]));
+export const TRAIT_LIST: TraitDef[] = list;
+
+export function traitDef(id: string): TraitDef {
+  const def = TRAITS[id];
+  if (!def) throw new Error(`Unknown trait: ${id}`);
+  return def;
+}

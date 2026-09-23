@@ -5,7 +5,7 @@ import { defaultSignature, heroDef } from '../data/heroes';
 import { makeStartingGear, upgradeGearTier } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, ROOM_NAMES, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
-import { computeStats } from './stats';
+import { computeStats, heroStatsOf } from './stats';
 import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs, type SocketRef } from './equipment';
 import { artifactTags } from '../data/archetypes';
 import {
@@ -46,11 +46,18 @@ export function randomSeed(): number {
  * `now` — момент старта; тесты и симулятор могут подставить свой, чтобы состояние не зависело от часов.
  * `signature` — с каким из пары персональных артефактов начать (по умолчанию первый); чужой id — ошибка.
  */
-export function newRun(heroId: string, seed: number = randomSeed(), now: number = Date.now(), signature: string = defaultSignature(heroDef(heroId))): RunState {
+export function newRun(
+  heroId: string,
+  seed: number = randomSeed(),
+  now: number = Date.now(),
+  signature: string = defaultSignature(heroDef(heroId)),
+  trait: string = heroDef(heroId).traits[0],
+): RunState {
   const def = heroDef(heroId);
   if (!def.signatures.includes(signature)) throw new Error(`Not a signature of ${heroId}: ${signature}`);
-  const gear = makeStartingGear(def, signature);
-  const stats = computeStats(def, gear.weapon, gear.armor);
+  if (!def.traits.includes(trait)) throw new Error(`Not a trait of ${heroId}: ${trait}`);
+  const gear = makeStartingGear(def);
+  const stats = computeStats(def, gear.weapon, gear.armor, { innate: { id: signature, tier: 1 }, trait });
   const rng = createRng(seed);
   return {
     version: SAVE_VERSION,
@@ -58,7 +65,7 @@ export function newRun(heroId: string, seed: number = randomSeed(), now: number 
     debug: false,
     reported: false,
     rng,
-    hero: { defId: heroId, signature, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
+    hero: { defId: heroId, signature, innateTier: 1, trait, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
     gold: START_GOLD,
     locations: pickRunLocations(rng),
     locationIndex: 0,
@@ -98,7 +105,7 @@ export function effectiveRoomKind(run: RunState): RoomKind {
 }
 
 export function heroStats(run: RunState): DerivedStats {
-  return computeStats(heroDef(run.hero.defId), run.hero.weapon, run.hero.armor);
+  return heroStatsOf(heroDef(run.hero.defId), run.hero);
 }
 
 export function isRunOver(run: RunState): boolean {
@@ -200,6 +207,10 @@ export function advanceRoom(run: RunState): void {
     }
     run.locationIndex += 1;
     run.roomIndex = 0;
+    // Врождённый навык растёт с каждой локацией (v0.44): уровень — номер локации.
+    const before = heroStats(run).maxHp;
+    run.hero.innateTier = Math.min(3, run.locationIndex + 1) as ArtifactInstance['tier'];
+    syncMaxHp(run, before);
   }
   run.phase = 'map';
 }

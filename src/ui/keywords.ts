@@ -36,6 +36,9 @@ const STATUS_STEMS: Record<StatusId, string> = {
   doom: 'предсмерти[а-яё]*|предсмертн[а-яё]*',
   echo: 'эхо',
   enchant: 'заточк[а-яё]*',
+  charge: 'заряд(?:а|ы|ов|ом|у|е)?',
+  rage: 'ярост[а-яё]*',
+  fury: 'неистовств[а-яё]*',
 };
 
 const KEYWORDS: Keyword[] = [

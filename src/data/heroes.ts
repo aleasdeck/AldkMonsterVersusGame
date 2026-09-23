@@ -23,6 +23,7 @@ const list: HeroDef[] = [
     // Своя усталость, как у Берсерка (v0.30.1): общая 0.7 давала Воину те же +2 пункта, но заодно двигала пятерых других.
     fatigue: 0.75,
     signatures: ['shield_bash', 'riposte'],
+    traits: ['stance'],
     sprite: {
       type: 'humanoid',
       head: 'helmet',
@@ -50,6 +51,7 @@ const list: HeroDef[] = [
     weapon: { base: 'staff', name: 'Посох', dmgMin: 3, dmgMax: 6 },
     armor: { base: 'robe', name: 'Роба', def: 0, hp: 0 },
     signatures: ['magic_missile', 'fire_wave'],
+    traits: ['charge'],
     sprite: {
       type: 'humanoid',
       head: 'hat',
@@ -75,6 +77,7 @@ const list: HeroDef[] = [
     weapon: { base: 'stiletto', name: 'Стилет', dmgMin: 3, dmgMax: 5 },
     armor: { base: 'shroud', name: 'Тёмный покров', def: 0, hp: 0 },
     signatures: ['smoke_bomb', 'double_lunge'],
+    traits: ['poisoner'],
     sprite: {
       type: 'humanoid',
       head: 'mask',
@@ -98,6 +101,7 @@ const list: HeroDef[] = [
     weapon: { base: 'mace', name: 'Булава', dmgMin: 2, dmgMax: 6 },
     armor: { base: 'plate', name: 'Латы', def: 1, hp: 0 },
     signatures: ['light_hammer', 'vengeance_halo'],
+    traits: ['faith'],
     sprite: {
       type: 'humanoid',
       head: 'plume',
@@ -124,6 +128,7 @@ const list: HeroDef[] = [
     weapon: { base: 'axe', name: 'Топор', dmgMin: 3, dmgMax: 6 },
     armor: { base: 'hide', name: 'Шкура', def: 0, hp: 0 },
     signatures: ['rage', 'battle_trance'],
+    traits: ['rage'],
     sprite: {
       type: 'humanoid',
       head: 'horns',
@@ -148,6 +153,7 @@ const list: HeroDef[] = [
     weapon: { base: 'bow', name: 'Лук', dmgMin: 3, dmgMax: 7 },
     armor: { base: 'cloak', name: 'Куртка', def: 0, hp: 0 },
     signatures: ['aimed_shot', 'arrow_rain'],
+    traits: ['range'],
     sprite: {
       type: 'humanoid',
       head: 'cap',

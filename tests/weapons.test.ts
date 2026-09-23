@@ -13,7 +13,7 @@ function weapon(base: string, dmg: number, tier: GearTier = 1): GearInstance {
   return { kind: 'weapon', tier, base, name: base, dmgMin: dmg, dmgMax: dmg, def: 0, hp: 0, affix: null, slots: [], slotKinds: [] };
 }
 
-function mkBattle(heroId: string, enemies: string[], w?: GearInstance, seed = 1) {
+function mkBattle(heroId: string, enemies: string[], w?: GearInstance, seed = 1, innate = false) {
   const def = heroDef(heroId);
   const gear = makeStartingGear(def);
   if (!w) {
@@ -21,7 +21,7 @@ function mkBattle(heroId: string, enemies: string[], w?: GearInstance, seed = 1)
     gear.weapon.dmgMin = mid;
     gear.weapon.dmgMax = mid;
   }
-  const hero: HeroPersistent = { defId: heroId, signature: def.signatures[0], hp: 999, weapon: w ?? gear.weapon, armor: gear.armor, potion: null };
+  const hero: HeroPersistent = { defId: heroId, signature: def.signatures[0], innateTier: innate ? 1 : undefined, hp: 999, weapon: w ?? gear.weapon, armor: gear.armor, potion: null };
   const rng = createRng(seed);
   const state = createBattle(def, hero, enemies, rng);
   state.hero.stats.crit = 0;
@@ -263,7 +263,7 @@ describe('перки баз в бою', () => {
 
 describe('ярость берсерка', () => {
   it('стоит кровь, даёт стамину и Силу на ход, перезаряжается', () => {
-    const { state, rng } = mkBattle('berserk', ['bear']);
+    const { state, rng } = mkBattle('berserk', ['bear'], undefined, 1, true);
     expect(state.hero.sta).toBe(3); // шкура без перка: лишней стамины в первый ход нет
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
@@ -277,7 +277,7 @@ describe('ярость берсерка', () => {
   });
 
   it('самоурон идёт мимо блока и не доступен при малом HP', () => {
-    const { state, rng } = mkBattle('berserk', ['bear']);
+    const { state, rng } = mkBattle('berserk', ['bear'], undefined, 1, true);
     performAction(state, { type: 'defend' }, rng);
     const block = state.hero.block;
     const hp0 = state.hero.hp;
@@ -285,7 +285,7 @@ describe('ярость берсерка', () => {
     expect(state.hero.block).toBe(block);
     expect(state.hero.hp).toBe(hp0 - 2);
 
-    const low = mkBattle('berserk', ['bear']);
+    const low = mkBattle('berserk', ['bear'], undefined, 1, true);
     low.state.hero.hp = 2;
     expect(canUseAction(low.state, { type: 'artifact', artifactId: 'rage' })).toBe('Слишком мало HP');
     low.state.hero.hp = 3;
@@ -352,6 +352,7 @@ describe('золото и переброс', () => {
 describe('предпросмотр смены экипировки', () => {
   it('оружие: урон, сокеты, перк и переезд артефактов считаются на копии героя', () => {
     const run = newRun('warrior', 1);
+    run.hero.weapon.slots = [{ id: 'crippling_shot', tier: 1 }];
     const def = heroDef('warrior');
     const hammer: GearInstance = { kind: 'weapon', tier: 4, base: 'mace', name: 'Рунная булава', dmgMin: 7, dmgMax: 12, def: 0, hp: 0, affix: null, slots: [null, null, null], slotKinds: [] };
     const p = previewGearSwap(def, run.hero, hammer);
@@ -360,11 +361,11 @@ describe('предпросмотр смены экипировки', () => {
     expect(p.slotsAfter).toBe(3);
     expect(p.perkBefore).toContain('Парирование');
     expect(p.perkAfter).toBe(weaponsPerk('mace', 4));
-    expect(p.moved.map((a) => a.id)).toEqual(['shield_bash']);
+    expect(p.moved.map((a) => a.id)).toEqual(['crippling_shot']);
     expect(p.overflow).toEqual([]);
     // Сам герой не изменился.
     expect(run.hero.weapon.base).toBe('sword');
-    expect(run.hero.weapon.slots[0]?.id).toBe('shield_bash');
+    expect(run.hero.weapon.slots[0]?.id).toBe('crippling_shot');
   });
 
   it('броня: DEF и HP растут, лишние артефакты попадают в overflow, перк неносимой брони пустой', () => {

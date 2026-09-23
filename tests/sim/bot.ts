@@ -11,6 +11,15 @@ import { createRng, type Rng } from '../../src/engine/rng';
 import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { archetypeCounts, setMods } from '../../src/data/archetypes';
+import { innateOf } from '../../src/engine/stats';
+
+/** Что у героя в руках: вставленные артефакты и врождённый навык (v0.44) — для связок и наборов. `except` — без этого id. */
+function heldArts(run: RunState, except?: string): ArtifactInstance[] {
+  const out = socketRefs(run.hero).flatMap((r) => (r.art && r.art.id !== except ? [r.art] : []));
+  const innate = innateOf(run.hero);
+  if (innate && innate.id !== except) out.push(innate);
+  return out;
+}
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
 import { SWEEP_MULT, canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
@@ -429,7 +438,15 @@ export function playBattle(run: RunState): boolean {
 // ─── Ценность предметов ────────────────────────────────────────────────────
 
 function hasMagicActive(hero: HeroPersistent, except?: string): boolean {
-  return socketRefs(hero).some((s) => s.art && s.art.id !== except && artifactDef(s.art.id).kind === 'active' && artifactDef(s.art.id).school === 'magic');
+  return heroHeld(hero, except).some((a) => artifactDef(a.id).kind === 'active' && artifactDef(a.id).school === 'magic');
+}
+
+/** То же, что heldArts, но по герою (навык — из его уровня). */
+function heroHeld(hero: HeroPersistent, except?: string): ArtifactInstance[] {
+  const out = socketRefs(hero).flatMap((r) => (r.art && r.art.id !== except ? [r.art] : []));
+  const innate = innateOf(hero);
+  if (innate && innate.id !== except) out.push(innate);
+  return out;
 }
 
 /** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. Сверху — бонус набора, который он замыкает. */
@@ -443,7 +460,7 @@ export function artifactValue(run: RunState, inst: ArtifactInstance): number {
  * У вставленного это то, что пропадёт при замене; у нового — то, что он принесёт.
  */
 function setGain(run: RunState, inst: ArtifactInstance): number {
-  const others = socketRefs(run.hero).flatMap((r) => (r.art && r.art.id !== inst.id ? [r.art] : []));
+  const others = heldArts(run, inst.id);
   const without = setMods(archetypeCounts(others));
   const withIt = setMods(archetypeCounts([...others, inst]));
   if (withIt.length === without.length) return 0;
@@ -465,10 +482,10 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
   if (s.spellIgniteAll > 0) out.add('burn');
-  for (const ref of socketRefs(run.hero)) {
-    if (!ref.art || ref.art.id === except) continue;
-    const def = artifactDef(ref.art.id);
-    for (const e of def.effects?.(ref.art.tier) ?? []) {
+  if (s.backstabPoison > 0) out.add('poison');
+  for (const art of heldArts(run, except)) {
+    const def = artifactDef(art.id);
+    for (const e of def.effects?.(art.tier) ?? []) {
       if (e.type === 'status' && e.target !== 'self') out.add(e.status);
       if (e.type === 'enchant') for (const id of ['burn', 'poison', 'bleed'] as StatusId[]) out.add(id);
     }
@@ -479,10 +496,9 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
 /** Статусы, на которых у героя есть выплата (кроме `except`): взрыв ран, заражение, «по крови», «Гниль», «Раздуть», крит по оглушённым. */
 function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
   const out = new Set<StatusId>();
-  for (const ref of socketRefs(run.hero)) {
-    if (!ref.art || ref.art.id === except) continue;
-    const def = artifactDef(ref.art.id);
-    const m = def.mods?.(ref.art.tier) ?? {};
+  for (const art of heldArts(run, except)) {
+    const def = artifactDef(art.id);
+    const m = def.mods?.(art.tier) ?? {};
     if (m.vsBleed || m.bleedMult) out.add('bleed');
     if (m.blockPerBurning) out.add('burn');
     if (m.dotLeech) out.add('bleed').add('poison');
@@ -490,7 +506,7 @@ function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
     if (m.spellVsBurn) out.add('burn');
     if (m.stunCrit) out.add('stun');
     if (m.perDebuff) for (const id of ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable'] as StatusId[]) out.add(id);
-    for (const e of def.effects?.(ref.art.tier) ?? []) {
+    for (const e of def.effects?.(art.tier) ?? []) {
       if (e.type === 'detonate' || e.type === 'spread') for (const id of e.statuses) out.add(id);
       if (e.type === 'spell' && e.vsWeak) out.add('weak');
       if (e.type === 'scorch') out.add('burn');
@@ -501,12 +517,12 @@ function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
 
 /** Число вставленных приёмов и заклинаний (кроме `except`) — столько раз за ход сработает «Цепная атака». */
 function activeCount(hero: HeroPersistent, except?: string): number {
-  return socketRefs(hero).filter((r) => r.art && r.art.id !== except && artifactDef(r.art.id).kind === 'active').length;
+  return heroHeld(hero, except).filter((a) => artifactDef(a.id).kind === 'active').length;
 }
 
 /** Есть ли физический приём (кроме `except`) — вторая половина «Перекрёстного тока». */
 function hasPhysicalActive(hero: HeroPersistent, except?: string): boolean {
-  return socketRefs(hero).some((s) => s.art && s.art.id !== except && artifactDef(s.art.id).kind === 'active' && artifactDef(s.art.id).school === 'physical');
+  return heroHeld(hero, except).some((a) => artifactDef(a.id).kind === 'active' && artifactDef(a.id).school === 'physical');
 }
 
 /**

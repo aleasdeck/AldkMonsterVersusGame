@@ -34,8 +34,10 @@ export interface RunReport {
   player: string;
   playerRuns: number;
   hero: string;
-  /** Персональный артефакт, с которым начат забег (v0.33: у героя их два на выбор). */
+  /** Врождённый навык, с которым начат забег (v0.33: у героя их два на выбор; с v0.44 — вне сокетов, уровень по локации). */
   signature: string;
+  /** Черта героя (v0.44, data/traits.ts); пусто — у забега черты нет. */
+  trait: string;
   seed: number;
   /** Фаза в момент записи: у победы и гибели — они же, у брошенного — где бросили (map, battle, shop…). */
   phase: RunPhase;
@@ -131,6 +133,7 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     playerRuns: ctx.playerRuns,
     hero: run.hero.defId,
     signature: run.hero.signature,
+    trait: run.hero.trait ?? '',
     seed: run.seed,
     phase: run.phase,
     act: run.locationIndex + 1,
