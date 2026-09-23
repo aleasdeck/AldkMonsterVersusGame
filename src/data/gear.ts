@@ -808,15 +808,18 @@ export function upgradePreview(gear: GearInstance): string {
  * Стартовое снаряжение героя: оба сокета пусты (v0.44) — персональный артефакт стал врождённым навыком и сокет не занимает,
  * первая находка встаёт сразу.
  */
-export function makeStartingGear(def: HeroDef): { weapon: GearInstance; armor: GearInstance } {
+export function makeStartingGear(def: HeroDef, start?: string): { weapon: GearInstance; armor: GearInstance } {
+  // Вариант стартового оружия (мастерство 5, v0.45): база из пула тира 1, кубик — по её весу и разбросу.
+  const alt = start && start !== def.weapon.base ? baseOf('weapon', start) : null;
+  const dice = alt ? baseDamage(alt, 1) : { min: def.weapon.dmgMin, max: def.weapon.dmgMax };
   return {
     weapon: {
       kind: 'weapon',
       tier: 1,
-      base: def.weapon.base,
-      name: def.weapon.name,
-      dmgMin: def.weapon.dmgMin,
-      dmgMax: def.weapon.dmgMax,
+      base: alt ? alt.id : def.weapon.base,
+      name: alt ? alt.name.charAt(0).toUpperCase() + alt.name.slice(1) : def.weapon.name,
+      dmgMin: dice.min,
+      dmgMax: dice.max,
       def: 0,
       hp: 0,
       affix: null,

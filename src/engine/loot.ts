@@ -108,8 +108,9 @@ function bump<T extends number>(tiers: T[], max: T): T[] {
  * Может ли артефакт выпасть герою: персональные не выпадают никому (v0.44) — выбранный стал врождённым навыком
  * героя с уровнем по локации, невыбранный в этом забеге не нужен.
  */
-export function canDropFor(_hero: HeroPersistent, id: string): boolean {
-  return !SIGNATURE_OWNER[id];
+export function canDropFor(hero: HeroPersistent, id: string): boolean {
+  // Закрытые мастерством вещи (v0.45) не выпадают, пока их не откроют.
+  return !SIGNATURE_OWNER[id] && !hero.locked?.includes(id);
 }
 
 /** Вещи героя, которые тянут дроп и связки: вставленные артефакты и врождённый навык. */

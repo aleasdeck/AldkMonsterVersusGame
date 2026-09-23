@@ -190,6 +190,19 @@ export interface DerivedStats {
   rageTrait: number;
   /** Доля, на которую удар оружием сильнее по второму и дальше в ряду (Лучник, «Дистанция»). */
   farShot: number;
+  // ── Вторые черты (v0.45) ──
+  /** Блок за каждого убитого врага (Воин, «Страж»). */
+  killBlock: number;
+  /** На сколько MP дешевле каждое заклинание после первого в ходу; каждое второе ранит на 1 (Маг, «Перегрев»). */
+  spellDiscount: number;
+  /** >0 — первый удар по каждому врагу в бою — крит (Ассасин, «Метка жертвы»). */
+  firstHitCrit: number;
+  /** Доля сверх лечения в первый ход боя: 1 — вдвое (Паладин, «Искупление»). */
+  firstTurnHeal: number;
+  /** Лечение за убитого врага и +1 Сила до конца боя (Берсерк, «Жажда»). */
+  killThirst: number;
+  /** >0 — первый удар боя по второму и дальше в ряду оглушает (Лучник, «Засада»). */
+  ambushStun: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -528,6 +541,8 @@ export interface HeroBattle extends Combatant {
   critStack: number;
   /** id врождённого навыка героя в `artifacts` (v0.44): не сокет, его не стянет вор. null — героя без навыка (тесты). */
   innate: string | null;
+  /** Герой уже нанёс в этом бою хоть один удар — для «Засады» (v0.45). */
+  struckAny: boolean;
 }
 
 export interface EnemyState extends Combatant {
@@ -550,6 +565,8 @@ export interface EnemyState extends Combatant {
   aura?: string;
   /** Уже получил «Ответный удар» в этом своём ходу: не больше одного ответа каждому врагу за ход. */
   riposted: boolean;
+  /** Герой уже бил по нему в этом бою — для «Метки жертвы» (v0.45). */
+  struck?: boolean;
 }
 
 /** Союзник героя: ходит по правилам своего врага-прототипа, бьёт сам, враги атакуют его первым. */
@@ -648,6 +665,10 @@ export interface HeroPersistent {
   innateTier?: ArtTier;
   /** Выбранная черта (v0.44, data/traits.ts). Без поля — черты нет (тесты). */
   trait?: string;
+  /** Закрытые артефакты этого забега (v0.45, мастерство): не выпадают. Без поля — открыто всё (бот, тесты). */
+  locked?: string[];
+  /** База стартового оружия (v0.45): родная или вариант мастерства 5. */
+  start?: string;
   hp: number;
   weapon: GearInstance;
   armor: GearInstance;
@@ -753,9 +774,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.44.0';
+export const GAME_VERSION = '0.45.0';
 
-export const SAVE_VERSION = 34;
+export const SAVE_VERSION = 35;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
@@ -787,4 +808,8 @@ export interface RunState {
   stats: RunStats;
   /** Логи всех боёв забега по порядку — журнал на экране итогов и в паузе. */
   logs: BattleLog[];
+  /** Архетипы, набор 3/3 которых герой собрал хоть раз за забег (v0.45) — достижения мастерства. */
+  setsReached: ArchetypeId[];
+  /** Архетипы, с набором 3/3 которых побеждён босс (v0.45). */
+  bossSets: ArchetypeId[];
 }

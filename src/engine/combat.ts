@@ -530,6 +530,8 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
 
 function healHero(state: BattleState, amount: number, why?: string): void {
   const h = state.hero;
+  // «Искупление» Паладина (v0.45): в первый ход боя лечение сильнее.
+  if (state.turn === 1 && h.stats.firstTurnHeal > 0) amount = Math.round(amount * (1 + h.stats.firstTurnHeal));
   const healed = Math.max(0, Math.min(amount, h.maxHp - h.hp));
   if (healed > 0) {
     h.hp += healed;
@@ -657,6 +659,12 @@ function cleanupDead(state: BattleState, rng: Rng): void {
     state.stats.kills += 1;
     // «Кровавый жетон»: глоток жизни за каждого убитого.
     if (state.hero.stats.onKillHeal > 0 && state.hero.hp > 0) healHero(state, state.hero.stats.onKillHeal, 'Кровавый жетон');
+    // Вторые черты (v0.45): «Страж» Воина — блок за убитого, «Жажда» Берсерка — кровь и Сила.
+    if (state.hero.stats.killBlock > 0 && state.hero.hp > 0) gainBlock(state, state.hero, 'hero', state.hero.stats.killBlock, 'страж');
+    if (state.hero.stats.killThirst > 0 && state.hero.hp > 0) {
+      healHero(state, state.hero.stats.killThirst, 'жажда');
+      addStatus(state, state.hero, 'hero', 'strength', 1, -1);
+    }
   }
   state.enemies = state.enemies.filter((e) => e.hp > 0);
   state.enemyQueue = state.enemyQueue.filter((uid) => state.enemies.some((e) => e.uid === uid));
@@ -805,7 +813,9 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
   const critChance = Math.min(1, h.stats.crit + h.critStack + (wounded ? h.stats.executeCrit : 0));
   // «Оглушающий удар»: по оглушённой цели бьют наверняка.
   const stunned = !!target && h.stats.stunCrit > 0 && !!getStatus(target, 'stun');
-  const crit = sureCrit || stealthed || stunned || (critChance > 0 && chance(rng, critChance));
+  // «Метка жертвы» Ассасина (v0.45): первый удар по каждому врагу в бою — крит.
+  const prey = !!target && h.stats.firstHitCrit > 0 && !target.struck;
+  const crit = sureCrit || stealthed || stunned || prey || (critChance > 0 && chance(rng, critChance));
   if (crit) {
     dmg = Math.floor((dmg * h.stats.critDmg) / 100);
     steps.push(`крит ${h.stats.critDmg} % = ${dmg}`);
@@ -839,8 +849,17 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
   const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit, e, opts.lowHp);
   const detail = newDetail();
   const pierce = h.stats.pierceBlock > 0;
+  const row = state.enemies.indexOf(e);
+  const firstOfBattle = !h.struckAny;
+  h.struckAny = true;
+  e.struck = true;
   const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce, detail, rng });
   log(state, `${opts.label ?? 'Герой бьёт'} ${e.name}: ${dmg} (${why})${hitTail(dmg, dealt, detail, pierce && e.block > 0)}`);
+  // «Засада» Лучника (v0.45): первый удар боя по второму и дальше в ряду оглушает.
+  if (firstOfBattle && h.stats.ambushStun > 0 && row >= 1 && e.hp > 0 && !getStatus(e, 'stun')) {
+    addStatus(state, e, e.uid, 'stun', 1, -1);
+    log(state, `Засада: ${e.name} оглушён`);
+  }
   if (dealt > 0 && e.hp > 0) {
     // Праща: оглушает только критом, и то не каждым — бросок делается лишь после крита, чтобы не тратить RNG на обычных ударах.
     if (h.stats.stunOnCrit > 0 && crit && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnCrit)) addStatus(state, e, e.uid, 'stun', 1, -1);
@@ -943,7 +962,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if (cd > 0) return `Перезарядка: ${cd}`;
       const limit = def.usesPerTurn?.(inst.tier);
       if (limit && (h.uses[def.id] ?? 0) >= limit) return `Не больше ${limit} раз за ход`;
-      const cost = artifactCost(def, inst.tier);
+      const cost = effectiveCost(h, def, inst.tier);
       if (cost.sta === 'all' ? h.sta < Math.max(1, h.maxSta) : (cost.sta ?? 0) > h.sta) return cost.sta === 'all' ? 'Нужна вся стамина' : 'Нет стамины';
       if ((cost.mp ?? 0) > h.mp) return 'Нет маны';
       if (def.target === 'enemy' && !findEnemy(state, action.target ?? -1)) return 'Нет цели';
@@ -1258,7 +1277,7 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
   } else {
     const def = artifactDef(action.artifactId);
     const inst = h.artifacts.find((a) => a.id === def.id)!;
-    const cost = artifactCost(def, inst.tier);
+    const cost = effectiveCost(h, def, inst.tier);
     h.sta = cost.sta === 'all' ? 0 : h.sta - (cost.sta ?? 0);
     h.mp -= cost.mp ?? 0;
     const cd = def.cooldown?.(inst.tier) ?? 0;
@@ -1279,6 +1298,14 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
     // «Пироман» (v0.43): каждое заклинание поджигает всех врагов.
     if (def.school === 'magic' && h.stats.spellIgniteAll > 0) {
       for (const e of state.enemies) if (e.hp > 0) heroInflict(state, e, 'burn', h.stats.spellIgniteAll, 2);
+    }
+    // «Перегрев» Мага (v0.45): каждое второе заклинание хода обжигает самого Мага.
+    if (def.school === 'magic') {
+      h.uses[SPELLS] = (h.uses[SPELLS] ?? 0) + 1;
+      if (h.stats.spellDiscount > 0 && h.uses[SPELLS] % 2 === 0 && h.hp > 0) {
+        log(state, 'Перегрев: 1 урона себе');
+        damageHero(state, 1, 'dot', undefined, true);
+      }
     }
     // «Заряд» Мага (v0.44): заклинание копит заряд для обычного удара, до трёх.
     if (def.school === 'magic' && h.stats.spellCharge > 0) {
@@ -1338,6 +1365,19 @@ export function chainCharges(h: HeroBattle): number {
 
 function isChainArtifact(def: ArtifactDef): boolean {
   return !!def.effects?.(1).some((e) => e.type === 'chain');
+}
+
+/** Ключ счётчика заклинаний хода в `hero.uses` — для «Перегрева» (v0.45). */
+const SPELLS = '_spells';
+
+/**
+ * Цена приёма для героя прямо сейчас: «Перегрев» Мага (v0.45) удешевляет заклинания после первого в ходу.
+ * Интерфейс берёт отсюда же, чтобы плитка показывала то, что спишется.
+ */
+export function effectiveCost(h: HeroBattle, def: ArtifactDef, tier: ArtifactInstance['tier']): ReturnType<typeof artifactCost> {
+  const cost = artifactCost(def, tier);
+  if (def.school === 'magic' && h.stats.spellDiscount > 0 && (h.uses[SPELLS] ?? 0) > 0 && cost.mp) return { ...cost, mp: Math.max(0, cost.mp - h.stats.spellDiscount) };
+  return cost;
 }
 
 /** Больше трёх зарядов Маг не держит (черта «Заряд», v0.44). */
@@ -1811,6 +1851,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
       strikes: 0,
       critStack: 0,
       innate: innate?.id ?? null,
+      struckAny: false,
     },
     enemies: [],
     act,

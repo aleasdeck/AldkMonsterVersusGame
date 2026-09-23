@@ -1,13 +1,13 @@
-import type { ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
+import type { ArchetypeId, ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
 import { SAVE_VERSION } from './types';
 import { chance, createRng, pick } from './rng';
 import { defaultSignature, heroDef } from '../data/heroes';
 import { makeStartingGear, upgradeGearTier } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, ROOM_NAMES, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
-import { computeStats, heroStatsOf } from './stats';
+import { computeStats, heroStatsOf, innateOf } from './stats';
 import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs, type SocketRef } from './equipment';
-import { artifactTags } from '../data/archetypes';
+import { activeSets, archetypeCounts, artifactTags } from '../data/archetypes';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
@@ -46,17 +46,24 @@ export function randomSeed(): number {
  * `now` — момент старта; тесты и симулятор могут подставить свой, чтобы состояние не зависело от часов.
  * `signature` — с каким из пары персональных артефактов начать (по умолчанию первый); чужой id — ошибка.
  */
+/** Что задаёт мастерство (v0.45): закрытые артефакты и вариант стартового оружия. */
+export interface RunOpts {
+  locked?: string[];
+  start?: string;
+}
+
 export function newRun(
   heroId: string,
   seed: number = randomSeed(),
   now: number = Date.now(),
   signature: string = defaultSignature(heroDef(heroId)),
   trait: string = heroDef(heroId).traits[0],
+  opts: RunOpts = {},
 ): RunState {
   const def = heroDef(heroId);
   if (!def.signatures.includes(signature)) throw new Error(`Not a signature of ${heroId}: ${signature}`);
   if (!def.traits.includes(trait)) throw new Error(`Not a trait of ${heroId}: ${trait}`);
-  const gear = makeStartingGear(def);
+  const gear = makeStartingGear(def, opts.start);
   const stats = computeStats(def, gear.weapon, gear.armor, { innate: { id: signature, tier: 1 }, trait });
   const rng = createRng(seed);
   return {
@@ -65,7 +72,7 @@ export function newRun(
     debug: false,
     reported: false,
     rng,
-    hero: { defId: heroId, signature, innateTier: 1, trait, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
+    hero: { defId: heroId, signature, innateTier: 1, trait, locked: opts.locked ?? [], start: gear.weapon.base, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
     gold: START_GOLD,
     locations: pickRunLocations(rng),
     locationIndex: 0,
@@ -78,6 +85,8 @@ export function newRun(
     pending: null,
     stats: { kills: 0, turns: 0, damageDealt: 0, damageTaken: 0, roomsCleared: 0, startedAt: now, finishedAt: 0 },
     logs: [],
+    setsReached: [],
+    bossSets: [],
   };
 }
 
@@ -148,6 +157,25 @@ function startBattle(run: RunState, kind: 'fight' | 'elite' | 'boss'): void {
   const ids = pick(run.rng, table);
   run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng, run.locationIndex);
   run.phase = 'battle';
+  noteSets(run);
+}
+
+/**
+ * Набор 3/3 засчитывается, как только сработал (v0.45): в бой герой вошёл с тремя вещами архетипа — достижение забега.
+ * Засчитывается и в проигранном забеге.
+ */
+function noteSets(run: RunState): void {
+  for (const arch of fullSets(run)) if (!run.setsReached.includes(arch)) run.setsReached.push(arch);
+}
+
+/** Архетипы, у которых сейчас сработал набор 3/3: вставленные артефакты и навык героя. */
+export function fullSets(run: RunState): ArchetypeId[] {
+  const arts = socketRefs(run.hero).flatMap((r) => (r.art ? [r.art] : []));
+  const innate = innateOf(run.hero);
+  if (innate) arts.push(innate);
+  return activeSets(archetypeCounts(arts))
+    .filter((s) => s.count >= 3 && s.arch.sets[3])
+    .map((s) => s.arch.id);
 }
 
 /**
@@ -273,6 +301,8 @@ export function finishBattle(run: RunState): void {
   run.battle = null;
   run.gold += goldReward(kind);
   if (kind === 'boss') {
+    // Достижение «босс с набором 3/3» (v0.45): набор, с которым герой закончил бой с боссом.
+    for (const arch of fullSets(run)) if (!run.bossSets.includes(arch)) run.bossSets.push(arch);
     // Привала после босса нет: герой сразу подлечивается и идёт дальше. Сколько дало — подписью на трофее.
     const heal = bossHealAmount(run);
     run.hero.hp += heal;

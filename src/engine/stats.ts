@@ -115,6 +115,12 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     overhealBlock: 0,
     rageTrait: 0,
     farShot: 0,
+    killBlock: 0,
+    spellDiscount: 0,
+    firstHitCrit: 0,
+    firstTurnHeal: 0,
+    killThirst: 0,
+    ambushStun: 0,
   };
   applyMods(s, weaponPerkMods(weapon, def));
   applyMods(s, armorPerkMods(armor, def));

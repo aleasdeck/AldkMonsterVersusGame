@@ -76,8 +76,10 @@ export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElemen
  * Плитка каталога. Запись закрыта — «???»; у артефакта в углу три метки тиров: горит тот, что был у героя в забеге.
  * Описание закрытого тира в подсказке спрятано, сама запись при этом открыта (см. collectibleLines).
  */
-export function collectibleTile(c: Collectible, st: FoundState): HTMLElement {
+export function collectibleTile(c: Collectible, st: FoundState, lockedHow = ''): HTMLElement {
   if (!st.open) {
+    // Закрытая мастерством вещь (v0.45): силуэт с условием — альбом заодно и список целей.
+    if (lockedHow) return h('div', { class: 'coll-tile locked sealed', tip: `${c.name}\nЗакрыто. Как открыть: ${lockedHow}` }, h('span', { class: 'coll-glyph' }, '🔒'), h('span', { class: 'coll-name' }, c.name));
     return h('div', { class: 'coll-tile locked', tip: 'Ещё не найдено' }, h('span', { class: 'coll-glyph' }, '?'), h('span', { class: 'coll-name' }, '???'));
   }
   // Метки без своей подсказки: наведение на любую точку плитки должно показывать её описание целиком.

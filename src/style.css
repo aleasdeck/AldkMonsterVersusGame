@@ -3079,3 +3079,79 @@ p {
   overflow-y: auto;
   scrollbar-width: thin;
 }
+
+/* ─── Мастерство (v0.45) ─────────────────────────────────────────────── */
+
+/* Всплывающая строка поверх экрана: открытый набором артефакт. */
+.toast {
+  position: absolute;
+  left: 50%;
+  top: 52px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  font-size: 18px;
+  z-index: 50;
+  pointer-events: none;
+}
+/* Выбор черты и стартового оружия на экране героя: чипы в строку. */
+.pick-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: 15px;
+}
+.pick-chip {
+  font: inherit;
+  font-size: 15px;
+  padding: 0 6px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.pick-chip.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pick-chip.off {
+  opacity: 0.5;
+  cursor: help;
+}
+.mastery-line {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.1;
+  cursor: help;
+}
+.mastery-head {
+  color: var(--accent);
+}
+.mastery-bar {
+  height: 6px;
+  background: var(--border);
+  margin: 2px 0;
+}
+.mastery-fill {
+  height: 100%;
+  background: var(--accent);
+}
+.mastery-next {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mastery-note {
+  font-size: 17px;
+  color: var(--accent);
+  line-height: 1.15;
+  text-align: center;
+}
+.coll-tile.sealed .coll-name {
+  opacity: 0.7;
+}

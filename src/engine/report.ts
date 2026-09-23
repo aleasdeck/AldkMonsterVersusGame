@@ -21,6 +21,8 @@ export interface ReportContext {
   debug: boolean;
   /** Момент записи, мс эпохи: длительность брошенного забега считается до него. */
   now: number;
+  /** Уровень мастерства героя на старте забега (v0.45); нет — 0. */
+  heroLevel?: number;
 }
 
 /**
@@ -38,6 +40,12 @@ export interface RunReport {
   signature: string;
   /** Черта героя (v0.44, data/traits.ts); пусто — у забега черты нет. */
   trait: string;
+  /** Уровень мастерства героя (v0.45). */
+  heroLevel: number;
+  /** Сколько вещей было закрыто в этом забеге (v0.45): 0 — открыт весь пул. */
+  locked: number;
+  /** База стартового оружия (v0.45): родная или вариант мастерства. */
+  start: string;
   seed: number;
   /** Фаза в момент записи: у победы и гибели — они же, у брошенного — где бросили (map, battle, shop…). */
   phase: RunPhase;
@@ -134,6 +142,9 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     hero: run.hero.defId,
     signature: run.hero.signature,
     trait: run.hero.trait ?? '',
+    heroLevel: ctx.heroLevel ?? 0,
+    locked: run.hero.locked?.length ?? 0,
+    start: run.hero.start ?? '',
     seed: run.seed,
     phase: run.phase,
     act: run.locationIndex + 1,

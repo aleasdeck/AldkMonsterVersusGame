@@ -1,6 +1,8 @@
 import { button, h } from '../dom';
 import { ART_TIERS, COLLECTIBLES, foundState, type CollectibleKind } from '../../data/collection';
 import { collectibleTile } from '../components';
+import { lockedForRun } from '../save';
+import { unlockText } from '../../data/mastery';
 import type { App } from '../app';
 
 const SECTIONS: { kind: CollectibleKind; title: string }[] = [
@@ -12,6 +14,8 @@ const SECTIONS: { kind: CollectibleKind; title: string }[] = [
 
 export function collectionScreen(app: App): HTMLElement {
   const have = new Set(app.profile.collection);
+  // Закрытые мастерством артефакты (v0.45): на плитке — как открыть.
+  const locked = new Set(lockedForRun(app.profile));
   const states = COLLECTIBLES.map((c) => ({ c, st: foundState(have, c) }));
   const found = states.filter((s) => s.st.open).length;
 
@@ -24,7 +28,7 @@ export function collectionScreen(app: App): HTMLElement {
       'div',
       { class: 'coll-section' },
       h('div', { class: 'coll-head' }, h('span', null, title), h('span', { class: 'dim' }, `${open}/${items.length}${tiers}`)),
-      h('div', { class: 'coll-grid' }, ...items.map((s) => collectibleTile(s.c, s.st))),
+      h('div', { class: 'coll-grid' }, ...items.map((s) => collectibleTile(s.c, s.st, s.c.kind === 'artifact' && locked.has(s.c.id.slice(4)) ? unlockText(s.c.id.slice(4)) : ''))),
     );
   });
 
