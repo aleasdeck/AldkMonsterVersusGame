@@ -179,8 +179,10 @@ const list: ArtifactDef[] = [
     glyph: '⸫',
     kind: 'passive',
     slot: 'weapon',
-    mods: (tier) => ({ vsBleed: t(2, 3, 4)(tier) }),
-    describe: (tier) => `Удары по кровоточащей цели +${t(2, 3, 4)(tier)} урона`,
+    tags: ['blood'],
+    // v0.43: доля вместо плоских +2/3/4 — плоская прибавка к третьему акту тонула в кубике 9–14 (ADR 0003).
+    mods: (tier) => ({ vsBleed: t(0.15, 0.2, 0.25)(tier) }),
+    describe: (tier) => `Удары оружием по кровоточащей цели сильнее на ${t(15, 20, 25)(tier)} %`,
   },
   {
     id: 'leech_charm',
@@ -188,6 +190,7 @@ const list: ArtifactDef[] = [
     glyph: '⌒',
     kind: 'passive',
     slot: 'armor',
+    tags: ['blood', 'poison'],
     mods: (tier) => ({ dotLeech: t(1, 2, 3)(tier) }),
     // v0.40.2: считается по каждой ране, а не по факту «есть хоть одна» — с кровью и ядом на одном враге пьётся вдвое.
     describe: (tier) => `Каждый тик кровотечения и яда на враге лечит героя на ${t(1, 2, 3)(tier)}: обе раны на одной цели — вдвое`,
@@ -207,6 +210,7 @@ const list: ArtifactDef[] = [
     glyph: '♨',
     kind: 'passive',
     slot: 'weapon',
+    tags: ['fire'],
     mods: (tier) => ({ spellVsBurn: t(0.3, 0.4, 0.5)(tier) }),
     describe: (tier) => `Заклинания по горящей цели на ${t(30, 40, 50)(tier)} % сильнее и продлевают Горение на ход`,
   },
@@ -292,8 +296,14 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     // Порез — клинком в упор, каким бы ни было оружие.
     reach: 'melee',
-    effects: (tier) => [{ type: 'status', target: 'enemy', status: 'bleed', value: t(3, 4, 5)(tier), turns: 3 }],
-    describe: (tier) => `Кровотечение ${t(3, 4, 5)(tier)} на 3 хода (стакается). ${t(1, 2, 2)(tier) === 1 ? 'Раз в ход' : `До ${t(1, 2, 2)(tier)} раз за ход`}`,
+    tags: ['blood'],
+    // v0.43: порез ещё и бьёт на половину удара — заводка больше не отнимает у героя удар, а несёт заводки на ударе сама.
+    effects: (tier) => [
+      { type: 'attack', bonus: 0, target: 'enemy', mult: 0.5 },
+      { type: 'status', target: 'enemy', status: 'bleed', value: t(3, 4, 5)(tier), turns: 3 },
+    ],
+    describe: (tier) =>
+      `Удар на 50 % и Кровотечение ${t(3, 4, 5)(tier)} на 3 хода (стакается). ${t(1, 2, 2)(tier) === 1 ? 'Раз в ход' : `До ${t(1, 2, 2)(tier)} раз за ход`}`,
   },
   {
     id: 'war_cry',
@@ -520,6 +530,7 @@ const list: ArtifactDef[] = [
     glyph: '⚓',
     kind: 'active',
     slot: 'weapon',
+    tags: ['blood'],
     school: 'physical',
     cost: { sta: 1 },
     cooldown: (tier) => t(3, 2, 1)(tier),
@@ -593,6 +604,7 @@ const list: ArtifactDef[] = [
     glyph: '⚕',
     kind: 'active',
     slot: 'weapon',
+    tags: ['blood'],
     school: 'physical',
     cost: { sta: 1 },
     cooldown: () => 2,
@@ -709,12 +721,14 @@ const list: ArtifactDef[] = [
     cost: { mp: 2 },
     cooldown: () => 1,
     target: 'enemy',
+    tags: ['fire'],
     // v0.38: 7/10/13 чистого урона стали 5/7/9 и Горение — шар поджигает, а взрывает огонь «Взрыв пламени».
+    // v0.43: 3/4/5 и Горение 3/4/5 на 3 хода — крупный прямой урон уходит в выплаты (Испепеление, Взрыв), шар — заводка (ADR 0003).
     effects: (tier) => [
-      { type: 'spell', amount: t(5, 7, 9)(tier), target: 'enemy' },
-      { type: 'status', target: 'enemy', status: 'burn', value: t(2, 3, 4)(tier), turns: 2 },
+      { type: 'spell', amount: t(3, 4, 5)(tier), target: 'enemy' },
+      { type: 'status', target: 'enemy', status: 'burn', value: t(3, 4, 5)(tier), turns: 3 },
     ],
-    describe: (tier) => `${t(5, 7, 9)(tier)} урона заклинанием и Горение ${t(2, 3, 4)(tier)} на 2 хода. Раз в ход`,
+    describe: (tier) => `${t(3, 4, 5)(tier)} урона заклинанием и Горение ${t(3, 4, 5)(tier)} на 3 хода. Раз в ход`,
   },
   {
     id: 'ice_shard',
@@ -839,6 +853,7 @@ const list: ArtifactDef[] = [
     glyph: '≋',
     kind: 'active',
     slot: 'weapon',
+    tags: ['fire'],
     school: 'magic',
     cost: { mp: 2 },
     cooldown: () => 1,
@@ -907,6 +922,7 @@ const list: ArtifactDef[] = [
     glyph: '✺',
     kind: 'active',
     slot: 'weapon',
+    tags: ['fire'],
     school: 'magic',
     cost: { mp: 2 },
     cooldown: () => 2,
@@ -916,6 +932,99 @@ const list: ArtifactDef[] = [
     // два взрыва ран в пуле должны стоить одинаково, а у огненного ещё и пул со всех целей, и удар по всем.
     effects: (tier) => [{ type: 'detonate', statuses: ['burn'], target: 'allEnemies', mult: t(1, 1.25, 1.5)(tier), pooled: true }],
     describe: (tier) => `Снимает Горение со всех врагов; всё, что оно ещё нанесло бы, складывается и бьёт каждого${t(1, 1.25, 1.5)(tier) > 1 ? ` ×${t(1, 1.25, 1.5)(tier)}` : ''} мимо блока. КД 2`,
+  },
+  // ─── Архетипы (v0.43, пилот) ─────────────────────────────────────────────
+  // docs/plan-reworka.md §2 и ADR 0003: заводка срабатывает на ударе, выплата растёт от накопленного, ключевая вещь ломает правило за цену.
+  // ── Кровь ──
+  {
+    id: 'jagged_edge',
+    name: 'Зазубренное лезвие',
+    glyph: '⚟',
+    kind: 'passive',
+    slot: 'weapon',
+    tags: ['blood'],
+    // Заводка на ударе: удар — носитель связки, а не её конкурент. Чем больше ударов за ход, тем больше крови.
+    mods: (tier) => ({ onHitBleed: t(1, 1, 2)(tier) }),
+    describe: (tier) => `Каждый удар оружием вешает Кровотечение ${t(1, 1, 2)(tier)} на 2 хода (стакается)`,
+  },
+  {
+    id: 'blood_bath',
+    fx: { color: '#e63946' },
+    name: 'Кровавая баня',
+    glyph: '♒',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['blood'],
+    school: 'physical',
+    cost: { sta: 2 },
+    cooldown: (tier) => t(3, 2, 2)(tier),
+    target: 'enemy',
+    reach: 'any',
+    // Заражение для крови: кровь копится на одном, баня разносит её по всем — выплата по площади.
+    effects: (tier) => [{ type: 'spread', statuses: ['bleed'], target: 'enemy', pct: t(0.5, 0.75, 1)(tier) }],
+    describe: (tier) => `Кровотечение с цели расходится на всех остальных врагов: ${t(50, 75, 100)(tier)} % силы, срок тот же. КД ${t(3, 2, 2)(tier)}`,
+  },
+  {
+    id: 'blood_oath',
+    name: 'Клятва крови',
+    glyph: '☩',
+    kind: 'passive',
+    slot: 'armor',
+    tags: ['blood'],
+    keystone: true,
+    // Ключевая вещь: удар слабеет, кровь — в полтора раза. В бронном сокете — стоит места защиты.
+    mods: (tier) => ({ strikeMult: -t(0.3, 0.25, 0.2)(tier), bleedMult: 0.5 }),
+    describe: (tier) => `Удары оружием слабее на ${t(30, 25, 20)(tier)} %; всё Кровотечение, которое вы вешаете, в полтора раза сильнее`,
+  },
+  // ── Огонь ──
+  {
+    id: 'smoldering_blade',
+    name: 'Тлеющий клинок',
+    glyph: '♆',
+    kind: 'passive',
+    slot: 'weapon',
+    tags: ['fire'],
+    // Огонь для тех, кто бьёт оружием: удар поджигает, выплаты — Испепеление и Взрыв — берут с этого.
+    mods: (tier) => ({ onHitBurn: t(1, 1, 2)(tier) }),
+    describe: (tier) => `Каждый удар оружием вешает Горение ${t(1, 1, 2)(tier)} на 2 хода (стакается)`,
+  },
+  {
+    id: 'incinerate',
+    fx: { color: '#ff7b00' },
+    name: 'Испепеление',
+    glyph: '☀',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['fire'],
+    school: 'magic',
+    cost: { mp: 2 },
+    cooldown: () => 2,
+    target: 'enemy',
+    // Выплата по одной цели: Горение разом, но огонь не гаснет — в отличие от Взрыва, копить можно дальше.
+    effects: (tier) => [{ type: 'scorch', mult: t(2, 2.5, 3)(tier), target: 'enemy' }],
+    describe: (tier) => `Урон = Горение цели × ${t(2, 2.5, 3)(tier)} мимо блока; Горение остаётся. Только по горящей цели. КД 2`,
+  },
+  {
+    id: 'heat_ward',
+    name: 'Жаропрочность',
+    glyph: '⛶',
+    kind: 'passive',
+    slot: 'armor',
+    tags: ['fire'],
+    mods: (tier) => ({ burnImmune: 1, blockPerBurning: t(1, 2, 3)(tier) }),
+    describe: (tier) => `Горение на вас не действует. +${t(1, 2, 3)(tier)} Блока в начале хода за каждого горящего врага`,
+  },
+  {
+    id: 'pyromancer',
+    name: 'Пироман',
+    glyph: '♔',
+    kind: 'passive',
+    slot: 'armor',
+    tags: ['fire'],
+    keystone: true,
+    // Ключевая вещь Огня: удар оружием вдвое слабее, зато каждое заклинание — пожар по всем.
+    mods: (tier) => ({ strikeMult: -0.5, spellIgniteAll: t(1, 1, 2)(tier) }),
+    describe: (tier) => `Удары оружием слабее вдвое; каждое заклинание поджигает всех врагов: Горение ${t(1, 1, 2)(tier)} на 2 хода`,
   },
 ];
 

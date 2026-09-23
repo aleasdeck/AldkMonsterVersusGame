@@ -17,6 +17,7 @@ import type {
 } from './types';
 import { chance, pick, shuffle, weighted, type Rng } from './rng';
 import { ARTIFACT_IDS, artifactCost, artifactDef } from '../data/artifacts';
+import { artifactTags } from '../data/archetypes';
 import { makeGear } from '../data/gear';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { EVENT_WEIGHTS, type ActDef } from '../data/locations';
@@ -146,7 +147,9 @@ function artifactStatuses(id: string): ArtifactStatuses {
   if (m.onHitPoison) applies.add('poison');
   if (m.markOnHit) applies.add('vulnerable');
   if (m.stunOnCrit) applies.add('stun');
-  if (m.vsBleed) pays.add('bleed');
+  if (m.vsBleed || m.bleedMult || m.bleedAdd || m.bleedTwice) pays.add('bleed');
+  if (m.burnAdd || m.burnSpread || m.blockPerBurning) pays.add('burn');
+  if (m.spellIgniteAll) applies.add('burn');
   if (m.dotLeech) {
     pays.add('bleed');
     pays.add('poison');
@@ -160,6 +163,7 @@ function artifactStatuses(id: string): ArtifactStatuses {
     // Стихийная заточка вешает случайную из трёх ран — заводит любую выплату по ранам.
     if (e.type === 'enchant') for (const st of ['bleed', 'burn', 'poison'] as StatusId[]) applies.add(st);
     if (e.type === 'detonate' || e.type === 'spread') for (const st of e.statuses) pays.add(st);
+    if (e.type === 'scorch') pays.add('burn');
     if (e.type === 'spell' && e.vsWeak) pays.add('weak');
   }
   const out: ArtifactStatuses = { applies: [...applies], pays: [...pays] };
@@ -211,11 +215,18 @@ function costsMana(id: string): boolean {
   return out;
 }
 
-/** Вес артефакта в броске: втрое за дубликат, втрое за связку с тем, что уже в руках, плюс ступень маны у приёмов с ценой MP. */
-function artifactWeight(id: string, owned: Set<string>, applies: Set<StatusId>, pays: Set<StatusId>, spell: number): number {
+/** Во сколько раз реже выпадает ключевая вещь архетипа (v0.43): её находят, а не получают с первой награды. */
+const KEYSTONE_WEIGHT = 0.5;
+
+/**
+ * Вес артефакта в броске: втрое за дубликат, втрое за связку с тем, что уже в руках — по статусам или по общей метке
+ * архетипа (v0.43), — ступень маны у приёмов с ценой MP и половина у ключевых вещей.
+ */
+function artifactWeight(id: string, owned: Set<string>, applies: Set<StatusId>, pays: Set<StatusId>, tags: Set<string>, spell: number): number {
   const st = artifactStatuses(id);
-  const linked = st.pays.some((s) => applies.has(s)) || st.applies.some((s) => pays.has(s));
-  return (owned.has(id) ? DUPLICATE_WEIGHT : 1) * (linked ? SYNERGY_WEIGHT : 1) * (costsMana(id) ? spell : 1);
+  const linked = st.pays.some((s) => applies.has(s)) || st.applies.some((s) => pays.has(s)) || artifactTags(id).some((t) => tags.has(t));
+  const key = artifactDef(id).keystone ? KEYSTONE_WEIGHT : 1;
+  return (owned.has(id) ? DUPLICATE_WEIGHT : 1) * (linked ? SYNERGY_WEIGHT : 1) * (costsMana(id) ? spell : 1) * key;
 }
 
 /** Артефакт из пула: `slot` сужает до оружейных или бронных (пул награды «Нападение» / «Защита»); торговец, алтарь и вор катят из всех. */
@@ -226,11 +237,15 @@ export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], e
   const applies = heroApplies(hero, stats);
   const pays = heroPaysFor(hero);
   const owned = new Set(socketRefs(hero).flatMap((ref) => (ref.art ? [ref.art.id] : [])));
+  const tags = new Set<string>([...owned].flatMap((id) => artifactTags(id)));
   const spell = manaWeight(stats.maxMp);
-  const items = ids.map((candidate) => ({ item: candidate, weight: artifactWeight(candidate, owned, applies, pays, spell) }));
+  const items = ids.map((candidate) => ({ item: candidate, weight: artifactWeight(candidate, owned, applies, pays, tags, spell) }));
   // Весь пул обнулился (у безманового героя остались одни заклинания) — берём равновероятно, иначе weighted бросит.
   const total = items.reduce((sum, it) => sum + it.weight, 0);
-  return { id: total > 0 ? weighted(rng, items) : pick(rng, ids), tier: pick(rng, tiers) };
+  const id = total > 0 ? weighted(rng, items) : pick(rng, ids);
+  // Ключевая вещь приходит тиром 1: её сила — в правиле, а не в числах, выше тир поднимают дубликат, привал и переплавка.
+  const tier = pick(rng, tiers);
+  return { id, tier: artifactDef(id).keystone ? 1 : tier };
 }
 
 /** Экипировка под героя: оружие выпадает с учётом его владения, броня — с учётом умения носить. */

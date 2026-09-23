@@ -7,6 +7,7 @@
 import { it } from 'vitest';
 import { HERO_LIST } from '../src/data/heroes';
 import { artifactDef } from '../src/data/artifacts';
+import { archetypeCounts } from '../src/data/archetypes';
 import { socketRefs } from '../src/engine/equipment';
 import { newRun } from '../src/engine/run';
 import type { RoomKind } from '../src/engine/types';
@@ -27,6 +28,8 @@ for (const hero of HERO_LIST) {
     const acts = [0, 1, 2].map(() => ({ taken: 0, fights: 0, attack: 0, dealt: 0 }));
     const turns: Turns = { fight: { turns: 0, n: 0 }, elite: { turns: 0, n: 0 }, boss: { turns: 0, n: 0 } };
     const sources: Record<string, number> = {};
+    /** Забеги по собранному в конце набору (v0.43): архетип с 3 вещами — сколько таких, побед и доля удара в акте 3. */
+    const bySet: Record<string, { runs: number; wins: number; attack: number; dealt: number }> = {};
     let wins = 0;
     let stalls = 0;
     const endW: number[] = [];
@@ -65,6 +68,20 @@ for (const hero of HERO_LIST) {
           turns[kind].n++;
         }
       }
+      // Набор в конце забега: 3 вещи одного архетипа — «собрал», иначе «без набора».
+      const counts = archetypeCounts(socketRefs(run.hero).flatMap((r) => (r.art ? [r.art] : [])));
+      const full = Object.entries(counts).filter(([, n]) => (n ?? 0) >= 3).map(([k]) => k);
+      const key = full.length ? full.join('+') : 'без набора';
+      const bs = (bySet[key] ??= { runs: 0, wins: 0, attack: 0, dealt: 0 });
+      bs.runs++;
+      if (outcome === 'victory') bs.wins++;
+      for (const log of run.logs) {
+        if (!log.title.startsWith('Акт 3')) continue;
+        for (const [k, v] of Object.entries(log.dealt ?? {})) {
+          bs.dealt += v;
+          if (k === 'attack') bs.attack += v;
+        }
+      }
       if (outcome === 'victory') {
         wins++;
         turnsWin += run.stats.turns;
@@ -97,6 +114,10 @@ for (const hero of HERO_LIST) {
       `${hero.name.padEnd(8)} ${SIG ? '②' : '①'} побед ${wins}/${N}${stalls ? ` (пат ${stalls})` : ''}  ходов на бой: ${byRank}\n` +
         `         ${perAct}\n` +
         `         источники урона: ${topSrc}\n` +
+        `         наборы 3/3 в конце: ${Object.entries(bySet)
+          .sort((a, b) => b[1].runs - a[1].runs)
+          .map(([k, v]) => `${k} ${v.runs} (побед ${v.wins}, удар в А3 ${pct(v.attack, v.dealt)})`)
+          .join('; ')}\n` +
         `         победные забеги: ходов ${(turnsWin / Math.max(1, wins)).toFixed(0)}, урона получено ${(takenWin / Math.max(1, wins)).toFixed(0)}, оружие т${avg(endW)}, броня т${avg(endA)}, артефакты т${avg(artTiers)} (${(artTiers.length / Math.max(1, wins)).toFixed(1)} шт), золото ${(goldEnd / Math.max(1, wins)).toFixed(0)}\n` +
         `         артефакты в победах (* — активный): ${top}`,
     );

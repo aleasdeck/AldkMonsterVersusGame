@@ -10,6 +10,7 @@ import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, Playe
 import { createRng, type Rng } from '../../src/engine/rng';
 import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
+import { archetypeCounts, setMods } from '../../src/data/archetypes';
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
 import { SWEEP_MULT, canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
@@ -49,6 +50,8 @@ import {
   leaveShop,
   pendingDiscard,
   pendingPlace,
+  pendingSmelt,
+  smeltTargets,
   rerollReward,
   shopBuyArtifact,
   shopBuyGear,
@@ -429,10 +432,28 @@ function hasMagicActive(hero: HeroPersistent, except?: string): boolean {
   return socketRefs(hero).some((s) => s.art && s.art.id !== except && artifactDef(s.art.id).kind === 'active' && artifactDef(s.art.id).school === 'magic');
 }
 
-/** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. */
+/** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. Сверху — бонус набора, который он замыкает. */
 export function artifactValue(run: RunState, inst: ArtifactInstance): number {
-  if (inst.id === run.hero.signature) return artifactValueRaw(run, inst) * 2;
-  return artifactValueRaw(run, inst);
+  const raw = artifactValueRaw(run, inst);
+  return (inst.id === run.hero.signature ? raw * 2 : raw) + setGain(run, inst);
+}
+
+/**
+ * Сколько стоит бонус набора, который этот артефакт включает (v0.43): разница статов наборов с ним и без него — по весам пассивок.
+ * У вставленного это то, что пропадёт при замене; у нового — то, что он принесёт.
+ */
+function setGain(run: RunState, inst: ArtifactInstance): number {
+  const others = socketRefs(run.hero).flatMap((r) => (r.art && r.art.id !== inst.id ? [r.art] : []));
+  const without = setMods(archetypeCounts(others));
+  const withIt = setMods(archetypeCounts([...others, inst]));
+  if (withIt.length === without.length) return 0;
+  const diff: StatMods = {};
+  const add = (list: StatMods[], sign: number) => {
+    for (const m of list) for (const [k, v] of Object.entries(m)) diff[k as keyof StatMods] = (diff[k as keyof StatMods] ?? 0) + sign * (v ?? 0);
+  };
+  add(withIt, 1);
+  add(without, -1);
+  return Math.max(0, modsValue(run, diff, inst));
 }
 /** Все статусы, которые герой вешает на врагов своими вещами (кроме `except`): приёмы, заклинания, перки оружия — заводки для связок. */
 function heroApplies(run: RunState, except?: string): Set<StatusId> {
@@ -443,6 +464,7 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
   if (s.onHitPoison > 0) out.add('poison');
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
+  if (s.spellIgniteAll > 0) out.add('burn');
   for (const ref of socketRefs(run.hero)) {
     if (!ref.art || ref.art.id === except) continue;
     const def = artifactDef(ref.art.id);
@@ -461,7 +483,8 @@ function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
     if (!ref.art || ref.art.id === except) continue;
     const def = artifactDef(ref.art.id);
     const m = def.mods?.(ref.art.tier) ?? {};
-    if (m.vsBleed) out.add('bleed');
+    if (m.vsBleed || m.bleedMult) out.add('bleed');
+    if (m.blockPerBurning) out.add('burn');
     if (m.dotLeech) out.add('bleed').add('poison');
     if (m.poisonVuln) out.add('poison');
     if (m.spellVsBurn) out.add('burn');
@@ -470,6 +493,7 @@ function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
     for (const e of def.effects?.(ref.art.tier) ?? []) {
       if (e.type === 'detonate' || e.type === 'spread') for (const id of e.statuses) out.add(id);
       if (e.type === 'spell' && e.vsWeak) out.add('weak');
+      if (e.type === 'scorch') out.add('burn');
     }
   }
   return out;
@@ -539,8 +563,26 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.lowHpStr ?? 0) * 4 * 0.5 + (m.lowHpSta ?? 0) * avg * W.enemyHp * 0.5 + (m.lowHpReduce ?? 0) * 5 * 0.5;
     // «Ответный удар»: примерно один ответ за ход врага, пока герой держит блок — около половины ходов.
     v += ((m.riposte ?? 0) / 100) * avg * W.enemyHp * 0.5;
-    // «Кровавый след»: Сила по кровоточащей цели — как Камень силы, пока кровь есть.
-    v += (m.vsBleed ?? 0) * 4 * src('bleed') * 0.8;
+    // «Кровавый след» (v0.43 — доля): как «Гниль», только по кровоточащей.
+    v += (m.vsBleed ?? 0) * avg * s.sta * W.enemyHp * 2 * src('bleed');
+    // Архетипы (v0.43). Сколько ран герой вешает за ход: удар с заводкой — каждый удар, иначе порез или шар примерно раз в ход.
+    const bleedApps = s.onHitBleed > 0 ? s.sta : 0.8;
+    const burnApps = s.onHitBurn > 0 ? s.sta : magic ? 1.2 : 0.5;
+    // +1 к ране — +1 на каждом из двух-трёх тиков каждого наложения, три хода боя.
+    v += (m.bleedAdd ?? 0) * bleedApps * 3 * 2 * W.enemyHp * src('bleed');
+    v += (m.burnAdd ?? 0) * burnApps * 3 * 2 * W.enemyHp * src('burn');
+    // Полтора раза к крови — половина её обычного урона сверху.
+    v += (m.bleedMult ?? 0) * bleedApps * 2 * 3 * 2 * W.enemyHp * src('bleed');
+    // Второй тик крови за ход — ещё одна рана средней силы за каждый ход.
+    v += (m.bleedTwice ?? 0) * 3 * bleedApps * 1.5 * W.enemyHp * 2 * src('bleed');
+    // Пожар — горение переходит на выживших, когда врагов больше одного.
+    v += (m.burnSpread ?? 0) * 4 * src('burn');
+    // Минус к удару ключевой вещи: доля всех ударов боя.
+    v += (m.strikeMult ?? 0) * avg * s.sta * W.enemyHp * 3;
+    v += (m.burnImmune ?? 0) * 2;
+    v += (m.blockPerBurning ?? 0) * (applies.has('burn') ? 1.5 : 0.3) * 3 * 0.8;
+    // «Пироман»: каждое заклинание — Горение всем, два тика.
+    v += (m.spellIgniteAll ?? 0) * (magic ? 1.8 * 2 * 3 * W.enemyHp * 1.5 : 0);
     // «Пиявка»: тик на каждом враге по два хода — полтора врага под кровью или ядом.
     v += (m.dotLeech ?? 0) * 3 * Math.max(src('bleed'), src('poison'));
     // «Гниль»: доля урона всех ударов по отравленному — два хода из трёх.
@@ -591,8 +633,12 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         break;
       }
       case 'spread':
-        // Заражение: яд с одной цели на остальных полторы — при заводке.
-        per += 9 * 1.5 * W.enemyHp * src(e.statuses);
+        // Заражение и Кровавая баня: рана с одной цели на остальных полторы — при заводке; баня — долей силы.
+        per += 9 * 1.5 * (e.pct ?? 1) * W.enemyHp * src(e.statuses);
+        break;
+      case 'scorch':
+        // Испепеление: Горение цели × mult разом, огонь остаётся — при заводке Горение на цели около шести.
+        per += (applies.has('burn') ? 6 : 1) * e.mult * W.enemyHp;
         break;
       case 'breakBlock':
         // Пролом щита: блок у врага бывает через ход, средний — около шести.
@@ -773,9 +819,20 @@ export function artifactGain(run: RunState, art: ArtifactInstance): number {
   }
   const value = artifactValue(run, art);
   if (freeSocketFor(run.hero, art.id)) return value;
-  // Подходящих сокетов нет вовсе — артефакт некуда ставить, он ничего не стоит.
+  // Подходящих сокетов нет вовсе — артефакт некуда ставить; остаётся переплавка в тир другому (v0.43).
   const weakest = weakestSocket(run, art.id);
-  return weakest ? value - weakest.value - 1 : 0;
+  return Math.max(weakest ? value - weakest.value - 1 : 0, bestSmelt(run, art.id)?.gain ?? 0);
+}
+
+/** Лучшая цель переплавки: какому вставленному артефакту +1 тир даст больше всего. */
+function bestSmelt(run: RunState, id: string): { ref: SocketRef; gain: number } | null {
+  let best: { ref: SocketRef; gain: number } | null = null;
+  for (const ref of smeltTargets(run, id)) {
+    const cur = ref.art!;
+    const gain = artifactValue(run, { id: cur.id, tier: (cur.tier + 1) as ArtifactInstance['tier'] }) - artifactValue(run, cur);
+    if (!best || gain > best.gain) best = { ref, gain };
+  }
+  return best;
 }
 
 // ─── Решения вне боя ───────────────────────────────────────────────────────
@@ -801,7 +858,11 @@ export function resolvePending(run: RunState): void {
     return;
   }
   const weakest = weakestSocket(run, art.id, displaced ? p.displaced : []);
-  if (weakest && artifactValue(run, art) > weakest.value + 1) pendingPlace(run, weakest.ref.kind, weakest.ref.index);
+  const replaceGain = weakest ? artifactValue(run, art) - weakest.value - 1 : 0;
+  const smelt = bestSmelt(run, art.id);
+  // Переплавка (v0.43): лишняя находка поднимает тир своему архетипу, если это выгоднее замены.
+  if (smelt && smelt.gain > 0.5 && smelt.gain >= replaceGain) pendingSmelt(run, smelt.ref.kind, smelt.ref.index);
+  else if (weakest && replaceGain > 0) pendingPlace(run, weakest.ref.kind, weakest.ref.index);
   else pendingDiscard(run);
 }
 

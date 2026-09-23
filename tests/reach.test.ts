@@ -152,8 +152,8 @@ describe('дальность приёмов', () => {
       expect(canUseAction(state, { type: 'artifact', artifactId: id, target: far.uid })).toBeNull();
     }
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: far.uid }, rng);
-    // Огненный шар тира 1 с v0.38 бьёт на 5
-    expect(far.hp).toBe(12 - 5);
+    // Огненный шар тира 1 с v0.43 бьёт на 3 (урон переехал в Горение и выплаты)
+    expect(far.hp).toBe(12 - 3);
   });
 
   it('щит, порез и Молот света — всегда в упор, даже с луком в руках', () => {

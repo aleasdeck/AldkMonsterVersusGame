@@ -715,6 +715,13 @@ export class App {
     this.afterPhaseChange();
   }
 
+  /** Переплавить ожидающий артефакт в тир артефакту своего архетипа (v0.43). */
+  pendingSmelt(kind: GearKind, index: number): void {
+    if (!this.run) return;
+    R.pendingSmelt(this.run, kind, index);
+    this.afterPhaseChange();
+  }
+
   pendingCancel(): void {
     if (!this.run) return;
     R.pendingCancel(this.run);

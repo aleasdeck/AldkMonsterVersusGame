@@ -32,6 +32,9 @@ import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, canPlaceArtifact, findSameArtifact,
 import { STATUS_HINTS, STATUS_NAMES, defendBlock, onDeathInfo } from '../engine/combat';
 import { markKeywords } from './keywords';
 import type { App } from './app';
+import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
+import type { ArchetypeId } from '../engine/types';
+import { canPendingSmelt, smeltTargets } from '../engine/run';
 
 /** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
 /**
@@ -110,9 +113,48 @@ export function tierTip(tier: GearTier): string {
   return `${GEAR_TIERS[tier].name} предмет, тир ${tier}`;
 }
 
+// ─── Архетипы (v0.43) ──────────────────────────────────────────────────────
+
+/** Подсказка к метке архетипа: суть и оба порога набора. */
+export function archetypeTip(arch: ArchetypeDef, count?: number): string {
+  const lines = [`${arch.name}${count !== undefined ? ` ${count}/3` : ''}: ${arch.desc}`];
+  for (const n of [2, 3] as const) {
+    const b = arch.sets[n];
+    if (b) lines.push(`${count !== undefined && count >= n ? '✓' : '·'} ${n} вещи: ${b.text}`);
+  }
+  if (!arch.sets[2] && !arch.sets[3]) lines.push('Бонусы набора появятся позже');
+  return lines.join('\n');
+}
+
+/** Значки архетипов артефакта цветом архетипа; у общей вещи — ничего. */
+export function tagBadges(id: string): HTMLElement | null {
+  const tags = artifactTags(id);
+  if (tags.length === 0) return null;
+  return h('span', { class: 'tag-badges' }, ...tags.map((t) => h('span', { class: 'tag-badge', style: `color:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, ARCHETYPES[t].glyph)));
+}
+
+/** Счётчики наборов героя: «♦ 2/3» по каждому архетипу, у которого есть хоть одна вещь (лист персонажа). */
+export function setCounters(arts: ArtifactInstance[]): HTMLElement | null {
+  const counts = archetypeCounts(arts);
+  const ids = (Object.keys(counts) as ArchetypeId[]).filter((id) => (counts[id] ?? 0) > 0);
+  if (ids.length === 0) return null;
+  return h(
+    'div',
+    { class: 'set-counters' },
+    ...ids.map((id) => {
+      const arch = ARCHETYPES[id];
+      const n = counts[id] ?? 0;
+      const on = (n >= 2 && !!arch.sets[2]) || (n >= 3 && !!arch.sets[3]);
+      return h('span', { class: `set-counter ${on ? 'on' : ''}`, style: `color:${arch.color}`, tip: archetypeTip(arch, n) }, `${arch.glyph} ${arch.name} ${Math.min(n, 3)}/3`);
+    }),
+  );
+}
+
 export function artifactTitle(inst: ArtifactInstance): string {
   const def = artifactDef(inst.id);
   const lines = [`${def.name} (тир ${inst.tier})`, def.describe(inst.tier)];
+  const tags = artifactTags(inst.id);
+  if (tags.length) lines.push(`Архетип: ${tags.map((t) => ARCHETYPES[t].name).join(', ')}${def.keystone ? ' · ключевая вещь' : ''}`);
   if (def.kind === 'active') lines.push(`Цена: ${artifactCostText(def, inst.tier)}`);
   else lines.push('Пассивный');
   lines.push(`${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет`);
@@ -173,11 +215,12 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Chil
       { class: 'card-head' },
       h('span', { class: 'glyph' }, def.glyph),
       h('span', { class: 'card-name' }, def.name),
+      tagBadges(def.id),
       // Тип сокета — значком в правом верхнем углу, как тип оружия и брони у экипировки; словами — в подсказке (решение пользователя).
       h('span', { class: `wtype-icon slot-kind k-${def.slot}`, tip: `${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет` }, SLOT_KIND_GLYPH[def.slot]),
     ),
     // Тир не пишем: его показывает цвет рамки и подписи. Персональный — с пометкой, чей.
-    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''}`),
+    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''}${def.keystone ? ' · ключевая' : ''}`),
     h('div', { class: 'card-desc' }, ...markKeywords(def.describe(inst.tier))),
     def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
     note ?? null,
@@ -459,10 +502,36 @@ export function pendingModal(app: App): HTMLElement | null {
       h('h2', null, displaced ? 'Вытесненный артефакт: куда переставить?' : 'Куда вставить артефакт?'),
       h('p', { class: 'dim' }, hint),
       h('div', { class: 'pm-body' }, artifactCard(art), h('div', { class: 'pm-gears' }, group('weapon'), group('armor'))),
+      smeltRow(app, art),
       h(
         'div',
         { class: 'row' },
         p.cancellable ? button('Отмена', () => app.pendingCancel()) : button('Выбросить', () => app.pendingDiscard(), { class: 'danger', tip: 'Артефакт пропадёт' }),
+      ),
+    ),
+  );
+}
+
+/**
+ * Переплавка (v0.43): кнопка на каждую цель — артефакт того же архетипа в сокете (у общей вещи — любой) не на максимуме.
+ * Лишняя находка не пропадает, а поднимает тир своему архетипу; нечего переплавлять — строки нет.
+ */
+function smeltRow(app: App, art: ArtifactInstance): HTMLElement | null {
+  const run = app.run!;
+  const targets = smeltTargets(run, art.id);
+  if (targets.length === 0) return null;
+  const tags = artifactTags(art.id);
+  return h(
+    'div',
+    { class: 'smelt-row' },
+    h('span', { class: 'dim', tip: tags.length ? 'Переплавить этот артефакт: он пропадёт, а артефакт того же архетипа в сокете получит +1 тир' : 'Общая вещь: переплавляется в тир любому артефакту в сокете' }, 'Переплавить в:'),
+    ...targets.map((t) =>
+      button(
+        `${artifactDef(t.art!.id).name} ${t.art!.tier}→${t.art!.tier + 1}`,
+        () => {
+          if (!canPendingSmelt(run, t.kind, t.index)) app.pendingSmelt(t.kind, t.index);
+        },
+        { class: 'small', tip: `${artifactTitle(t.art!)}\n— получит тир ${t.art!.tier + 1}, ${artifactDef(art.id).name} пропадёт` },
       ),
     ),
   );

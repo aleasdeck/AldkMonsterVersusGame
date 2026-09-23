@@ -4,7 +4,8 @@ import { potionDef } from '../../data/potions';
 import { defendBlock } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
 import type { DerivedStats } from '../../engine/types';
-import { bar, potionChip, skillLine } from '../components';
+import { bar, potionChip, setCounters, skillLine } from '../components';
+import { socketedArtifacts } from '../../engine/stats';
 import { gearTile } from '../gearTile';
 import { heroAvatar } from '../heroSprite';
 import type { App } from '../app';
@@ -41,6 +42,15 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
       ? row('Боевой транс', [s.lowHpStr ? `+${s.lowHpStr} Сила` : '', s.lowHpSta ? `+${s.lowHpSta} STA` : '', s.lowHpReduce ? `−${s.lowHpReduce} удар` : ''].filter(Boolean).join(', '), 'Пока HP ниже половины: Сила, стамина в начале хода и гашение каждого удара врага')
       : null,
     s.blockKeep ? row('Стойкий блок', `${s.blockKeep}`, 'Столько блока переживает начало хода') : null,
+    // Архетипы и ключевые вещи (v0.43).
+    s.strikeMult ? row('Удар оружием', `${Math.round(s.strikeMult * 100)} %`, 'Ключевая вещь: на столько слабее каждый удар оружием') : null,
+    s.vsBleed ? row('По крови', `+${pct(s.vsBleed)}`, 'На столько сильнее удар оружием по кровоточащей цели') : null,
+    s.bleedAdd || s.bleedMult ? row('Сила крови', [s.bleedAdd ? `+${s.bleedAdd}` : '', s.bleedMult ? `×${1 + s.bleedMult}` : ''].filter(Boolean).join(' '), 'Каждое Кровотечение, которое вешает герой: прибавка набора «Кровь» и множитель «Клятвы крови» (вверх)') : null,
+    s.bleedTwice ? row('Кровь тикает', 'дважды', 'Набор «Кровь» 3/3: Кровотечение на врагах тикает в их ход и ещё раз перед вашим') : null,
+    s.burnAdd ? row('Сила огня', `+${s.burnAdd}`, 'Каждое Горение, которое вешает герой, сильнее: набор «Огонь»') : null,
+    s.burnSpread ? row('Пожар', 'да', 'Набор «Огонь» 3/3: погибший горящий враг поджигает остальных своим Горением') : null,
+    s.spellIgniteAll ? row('Заклинания жгут', `${s.spellIgniteAll}`, '«Пироман»: каждое заклинание вешает Горение всем врагам на 2 хода') : null,
+    s.burnImmune || s.blockPerBurning ? row('Жаропрочность', s.blockPerBurning ? `+${s.blockPerBurning} блока` : 'да', 'Горение на вас не держится; блок в начале хода за каждого горящего врага') : null,
   ];
   return rows.filter((r): r is HTMLElement => !!r);
 }
@@ -68,6 +78,7 @@ export function heroSheet(app: App): HTMLElement {
         { class: 'sheet-left' },
         h('div', { class: 'sheet-head' }, heroAvatar(def.id, 80), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
         bar('hp', hp, s.maxHp, 'HP'),
+        setCounters(socketedArtifacts(run.hero.weapon, run.hero.armor)),
         h('div', { class: 'sheet-stats' }, ...statRows(s, hp)),
         skillLine(def),
         h(

@@ -6,7 +6,8 @@ import { makeStartingGear, upgradeGearTier } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, ROOM_NAMES, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats } from './stats';
-import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs } from './equipment';
+import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs, type SocketRef } from './equipment';
+import { artifactTags } from '../data/archetypes';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
@@ -482,6 +483,41 @@ export function pendingPlace(run: RunState, kind: GearKind, index: number): bool
     p.artifacts.push(removed);
     p.displaced = [...(p.displaced ?? []), removed.id];
   }
+  p.cancellable = false;
+  syncMaxHp(run, before);
+  finishPendingStep(run);
+  return true;
+}
+
+// ─── Переплавка (v0.43) ─────────────────────────────────────────────────────
+// docs/plan-reworka.md §2.5: к середине второго акта сокеты полны, и находку было некуда деть. Лишний артефакт
+// переплавляется в тир другому — того же архетипа (общая вещь — любому). Рюкзака и новой траты золота нет.
+
+/** Куда можно переплавить артефакт: вставленные не на максимуме, с общей меткой архетипа; у общей вещи — любые. */
+export function smeltTargets(run: RunState, id: string): SocketRef[] {
+  const tags = artifactTags(id);
+  return socketRefs(run.hero).filter((s) => s.art && s.art.tier < 3 && s.art.id !== id && (tags.length === 0 || artifactTags(s.art.id).some((t) => tags.includes(t))));
+}
+
+/** Почему ожидающий артефакт нельзя переплавить в этот сокет; null — можно. */
+export function canPendingSmelt(run: RunState, kind: GearKind, index: number): string | null {
+  const art = run.pending?.artifacts[0];
+  if (!art) return 'Нечего переплавлять';
+  const target = gearOf(run.hero, kind).slots[index];
+  if (!target) return 'Сокет пуст';
+  if (target.tier >= 3) return 'Уже максимальный тир';
+  if (!smeltTargets(run, art.id).some((s) => s.kind === kind && s.index === index)) return 'Нет общего архетипа';
+  return null;
+}
+
+/** Переплавить ожидающий артефакт: он пропадает, артефакт в сокете получает +1 тир. Отменить после этого нельзя. */
+export function pendingSmelt(run: RunState, kind: GearKind, index: number): boolean {
+  const p = run.pending;
+  if (!p || p.artifacts.length === 0 || canPendingSmelt(run, kind, index)) return false;
+  const before = heroStats(run).maxHp;
+  p.artifacts.shift();
+  const target = gearOf(run.hero, kind).slots[index]!;
+  target.tier = (target.tier + 1) as ArtifactInstance['tier'];
   p.cancellable = false;
   syncMaxHp(run, before);
   finishPendingStep(run);

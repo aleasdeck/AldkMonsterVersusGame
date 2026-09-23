@@ -2,6 +2,7 @@ import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef, HeroPersist
 import { ARTIFACTS } from '../data/artifacts';
 import { affixMods, armorPerkMods, canWearArmor, canWieldWeapon, gearPerkText, weaponDice, weaponPerkMods } from '../data/gear';
 import { equipGear } from './equipment';
+import { archetypeCounts, setMods } from '../data/archetypes';
 
 export function socketedArtifacts(weapon: GearInstance, armor: GearInstance): ArtifactInstance[] {
   const out: ArtifactInstance[] = [];
@@ -80,19 +81,33 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     spellSta: 0,
     skillMp: 0,
     stunCrit: 0,
+    bleedAdd: 0,
+    bleedMult: 0,
+    bleedTwice: 0,
+    burnAdd: 0,
+    burnSpread: 0,
+    strikeMult: 0,
+    burnImmune: 0,
+    blockPerBurning: 0,
+    spellIgniteAll: 0,
   };
   applyMods(s, weaponPerkMods(weapon, def));
   applyMods(s, armorPerkMods(armor, def));
   applyMods(s, affixMods(weapon));
   applyMods(s, affixMods(armor));
-  for (const a of socketedArtifacts(weapon, armor)) {
+  const arts = socketedArtifacts(weapon, armor);
+  for (const a of arts) {
     const ad = ARTIFACTS[a.id];
     if (ad?.mods) applyMods(s, ad.mods(a.tier));
   }
+  // Бонусы наборов (v0.43): две и три вещи одного архетипа — те же статы, что у пассивок.
+  for (const m of setMods(archetypeCounts(arts))) applyMods(s, m);
   s.crit = Math.min(1, s.crit);
   // Крит слабее обычного удара не бывает.
   s.critDmg = Math.max(100, s.critDmg);
   s.fatigue = Math.min(1, s.fatigue);
+  // Две ключевые вещи с минусом к удару не обнуляют его совсем.
+  s.strikeMult = Math.max(-0.9, s.strikeMult);
   return s;
 }
 

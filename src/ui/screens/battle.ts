@@ -275,6 +275,8 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return [range ? rangeText(range) : '—', h('small', null, e.target === 'allEnemies' ? 'взрыв всем' : 'взрыв')];
       case 'spread':
         return ['☣', h('small', null, 'на всех')];
+      case 'scorch':
+        return [range ? rangeText(range) : '—', h('small', null, `огонь×${e.mult}`)];
       case 'breakBlock':
         return [range ? rangeText(range) : '—', h('small', null, `⛨×${e.mult}`)];
       case 'finisher':
@@ -386,6 +388,7 @@ export function actionSpecs(app: App): TileSpec[] {
     const breakEff = effects.find((e) => e.type === 'breakBlock');
     const finEff = effects.find((e) => e.type === 'finisher');
     const chainEff = effects.find((e) => e.type === 'chain');
+    const scorchEff = effects.find((e) => e.type === 'scorch');
     let kind: 'hit' | 'spell' | 'dot' = 'hit';
     /** Разброс приёма: без цели — общий (плитка), с целью — по ней (ридаут): взрыв ран, пролом и прибавки по цели зависят от врага. */
     const rangeOn = (t?: number): DamageRange | null => {
@@ -419,6 +422,12 @@ export function actionSpecs(app: App): TileSpec[] {
         return { min: dmg, max: dmg };
       }
       if (chainEff && chainEff.type === 'chain') return { min: chainEff.amount, max: chainEff.amount };
+      if (scorchEff && scorchEff.type === 'scorch') {
+        // Испепеление: Горение цели × mult, мимо блока; на плитке — по первому горящему.
+        const tgt = e ?? b.enemies.find((x) => x.statuses.some((st) => st.id === 'burn'));
+        const dmg = Math.floor((tgt?.statuses.find((st) => st.id === 'burn')?.value ?? 0) * scorchEff.mult);
+        return { min: dmg, max: dmg };
+      }
       if (spellEff && spellEff.type === 'spell') {
         let dmg = spellEff.amount + b.hero.stats.spellPower;
         // «Раздуть» и удвоение по Слабому — только когда цель известна.
@@ -431,7 +440,7 @@ export function actionSpecs(app: App): TileSpec[] {
     };
     const range = rangeOn();
     // Взрыв ран бьёт мимо блока, как рана; пролом — по уже снятому блоку: штриховка без вычета блока.
-    if ((detEff && !atkEff) || breakEff) kind = 'dot';
+    if ((detEff && !atkEff) || breakEff || scorchEff) kind = 'dot';
     const kindOn = (t?: number): 'hit' | 'spell' | 'dot' => {
       rangeOn(t);
       return kind;
