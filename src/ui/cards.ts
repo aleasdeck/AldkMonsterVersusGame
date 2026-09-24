@@ -339,7 +339,7 @@ function gearTypeTip(gear: GearInstance): string {
 function mainStats(gear: GearInstance, def?: HeroDef): HTMLElement[] {
   if (gear.kind === 'weapon') {
     const d = def ? weaponDice(def, gear) : { min: gear.dmgMin, max: gear.dmgMax };
-    const halved = d.min !== gear.dmgMin || d.max !== gear.dmgMax;
+    const halved = !!def && !canWieldWeapon(def, gear);
     return [
       h(
         'span',
@@ -602,7 +602,8 @@ function tileStatsRow(gear: GearInstance, def: HeroDef): HTMLElement {
   const parts: Child[] = [];
   if (gear.kind === 'weapon') {
     const d = weaponDice(def, gear);
-    const halved = d.min !== gear.dmgMin || d.max !== gear.dmgMax;
+    // Красный — только чужой тип (кубик вдвое). Магическое оружие тоже меняет кубик (−1 к максимуму), но это свойство типа, а не штраф.
+    const halved = !canWieldWeapon(def, gear);
     parts.push(
       h(
         'span',
