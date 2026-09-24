@@ -317,7 +317,7 @@ export function finishBattle(run: RunState): void {
   run.stats.turns += b.turn;
   run.stats.damageDealt += b.stats.damageDealt;
   run.stats.damageTaken += b.stats.damageTaken;
-  run.logs.push({ title: battleTitle(run), kind: effectiveRoomKind(run), result: b.phase === 'won' && b.fled ? 'fled' : b.phase, turns: b.turn, dealt: { ...b.dealtBy }, lines: b.log.slice() });
+  run.logs.push({ title: battleTitle(run), kind: effectiveRoomKind(run), result: b.phase === 'won' && b.fled ? 'fled' : b.phase, turns: b.turn, dealt: { ...b.dealtBy }, lines: b.log.slice(), marks: b.logMarks.slice() });
   if (b.phase === 'lost') {
     run.hero.hp = 0;
     run.battle = null;

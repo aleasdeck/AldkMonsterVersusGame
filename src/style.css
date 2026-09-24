@@ -1762,8 +1762,196 @@ p {
   transform: none;
   box-shadow: none;
 }
-.log-turn {
+/* ─── Лог боя (v0.51) ─────────────────────────────────────────────────── */
+/* Лента: ход — блок с заголовком и сводкой, в нём шаги полосой цвета стороны (герой зелёный, враги красные, союзники
+   голубые, начало хода — без полосы). У шага заголовок ярко, последствия с отступом, раскладка удара — тусклой строкой. */
+.lg {
+  --hero: #80ed99;
+  --foe: #ff6b6b;
+  --ally: #8fd3ff;
+  font-size: 17px;
+  line-height: 1.12;
+  color: #b4b4c8;
+  text-align: left;
+}
+.runlog-lines .lg {
+  font-size: 18px;
+}
+.lg-turn {
+  margin-bottom: 6px;
+}
+.lg-turn-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 3px;
   color: var(--accent);
+  font-size: 16px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.lg-turn-n {
+  flex: none;
+}
+.lg-rule {
+  flex: 1;
+  min-width: 12px;
+  border-top: 2px dotted #3a3a5a;
+}
+.lg-totals {
+  display: inline-flex;
+  gap: 6px;
+  flex: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.lg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 15px;
+  color: #c9ccd1;
+}
+.lg-chip img {
+  flex: none;
+}
+.lg-chip.lg-foe {
+  color: #ffb36b;
+}
+.lg-chip.lg-hurt {
+  color: #ff6b6b;
+}
+.lg-sep {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0 2px;
+  color: #b0686c;
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.lg-sep::before,
+.lg-sep::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed #5a3036;
+}
+/* Шаг — полоса цвета стороны, последствия с отступом под заголовком; у начала хода полосы нет. */
+.lg-step {
+  --side: #3a3a5a;
+  margin: 3px 0;
+  padding: 1px 0 1px 6px;
+  border-left: 3px solid var(--side);
+}
+.lg-step.lg-hero {
+  --side: var(--hero);
+}
+.lg-step.lg-enemy {
+  --side: var(--foe);
+}
+.lg-step.lg-ally {
+  --side: var(--ally);
+}
+.lg-step.lg-untitled {
+  border-left-color: transparent;
+}
+.lg-step:not(.lg-untitled) .lg-line:not(.lg-head),
+.lg-step:not(.lg-untitled) .lg-formula:not(.lg-head-f) {
+  margin-left: 10px;
+}
+.lg-line {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+.lg-ic {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+}
+.lg-ic img {
+  display: block;
+}
+.lg-tx {
+  flex: 1;
+  min-width: 0;
+}
+.lg-line:not(.lg-head) {
+  font-size: 0.94em;
+}
+.lg-head {
+  color: var(--text);
+}
+.lg-who {
+  color: var(--side);
+}
+.lg-act {
+  color: var(--accent);
+}
+.lg-note {
+  color: #7d7d96;
+}
+.lg-formula {
+  color: #7d7d96;
+  font-size: 0.88em;
+  padding-left: 19px;
+}
+.lg-arrow {
+  color: #7d7d96;
+}
+.lg .num.n-hp {
+  color: #ff6b6b;
+}
+.lg .num.n-hp.lg-zero {
+  color: #8a8aa3;
+}
+.lg-step.lg-untitled .lg-line {
+  color: #9a9ab0;
+}
+.lg-line.k-death .lg-tx {
+  color: #ff9a9a;
+}
+.lg-line.k-miss .lg-tx {
+  color: #7a7a92;
+}
+.lg-line.k-phase .lg-tx {
+  color: var(--accent);
+}
+.lg-line.k-summon .lg-tx {
+  color: #d8d2a8;
+}
+/* Итог боя — плашкой на всю ширину: победа зелёная, гибель красная, бегство вора серая. */
+.lg-line.k-win,
+.lg-line.k-lose,
+.lg-line.k-end {
+  justify-content: center;
+  align-items: center;
+  margin: 5px 0 2px;
+  padding: 2px 6px;
+  font-size: 19px;
+  border: 2px solid;
+}
+.lg-line.k-win .lg-tx,
+.lg-line.k-lose .lg-tx,
+.lg-line.k-end .lg-tx {
+  flex: 0 1 auto;
+  text-align: center;
+}
+.lg-line.k-win {
+  color: var(--good);
+  border-color: #2f6e44;
+  background: #10261a;
+}
+.lg-line.k-lose {
+  color: #ff6b6b;
+  border-color: #7a2a2a;
+  background: #2a1012;
+}
+.lg-line.k-end {
+  color: var(--dim);
+  border-color: #3a3a5a;
 }
 .turn {
   color: var(--accent);
@@ -2205,6 +2393,9 @@ p {
 }
 .runlog-battle[open] summary::before {
   content: '▾ ';
+}
+.runlog-battle.live {
+  font-size: 19px;
 }
 .runlog-battle.live .runlog-title {
   color: var(--accent);

@@ -5,7 +5,7 @@ import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ART_TIER_COLORS, SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, attackExtra, canUseAction, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
@@ -19,7 +19,7 @@ import { tintVar } from '../tint';
 import { runFrame } from '../frame';
 import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
-import { runLogBody } from './runLog';
+import { logHead, runLogBody } from './runLog';
 
 /**
  * Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы.
@@ -379,7 +379,9 @@ export function actionSpecs(app: App): TileSpec[] {
     const r = previewAttack(b, bonus, mult, e, lowHp);
     return sure || sureCritOn(b.hero, e) ? critX(r) : r;
   };
-  const atkRange = atkRangeOn(0, sweep ? SWEEP_MULT : 1, false);
+  // Заряды Мага (черта «Заряд»): удар тратит все — прибавка видна на плитке сразу, как Сила.
+  const charge = chargeBonus(b.hero);
+  const atkRange = atkRangeOn(charge, sweep ? SWEEP_MULT : 1, false);
   // Урон удара вне боя — «урон» в листе «Персонаж»: от него плитка краснеет с усталостью и зеленеет от Силы и удара в спину.
   const atkBase = restAttackRange(b.hero.stats, 0, sweep ? SWEEP_MULT : 1);
   const atkTargets = uids(atkAction(first));
@@ -397,9 +399,15 @@ export function actionSpecs(app: App): TileSpec[] {
     targets: atkTargets,
     preview: (t) => ({
       title: atkName,
-      parts: ['1 STA', `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}${usual(atkRange, atkBase)}`, reachWord(actionReach(b, atkAction(first))), `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`],
+      parts: [
+        '1 STA',
+        `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}${usual(atkRange, atkBase)}`,
+        charge > 0 ? `заряды: +${charge}, удар тратит все` : null,
+        reachWord(actionReach(b, atkAction(first))),
+        `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`,
+      ],
       targets: atkTargets,
-      ...onTarget(atkAction, t, atkRangeOn(0, sweep ? SWEEP_MULT : 1, false, t), 'hit'),
+      ...onTarget(atkAction, t, atkRangeOn(charge, sweep ? SWEEP_MULT : 1, false, t), 'hit'),
     }),
   });
 
@@ -573,7 +581,7 @@ export function battleScreen(app: App): HTMLElement {
     requestAnimationFrame(() => {
       logEl.scrollTop = logEl.scrollHeight;
     });
-    field.appendChild(h('div', { class: 'log-drawer' }, h('div', { class: 'log-head' }, 'Лог боя', button('✕', () => app.toggleLog(), { class: 'small' })), logEl));
+    field.appendChild(h('div', { class: 'log-drawer' }, logHead(app, 'Лог боя', 'log-head'), logEl));
   }
 
   const over = b.phase === 'won' || b.phase === 'lost';
