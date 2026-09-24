@@ -15,7 +15,6 @@ import {
   canWieldWeapon,
   hasPerk,
   weaponDice,
-  weaponReach,
   weaponType,
   weaponTypeText,
 } from '../data/gear';
@@ -365,7 +364,8 @@ function perkRow(gear: GearInstance, def: HeroDef | undefined, short = false): H
   const text = perk.text(gear.tier);
   const tip = `Перк базы «${perk.name}»: ${text}${ok ? '' : '\nНе работает: герой не владеет этим типом'}`;
   if (short) return h('span', { class: `prop-chip perk ${ok ? '' : 'off'}`, tip }, uiIcon('perk', 14), perk.name);
-  return h('div', { class: `prop-row perk ${ok ? '' : 'off'}`, tip }, uiIcon('perk', 14), h('span', { class: 'prop-name' }, perk.name), h('span', { class: 'prop-text' }, ...markKeywords(text, { numbers: true })));
+  // Имя и текст одним абзацем: текст идёт сразу за именем и переносится под него, а не узким столбиком справа от длинного имени.
+  return h('div', { class: `prop-row perk ${ok ? '' : 'off'}`, tip }, uiIcon('perk', 14), h('span', { class: 'prop-body' }, h('span', { class: 'prop-name' }, perk.name), ' ', ...markKeywords(text, { numbers: true })));
 }
 
 /** Строка аффикса — случайной прибавки предмета. */
@@ -426,12 +426,11 @@ const arrow = (dir: number) => h('span', { class: `dir ${dir > 0 ? 'up' : dir < 
 
 /**
  * Шапка карточки экипировки: иконка типа и имя цветом тира (тир только цветом — решение пользователя, так имя помещается целиком);
- * вторая строка — тип цветом владения и дальность.
+ * вторая строка — тип цветом владения и точки дальности.
  */
 function gearHead(gear: GearInstance, def?: HeroDef, withType = true): HTMLElement[] {
   const color = GEAR_TIERS[gear.tier].color;
   const reach = reachDots(gear, def);
-  const reachText = gear.kind === 'weapon' ? { melee: 'первый', any: 'любой', row: 'весь ряд' }[weaponReach(gear, def)] : null;
   const skill = typeSkill(gear, def);
   const typeTip = [gearTypeTip(gear), skill.tip].filter(Boolean).join('\n');
   return [
@@ -444,7 +443,8 @@ function gearHead(gear: GearInstance, def?: HeroDef, withType = true): HTMLEleme
         { class: 'gv-title' },
         h('span', { class: 'gv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
         withType
-          ? h('div', { class: 'gv-type' }, ...dotted([h('span', { class: skill.cls, tip: typeTip }, gearTypeShort(gear)), reach ? h('span', { class: 'gv-reach', tip: 'Дальность удара: кого достаёт базовая атака' }, reach, h('span', { class: 'gv-reach-text' }, reachText)) : null]))
+          ? // Дальность — только точками, без подписи (решение пользователя): кого достаёт удар, пишет подсказка к точкам.
+            h('div', { class: 'gv-type' }, ...dotted([h('span', { class: skill.cls, tip: typeTip }, gearTypeShort(gear)), reach]))
           : null,
       ),
     ),
@@ -521,7 +521,8 @@ function gearCardB(gear: GearInstance, o: GearCardOpts): HTMLElement {
           ...rows.slice(0, 4).map(row),
         )
       : h('div', { class: 'gv-stats' }, ...mainStats(gear, o.def)),
-    h('div', { class: 'gv-props one-line' }, perkRow(gear, o.def)),
+    // Перк переносится (просьба пользователя): после строки «сокеты» в таблице место под вторую строку есть.
+    h('div', { class: 'gv-props' }, perkRow(gear, o.def)),
     overflowNote(cmp?.overflow ?? []),
     h('div', { class: 'card-foot' }, socketIcons(gear), o.footer),
   );

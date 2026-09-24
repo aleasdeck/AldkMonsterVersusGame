@@ -3988,8 +3988,8 @@ p {
 /* Плитка консоли (правки пользователя): шапка как у карточки — имя, под ним тип и дальность; строка статов, перк, сокеты прижаты
    к низу. Высота плитки фиксирована (консоль 180), поэтому строки плотнее, а сокеты ниже, чем в карточке: четыре сокета — две строки. */
 .gear-tile.gtv {
-  gap: 3px;
-  padding: 5px 10px 6px;
+  gap: 2px;
+  padding: 4px 10px 5px;
 }
 .gtv .gv-head {
   gap: 8px;
@@ -4035,10 +4035,29 @@ p {
 }
 .gtv .gt-sockets {
   margin-top: auto;
-  gap: 4px 8px;
+  gap: 3px 8px;
 }
 .gtv .sock {
-  min-height: 28px;
+  min-height: 25px;
+}
+/* Перк в плитке переносится до двух строк (просьба пользователя); третья обрезается многоточием, полный текст — в подсказке строки. */
+.gtv .prop-row {
+  white-space: normal;
+  overflow: visible;
+}
+.gtv .prop-row .prop-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* Перк абзацем: значок у первой строки, имя и текст текут вместе. */
+.prop-row .prop-body {
+  min-width: 0;
+}
+.prop-row.perk > .ui-icon {
+  align-self: flex-start;
+  margin-top: 1px;
 }
 
 /* ─── Узкие карточки торговца в вариантах ───────────────────────────── */
@@ -4595,19 +4614,6 @@ p {
 .hsv-loadout .ui-icon {
   margin-right: 4px;
 }
-/* Перк в одну строку (B): полный текст — в подсказке строки. */
-.gv-props.one-line .prop-row {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
-.gv-props.one-line .prop-row .ui-icon {
-  margin-right: 5px;
-}
-.gv-props.one-line .prop-name {
-  margin-right: 5px;
-}
 .prop-row.warn {
   color: var(--bad);
 }
@@ -4700,4 +4706,10 @@ p {
   padding: 0 10px 0 9px;
   gap: 7px;
   font-size: 18px;
+}
+/* Перк чужого типа не работает: ключевые слова и числа в нём не подсвечиваются, весь текст одного приглушённого цвета. */
+.prop-row.off .kw,
+.prop-row.off .num {
+  color: inherit;
+  border-bottom-color: transparent;
 }
