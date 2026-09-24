@@ -481,7 +481,7 @@ describe('новые механики врагов', () => {
     expect(info.selfStatuses).toEqual(['thorns']);
   });
 
-  it('приём врага раскладывается на части для подсказки: тот же текст, у каждой вид и статус (v0.52)', () => {
+  it('приём врага раскладывается на части для подсказки: тот же текст, у каждой вид и статус (v0.51.2)', () => {
     const beetle = enemyDef('beetle');
     const info = describeAction(beetle, beetle.actions.find((a) => a.id === 'shell')!);
     expect(info.parts.map((p) => p.text).join(', ')).toBe(info.detail);
