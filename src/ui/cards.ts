@@ -594,28 +594,46 @@ function tileSocket(inst: ArtifactInstance | null, gear: GearInstance, i: number
 }
 
 /**
- * Плитка экипировки консоли в вариантах: та же шапка, что у карточки (иконка типа и имя цветом тира),
- * главное число справа, перк и аффикс строкой с иконками, сокеты 2×2. В C перк и аффикс — чипами.
+ * Строка статов плитки (просьба пользователя: статы перед перком, справа сверху — ничего): урон в руках героя или DEF и HP брони,
+ * и через точку аффикс со своей иконкой. Урон чужого оружия красный — кубик вдвое меньше; как считается — в подсказке.
+ */
+function tileStatsRow(gear: GearInstance, def: HeroDef): HTMLElement {
+  const parts: Child[] = [];
+  if (gear.kind === 'weapon') {
+    const d = weaponDice(def, gear);
+    const halved = d.min !== gear.dmgMin || d.max !== gear.dmgMax;
+    parts.push(
+      h(
+        'span',
+        { class: `tile-stat ${halved ? 'bad' : ''}`.trim(), tip: halved ? `Кубик оружия ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: герой не владеет этим типом` : 'Урон базовой атаки в руках героя, без Силы' },
+        uiIcon('dmg', 14),
+        h('b', null, `${d.min}–${d.max}`),
+        ' урон',
+      ),
+    );
+  } else {
+    parts.push(h('span', { class: 'tile-stat', tip: 'Защита брони: «Защититься» даёт 80 % Защиты блоком' }, uiIcon('def', 14), h('b', null, gear.def ? `+${gear.def}` : '0'), ' DEF'));
+    if (gear.hp) parts.push(h('span', { class: 'tile-stat', tip: 'Прибавка брони к максимуму HP' }, uiIcon('hp', 14), h('b', null, `+${gear.hp}`), ' HP'));
+  }
+  if (gear.affix) {
+    const text = affixText(gear.affix);
+    parts.push(h('span', { class: 'tile-stat affix', tip: `Случайный бонус предмета: ${text}` }, uiIcon('affix', 14), ...markKeywords(text, { numbers: true })));
+  }
+  return h('div', { class: 'tile-stats' }, ...dotted(parts));
+}
+
+/**
+ * Плитка экипировки консоли (вариант B, правки пользователя): шапка как у карточки — иконка и имя цветом тира, под именем тип цветом
+ * владения и дальность; ниже строка статов с аффиксом, строка перка, сокеты прижаты к низу сеткой 2×2.
  */
 export function gearTileVariant(gear: GearInstance, def: HeroDef, s: DerivedStats): HTMLElement | null {
   if (UI.gc === 'old') return null;
-  const color = GEAR_TIERS[gear.tier].color;
-  const compact = UI.gc === 'c';
-  const d = gear.kind === 'weapon' ? weaponDice(def, gear) : null;
-  const stat = d ? `${d.min}–${d.max}` : `${gear.def ? `+${gear.def}` : '0'}${gear.hp ? ` · +${gear.hp} HP` : ''}`;
   return h(
     'div',
-    { class: `gear-tile gtv ${gear.kind}`, style: `border-color:${color}` },
-    h(
-      'div',
-      { class: 'gtv-head' },
-      h('span', { class: 'gv-icon', style: `border-color:${color}`, tip: gearTypeTip(gear) }, uiIcon(gearIconId(gear), 18, color)),
-      h('span', { class: 'gtv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
-      h('span', { class: 'gtv-stat', tip: gear.kind === 'weapon' ? 'Урон базовой атаки в руках героя, без Силы' : 'Защита и прибавка HP' }, uiIcon(gear.kind === 'weapon' ? 'dmg' : 'def', 16), stat),
-    ),
-    compact
-      ? h('div', { class: 'gv-chips' }, perkRow(gear, def, true), affixRow(gear, true), reachDots(gear, def))
-      : h('div', { class: 'gtv-props' }, perkRow(gear, def) ?? h('div', { class: 'prop-row dim' }, 'без перка'), affixRow(gear)),
+    { class: `gear-tile gtv ${gear.kind}`, style: `border-color:${GEAR_TIERS[gear.tier].color}` },
+    ...gearHead(gear, def),
+    tileStatsRow(gear, def),
+    perkRow(gear, def) ?? h('div', { class: 'prop-row dim' }, 'без перка'),
     h('div', { class: 'gt-sockets' }, ...gear.slots.map((a, i) => tileSocket(a, gear, i, s))),
   );
 }

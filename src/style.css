@@ -3985,6 +3985,62 @@ p {
   color: inherit;
 }
 
+/* Плитка консоли (правки пользователя): шапка как у карточки — имя, под ним тип и дальность; строка статов, перк, сокеты прижаты
+   к низу. Высота плитки фиксирована (консоль 180), поэтому строки плотнее, а сокеты ниже, чем в карточке: четыре сокета — две строки. */
+.gear-tile.gtv {
+  gap: 3px;
+  padding: 5px 10px 6px;
+}
+.gtv .gv-head {
+  gap: 8px;
+}
+.gtv .gv-icon {
+  width: 30px;
+  height: 30px;
+}
+.gtv .gv-name {
+  font-size: 19px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gtv .gv-type {
+  font-size: 14px;
+}
+.tile-stats {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.15;
+}
+.tile-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: help;
+}
+.tile-stat b {
+  color: #fff;
+  font-weight: inherit;
+}
+.tile-stat.bad b {
+  color: var(--bad);
+}
+.tile-stat.affix {
+  color: #c9d0ff;
+}
+.gtv .gt-sockets {
+  margin-top: auto;
+  gap: 4px 8px;
+}
+.gtv .sock {
+  min-height: 28px;
+}
+
 /* ─── Узкие карточки торговца в вариантах ───────────────────────────── */
 
 .shop .av-desc,
