@@ -418,11 +418,10 @@ describe('архетипы фазы 6 (v0.47)', () => {
     expect(cold.state.log.some((l) => l.startsWith('Герой бьёт') && l.includes('крит'))).toBe(false);
   });
 
-  it('v0.51.1: Хладнокровие — по оглушённому и оцепеневшему крит наверняка и без Оглушающего удара', () => {
+  it('v0.51.1: Хладнокровие — случайного крита нет, но оглушённый и скованный льдом критуют (правило оглушения)', () => {
     const { state, rng } = mkBattle('archer', ['bear'], [a('cold_blood')]);
     const bear = state.enemies[0];
     bear.hp = 999;
-    expect(state.hero.stats.stunCrit).toBe(1);
     // Случайного крита нет даже при шансе 100 %; крит. урон Лучника 170 + 100.
     state.hero.stats.crit = 1;
     const crits = () => state.log.filter((l) => l.startsWith('Герой бьёт') && l.includes('крит 270 %')).length;

@@ -505,7 +505,7 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
   return out;
 }
 
-/** Статусы, на которых у героя есть выплата (кроме `except`): взрыв ран, заражение, «по крови», «Гниль», «Раздуть», крит по оглушённым. */
+/** Статусы, на которых у героя есть выплата (кроме `except`): взрыв ран, заражение, «по крови», «Гниль», «Раздуть». */
 function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
   const out = new Set<StatusId>();
   for (const art of heldArts(run, except)) {
@@ -516,7 +516,6 @@ function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
     if (m.dotLeech) out.add('bleed').add('poison');
     if (m.poisonVuln) out.add('poison');
     if (m.spellVsBurn) out.add('burn');
-    if (m.stunCrit) out.add('stun').add('cold');
     if (m.perDebuff) for (const id of ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold'] as StatusId[]) out.add(id);
     if (m.poisonAdd || m.poisonNoDecay || m.poisonWeaken) out.add('poison');
     if (m.coldAdd || m.frozenLong || m.freezeVuln) out.add('cold');
@@ -551,9 +550,8 @@ function staValue(s: { sta: number; fatigue: number }, avg: number, cost: number
   return v * W.enemyHp;
 }
 
-/** Ценность пассивных модов в HP за бой — у пассивок целиком, у приёма с модами («Оглушающий удар») сверх его эффектов. */
+/** Ценность пассивных модов в HP за бой — у пассивок целиком, у приёма с модами (пассивка, пока вставлен) сверх его эффектов. */
 function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
-  const def = artifactDef(inst.id);
   const s = heroStats(run);
   const avg = (s.dmgMin + s.dmgMax) / 2 + s.str;
   {
@@ -626,8 +624,6 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     // «Перекрёстный ток»: очко стамины за заклинание (ослабленный удар), мана за приём.
     v += (m.spellSta ?? 0) * (magic ? avg * s.fatigue * W.enemyHp * 3 : 0.3);
     v += (m.skillMp ?? 0) * (magic && hasPhysicalActive(run.hero, inst.id) ? W.mp * 3 : 0.2);
-    // Крит по оглушённому: один-два удара за оглушение.
-    v += (m.stunCrit ?? 0) * avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5 * (def.kind === 'active' || applies.has('stun') || applies.has('cold') ? 1 : 0.2);
     // ── Архетипы v0.47 ──
     const pays = heroPaysFor(run, inst.id);
     const onHit = (st: StatusId) => (pays.has(st) ? 1.5 : 1);
@@ -789,7 +785,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           else per += 2;
         } else {
           const many = (e.target === 'allEnemies' ? 1.8 : far) * payoff(e.status);
-          if (e.status === 'stun') per += 6 * many;
+          // Оглушение: пропуск хода врага и верный крит по нему до конца своего хода (v0.51.1) — один-два удара.
+          if (e.status === 'stun') per += 6 * many + avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5;
           else if (e.status === 'vulnerable') per += turns * avg * (VULNERABLE_MULT - 1) * many;
           else if (e.status === 'weak') per += turns * 2 * many;
           // Холод: каждые три — пропущенный ход врага (около шести HP героя).

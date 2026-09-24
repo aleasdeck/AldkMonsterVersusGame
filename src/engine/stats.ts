@@ -100,7 +100,6 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     perDebuff: 0,
     spellSta: 0,
     skillMp: 0,
-    stunCrit: 0,
     bleedAdd: 0,
     bleedMult: 0,
     bleedTwice: 0,

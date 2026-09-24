@@ -20,6 +20,7 @@ import {
   previewOnTarget,
   resolveEnemyTurn,
   riposteDamage,
+  sureCritOn,
 } from '../src/engine/combat';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
 
@@ -1811,10 +1812,9 @@ describe('v0.38: связки', () => {
     expect(getStatus(boar, 'poison')?.value).toBe(2);
   });
 
-  it('Оглушающий удар: пока вставлен, удар по оглушённому — крит', () => {
+  it('Оглушающий удар: оглушает, и удар по оглушённому — крит', () => {
     const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'stun_strike', tier: 1 }] });
     const boar = first(state);
-    expect(state.hero.stats.stunCrit).toBe(1);
     performAction(state, { type: 'artifact', artifactId: 'stun_strike', target: boar.uid }, rng);
     expect(boar.hp).toBe(18 - 5);
     expect(getStatus(boar, 'stun')).toBeDefined();
@@ -1825,6 +1825,25 @@ describe('v0.38: связки', () => {
     expect(state.log.some((l) => l.includes('крит 150 %'))).toBe(true);
     // v0.51.1: бессрочное оглушение держится до хода врага, а не до конца боя — лог так и пишет.
     expect(state.log).toContain('Кабан: Оглушение — пропустит ход');
+  });
+
+  it('v0.51.1: крит по оглушённому и скованному льдом — правило самого оглушения, без «Оглушающего удара»', () => {
+    const { state, rng } = mkBattle('warrior', ['bear']);
+    const bear = first(state);
+    bear.hp = 999;
+    expect(state.hero.artifacts.some((a) => a.id === 'stun_strike')).toBe(false);
+    const crits = () => state.log.filter((l) => l.startsWith('Герой бьёт') && l.includes('крит 150 %')).length;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(0);
+    // Оглушение из любого источника (праща, «Засада», приём) — верный крит, и предпросмотр это видит.
+    bear.statuses.push({ id: 'stun', value: 1, turns: -1 });
+    expect(sureCritOn(state.hero, bear)).toBe(true);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(1);
+    bear.statuses = bear.statuses.filter((st) => st.id !== 'stun');
+    bear.statuses.push({ id: 'frozen', value: 1, turns: -1 });
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(2);
   });
 });
 
