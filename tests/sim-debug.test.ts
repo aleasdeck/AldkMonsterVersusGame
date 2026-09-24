@@ -38,6 +38,12 @@ function playUntil(run: RunState, onBattle: (kind: string, log: string[]) => boo
                 log.push(...items);
                 return t.push(...items);
               };
+            // Строка удара встаёт перед своими последствиями вставкой (v0.51) — в полный лог на то же место от конца.
+            if (p === 'splice')
+              return (start: number, del: number, ...items: string[]) => {
+                if (del === 0 && items.length) log.splice(start + log.length - t.length, 0, ...items);
+                return t.splice(start, del, ...items);
+              };
             return Reflect.get(t, p, r);
           },
         }) as string[];

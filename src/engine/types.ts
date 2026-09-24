@@ -695,6 +695,14 @@ export type BattleEvent =
   | { type: 'phase'; target: number; name: string; color: string }
   | { type: 'log'; text: string };
 
+/**
+ * Разметка строки лога (v0.51): чей это шаг боя и открывает ли строка новый шаг. По ней лог рисуется блоками — ход, в нём шаги
+ * (действие героя, ход врага или союзника, начало хода), у шага строка-заголовок и последствия под ней. `T` — заголовок хода
+ * «— Ход N —»; `H`, `E`, `A`, `S` — первая строка шага героя, врага, союзника и самого боя (начало хода, расстановка);
+ * те же буквы строчными — остальные строки шага.
+ */
+export type LogMark = 'T' | 'H' | 'h' | 'E' | 'e' | 'A' | 'a' | 'S' | 's';
+
 export interface BattleState {
   hero: HeroBattle;
   enemies: EnemyState[];
@@ -716,6 +724,10 @@ export interface BattleState {
   enemyQueue: number[];
   events: BattleEvent[];
   log: string[];
+  /** Разметка строк лога (v0.51): по одной на каждую строку `log`, в том же порядке. */
+  logMarks: LogMark[];
+  /** Чей сейчас шаг в логе; заглавная буква — следующая строка откроет новый шаг (`beginStep` в combat.ts). */
+  logBy: LogMark;
   nextUid: number;
   /** Золото, которое вор уже срезал в этом бою: вернётся герою, если вора убить, и пропадёт, если тот удерёт. */
   stolen: number;
@@ -880,12 +892,14 @@ export interface BattleLog {
   result: 'won' | 'lost' | 'fled';
   turns: number;
   lines: string[];
+  /** Разметка строк (v0.51), параллельно `lines`; нет — лог рисуется простыми строками. */
+  marks?: LogMark[];
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
 export const GAME_VERSION = '0.50.0';
 
-export const SAVE_VERSION = 38;
+export const SAVE_VERSION = 39;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

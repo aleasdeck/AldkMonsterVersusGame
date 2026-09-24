@@ -3,7 +3,7 @@ import { createRng } from '../src/engine/rng';
 import { HERO_LIST, heroDef } from '../src/data/heroes';
 import { makeStartingGear } from '../src/data/gear';
 import { TRAITS } from '../src/data/traits';
-import { createBattle, endTurn, getStatus, performAction, rageThreshold, resolveEnemyTurn, statusValue } from '../src/engine/combat';
+import { chargeBonus, createBattle, endTurn, getStatus, performAction, rageThreshold, resolveEnemyTurn, statusValue } from '../src/engine/combat';
 import type { ArtTier, ArtifactInstance, BattleState, HeroPersistent } from '../src/engine/types';
 
 /** Герой в забеге: навык своего уровня и черта; оружие на среднем уроне, дополнительные артефакты — в оружии. */
@@ -65,12 +65,16 @@ describe('черты героев (v0.44)', () => {
     performAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid }, rng);
     performAction(state, { type: 'artifact', artifactId: 'magic_missile', target: bear.uid }, rng);
     expect(statusValue(state.hero, 'charge')).toBe(2);
+    expect(chargeBonus(state.hero)).toBe(6);
     const hp = bear.hp;
     state.hero.sta = 2;
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     // Посох на середине кубика 5 (3–6) + 2 заряда × 3 = 11
     expect(hp - bear.hp).toBe(11);
     expect(getStatus(state.hero, 'charge')).toBeUndefined();
+    // В раскладке удара прибавка подписана «заряд», а не «приём»: удар — не приём (v0.51).
+    expect(state.log.at(-1)).toBe('Герой бьёт Медведь: 11 (кубик 5 + заряд 6 = 11)');
+    expect(chargeBonus(state.hero)).toBe(0);
   });
 
   it('Ассасин «Отравитель»: удар в спину вешает Яд 2', () => {

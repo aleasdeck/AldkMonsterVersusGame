@@ -353,6 +353,8 @@ describe('архетипы фазы 6 (v0.47)', () => {
     const before = wolf.hp;
     performAction(state, { type: 'artifact', artifactId: 'smite', target: wolf.uid }, rng);
     expect(state.log.some((l) => l.includes('Кара: +8'))).toBe(true);
+    // Прибавка Кары в раскладке удара — своим именем, отдельно от прибавки самого приёма (v0.51).
+    expect(state.log.some((l) => l.startsWith('Удар по Волк') && l.includes('кара 8'))).toBe(true);
     expect(before - wolf.hp).toBeGreaterThan(8);
     wolf.hp = 2;
     state.hero.hp = 1;

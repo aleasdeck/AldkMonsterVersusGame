@@ -1009,6 +1009,9 @@ describe('журнал забега', () => {
     expect(run.logs[0].result).toBe('won');
     expect(run.logs[0].lines[0]).toBe('— Ход 1 —');
     expect(run.logs[0].lines.some((l) => l.includes('кубик'))).toBe(true);
+    // Разметка шагов (v0.51) едет в журнал вместе со строками — по ней журнал рисуется блоками.
+    expect(run.logs[0].marks).toHaveLength(run.logs[0].lines.length);
+    expect(run.logs[0].marks![0]).toBe('T');
     while (run.phase === 'reward') skipReward(run);
     enterRoom(run);
     winCurrentBattle(run);

@@ -138,6 +138,7 @@ function cloneBattle(b: BattleState): BattleState {
     enemyQueue: b.enemyQueue.slice(),
     events: [],
     log: [],
+    logMarks: [],
     stats: { ...b.stats },
     dealtBy: { ...b.dealtBy },
   };

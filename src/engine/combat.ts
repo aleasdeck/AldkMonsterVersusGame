@@ -15,6 +15,7 @@ import type {
   EventTarget,
   HeroDef,
   HeroPersistent,
+  LogMark,
   PlayerAction,
   Reach,
   Status,
@@ -422,11 +423,39 @@ export function holdsThroughEnemyTurn(s: Status | undefined): boolean {
 
 // ─── Утилиты ───────────────────────────────────────────────────────────────
 
-function log(state: BattleState, text: string): void {
-  state.log.push(text);
+/** Строчная пара метки: остальные строки того же шага. После заголовка хода идёт начало хода — шаг самого боя. */
+const LOG_CONT: Record<LogMark, LogMark> = { T: 's', H: 'h', h: 'h', E: 'e', e: 'e', A: 'a', a: 'a', S: 's', s: 's' };
+
+/**
+ * Строка лога с разметкой шага (v0.51). `at` — вставить строку раньше уже записанных: удар пишется после расчёта урона,
+ * а шипы в ответ, Ответный удар и гибель героя успевают записаться внутри этого расчёта — строка удара встаёт перед ними,
+ * чтобы лог читался «причина → следствие». Начало шага, если оно было на месте вставки, переходит к вставленной строке.
+ */
+function log(state: BattleState, text: string, at = state.log.length): void {
+  if (at >= state.log.length) {
+    state.log.push(text);
+    state.logMarks.push(state.logBy);
+    state.logBy = LOG_CONT[state.logBy];
+  } else {
+    const mark = state.logMarks[at];
+    state.logMarks[at] = LOG_CONT[mark];
+    state.log.splice(at, 0, text);
+    state.logMarks.splice(at, 0, mark);
+  }
   // Лог боя хранится целиком (уходит в логи забега); страховка от бесконечного боя.
-  if (state.log.length > 600) state.log.splice(0, state.log.length - 600);
+  if (state.log.length > 600) {
+    state.log.splice(0, state.log.length - 600);
+    state.logMarks.splice(0, state.logMarks.length - 600);
+  }
   state.events.push({ type: 'log', text });
+}
+
+/**
+ * Новый шаг боя в логе (v0.51): следующая строка откроет его и станет заголовком — действие героя, ход врага или союзника,
+ * тики ран перед ходом. Шаг без единой строки ничего не оставляет: метка просто достаётся следующему.
+ */
+function beginStep(state: BattleState, by: 'H' | 'E' | 'A' | 'S'): void {
+  state.logBy = by;
 }
 
 /** Имя бойца для лога: герой, враг или союзник по uid. */
@@ -739,6 +768,7 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
   const action = enemyAction(def, order[a.cycleIdx % order.length]);
   a.cycleIdx = (a.cycleIdx + 1) % order.length;
   state.events.push({ type: 'enemyAction', target: a.uid, name: action.name });
+  beginStep(state, 'A');
   log(state, `${a.name}: ${action.name}`);
   for (const eff of action.effects) {
     switch (eff.type) {
@@ -954,10 +984,6 @@ function firstHitBonus(state: BattleState): number {
   return state.hero.attacks === 0 ? state.hero.stats.firstHit : 0;
 }
 
-/**
- * Урон атаки героя и его раскладка для лога: «кубик 4 + Сила 2 + первый удар 1 = 7, усталость ×0.75 = 5, крит ×2 = 10».
- * Слагаемые с нулём и множители, равные единице, не пишутся.
- */
 /** Средний удар героя без кубика: середина разброса оружия плюс Сила — основа Финишера и Ответного удара. */
 export function heroAvgDamage(h: HeroBattle): number {
   return (h.stats.dmgMin + h.stats.dmgMax) / 2 + heroStr(h);
@@ -978,8 +1004,37 @@ export function lowHpBonus(target: Combatant | undefined, lowHp?: { pct: number;
   return target && lowHp && target.hp <= target.maxHp * lowHp.pct ? lowHp.bonus : 0;
 }
 
-function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1, sureCrit = false, target?: EnemyState, lowHp?: { pct: number; bonus: number }): { dmg: number; crit: boolean; why: string } {
+/** Прибавка к удару со своим именем в раскладке лога: «заряд 6», «око за око 3». */
+interface StrikeBonus {
+  name: string;
+  value: number;
+}
+
+interface StrikeOpts {
+  /** Прибавка самого приёма — в раскладке «приём N». */
+  bonus?: number;
+  /** Прибавки не от приёма: заряды Мага, «Око за око», «Кара». */
+  extra?: StrikeBonus[];
+  /** Множитель замаха: доля урона приёма или плети по всему ряду. */
+  mult?: number;
+  /** Чей это множитель в раскладке: «приём ×1.5» у приёма, «хлёст ×0.5» у плети. */
+  multName?: string;
+  sureCrit?: boolean;
+  /** Одиночный удар: сквозной урон копья уходит следующему врагу. */
+  single?: boolean;
+  /** Начало строки лога: «Герой бьёт» у базовой атаки, имя приёма у артефакта. */
+  label?: string;
+  /** Прибавка по раненой цели («Добивание»). */
+  lowHp?: { pct: number; bonus: number };
+}
+
+/**
+ * Урон атаки героя и его раскладка для лога: «кубик 4 + Сила 2 + первый удар 1 = 7, усталость ×0.75 = 5, крит 150 % = 7».
+ * Слагаемые с нулём и множители, равные единице, не пишутся.
+ */
+function heroAttackDamage(state: BattleState, rng: Rng, target: EnemyState, opts: StrikeOpts): { dmg: number; crit: boolean; why: string } {
   const h = state.hero;
+  const { bonus = 0, mult = 1, sureCrit = false, lowHp, extra = [] } = opts;
   const roll = int(rng, h.stats.dmgMin, h.stats.dmgMax);
   const stealthed = isHidden(h);
   const parts: string[] = [`кубик ${roll}`];
@@ -988,36 +1043,39 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
   };
   add('Сила', heroStr(h));
   add('приём', bonus);
+  // Прибавки не от приёма (заряды Мага, «Око за око», «Кара») подписаны своим именем: иначе раскладка звала бы их «приёмом».
+  for (const x of extra) add(x.name, x.value);
+  const extraSum = extra.reduce((sum, x) => sum + x.value, 0);
   add('первый удар', firstHitBonus(state));
   add('в спину', stealthed ? h.stats.backstab : 0);
-  add('резонанс', target ? vsTargetBonus(h, target).debuffs : 0);
+  add('резонанс', vsTargetBonus(h, target).debuffs);
   add('добивание', lowHpBonus(target, lowHp));
   // Счётчик ударов уже вырос на этот удар (swing/applyEffect), поэтому разгон считает предыдущие.
   const tb = turnBonus(h, h.strikes - 1);
   add('щит', tb.shield);
   add('разгон', tb.momentum);
-  const flat = heroStr(h) + bonus + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0) + lowHpBonus(target, lowHp) + tb.shield + tb.momentum;
+  const flat = heroStr(h) + bonus + extraSum + firstHitBonus(state) + (stealthed ? h.stats.backstab : 0) + vsTargetBonus(h, target).total + lowHpBonus(target, lowHp) + tb.shield + tb.momentum;
   const base = roll + flat;
   const steps: string[] = [parts.length > 1 ? `${parts.join(' + ')} = ${base}` : parts[0]];
   const fatigue = fatigueMult(state);
-  const row = target ? state.enemies.indexOf(target) : 0;
+  const row = state.enemies.indexOf(target);
   const onTarget = strikeMultOn(h, target, row);
   let dmg = Math.floor(base * mult * fatigue * onTarget);
   if (mult !== 1 || fatigue !== 1 || onTarget !== 1) {
     const round = (x: number) => Math.round(x * 100) / 100;
-    const bleedPart = target && getStatus(target, 'bleed') && h.stats.vsBleed > 0 ? `по крови +${Math.round(h.stats.vsBleed * 100)} %` : '';
+    const bleedPart = getStatus(target, 'bleed') && h.stats.vsBleed > 0 ? `по крови +${Math.round(h.stats.vsBleed * 100)} %` : '';
     const keyPart = h.stats.strikeMult !== 0 ? `ключевая вещь ${Math.round(h.stats.strikeMult * 100)} %` : '';
     const farPart = row >= 1 && h.stats.farShot > 0 ? `дистанция +${Math.round(h.stats.farShot * 100)} %` : '';
-    const m = [mult !== 1 ? `приём ×${mult}` : '', fatigue !== 1 ? `усталость ×${round(fatigue)}` : '', bleedPart, keyPart, farPart].filter(Boolean).join(', ');
+    const m = [mult !== 1 ? `${opts.multName ?? 'приём'} ×${mult}` : '', fatigue !== 1 ? `усталость ×${round(fatigue)}` : '', bleedPart, keyPart, farPart].filter(Boolean).join(', ');
     steps.push(`${m} = ${dmg}`);
   }
   // Шанс крита: свой стат + накопленное «Азартом» + добивание раненой цели («Клеймо палача»).
-  const wounded = !!target && target.hp <= target.maxHp * EXECUTE_HP_PCT;
+  const wounded = target.hp <= target.maxHp * EXECUTE_HP_PCT;
   const critChance = Math.min(1, h.stats.crit + h.critStack + (wounded ? h.stats.executeCrit : 0));
   // «Оглушающий удар»: по оглушённой (и оцепеневшей, v0.47) цели бьют наверняка.
-  const stunned = !!target && h.stats.stunCrit > 0 && isStunned(target);
+  const stunned = h.stats.stunCrit > 0 && isStunned(target);
   // «Метка жертвы» Ассасина (v0.45): первый удар по каждому врагу в бою — крит.
-  const prey = !!target && h.stats.firstHitCrit > 0 && !target.struck;
+  const prey = h.stats.firstHitCrit > 0 && !target.struck;
   // «Верный глаз» (v0.47) и «Хладнокровие»: крит наверняка есть, случайного — нет.
   const focus = !!getStatus(h, 'focus');
   const rolled = h.stats.critOnlySure <= 0 && critChance > 0 && chance(rng, critChance);
@@ -1033,18 +1091,6 @@ function heroAttackDamage(state: BattleState, rng: Rng, bonus: number, mult = 1,
   return { dmg: Math.max(0, dmg), crit, why: steps.join(', ') };
 }
 
-interface StrikeOpts {
-  bonus?: number;
-  mult?: number;
-  sureCrit?: boolean;
-  /** Одиночный удар: сквозной урон копья уходит следующему врагу. */
-  single?: boolean;
-  /** Начало строки лога: «Герой бьёт» у базовой атаки, имя приёма у артефакта. */
-  label?: string;
-  /** Прибавка по раненой цели («Добивание»). */
-  lowHp?: { pct: number; bonus: number };
-}
-
 /**
  * Удар героя по врагу со всеми перками оружия: пробой блока, оглушение критом, кровотечение, блок за удар, сквозной урон.
  * Строка лога пишется здесь, до побочных статусов: «Герой бьёт Мумия: 10 (кубик 4 + …) → 8 по HP (блок −2)».
@@ -1052,15 +1098,17 @@ interface StrikeOpts {
 function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpts = {}): { dmg: number; crit: boolean } {
   const h = state.hero;
   const fromShadow = isHidden(h);
-  const { dmg, crit, why } = heroAttackDamage(state, rng, opts.bonus ?? 0, opts.mult ?? 1, opts.sureCrit, e, opts.lowHp);
+  const { dmg, crit, why } = heroAttackDamage(state, rng, e, opts);
   const detail = newDetail();
   const pierce = h.stats.pierceBlock > 0;
   const row = state.enemies.indexOf(e);
   const firstOfBattle = !h.struckAny;
   h.struckAny = true;
   e.struck = true;
+  // Шипы цели отвечают внутри damageEnemy — строка удара встаёт перед ними (at), лог читается «удар → ответ».
+  const at = state.log.length;
   const dealt = damageEnemy(state, e, dmg, 'hit', { crit, pierce, detail, rng });
-  log(state, `${opts.label ?? 'Герой бьёт'} ${e.name}: ${dmg} (${why})${hitTail(dmg, dealt, detail, pierce && e.block > 0)}`);
+  log(state, `${opts.label ?? 'Герой бьёт'} ${e.name}: ${dmg} (${why})${hitTail(dmg, dealt, detail, pierce && e.block > 0)}`, at);
   // «Верный глаз» тратится ударом, даже если тот ушёл в блок или мимо.
   removeStatus(h, 'focus');
   // Набор «Тень» 3 (v0.47): крит возвращает стамину — раз в ход.
@@ -1255,7 +1303,18 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       for (const e of targetsFor(state, eff.target, targetUid)) {
         // Раскол (v0.47): по оцепеневшей цели — множитель, и лёд раскалывается.
         const shatter = eff.vsFrozen && getStatus(e, 'frozen') ? eff.vsFrozen : 1;
-        const { dmg } = heroStrike(state, rng, e, { bonus: eff.bonus + extra.revenge + extra.smite, mult: (eff.mult ?? 1) * shatter, sureCrit: eff.sureCrit, single: eff.target === 'enemy', label: shatter > 1 ? `Раскол ×${shatter} по` : 'Удар по', lowHp: eff.lowHp });
+        const { dmg } = heroStrike(state, rng, e, {
+          bonus: eff.bonus,
+          extra: [
+            { name: 'око за око', value: extra.revenge },
+            { name: 'кара', value: extra.smite },
+          ],
+          mult: (eff.mult ?? 1) * shatter,
+          sureCrit: eff.sureCrit,
+          single: eff.target === 'enemy',
+          label: shatter > 1 ? `Раскол ×${shatter} по` : 'Удар по',
+          lowHp: eff.lowHp,
+        });
         if (shatter > 1 && e.hp > 0) {
           removeStatus(e, 'frozen');
           log(state, `${e.name}: лёд расколот`);
@@ -1276,8 +1335,9 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       const dmg = Math.floor(h.block * eff.mult);
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const detail = newDetail();
+        const at = state.log.length;
         const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
-        log(state, `Таран по ${e.name}: ${dmg} (блок ${h.block} × ${eff.mult})${hitTail(dmg, dealt, detail)}`);
+        log(state, `Таран по ${e.name}: ${dmg} (блок ${h.block} × ${eff.mult})${hitTail(dmg, dealt, detail)}`, at);
       }
       break;
     }
@@ -1335,8 +1395,9 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       log(state, `Обвал щита: блок ${spent} → ${dmg} каждому врагу`);
       for (const e of state.enemies.slice()) {
         const detail = newDetail();
+        const at = state.log.length;
         const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
-        log(state, `Обвал по ${e.name}: ${dmg}${hitTail(dmg, dealt, detail)}`);
+        log(state, `Обвал по ${e.name}: ${dmg}${hitTail(dmg, dealt, detail)}`, at);
       }
       break;
     }
@@ -1454,8 +1515,9 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       const dmg = per * h.strikes;
       for (const e of targetsFor(state, eff.target, targetUid)) {
         const detail = newDetail();
+        const at = state.log.length;
         const dealt = damageEnemy(state, e, dmg, 'hit', { pierce: h.stats.pierceBlock > 0, detail, rng });
-        log(state, `Финишер по ${e.name}: ${dmg} (${per} × ${h.strikes} удар(ов); ${eff.pct} % от среднего удара ${heroAvgDamage(h)})${hitTail(dmg, dealt, detail)}`);
+        log(state, `Финишер по ${e.name}: ${dmg} (${per} × ${h.strikes} удар(ов); ${eff.pct} % от среднего удара ${heroAvgDamage(h)})${hitTail(dmg, dealt, detail)}`, at);
       }
       break;
     }
@@ -1492,46 +1554,49 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
 export function performAction(state: BattleState, action: PlayerAction, rng: Rng): void {
   const err = canUseAction(state, action);
   if (err) throw new Error(err);
+  beginStep(state, 'H');
   // Страж (v0.46): первый удар за ход по тому, кто стоит за ним, достаётся ему самому.
+  let cover = '';
   if ((action.type === 'attack' || action.type === 'artifact') && action.target !== undefined && strikesTarget(state, action)) {
     const target = findEnemy(state, action.target);
     const guard = target && coveringGuard(state, target);
     if (target && guard) {
       guard.covered = true;
-      log(state, `${guard.name} заслоняет ${target.name}`);
+      cover = `${guard.name} заслоняет ${target.name}`;
       action = { ...action, target: guard.uid };
     }
   }
   // Весь урон этого действия — его: удар, приём со взрывом ран, зелье (dealtBy, v0.42).
   state.source = action.type === 'artifact' ? action.artifactId : action.type;
+  const at = state.log.length;
   try {
     heroAct(state, action, rng);
   } finally {
     state.source = '';
   }
+  // Заслон — пояснение к удару: строка встаёт сразу под заголовком шага («Герой бьёт Гоблин…»), а не открывает его.
+  if (cover) log(state, cover, Math.min(at + 1, state.log.length));
 }
 
 function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
   const h = state.hero;
   if (action.type === 'attack') {
     h.sta -= 1;
-    // «Заряд» Мага (v0.44): обычный удар тратит все заряды — первый замах сильнее за каждый.
-    const charges = h.stats.spellCharge > 0 ? statusValue(h, 'charge') : 0;
-    let bonus = charges * h.stats.spellCharge;
-    if (charges > 0) {
-      removeStatus(h, 'charge');
-      log(state, `Заряд: ${charges} × ${h.stats.spellCharge} к удару`);
-    }
+    // «Заряд» Мага (v0.44): обычный удар тратит все заряды — первый замах сильнее за каждый. В раскладке удара — «заряд N»,
+    // а не «приём N»: удар не приём, и игрок должен видеть, откуда прибавка.
+    const charge = chargeBonus(h);
+    if (charge > 0) removeStatus(h, 'charge');
+    let extra: StrikeBonus[] = [{ name: 'заряд', value: charge }];
     const swing = (target: EnemyState) => {
       // Замах — один удар для Финишера: плеть по всему ряду и эхо считаются как обычная атака, каждое своё.
       h.strikes += 1;
       if (h.stats.sweep > 0) {
         // Плеть: один замах хлещет по всему ряду на долю урона; сквозного удара копья у неё нет.
-        for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, label: 'Герой хлещет', bonus });
+        for (const e of state.enemies.slice()) heroStrike(state, rng, e, { mult: SWEEP_MULT, multName: 'хлёст', label: 'Герой хлещет', extra });
       } else {
-        heroStrike(state, rng, target, { single: true, bonus });
+        heroStrike(state, rng, target, { single: true, extra });
       }
-      bonus = 0;
+      extra = [];
     };
     swing(findEnemy(state, action.target)!);
     // «Эхо удара»: та же атака ещё раз, с той же усталостью — счётчик атак растёт один раз.
@@ -1679,6 +1744,11 @@ export function effectiveCost(h: HeroBattle, def: ArtifactDef, tier: ArtifactIns
 /** Больше трёх зарядов Маг не держит (черта «Заряд», v0.44). */
 export const MAX_CHARGES = 3;
 
+/** Прибавка обычного удара от накопленных зарядов Мага (черта «Заряд», v0.44): удар тратит все. */
+export function chargeBonus(h: HeroBattle): number {
+  return h.stats.spellCharge > 0 ? statusValue(h, 'charge') * h.stats.spellCharge : 0;
+}
+
 /** Сколько накопленного урона нужно Берсерку для Неистовства: треть максимума HP (черта «Ярость», v0.44). */
 export function rageThreshold(h: HeroBattle): number {
   return Math.ceil(h.maxHp / 3);
@@ -1694,6 +1764,9 @@ function startPlayerTurn(state: BattleState): void {
   const h = state.hero;
   state.turn += 1;
   state.phase = 'player';
+  // Заголовок хода — первой строкой (v0.51): всё, что случается в начале хода (транс, блок плаща, раны), идёт уже под ним.
+  state.logBy = 'T';
+  log(state, `— Ход ${state.turn} —`);
   // Скрытность отработала ход врага — тикает здесь, а не в конце хода героя.
   tickDurations(h, 'start');
   // Панцирь оставляет часть блока на следующий ход.
@@ -1726,7 +1799,6 @@ function startPlayerTurn(state: BattleState): void {
     log(state, 'Неистовство: +1 STA, удары без усталости');
   }
   for (const k of Object.keys(h.cooldowns)) if (h.cooldowns[k] > 0) h.cooldowns[k] -= 1;
-  log(state, `— Ход ${state.turn} —`);
   if (state.turn === state.enrageAt) log(state, `Бой затянулся: враги в ярости, урон +${Math.round(ENRAGE_STEP * 100)} % за ход`);
   // «Канонада» (v0.48): каждый третий ход ядра бьют по всем — не добивая: разбора мёртвых в начале хода нет.
   if (state.trial === 'cannonade' && state.turn % 3 === 0) {
@@ -1916,16 +1988,20 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
         // «Насмешка» (v0.47): враги лезут на героя, союзника не трогают.
         const ally = getStatus(h, 'taunt') ? undefined : state.allies[0];
         if (ally) {
+          // Гибель союзника пишется внутри damageAlly — строка удара встаёт перед ней.
+          const at = state.log.length;
           const dealt = damageAlly(state, ally, dmg, eff.pierce);
-          log(state, `${e.name} атакует ${ally.name}: ${dmg} (${dealt} по HP)`);
+          log(state, `${e.name} атакует ${ally.name}: ${dmg} (${dealt} по HP)`, at);
           if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
           // Удар принял союзник: герой цел, но замах состоялся — довесок ложится как прежде.
           if (ctx) ctx.landed = true;
           continue;
         }
         const detail = newDetail();
+        // Ответный удар, шипы героя и его гибель пишутся внутри damageHero — строка удара встаёт перед ними.
+        const at = state.log.length;
         const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, detail);
-        log(state, `${e.name} атакует: ${dmg}${hitTail(dmg, dealt, detail, !!eff.pierce && h.block > 0)}`);
+        log(state, `${e.name} атакует: ${dmg}${hitTail(dmg, dealt, detail, !!eff.pierce && h.block > 0)}`, at);
         if (eff.drain && dealt > 0) healEnemy(state, e, dealt, 'вампиризм');
         // Блок — не промах: удар дошёл, просто его съел щит.
         if (ctx && !detail.miss) ctx.landed = true;
@@ -2009,8 +2085,9 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       // Подрыв в упор не слабее: вполсилы бьёт только выстрел, ярость боя — всё.
       const blast = Math.max(1, Math.round((scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength')) * enrageMult(state)));
       const detail = newDetail();
+      const at = state.log.length;
       const dealt = damageHero(state, blast, 'hit', e, false, detail);
-      log(state, `${e.name} взрывается: ${blast}${hitTail(blast, dealt, detail)}`);
+      log(state, `${e.name} взрывается: ${blast}${hitTail(blast, dealt, detail)}`, at);
       // Уклонился от взрыва — не горит: огонь приходит с ударной волной.
       if (eff.burn && !detail.miss && state.phase !== 'lost') addStatus(state, h, 'hero', 'burn', scaled(e.dmgMult, eff.burn), 3);
       // Взрыв уже случился: гасим «Предсмертие», иначе тот же порох рванёт второй раз в разборе мёртвых.
@@ -2109,6 +2186,8 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   const def = enemyDef(e.defId);
   e.block = 0;
   e.riposted = false;
+  // Тики ран — свой шаг в логе, а заголовком хода врага остаётся его приём (beginStep ниже).
+  beginStep(state, 'E');
   // Раны тикают до того, как сгорит неуязвимость (v0.38.9): Топяной ужас и Дракон на взлёте не получают и ран —
   // до этого тик шёл уже после снятия статуса, и яд с кровью били сквозь неуязвимость, которая должна была накрыть ход целиком.
   const dot = statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison');
@@ -2125,6 +2204,7 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   }
   // Неуязвимость отработала ход героя — снимаем её до действия, а не после.
   tickDurations(e, 'start');
+  beginStep(state, 'E');
   if (getStatus(e, 'stun')) {
     removeStatus(e, 'stun');
     state.events.push({ type: 'stunned', target: e.uid });
@@ -2190,6 +2270,7 @@ export function enemyStep(state: BattleState, rng: Rng): void {
   if (state.phase !== 'enemy') return;
   // Набор «Кровь» 3/3 (v0.43): Кровотечение тикает ещё раз перед ходом героя — заводка окупается в тот же ход.
   if (state.hero.stats.bleedTwice > 0 && state.turn > 0) {
+    beginStep(state, 'S');
     let ticked = false;
     for (const e of state.enemies.slice()) {
       const bleed = statusValue(e, 'bleed');
@@ -2259,6 +2340,8 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     enemyQueue: [],
     events: [],
     log: [],
+    logMarks: [],
+    logBy: 'S',
     nextUid: 1,
     stolen: 0,
     stolenArtifact: null,

@@ -100,6 +100,10 @@ describe('плеть', () => {
     for (const e of state.enemies) expect(e.hp).toBe(12 - dmg);
     expect(state.hero.sta).toBe(2);
     expect(state.hero.attacks).toBe(1);
+    // Доля удара плети в раскладке — «хлёст», а не «приём» (v0.51).
+    const lines = state.log.filter((l) => l.startsWith('Герой хлещет'));
+    expect(lines).toHaveLength(3);
+    for (const l of lines) expect(l).toContain(`хлёст ×${SWEEP_MULT} = ${dmg}`);
   });
 
   it('Хлёст — перк: приёмы плетью бьют только первого, а у не владеющего и удар бьёт только первого', () => {

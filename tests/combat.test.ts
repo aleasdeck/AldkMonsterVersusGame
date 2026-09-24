@@ -1388,6 +1388,49 @@ describe('лог боя', () => {
     pass(t.state, t.rng);
     expect(t.state.log.some((l) => l.startsWith('Тролль: +') && l.includes('HP'))).toBe(true);
   });
+
+  it('лог размечен шагами (v0.51): заголовок хода первым, удар героя и приём врага открывают свои шаги', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf']);
+    expect(state.log[0]).toBe('— Ход 1 —');
+    expect(state.logMarks[0]).toBe('T');
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    const strike = state.log.findIndex((l) => l.startsWith('Герой бьёт Волк'));
+    expect(state.logMarks[strike]).toBe('H');
+    pass(state, rng);
+    const bite = state.log.findIndex((l) => l.startsWith('Волк атакует'));
+    expect(state.logMarks[bite - 1]).toBe('E');
+    expect(state.log[bite - 1]).toMatch(/^Волк: /);
+    expect(state.logMarks[bite]).toBe('e');
+    expect(state.logMarks.filter((m) => m === 'T')).toHaveLength(2);
+    expect(state.logMarks).toHaveLength(state.log.length);
+  });
+
+  it('удар пишется раньше того, что он вызвал: шипы врага и Ответный удар — строками после него', () => {
+    const { state, rng } = mkBattle('warrior', ['beetle']);
+    first(state).statuses.push({ id: 'thorns', value: 3, turns: -1 });
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    const strike = state.log.findIndex((l) => l.startsWith('Герой бьёт'));
+    const thorns = state.log.findIndex((l) => l.startsWith('Шипы Хитиновый жук'));
+    expect(thorns).toBe(strike + 1);
+    expect(state.logMarks[strike]).toBe('H');
+    expect(state.logMarks[thorns]).toBe('h');
+
+    const r = mkBattle('warrior', ['wolf'], { extra: [{ id: 'riposte', tier: 1 }] });
+    performAction(r.state, { type: 'defend' }, r.rng);
+    pass(r.state, r.rng);
+    const bite = r.state.log.findIndex((l) => l.startsWith('Волк атакует'));
+    expect(r.state.log[bite + 1]).toMatch(/^Ответный удар: 2 урона Волк/);
+    expect(r.state.logMarks[bite + 1]).toBe('e');
+  });
+
+  it('«Победа!» — последняя строка того шага, который её принёс', () => {
+    const { state, rng } = mkBattle('warrior', ['rat']);
+    first(state).hp = 1;
+    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    expect(state.phase).toBe('won');
+    expect(state.log.at(-1)).toBe('Победа!');
+    expect(state.logMarks.at(-1)).toBe('h');
+  });
 });
 
 describe('v0.38: связки', () => {

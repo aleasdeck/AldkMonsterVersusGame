@@ -69,6 +69,11 @@ describe('роли и ряд (v0.46)', () => {
     expect(goblin.hp).toBeLessThan(g0);
     expect(shaman.hp).toBe(s0);
     expect(state.log.some((l) => l.includes('Гоблин заслоняет Гоблин-шаман'))).toBe(true);
+    // Заслон — пояснение к удару (v0.51): строкой сразу под ним, а заголовок шага — сам удар.
+    const strike = state.log.findIndex((l) => l.startsWith('Герой бьёт Гоблин:'));
+    expect(state.log[strike + 1]).toBe('Гоблин заслоняет Гоблин-шаман');
+    expect(state.logMarks[strike]).toBe('H');
+    expect(state.logMarks[strike + 1]).toBe('h');
     expect(coveringGuard(state, shaman)).toBeNull();
     performAction(state, { type: 'attack', target: shaman.uid }, rng);
     expect(shaman.hp).toBeLessThan(s0);
