@@ -130,7 +130,7 @@ export function heroSheet(app: App): HTMLElement {
           potion ? h('span', null, h('span', { class: 'potion-name' }, potionDef(potion).name), h('span', { class: 'dim' }, ` · ${potionDef(potion).describe}`)) : h('span', { class: 'dim' }, 'слот зелья пуст'),
         ),
       ),
-      h('div', { class: 'sheet-right' }, gearTile(run.hero.weapon, def, s, { expanded: true }), gearTile(run.hero.armor, def, s, { expanded: true })),
+      h('div', { class: 'sheet-right' }, gearTile(run.hero.weapon, def, s), gearTile(run.hero.armor, def, s)),
     ),
   );
 }

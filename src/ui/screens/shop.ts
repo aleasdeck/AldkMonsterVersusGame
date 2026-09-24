@@ -2,13 +2,12 @@ import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, gearPrice } from '../../engine/loot';
 import { canShopBuyArtifact, canShopBuyGear, canShopBuyPotion, canShopHeal, canShopReroll, currentLocation, heroStats, shopHealAmount } from '../../engine/run';
-import { artifactCard, artifactMergeNote, coin, gearCard, pendingModal, potionCard, potionReplaceNote } from '../components';
+import { coin, pendingModal, potionReplaceNote } from '../components';
+import { artifactCard, gearCard, potionCard } from '../cards';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import type { App } from '../app';
-import { gearDiffLines } from '../diff';
-import { UI } from '../variants';
 
 /** Кнопка покупки: «Купить 5 ◉» без «за» — в четырёх узких колонках каждое слово на счету; причина недоступности — в подсказке. */
 function buyButton(cost: number, err: string | null, onclick: () => void): HTMLElement {
@@ -44,17 +43,12 @@ export function shopScreen(app: App): HTMLElement {
 
   const gearErr = canShopBuyGear(run);
   const gearEl = shop.gear
-    ? gearCard(shop.gear, { def, run, deltas: gearDiffLines(run, shop.gear), footer: buyButton(gearPrice(shop.gear), gearErr, () => app.shopBuyGear()) })
+    ? gearCard(shop.gear, { def, run, footer: buyButton(gearPrice(shop.gear), gearErr, () => app.shopBuyGear()) })
     : soldCard('Экипировка');
 
   const artErr = canShopBuyArtifact(run);
-  let artEl: HTMLElement;
-  if (shop.artifact) {
-    // Дубликат апгрейдит стоящий — заметка об этом.
-    const merge = artifactMergeNote(run, shop.artifact);
-    const note = merge ? h('div', { class: 'note' }, merge) : null;
-    artEl = artifactCard(shop.artifact, buyButton(artifactPrice(shop.artifact), artErr, () => app.shopBuyArtifact()), note, run);
-  } else artEl = soldCard('Артефакт');
+  // Дубликат апгрейдит стоящий — карточка пишет это ячейкой своей таблицы.
+  const artEl = shop.artifact ? artifactCard(shop.artifact, buyButton(artifactPrice(shop.artifact), artErr, () => app.shopBuyArtifact()), undefined, run) : soldCard('Артефакт');
 
   const potionErr = canShopBuyPotion(run);
   const potionEl = shop.potion ? potionCard(shop.potion, buyButton(SHOP_POTION_PRICE, potionErr, () => app.shopBuyPotion()), potionReplaceNote(run)) : soldCard('Зелье');
@@ -75,7 +69,5 @@ export function shopScreen(app: App): HTMLElement {
       }),
     ),
   );
-  // Новые карточки (прототипы v0.50): у предмета и артефакта таблица и описание, у лекаря и зелья текста мало — колонки неравные.
-  const wide = UI.gc !== 'old' || UI.ac !== 'old';
-  return runFrame(app, { cls: `shop ${wide ? 'shop-wide' : ''}`.trim(), center, mid: hubGear(app), overlays: [pendingModal(app)] });
+  return runFrame(app, { cls: 'shop', center, mid: hubGear(app), overlays: [pendingModal(app)] });
 }

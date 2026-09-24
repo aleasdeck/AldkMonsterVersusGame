@@ -14,7 +14,6 @@ import { GEAR_TIERS, baseArmorStats, baseDamage, baseOf, baseTitle, rollAffix, r
 import type { ArtTier, DerivedStats, GearAffix, GearKind, GearTier, LootItem, SlotKind } from './engine/types';
 import type { Rng } from './engine/rng';
 import { setTint } from './ui/tint';
-import { applyUiParams } from './ui/variants';
 
 const HERO_LIST_IDS = HERO_LIST.map((d) => d.id);
 const WIDTH = 960;
@@ -22,9 +21,6 @@ const HEIGHT = 540;
 
 const root = document.getElementById('app');
 if (!root) throw new Error('#app not found');
-
-// Прототипы интерфейса (variants.ts): &ui=a — все три области, &hs= / &gc= / &ac= — по одной; разбираются до первой отрисовки.
-applyUiParams(new URLSearchParams(window.location.search));
 
 function fit(): void {
   const scale = Math.min(window.innerWidth / WIDTH, window.innerHeight / HEIGHT);
@@ -145,7 +141,7 @@ if (heroParam) {
     // &focus=attack|defense — сразу выбрать пул награды (без него экран ждёт выбора); &take=art выбирает «Нападение» сам.
     const focus = params.get('focus') ?? (params.get('take') === 'art' ? 'attack' : null);
     if (focus === 'attack' || focus === 'defense') app.chooseRewardFocus(focus);
-    // &offer=w:whip:2:onHitBleed=1,art:fireball:1 — заменить варианты награды заданными (прототипы карточек v0.50, см. debugOffer)
+    // &offer=w:whip:2:onHitBleed=1,art:fireball:1 — заменить варианты награды заданными (проверка карточек, см. debugOffer)
     const offer = debugOffer(params.get('offer'), run.rng);
     if (offer.length && run.rewards[0]) {
       run.rewards[0].focus ??= 'attack';
@@ -209,7 +205,7 @@ if (heroParam) {
   // ?screen=select|collection|bestiary|stats — сразу нужный экран вне забега; &loc=crypt — вкладка бестиария
   const screen = params.get('screen');
   const locParam = params.get('loc');
-  // &tab=start|mastery — вкладка превью героя в прототипах экрана выбора (v0.50); &pick=mage — какой герой подсвечен
+  // &tab=start|mastery — вкладка превью на выборе героя; &pick=mage — какой герой подсвечен
   const tab = params.get('tab');
   if (tab === 'start' || tab === 'mastery') app.heroTab = tab;
   const pick = params.get('pick');
@@ -268,7 +264,7 @@ function mockRuns(): RunsFeed {
 }
 
 /**
- * Отладочный набор предметов из адреса (прототипы карточек v0.50): `w:<база>:<тир>[:<стат>=<число>][:s=<сокеты>]` — оружие,
+ * Отладочный набор предметов из адреса (проверка карточек, v0.50): `w:<база>:<тир>[:<стат>=<число>][:s=<сокеты>]` — оружие,
  * `a:…` — броня, `art:<id>:<тир>` — артефакт, `p:<зелье>`; через запятую. Сокеты буквами: w — оружейный, a — бронный,
  * x — универсальный (`s=wx`). Без аффикса в адресе он бросается случайно; `none` — без аффикса.
  */

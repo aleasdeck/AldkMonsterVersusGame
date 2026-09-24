@@ -4,11 +4,11 @@ import { GEAR_TIERS, upgradePreview } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { forgePrice } from '../../engine/loot';
 import { altarHealAmount, altarSacrificeCost, canAltarSacrifice, canForge, currentLocation, heroStats } from '../../engine/run';
-import { artifactChip, coin, gearCard, pendingModal, pickable, tierTip } from '../components';
+import { artifactChip, coin, pendingModal, pickable, tierTip } from '../components';
+import { gearCard } from '../cards';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
-import { gearDiffLines } from '../diff';
 import { markKeywords } from '../keywords';
 import type { EventState, GearKind, GearTier } from '../../engine/types';
 import type { App } from '../app';
@@ -26,7 +26,7 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
   const def = heroDef(run.hero.defId);
   return [
     pickable(
-      gearCard(ev.gear, { def, run, deltas: gearDiffLines(run, ev.gear), footer: button('Надеть', () => app.takeChest(), { class: 'primary', disabled: !!run.pending }) }),
+      gearCard(ev.gear, { def, run, footer: button('Надеть', () => app.takeChest(), { class: 'primary', disabled: !!run.pending }) }),
       run.pending ? undefined : () => app.takeChest(),
     ),
   ];

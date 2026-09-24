@@ -721,9 +721,6 @@ p {
 .chip.signature {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
-.art-card.signature .card-name {
-  color: var(--accent);
-}
 .chip-tier {
   font-size: 8px;
   letter-spacing: 1px;
@@ -758,12 +755,7 @@ p {
   border-color: var(--slot-any);
   opacity: 0.7;
 }
-.slot-kind.k-weapon {
-  color: var(--slot-weapon);
-}
-.slot-kind.k-armor {
-  color: var(--slot-armor);
-}
+
 /* Зелье: зелёный чип без точек тира; в панели героя — одна строка «Зелье: [чип] Название». */
 .chip.potion .chip-glyph {
   color: #6fd97a;
@@ -845,24 +837,6 @@ p {
 }
 .gear-card {
   max-width: none;
-}
-/* Иконка типа в шапке карточки экипировки и типа сокета у артефакта — у правого края. Тир — цветом рамки и в подсказке к имени. */
-.gear-card .card-head .wtype-icon,
-.art-card .card-head .wtype-icon {
-  margin-left: auto;
-  font-size: 18px;
-  flex: none;
-}
-/* Дельты к надетому: зелёное вырастет, красное пропадёт. */
-.diff {
-  font-size: 15px;
-  line-height: 1.1;
-}
-.diff .up {
-  color: var(--good);
-}
-.diff .dn {
-  color: var(--bad);
 }
 .card-sub {
   display: flex;
@@ -994,104 +968,12 @@ p {
 .hero-preview {
   flex: 1;
   min-width: 0;
-  padding: 10px 16px;
+  padding: 10px 16px 12px;
   /* Всё превью рассчитано под кадр 540px: скролла здесь быть не должно. */
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-.preview-head {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-.preview-title {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.preview-name {
-  font-size: 32px;
-  color: var(--accent);
-}
-.preview-role {
-  font-size: 18px;
-}
-.preview-gear {
-  font-size: 16px;
-  color: var(--dim);
-}
-.preview-body {
-  display: grid;
-  grid-template-columns: 250px 1fr;
-  gap: 8px 16px;
-  align-items: start;
-}
-.preview-col {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-.hero-preview h3 {
-  margin: 4px 0 0;
-  font-size: 18px;
-  color: var(--dim);
-}
-.hero-preview .card {
-  max-width: none;
-  min-width: 0;
-}
-.preview-arts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 8px;
-}
-.preview-arts .card {
-  padding: 6px 8px;
-  gap: 4px;
-}
-.preview-arts .card-name {
-  font-size: 19px;
-}
-.preview-arts .card-desc {
-  font-size: 16px;
-}
-/* Пара персональных артефактов (v0.33): выбранный — рамка и свечение акцентом, закрытый — затемнён, клик по нему ничего не делает. */
-.sig-card {
-  cursor: pointer;
-  position: relative;
-  transition: box-shadow 90ms, transform 90ms;
-}
-.sig-card:not(.locked):hover {
-  transform: translateY(-2px);
-}
-.sig-card.selected {
-  box-shadow: 0 0 0 2px var(--accent), 0 0 14px #ffd16655;
-}
-.sig-card.locked {
-  cursor: default;
-  opacity: 0.45;
-  filter: grayscale(0.7);
-}
-.sig-note {
-  font-size: 15px;
-  color: var(--dim);
-}
-/* Подпись «Артефакт · приём · персональный» здесь лишняя: обе карточки персональные, а высота кадра на счету. */
-.sig-card .card-sub {
-  display: none;
-}
-.sig-card .card-desc {
-  font-size: 15px;
-}
-.sig-card.selected .sig-note {
-  color: var(--accent);
-}
-.preview-foot {
-  margin-top: auto;
 }
 .seed {
   font: inherit;
@@ -2506,7 +2388,6 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.shop .diff,
 .shop .note {
   font-size: 14px;
 }
@@ -3086,14 +2967,6 @@ p {
 
 /* ─── Архетипы и переплавка (v0.43) ─────────────────────────────────── */
 
-/* Метки архетипов в шапке карточки: значки цветом архетипа, суть и пороги набора — в подсказке. */
-.tag-badges {
-  display: inline-flex;
-  gap: 2px;
-  font-size: 18px;
-  flex: none;
-  cursor: help;
-}
 /* Счётчики наборов в листе персонажа: одна строка, сработавший порог — ярче. */
 .set-counters {
   display: flex;
@@ -3122,11 +2995,6 @@ p {
 
 /* ─── Черты и врождённый навык (v0.44) ──────────────────────────────── */
 
-.preview-trait {
-  font-size: 16px;
-  line-height: 1.1;
-  color: var(--text);
-}
 .trait-name {
   color: var(--accent);
 }
@@ -3179,41 +3047,6 @@ p {
   z-index: 50;
   pointer-events: none;
 }
-/* Выбор черты и стартового оружия на экране героя: чипы в строку. */
-.pick-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-  font-size: 15px;
-}
-.pick-chip {
-  font: inherit;
-  font-size: 15px;
-  padding: 0 6px;
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--border);
-  cursor: pointer;
-}
-.pick-chip.selected {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.pick-chip.off {
-  opacity: 0.5;
-  cursor: help;
-}
-.mastery-line {
-  flex: 1;
-  min-width: 0;
-  font-size: 16px;
-  line-height: 1.1;
-  cursor: help;
-}
-.mastery-head {
-  color: var(--accent);
-}
 .mastery-bar {
   height: 6px;
   background: var(--border);
@@ -3222,12 +3055,6 @@ p {
 .mastery-fill {
   height: 100%;
   background: var(--accent);
-}
-.mastery-next {
-  font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .mastery-note {
   font-size: 17px;
@@ -3239,7 +3066,7 @@ p {
   opacity: 0.7;
 }
 
-/* ─── Прототипы v0.50: общие части карточек (cards.ts, cardParts.ts) ─────────── */
+/* ─── Карточки v0.50: общие части (cards.ts, cardParts.ts) ─────────────── */
 
 /* Пиксельная иконка параметра в строке текста: по центру строки, не сжимается. */
 .ui-icon {
@@ -3247,24 +3074,32 @@ p {
   vertical-align: -2px;
   flex: none;
 }
-/* Тир точками: горят набранные, цвет — цвет тира. */
-.tier-pips {
-  display: inline-flex;
-  gap: 2px;
-  flex: none;
-  cursor: help;
-}
-.tier-pips i {
-  display: block;
-  width: 7px;
-  height: 7px;
-  background: #24243a;
-  box-shadow: 0 0 0 1px #000;
-}
 /* Числа эффекта: ярче текста, чтобы глаз цеплялся за «3 на 3 хода». */
 .num {
   font-weight: inherit;
   color: #fff3c4;
+}
+/* Цвет числа по смыслу (как фишки и множитель в Balatro): урон, блок, HP, ресурсы, Сила; срок в ходах — приглушённо. */
+.num.n-dmg {
+  color: #ffb36b;
+}
+.num.n-block {
+  color: var(--shield);
+}
+.num.n-heal {
+  color: var(--good);
+}
+.num.n-sta {
+  color: var(--sta);
+}
+.num.n-mp {
+  color: var(--mp);
+}
+.num.n-str {
+  color: #f9a825;
+}
+.num.n-turns {
+  color: #c9ccd1;
 }
 /* Иконка статуса перед ключевым словом. */
 .kw.with-icon .kw-icon {
@@ -3276,7 +3111,7 @@ p {
   color: #55557a;
   margin: 0 4px;
 }
-/* Чип параметра: иконка и значение в рамке; цвет значения — ресурс или вид параметра. */
+/* Чип параметра (карточки «Старта» на выборе героя): иконка и значение в рамке; цвет значения — ресурс или вид параметра. */
 .param {
   display: inline-flex;
   align-items: center;
@@ -3308,13 +3143,16 @@ p {
 .param.t-self .param-text {
   color: var(--good);
 }
-/* Род, тип сокета, архетип, особые пометки — короткими метками с иконкой. */
-.kind-label,
+/* Строка «что это» под именем: род, архетип, особые пометки, тип сокета — короткими метками. */
 .special-label {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   cursor: help;
+}
+.special-label.key,
+.special-label.sig {
+  color: var(--accent);
 }
 .k-passive {
   color: #aab4d8;
@@ -3335,371 +3173,7 @@ p {
   cursor: help;
   white-space: nowrap;
 }
-.arch-label.none {
-  color: #66668a;
-}
-.special-label.key,
-.special-label.sig {
-  color: var(--accent);
-}
-/* Что вещь даст сборке: дубликат, шаг набора, потеря артефакта. */
-.build-note {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 15px;
-  line-height: 1.05;
-  color: var(--dim);
-  cursor: help;
-}
-.build-note.good {
-  color: var(--good);
-}
-.build-note.bad {
-  color: var(--bad);
-}
-.build-note .arch-glyph {
-  flex: none;
-}
-
-/* ─── Артефакт A — «полоса параметров» ─────────────────────────────── */
-
-.av.av-a {
-  gap: 5px;
-}
-.av-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.av-portrait {
-  width: 36px;
-  height: 36px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  color: var(--accent);
-  background: #0e0e18;
-  border: 2px solid var(--border);
-}
-.av-title {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.av-name {
-  font-size: 20px;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.av-tags {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: 15px;
-  line-height: 1.1;
-  color: var(--dim);
-}
-.av-head .tier-pips {
-  align-self: flex-start;
-  margin-top: 4px;
-}
-.av-params {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.av-desc {
-  font-size: 16px;
-  line-height: 1.12;
-}
-
-/* ─── Артефакт B — «карта с углами» ─────────────────────────────────── */
-
-.card.av-b {
-  position: relative;
-  overflow: visible;
-  gap: 4px;
-  padding-top: 16px;
-  padding-bottom: 28px;
-}
-.avb-gems,
-.avb-gem.passive {
-  position: absolute;
-  top: -12px;
-  left: 8px;
-}
-.avb-gems {
-  display: flex;
-  gap: 3px;
-}
-.avb-gems .avb-gem {
-  position: static;
-}
-.avb-gem,
-.avb-cd {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  height: 26px;
-  padding: 0 6px 0 5px;
-  background: #11111c;
-  border: 2px solid var(--sta);
-  color: var(--sta);
-  font-size: 19px;
-  line-height: 1;
-  box-shadow: 2px 2px 0 #000;
-  cursor: help;
-}
-.avb-gem.c-mp {
-  border-color: var(--mp);
-  color: var(--mp);
-}
-.avb-gem.c-free {
-  border-color: var(--good);
-  color: var(--good);
-}
-.avb-gem.passive {
-  border-color: #6f7aa6;
-  padding: 0 5px;
-}
-.avb-cd {
-  position: absolute;
-  top: -12px;
-  right: 8px;
-  border-color: #7a7d86;
-  color: #d8dbe2;
-}
-.avb-head {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 0;
-}
-.avb-glyph {
-  font-size: 24px;
-  line-height: 1;
-  flex: none;
-}
-.avb-name {
-  font-size: 20px;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.avb-type {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  font-size: 15px;
-  color: var(--dim);
-}
-.avb-type > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.avb-desc {
-  font-size: 16px;
-  line-height: 1.12;
-  text-align: center;
-  padding-top: 4px;
-  border-top: 1px dotted #33334d;
-}
-.av-b .build-note {
-  justify-content: center;
-}
-/* Нижняя кромка: ленты архетипов слева, тир и значок сокета справа — поверх рамки карточки. */
-.avb-bottom {
-  position: absolute;
-  left: -3px;
-  right: -3px;
-  bottom: -3px;
-  height: 22px;
-  display: flex;
-  align-items: stretch;
-  gap: 2px;
-}
-.avb-ribbon {
-  display: flex;
-  align-items: center;
-  padding: 0 7px;
-  font-size: 15px;
-  color: #0b0b12;
-  cursor: help;
-}
-.avb-ribbon.none {
-  background: #2c2c44;
-  color: #8a8aa8;
-}
-.avb-spacer {
-  flex: 1;
-}
-.avb-bottom .tier-pips {
-  align-self: center;
-}
-.avb-slot {
-  display: flex;
-  align-items: center;
-  padding: 0 5px;
-  background: #11111c;
-  cursor: help;
-}
-
-/* ─── Артефакт C — «рейка слева» ────────────────────────────────────── */
-
-.card.av-c {
-  flex-direction: row;
-  padding: 0;
-  gap: 0;
-}
-.avc-rail {
-  width: 46px;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 0;
-  background: #10101b;
-  border-right: 2px solid #2c2c44;
-}
-.avc-glyph {
-  font-size: 26px;
-  line-height: 1;
-}
-.avc-param {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  font-size: 15px;
-  line-height: 1;
-  cursor: help;
-}
-.avc-param.c-sta span {
-  color: var(--sta);
-}
-.avc-param.c-mp span {
-  color: var(--mp);
-}
-.avc-param.c-free span {
-  color: var(--good);
-}
-.avc-param.t-one span,
-.avc-param.t-all span {
-  color: #ffb3b3;
-}
-.avc-param.t-self span {
-  color: var(--good);
-}
-.avc-slot {
-  margin-top: auto;
-}
-.avc-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 7px 10px 8px;
-}
-.avc-name {
-  font-size: 20px;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.avc-tags {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: 15px;
-  color: var(--dim);
-}
-.avc-desc {
-  font-size: 16px;
-  line-height: 1.12;
-}
-
-/* ─── Артефакт D — «как экипировка» ─────────────────────────────────── */
-
-/* Шапка — те же .gv-head / .gv-icon / .gv-name / .gv-type, что у карточки предмета; в рамке глиф артефакта. */
-.card.avd {
-  gap: 3px;
-}
-.avd-glyph {
-  font-size: 22px;
-  line-height: 1;
-}
-/* Таблица параметров тем же видом, что сравнение у предметов (.cmp): значок, имя, значение справа. В широкой карточке награды —
-   две колонки (цена | КД, урон | …), в узкой колонке торговца — одна; дубликат и двойная цена — во всю ширину. */
-.cmp.art-tbl {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 0 14px;
-  padding: 1px 0 3px;
-}
-/* Узкая колонка торговца: тоже две колонки, но без названий строк — значок и значение с единицами («1 STA», «2 хода»);
-   что это за строка, пишет подсказка. Иначе таблица в три строки выталкивает кнопку покупки за рамку. */
-.shop .cmp.art-tbl {
-  grid-template-columns: 1fr 1fr;
-  gap: 1px 10px;
-}
-.shop .art-tbl-row {
-  grid-template-columns: 16px auto;
-  justify-content: start;
-}
-.shop .art-tbl-row .cmp-name {
-  display: none;
-}
-.shop .avd-desc {
-  line-height: 1.06;
-}
-.art-tbl-row {
-  display: grid;
-  grid-template-columns: 16px 1fr auto;
-  gap: 5px;
-  align-items: center;
-  white-space: nowrap;
-  min-width: 0;
-  cursor: help;
-}
-.art-tbl-row.wide {
-  grid-column: 1 / -1;
-}
-.art-tbl-glyph {
-  font-size: 14px;
-  line-height: 1;
-  text-align: center;
-}
-.art-tbl-val {
-  color: #fff;
-}
-.art-tbl-row.good .art-tbl-val {
-  color: var(--good);
-}
-.art-tbl-row.bad .art-tbl-val {
-  color: var(--bad);
-}
-/* Описание — абзацем, как перк у предмета, тем же кеглем; строки плотнее, чтобы таблица в три строки и описание в четыре
-   помещались в карточку награды (Оглушающий удар и Финишер с дубликатом). */
-.avd-desc {
-  font-size: 15px;
-  line-height: 1.06;
-}
-/* Тип сокета словом в строке под именем: значок и слово цветом типа, как подписи пустых сокетов в консоли. */
+/* Тип сокета словом: значок и слово цветом типа, как подписи пустых сокетов в консоли. */
 .slot-label {
   display: inline-flex;
   align-items: center;
@@ -3710,20 +3184,29 @@ p {
 .potion-kind {
   color: #6fd97a;
 }
-
-
-/* ─── Экипировка: общие части вариантов ─────────────────────────────── */
-
-.gv {
-  gap: 5px;
+/* Пометка под таблицей: что вытеснит зелье, какие артефакты не поместятся в новый предмет. */
+.build-note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  line-height: 1.05;
+  color: var(--dim);
+  cursor: help;
 }
-.gv-head {
+.build-note.bad {
+  color: var(--bad);
+}
+
+/* ─── Шапка карточки: значок в рамке, имя цветом тира, строка «что это» ─── */
+
+.item-head {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.gv-icon {
+.item-icon {
   width: 34px;
   height: 34px;
   flex: none;
@@ -3734,7 +3217,7 @@ p {
   border: 2px solid var(--border);
   cursor: help;
 }
-.gv-title {
+.item-title {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -3742,16 +3225,12 @@ p {
   gap: 2px;
 }
 /* Имя целиком: тир показывает цвет, точек тира нет (решение пользователя) — длинное имя в узкой колонке переносится, а не режется. */
-.gv-name {
+.item-name {
   min-width: 0;
   font-size: 20px;
   line-height: 1.05;
 }
-.gv-head .tier-pips {
-  align-self: flex-start;
-  margin-top: 4px;
-}
-.gv-type {
+.item-type {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -3759,119 +3238,20 @@ p {
   line-height: 1.1;
   color: var(--dim);
 }
-.gv-type > span {
+.item-type > span {
   cursor: help;
 }
-.skill-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-.skill-label.yes {
-  color: #8ce99a;
-}
-.skill-label.no {
-  color: #ff8787;
-}
-.gv-reach {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.gv-main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 0;
-  border-top: 1px dotted #33334d;
-  border-bottom: 1px dotted #33334d;
-}
-.gv-stats {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.big-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-  cursor: help;
-}
-.big-stat b {
-  font-size: 28px;
+.item-glyph {
+  font-size: 22px;
   line-height: 1;
-  color: #fff;
-  font-weight: inherit;
 }
-.big-stat small {
-  font-size: 15px;
-  color: var(--dim);
-}
-.big-stat.bad b {
-  color: #ff8787;
-}
-.gv-deltas {
-  margin-left: auto;
-  max-width: 62%;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0 8px;
-  font-size: 15px;
-  line-height: 1.1;
-  cursor: help;
-}
-.gv-deltas .up,
-.gv-more .up,
-.gv-verdict.up {
-  color: var(--good);
-}
-.gv-deltas .dn,
-.gv-more .dn,
-.gv-verdict.dn {
-  color: var(--bad);
-}
-.gv-props {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.prop-row {
-  display: flex;
-  align-items: baseline;
+
+/* ─── Карточка экипировки: сравнение с надетым, перк, сокеты ───────────── */
+
+.gear-card {
   gap: 5px;
-  font-size: 15px;
-  line-height: 1.1;
-  cursor: help;
 }
-.prop-row .ui-icon {
-  align-self: center;
-}
-.prop-name {
-  color: #ff9f6b;
-  flex: none;
-}
-.prop-row.affix .prop-text {
-  color: #c9d0ff;
-}
-.prop-row.off,
-.prop-row.off .prop-name {
-  color: #77778f;
-  text-decoration: line-through;
-}
-.sock-icons {
-  display: flex;
-  gap: 4px;
-}
-.sock-icons .chip {
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-}
-
-/* ─── Экипировка B — «сравнение с надетым» ─────────────────────────── */
-
+/* Таблица «надето → эта»: стат, было, стрелка, станет, знак разницы. У артефакта тем же видом — таблица параметров. */
 .cmp {
   display: flex;
   flex-direction: column;
@@ -3888,10 +3268,6 @@ p {
   white-space: nowrap;
   align-items: center;
   gap: 5px;
-}
-.cmp-caption {
-  font-size: 14px;
-  color: #66668a;
 }
 .cmp-name {
   color: var(--dim);
@@ -3929,162 +3305,192 @@ p {
 .dir.eq {
   color: #55557a;
 }
-.cmp-sockets {
-  font-size: 14px;
-}
-.cmp-sockets.up {
-  color: var(--good);
-}
-.cmp-sockets.dn {
-  color: var(--bad);
-}
-
-/* ─── Экипировка C — «компакт» ─────────────────────────────────────── */
-
-.gv-verdict {
-  margin-left: auto;
-  font-size: 16px;
-  cursor: help;
-}
-.gv-chips {
+/* Карточка без забега (коллекция): крупное число вместо сравнения. */
+.item-stats {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
   align-items: center;
+  gap: 14px;
 }
-.prop-chip {
+.big-stat {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 6px 0 4px;
-  border: 1px solid var(--border);
-  background: #0e0e18;
-  font-size: 16px;
-  line-height: 1;
-  cursor: help;
+  gap: 5px;
   white-space: nowrap;
+  cursor: help;
 }
-.prop-chip.perk {
+.big-stat b {
+  font-size: 28px;
+  line-height: 1;
+  color: #fff;
+  font-weight: inherit;
+}
+.big-stat small {
+  font-size: 15px;
+  color: var(--dim);
+}
+.big-stat.bad b {
+  color: #ff8787;
+}
+/* Перк абзацем: значок у первой строки, имя и текст текут вместе. */
+.item-props {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.prop-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 15px;
+  line-height: 1.1;
+  cursor: help;
+}
+.prop-row .ui-icon {
+  align-self: center;
+}
+.prop-row.perk > .ui-icon {
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.prop-row .prop-body {
+  min-width: 0;
+}
+.prop-name {
   color: #ff9f6b;
+  flex: none;
 }
-.prop-chip.affix {
-  color: #c9d0ff;
-}
-.prop-chip.off {
+/* Перк чужого типа не работает: зачёркнут, ключевые слова и числа в нём не подсвечиваются — весь текст одного приглушённого цвета. */
+.prop-row.off,
+.prop-row.off .prop-name {
   color: #77778f;
   text-decoration: line-through;
 }
-.gv-more {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: 15px;
-  cursor: help;
-}
-
-/* ─── Плитка консоли в вариантах карточек ───────────────────────────── */
-
-.gear-tile.gtv {
-  gap: 5px;
-  padding: 6px 10px;
-}
-.gtv-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  white-space: nowrap;
-}
-.gtv .gv-icon {
-  width: 28px;
-  height: 28px;
-}
-.gtv-name {
-  font-size: 20px;
-  line-height: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.gtv-stat {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 20px;
-  color: #fff;
-  flex: none;
-  cursor: help;
-}
-.gtv-props {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.gtv .prop-row {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.gtv .prop-row.dim {
-  color: #66668a;
-}
-.sock .sock-glyph {
-  width: 28px;
-  flex: none;
-  text-align: center;
-  font-size: 17px;
-}
-
-/* Пустой сокет плитки — прямоугольник на полстроки, как занятый: пунктир и подпись цветом типа сокета (просьба пользователя). */
-.gtv .sock {
-  min-height: 34px;
-}
-.gtv .sock.empty:not(.pm-sock) {
-  border: 2px dashed var(--border);
-  background: transparent;
-  padding: 2px 8px;
-  gap: 7px;
-  opacity: 0.8;
-}
-.gtv .sock.empty.k-weapon {
-  border-color: var(--slot-weapon);
-  color: var(--slot-weapon);
-}
-.gtv .sock.empty.k-armor {
-  border-color: var(--slot-armor);
-  color: var(--slot-armor);
-}
-.gtv .sock.empty.k-any {
-  border-color: var(--slot-any);
-  color: var(--slot-any);
-}
-.gtv .sock.empty .sock-name {
+.prop-row.off .kw,
+.prop-row.off .num {
   color: inherit;
+  border-bottom-color: transparent;
+}
+.sock-icons {
+  display: flex;
+  gap: 4px;
+}
+.sock-icons .chip {
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
 }
 
-/* Плитка консоли (правки пользователя): шапка как у карточки — имя, под ним тип и дальность; строка статов, перк, сокеты прижаты
-   к низу. Высота плитки фиксирована (консоль 180), поэтому строки плотнее, а сокеты ниже, чем в карточке: четыре сокета — две строки. */
-.gear-tile.gtv {
+/* ─── Карточка артефакта: таблица параметров и описание ────────────────── */
+
+.card.art-card {
+  gap: 3px;
+}
+/* Таблица параметров тем же видом, что сравнение у предметов (.cmp): значок, имя, значение справа. В широкой карточке награды —
+   две колонки (цена | КД, урон | …), в узкой колонке торговца — одна; дубликат и двойная цена — во всю ширину. */
+.cmp.art-tbl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 0 14px;
+  padding: 1px 0 3px;
+}
+.art-tbl-row {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 5px;
+  align-items: center;
+  white-space: nowrap;
+  min-width: 0;
+  cursor: help;
+}
+.art-tbl-row.wide {
+  grid-column: 1 / -1;
+}
+.art-tbl-glyph {
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+}
+.art-tbl-val {
+  color: #fff;
+}
+.art-tbl-row.good .art-tbl-val {
+  color: var(--good);
+}
+.art-tbl-row.bad .art-tbl-val {
+  color: var(--bad);
+}
+/* Описание — абзацем, как перк у предмета, тем же кеглем; строки плотнее, чтобы таблица в три строки и описание в четыре
+   помещались в карточку награды (Оглушающий удар и Финишер с дубликатом). */
+.art-desc {
+  font-size: 15px;
+  line-height: 1.06;
+}
+/* Пассивка без таблицы: описание отделено от шапки той же пунктирной чертой, что таблица у приёма и у предмета. */
+.art-card .item-head + .art-desc {
+  border-top: 1px dotted #33334d;
+  padding-top: 4px;
+}
+/* Ключевая вещь архетипа ломает правило за цену — тонкая золотая кромка внутри рамки. */
+.art-card.keystone {
+  box-shadow: inset 0 0 0 1px #ffd16688;
+}
+
+/* ─── Торговец: колонки прилавка ───────────────────────────────────────── */
+
+/* Лекарь (1) и зелье (4) уже, предмет (2) и артефакт (3) шире — по порядку прилавка, чтобы ряд не прыгал, когда товар куплен
+   и на его месте карточка «Куплено». */
+.shop .cards > .card:nth-child(1),
+.shop .cards > .card:nth-child(4) {
+  flex: 0.8 1 0;
+}
+.shop .cards > .card:nth-child(2),
+.shop .cards > .card:nth-child(3) {
+  flex: 1.2 1 0;
+}
+/* Имя в узкой колонке мельче; плитка консоли под прилавком — как на остальных экранах. */
+.shop .card .item-name {
+  font-size: 18px;
+}
+.shop .big-stat b {
+  font-size: 24px;
+}
+.shop .gear-card .prop-row {
+  font-size: 14px;
+}
+/* Таблица артефакта в узкой колонке: тоже две колонки, но без названий строк — значок и значение с единицами («1 STA», «2 хода»);
+   что это за строка, пишет подсказка. Иначе таблица в три строки выталкивает кнопку покупки за рамку. */
+.shop .cmp.art-tbl {
+  grid-template-columns: 1fr 1fr;
+  gap: 1px 10px;
+}
+.shop .art-tbl-row {
+  grid-template-columns: 16px auto;
+  justify-content: start;
+}
+.shop .art-tbl-row .cmp-name {
+  display: none;
+}
+
+/* ─── Плитка экипировки в консоли (cards.ts: hubGearTile) ──────────────── */
+
+/* Шапка как у карточки — имя, под ним тип и дальность; строка статов, перк, сокеты прижаты к низу (правки пользователя).
+   Высота плитки фиксирована (консоль 180), поэтому строки плотнее, а сокеты ниже, чем в карточке: четыре сокета — две строки. */
+.gear-tile.hub-tile {
   gap: 2px;
   padding: 4px 10px 5px;
 }
-.gtv .gv-head {
-  gap: 8px;
-}
-.gtv .gv-icon {
+.hub-tile .item-icon {
   width: 30px;
   height: 30px;
 }
-.gtv .gv-name {
+.hub-tile .item-name {
   font-size: 19px;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.gtv .gv-type {
+.hub-tile .item-type {
   font-size: 14px;
 }
 .tile-stats {
@@ -4112,19 +3518,8 @@ p {
 .tile-stat.affix {
   color: #c9d0ff;
 }
-.gtv .gt-sockets {
-  margin-top: auto;
-  gap: 3px 8px;
-}
-.gtv .sock {
-  min-height: 25px;
-}
-/* Перк в плитке переносится до двух строк (просьба пользователя); третья обрезается многоточием, полный текст — в подсказке строки. */
-.gtv .prop-row {
-  white-space: normal;
-  overflow: visible;
-}
-.gtv .prop-row .prop-body {
+/* Перк переносится до двух строк (просьба пользователя); третья обрезается многоточием, полный текст — в подсказке строки. */
+.hub-tile .prop-row .prop-body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -4132,89 +3527,96 @@ p {
   /* Чуть выше строка: иначе обрезка съедает пунктир под ключевыми словами. */
   line-height: 1.2;
 }
-/* Перк абзацем: значок у первой строки, имя и текст текут вместе. */
-.prop-row .prop-body {
+.hub-tile .prop-row.dim {
+  color: #66668a;
+}
+.hub-tile .gt-sockets {
+  margin-top: auto;
+  gap: 3px 8px;
+}
+.hub-tile .sock {
+  min-height: 25px;
+}
+.sock .sock-glyph {
+  width: 28px;
+  flex: none;
+  text-align: center;
+  font-size: 17px;
+}
+/* Пустой сокет — прямоугольник на полстроки, как занятый: пунктир и подпись цветом типа сокета (просьба пользователя). */
+.hub-tile .sock.empty:not(.pm-sock) {
+  border: 2px dashed var(--border);
+  background: transparent;
+  padding: 2px 8px;
+  gap: 7px;
+  opacity: 0.8;
+}
+.hub-tile .sock.empty.k-weapon {
+  border-color: var(--slot-weapon);
+  color: var(--slot-weapon);
+}
+.hub-tile .sock.empty.k-armor {
+  border-color: var(--slot-armor);
+  color: var(--slot-armor);
+}
+.hub-tile .sock.empty.k-any {
+  border-color: var(--slot-any);
+  color: var(--slot-any);
+}
+.hub-tile .sock.empty .sock-name {
+  color: inherit;
+}
+/* Шапка предмета в окне выбора сокета: иконка типа и имя цветом тира одной строкой. */
+.item-mini-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
+  white-space: nowrap;
 }
-.prop-row.perk > .ui-icon {
-  align-self: flex-start;
-  margin-top: 1px;
-}
-
-/* ─── Узкие карточки торговца в вариантах ───────────────────────────── */
-
-.shop .av-desc,
-.shop .avb-desc,
-.shop .avc-desc {
-  font-size: 15px;
-}
-.shop .av-name,
-.shop .avb-name,
-.shop .avc-name,
-.shop .gv-name {
-  font-size: 18px;
-}
-.shop .big-stat b {
-  font-size: 24px;
-}
-.shop .gv .prop-row {
-  font-size: 14px;
+.item-mini-name {
+  font-size: 20px;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Узкая колонка торговца: дельты уходят под крупное число, а не сжимают его. */
-.shop .gv-main {
-  flex-wrap: wrap;
-  gap: 2px 10px;
-}
-.shop .gv-deltas {
-  max-width: none;
-  margin-left: 0;
-  justify-content: flex-start;
-}
-/* Ключевая вещь архетипа ломает правило за цену — тонкая золотая кромка внутри рамки. */
-.art-card.av.keystone {
-  box-shadow: inset 0 0 0 1px #ffd16688;
-}
+/* ─── Выбор героя: превью с вкладками (v0.50) ──────────────────────────── */
 
-/* ─── Прототипы v0.50: превью героя (heroSelectVariants.ts) ─────────── */
-
-.hero-preview.hsv {
-  gap: 8px;
-  padding: 10px 16px 12px;
-}
-.hsv-header {
+.hs-header {
   display: flex;
   align-items: center;
   gap: 14px;
   flex: none;
 }
-.hsv-header .hero-sprite,
-.hsv-header .sprite {
+.hs-header .hero-sprite,
+.hs-header .sprite {
   flex: none;
 }
-.hsv-title {
+.hs-title {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
 }
-.hsv-name {
+.hs-name {
   font-size: 32px;
   line-height: 1;
   color: var(--accent);
 }
-.hsv-role {
+.hs-role {
   font-size: 17px;
   line-height: 1.12;
 }
 /* Вкладки: активная сливается с полем под ней, неактивные — приглушены. */
-.hsv-tabs {
+.hs-tabs {
   display: flex;
   gap: 4px;
   flex: none;
   border-bottom: 2px solid var(--border);
 }
-.hsv-tab {
+.hs-tab {
   font: inherit;
   font-size: 19px;
   color: var(--dim);
@@ -4228,41 +3630,43 @@ p {
   gap: 6px;
   cursor: pointer;
 }
-.hsv-tab:hover {
+.hs-tab:hover {
   color: var(--text);
 }
-.hsv-tab.active {
+.hs-tab.active {
   color: var(--accent);
   background: var(--panel-2);
   border-color: var(--border);
   border-bottom: 2px solid var(--panel-2);
 }
-.hsv-body {
+.hs-body {
   flex: 1;
   min-height: 0;
 }
-.hsv-foot {
+.hs-foot {
   flex: none;
   display: flex;
   align-items: center;
   gap: 16px;
   margin-top: auto;
 }
-.hsv-start {
+.hs-start {
   margin-left: auto;
   flex: none;
 }
-.hsv-label {
-  font-size: 15px;
-  color: var(--dim);
+/* Вкладка «Герой»: статы плитками и владение в той же сетке. */
+.hs-hero-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 10px;
 }
-/* Статы плитками: иконка, число, подпись. */
-.hsv-stats {
+.hs-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
-.hsv-stat {
+.hs-stat {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4271,55 +3675,43 @@ p {
   border: 2px solid #2c2c44;
   cursor: help;
 }
-.hsv-stat-body {
+.hs-stat-body {
   display: flex;
   flex-direction: column;
   line-height: 1;
 }
-.hsv-stat b {
+.hs-stat b {
   font-size: 23px;
   color: #fff;
   font-weight: inherit;
   white-space: nowrap;
 }
-.hsv-stat small {
+.hs-stat small {
   font-size: 14px;
   color: var(--dim);
 }
-.hsv-stats.compact {
-  gap: 4px;
+/* Владение в сетке плиток статов (4 колонки, тот же зазор): подпись в первой колонке, три типа — под остальными.
+   Все шесть плашек одной ширины и встают столбиками, без лесенки (просьба пользователя). Своё ярко, чужое тускло и зачёркнуто. */
+.hs-prof {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
 }
-.hsv-stats.compact .hsv-stat {
-  padding: 2px 5px;
-  gap: 5px;
-}
-.hsv-stats.compact .hsv-stat b {
-  font-size: 19px;
-}
-/* Владение: своё ярко, чужое тускло и зачёркнуто. */
-.hsv-prof {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.hsv-prof-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.hsv-prof-row .hsv-label {
-  width: 58px;
+.hs-label {
+  align-self: center;
+  font-size: 17px;
+  color: var(--dim);
 }
 .prof-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 6px 0 4px;
+  gap: 7px;
+  height: 32px;
+  min-width: 0;
+  padding: 0 10px 0 9px;
   border: 1px solid var(--border);
   background: #0e0e18;
-  font-size: 16px;
+  font-size: 18px;
   cursor: help;
 }
 .prof-chip.yes {
@@ -4333,51 +3725,20 @@ p {
 .prof-chip.no .ui-icon {
   opacity: 0.45;
 }
-.hsv-gear {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.hsv-gear-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 16px;
-  cursor: help;
-}
-.hsv-gear-row b {
-  color: #fff;
-  font-weight: inherit;
-}
-.hsv-gear-perk {
-  color: #ff9f6b;
-  font-size: 15px;
-}
-.hsv-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 18px;
-}
-.hsv-hero-tab {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-top: 10px;
-}
-/* Выбор на старт карточками (A, C): строка на группу, подпись слева, два варианта. */
-.hsv-choices {
+/* Вкладка «Старт»: строка на группу — подпись слева, два варианта карточками. */
+.hs-choices {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding-top: 8px;
 }
-.hsv-choice-row {
+.hs-choice-row {
   display: grid;
   grid-template-columns: 92px 1fr 1fr;
   gap: 8px;
   align-items: stretch;
 }
-.hsv-choice-label {
+.hs-choice-label {
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -4385,12 +3746,12 @@ p {
   font-size: 18px;
   color: var(--accent);
 }
-.hsv-choice-label small {
+.hs-choice-label small {
   font-size: 14px;
   line-height: 1.05;
   color: var(--dim);
 }
-.hsv-option {
+.hs-option {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -4401,20 +3762,20 @@ p {
   cursor: pointer;
   transition: border-color 90ms;
 }
-.hsv-option:hover:not(.locked) {
+.hs-option:hover:not(.locked) {
   border-color: #7a7aa8;
 }
-.hsv-option.selected {
+.hs-option.selected {
   border-color: var(--accent);
   background: #262111;
   box-shadow: 0 0 10px #ffd16633;
 }
-.hsv-option.locked {
+.hs-option.locked {
   cursor: help;
   border-style: dashed;
   background: #151522;
 }
-.hsv-option-head {
+.hs-option-head {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4422,19 +3783,19 @@ p {
   font-size: 18px;
   line-height: 1.05;
 }
-.hsv-option-title {
+.hs-option-title {
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hsv-option.selected .hsv-option-title {
+.hs-option.selected .hs-option-title {
   color: var(--accent);
 }
-.hsv-option.locked .hsv-option-title {
+.hs-option.locked .hs-option-title {
   color: #8a8aa8;
 }
-.hsv-option-mark {
+.hs-option-mark {
   margin-left: auto;
   flex: none;
   display: inline-flex;
@@ -4443,192 +3804,72 @@ p {
   font-size: 14px;
   color: var(--good);
 }
-.hsv-option-lock {
+.hs-option-lock {
   margin-left: auto;
   flex: none;
   font-size: 14px;
   color: #b09a5a;
 }
-.hsv-option-params {
+.hs-option-params {
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
 }
-.hsv-option-params .param {
+.hs-option-params .param {
   height: 20px;
   font-size: 15px;
 }
-.hsv-option-text {
+.hs-option-text {
   font-size: 15px;
   line-height: 1.1;
 }
-.hsv-option.locked .hsv-option-text {
+.hs-option.locked .hs-option-text {
   color: #77778f;
 }
-.hsv-option.locked .num {
+.hs-option.locked .num {
   color: inherit;
 }
-.hsv-glyph {
+.hs-glyph {
   width: 18px;
   flex: none;
   text-align: center;
   font-size: 18px;
   color: var(--accent);
 }
-/* Выбор переключателями (B): сегменты, описание только у выбранного. */
-.hsv-toggles {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.hsv-toggle-group {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.hsv-toggle-head {
-  font-size: 16px;
-  color: var(--accent);
-}
-.hsv-toggle-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-.seg {
-  display: flex;
-  gap: 4px;
-}
-.seg-opt {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  font-size: 16px;
-  padding: 1px 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  color: var(--text);
-  background: #0e0e18;
-  border: 2px solid var(--border);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-.seg-opt.selected {
-  color: var(--accent);
-  background: #262111;
-  border-color: var(--accent);
-}
-.seg-opt.locked {
-  color: #66668a;
-  border-style: dashed;
-  cursor: help;
-}
-.hsv-toggle-text {
-  font-size: 15px;
-  line-height: 1.1;
-}
-.hsv-b .hsv-cols {
-  flex: 1;
-  min-height: 0;
-  align-items: start;
-}
-.hsv-col {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  min-width: 0;
-}
-/* Полоса мастерства с пятью ступенями (подвал A и B). */
-.hsv-mastery-strip {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  cursor: help;
-}
-.hsv-mastery-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 17px;
-  color: var(--accent);
-}
-.hsv-rungs {
-  display: flex;
-  align-items: center;
-}
-.hsv-rung {
-  display: flex;
-  align-items: center;
-}
-.hsv-rung-line {
-  display: block;
-  width: 20px;
-  height: 2px;
-  background: #3a3a5a;
-}
-.hsv-rung.on .hsv-rung-line {
-  background: var(--accent);
-}
-.hsv-rung > .ui-icon {
-  box-sizing: content-box;
-  padding: 3px;
-  border: 2px solid #3a3a5a;
-  background: #0e0e18;
-}
-.hsv-rung.on > .ui-icon {
-  border-color: var(--accent);
-}
-.hsv-rung.next > .ui-icon {
-  border-color: #b09a5a;
-  border-style: dashed;
-}
-.hsv-mastery-next {
-  font-size: 14px;
-  color: var(--dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* Вкладка «Мастерство» (C): лестница уровней. */
-.hsv-mastery {
+/* Вкладка «Мастерство»: лестница уровней. */
+.hs-mastery {
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding-top: 10px;
 }
-.hsv-mastery-top {
+.hs-mastery-top {
   display: flex;
   align-items: center;
   gap: 12px;
   font-size: 19px;
 }
-.hsv-mastery-top .mastery-bar {
+.hs-mastery-top .mastery-bar {
   flex: 1;
   height: 8px;
   margin: 0;
 }
-.hsv-mastery-level {
+.hs-mastery-level {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   color: var(--accent);
 }
-.hsv-mastery-how {
+.hs-mastery-how {
   font-size: 15px;
   color: var(--dim);
 }
-.hsv-ladder {
+.hs-ladder {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.hsv-ladder-row {
+.hs-ladder-row {
   display: grid;
   grid-template-columns: 18px 18px 200px 1fr auto;
   align-items: center;
@@ -4639,173 +3880,29 @@ p {
   font-size: 18px;
   color: #77778f;
 }
-.hsv-ladder-row.on {
+.hs-ladder-row.on {
   color: var(--text);
   border-color: #3d6b46;
 }
-.hsv-ladder-row.next {
+.hs-ladder-row.next {
   color: var(--text);
   border-color: #b09a5a;
   border-style: dashed;
 }
-.hsv-ladder-lvl {
+.hs-ladder-lvl {
   text-align: center;
   color: var(--accent);
 }
-.hsv-ladder-what {
+.hs-ladder-what {
   color: #ffd98a;
 }
-.hsv-ladder-row:not(.on) .hsv-ladder-what {
+.hs-ladder-row:not(.on) .hs-ladder-what {
   color: #9a9ab0;
 }
-.hsv-ladder-need {
+.hs-ladder-need {
   font-size: 15px;
   color: var(--dim);
 }
-.hsv-ladder-row.on .hsv-ladder-need {
+.hs-ladder-row.on .hs-ladder-need {
   color: var(--good);
-}
-.hsv-loadout {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  font-size: 18px;
-  cursor: help;
-}
-.hsv-loadout > span:not(.sep) {
-  display: inline-flex;
-  align-items: center;
-}
-
-/* v0.50: столбцы вкладки «Герой» — владение шире, снаряжение уже; в B левая колонка шире правой. */
-.hsv-hero-tab .hsv-cols {
-  grid-template-columns: 1.25fr 1fr;
-}
-.hsv-b .hsv-cols {
-  grid-template-columns: 1.15fr 1fr;
-}
-.hsv-stats.compact .hsv-stat small {
-  white-space: nowrap;
-}
-.hsv-hero-tab .hsv-loadout {
-  font-size: 17px;
-}
-.hsv-loadout .ui-icon {
-  margin-right: 4px;
-}
-.prop-row.warn {
-  color: var(--bad);
-}
-/* Узкая колонка торговца: у дальности только точки, слово — в подсказке. */
-.shop .gv-reach-text {
-  display: none;
-}
-.shop .prop-row.warn {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
-.shop .prop-row.warn .ui-icon {
-  margin-right: 4px;
-}
-/* Пометка «не владеет» среди чипов (C): тем же чипом, красным. */
-.gv-chips .skill-label {
-  height: 24px;
-  padding: 0 6px 0 4px;
-  font-size: 16px;
-  border: 1px solid #6b2a2a;
-  background: #1e0e12;
-  cursor: help;
-}
-/* Цвет числа по смыслу (как фишки и множитель в Balatro): урон, блок, HP, ресурсы, Сила; срок в ходах — приглушённо. */
-.num.n-dmg {
-  color: #ffb36b;
-}
-.num.n-block {
-  color: var(--shield);
-}
-.num.n-heal {
-  color: var(--good);
-}
-.num.n-sta {
-  color: var(--sta);
-}
-.num.n-mp {
-  color: var(--mp);
-}
-.num.n-str {
-  color: #f9a825;
-}
-.num.n-turns {
-  color: #c9ccd1;
-}
-/* Живое число приёма: ярче остальных параметров — это то, что будет на плитке в бою. */
-.param.live {
-  border-color: #8a7a4a;
-  background: #221d10;
-}
-.param.live .param-text {
-  color: #fff3c4;
-}
-.avc-param.live span {
-  color: #fff3c4;
-}
-.avb-live {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  cursor: help;
-}
-.avb-live b {
-  font-size: 26px;
-  line-height: 1;
-  color: #fff3c4;
-  font-weight: inherit;
-}
-/* C: на вкладке «Герой» владение стоит в той же сетке, что плитки статов (4 колонки, тот же зазор): подпись в первой колонке,
-   три типа — под остальными. Все шесть плашек одной ширины и встают столбиками, без лесенки (просьба пользователя). */
-.hsv-c .hsv-hero-tab .hsv-prof {
-  gap: 6px;
-}
-.hsv-c .hsv-hero-tab .hsv-prof-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-.hsv-c .hsv-hero-tab .hsv-prof-row .hsv-label {
-  width: auto;
-  align-self: center;
-  font-size: 17px;
-}
-.hsv-c .hsv-hero-tab .prof-chip {
-  height: 32px;
-  min-width: 0;
-  padding: 0 10px 0 9px;
-  gap: 7px;
-  font-size: 18px;
-}
-/* Перк чужого типа не работает: ключевые слова и числа в нём не подсвечиваются, весь текст одного приглушённого цвета. */
-.prop-row.off .kw,
-.prop-row.off .num {
-  color: inherit;
-  border-bottom-color: transparent;
-}
-/* Пассивка без таблицы: описание отделено от шапки той же пунктирной чертой, что таблица у приёма и у предмета. */
-.avd .gv-head + .avd-desc {
-  border-top: 1px dotted #33334d;
-  padding-top: 4px;
-}
-/* Торговец в новых карточках: лекарь (1) и зелье (4) уже, предмет (2) и артефакт (3) шире — по порядку прилавка, чтобы ряд
-   не прыгал, когда товар куплен и на его месте карточка «Куплено». */
-.shop-wide .cards > .card:nth-child(1),
-.shop-wide .cards > .card:nth-child(4) {
-  flex: 0.8 1 0;
-}
-.shop-wide .cards > .card:nth-child(2),
-.shop-wide .cards > .card:nth-child(3) {
-  flex: 1.2 1 0;
 }

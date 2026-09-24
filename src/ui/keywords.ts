@@ -13,7 +13,7 @@ interface Keyword {
   re: RegExp;
   title: string;
   text: string;
-  /** Статус, если ключевое слово — статус: прототипы карточек (v0.50) ставят перед словом его иконку. */
+  /** Статус, если ключевое слово — статус: карточки (v0.50) ставят перед словом его иконку. */
   status?: StatusId;
 }
 
@@ -62,7 +62,7 @@ const KEYWORDS: Keyword[] = [
 
 /**
  * Разметить текст: строки и подсвеченные span'ы ключевых слов с подсказками.
- * opts.icons — перед статусом его пиксельная иконка (прототипы карточек v0.50); opts.numbers — числа крупнее и ярче.
+ * opts.icons — перед статусом его пиксельная иконка (карточки v0.50); opts.numbers — числа крупнее и ярче.
  */
 export function markKeywords(text: string, opts: { icons?: boolean; numbers?: boolean } = {}): Child[] {
   const out = markKeywordsRaw(text, !!opts.icons);
@@ -70,7 +70,7 @@ export function markKeywords(text: string, opts: { icons?: boolean; numbers?: bo
 }
 
 /**
- * Смысл числа по соседям (прототипы v0.50, как в Balatro: цвет числа = что оно значит): сила статуса — цветом статуса,
+ * Смысл числа по соседям (v0.50, как в Balatro: цвет числа = что оно значит): сила статуса — цветом статуса,
  * урон, блок, HP, стамина, мана, Сила — своими цветами ресурсов, срок в ходах — приглушённо. Остальное — общим выделением.
  */
 function numberKind(prev: Child | undefined, before: string, after: string): { cls: string; color?: string } {

@@ -2,11 +2,9 @@ import { h } from './dom';
 import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef } from '../engine/types';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { ART_TIER_COLORS, GEAR_TIERS, gearPerkText } from '../data/gear';
-import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, reachDots, slotKindTip, socketChip, tierTip } from './components';
+import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, reachDots, socketChip, tierTip } from './components';
 import { slotKindAt } from '../engine/equipment';
-import type { SlotKind } from '../engine/types';
 import { markKeywords } from './keywords';
-import { gearTileVariant } from './cards';
 
 /**
  * Короткое число артефакта для сокета: «12–18», «5–8 всем», «+2 STA», у пассивных — описание.
@@ -70,13 +68,6 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
   return artifactCostText(def, inst.tier);
 }
 
-/** Ячейка сокета: чип, имя и число артефакта; пустая — один квадратный чип со значком типа, как в подвале карточки. Тип занятого — цвет левой кромки и подсказка. */
-function socketCell(inst: ArtifactInstance | null, kind: SlotKind, s: DerivedStats): HTMLElement {
-  if (!inst) return h('div', { class: `sock empty k-${kind}` }, socketChip(kind));
-  const def = artifactDef(inst.id);
-  return h('div', { class: `sock k-${kind}`, tip: slotKindTip(kind) }, artifactChip(inst), h('span', { class: 'sock-name' }, def.name), h('span', { class: 'sock-val' }, artifactShort(inst, s)));
-}
-
 /**
  * Строка артефакта в оверлее: чип, имя с тиром и описание. Следующий тир не пишем — в панели мало места.
  * Число в шапке только у активных: у пассивных artifactShort() отдаёт то же описание, что и строкой ниже.
@@ -97,19 +88,11 @@ function artifactRow(inst: ArtifactInstance, s: DerivedStats): HTMLElement {
   );
 }
 
-export interface GearTileOpts {
-  /** Полный список артефактов с описаниями (оверлей «Персонаж»). */
-  expanded?: boolean;
-}
-
 /**
- * Плитка экипировки: иконка, имя, бейдж тира и типа, кубик в руках героя или защита, строка перка,
- * сетка сокетов 2×2 с чипом, именем и числом артефакта. Ячейки под несуществующие сокеты не рисуются.
+ * Плитка экипировки листа «Персонаж»: иконка, имя, бейдж типа, кубик в руках героя или защита, строка перка и артефакты
+ * списком с описаниями. Плитка консоли — hubGearTile в cards.ts.
  */
-export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, opts: GearTileOpts = {}): HTMLElement {
-  // Прототипы v0.50: плитка консоли в варианте карточек экипировки; лист персонажа (expanded) пока старый.
-  const variant = opts.expanded ? null : gearTileVariant(gear, def, s);
-  if (variant) return variant;
+export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats): HTMLElement {
   const info = GEAR_TIERS[gear.tier];
   const isWeapon = gear.kind === 'weapon';
   // Статы той же строкой, что и в карточке награды: «Урон 4–6, ✦ +1 Сила» / «+2 DEF, +4 HP».
@@ -121,9 +104,6 @@ export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, opts
     { class: `gear-tile ${isWeapon ? 'weapon' : 'armor'}`, style: `border-color:${info.color}` },
     h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), reachDots(gear, def), stats),
     perk,
-    opts.expanded
-      ? h('div', { class: 'art-list' }, ...gear.slots.map((a, i) => (a ? artifactRow(a, s) : h('div', { class: 'art-row empty' }, socketChip(slotKindAt(gear, i)), h('span', { class: 'dim' }, 'свободный сокет')))))
-      : h('div', { class: 'gt-sockets' }, ...gear.slots.map((a, i) => socketCell(a, slotKindAt(gear, i), s))),
+    h('div', { class: 'art-list' }, ...gear.slots.map((a, i) => (a ? artifactRow(a, s) : h('div', { class: 'art-row empty' }, socketChip(slotKindAt(gear, i)), h('span', { class: 'dim' }, 'свободный сокет'))))),
   );
 }
-

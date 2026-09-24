@@ -1,5 +1,5 @@
-import { button, h, type Child } from './dom';
-import type { ArtTier, ArtifactInstance, Combatant, DerivedStats, EnemyState, GearInstance, GearKind, GearTier, RunState, SlotKind, StatusId } from '../engine/types';
+import { button, h } from './dom';
+import type { ArtTier, ArtifactInstance, Combatant, EnemyState, GearInstance, GearKind, GearTier, RunState, SlotKind, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
@@ -29,13 +29,13 @@ import {
 import { collectibleLines, type Collectible, type FoundState } from '../data/collection';
 import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
 import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, canPlaceArtifact, findSameArtifact, gearOf, slotAccepts, slotKindAt, socketRefs } from '../engine/equipment';
-import { STATUS_HINTS, STATUS_NAMES, defendBlock, onDeathInfo } from '../engine/combat';
+import { STATUS_HINTS, STATUS_NAMES, onDeathInfo } from '../engine/combat';
 import { markKeywords } from './keywords';
 import type { App } from './app';
 import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
 import type { ArchetypeId } from '../engine/types';
 import { canPendingSmelt, smeltTargets } from '../engine/run';
-import { artifactCardVariant, gearCardVariant, gearMiniHead, potionCardVariant } from './cards';
+import { artifactCard, gearMiniHead } from './cards';
 
 /** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
 /**
@@ -129,13 +129,6 @@ export function archetypeTip(arch: ArchetypeDef, count?: number): string {
   return lines.join('\n');
 }
 
-/** Значки архетипов артефакта цветом архетипа; у общей вещи — ничего. */
-export function tagBadges(id: string): HTMLElement | null {
-  const tags = artifactTags(id);
-  if (tags.length === 0) return null;
-  return h('span', { class: 'tag-badges' }, ...tags.map((t) => h('span', { class: 'tag-badge', style: `color:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, ARCHETYPES[t].glyph)));
-}
-
 /** Счётчики наборов героя: «♦ 2/3» по каждому архетипу, у которого есть хоть одна вещь (лист персонажа). */
 export function setCounters(arts: ArtifactInstance[]): HTMLElement | null {
   const counts = archetypeCounts(arts);
@@ -206,55 +199,6 @@ export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: ()
   );
 }
 
-/**
- * note — строка перед подвалом: заметка об апгрейде или дельты (diff.ts). footer — кнопка, встаёт справа внизу.
- * run — контекст забега для прототипов карточек (v0.50): прогресс набора архетипа и дубликат считаются по герою.
- */
-export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
-  // Прототипы v0.50: вариант карточки рисует cards.ts; заметку о дубликате он пишет сам, поэтому note с ней ему не передаётся.
-  const variant = artifactCardVariant(inst, footer, run ? null : note, run);
-  if (variant) return variant;
-  const def = artifactDef(inst.id);
-  const color = ART_TIER_COLORS[inst.tier];
-  return h(
-    'div',
-    { class: `card art-card ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''}`, style: `border-color:${color}` },
-    h(
-      'div',
-      { class: 'card-head' },
-      h('span', { class: 'glyph' }, def.glyph),
-      h('span', { class: 'card-name' }, def.name),
-      tagBadges(def.id),
-      // Тип сокета — значком в правом верхнем углу, как тип оружия и брони у экипировки; словами — в подсказке (решение пользователя).
-      h('span', { class: `wtype-icon slot-kind k-${def.slot}`, tip: `${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет` }, SLOT_KIND_GLYPH[def.slot]),
-    ),
-    // Тир не пишем: его показывает цвет рамки и подписи. Персональный — с пометкой, чей.
-    h('div', { class: 'card-sub', style: `color:${color}` }, `Артефакт · ${def.kind === 'active' ? (def.school === 'magic' ? 'магия' : 'приём') : 'пассивный'}${SIGNATURE_OWNER[inst.id] ? ' · персональный' : ''}${def.keystone ? ' · ключевая' : ''}`),
-    h('div', { class: 'card-desc' }, ...markKeywords(def.describe(inst.tier))),
-    def.kind === 'active' ? h('div', { class: 'card-cost' }, `Цена: ${artifactCostText(def, inst.tier)}`) : null,
-    note ?? null,
-    footer ? h('div', { class: 'card-foot' }, footer) : null,
-  );
-}
-
-/**
- * Что будет с дубликатом: такой артефакт уже стоит в сокете, взятый сольётся с ним.
- * Описание нового тира не пишем (v0.41.3): на карточке уже стоит описание — при выпавшем тире
- * выше стоящего оно совпадало с заметкой слово в слово, и карточка вырастала вдвое ни за что.
- */
-export function artifactMergeNote(run: RunState, inst: ArtifactInstance): string | null {
-  const same = findSameArtifact(run.hero, inst.id);
-  if (!same?.art) return null;
-  if (same.art.tier >= 3) return 'Уже стоит на максимальном тире';
-  const next = Math.min(3, Math.max(same.art.tier + 1, inst.tier)) as ArtTier;
-  return `Дубликат: тир стоящего ${same.art.tier} → ${next}`;
-}
-
-/** Сокеты предмета чипами: стоящий артефакт или пустой чип с типом сокета. */
-export function slotsRow(gear: GearInstance): HTMLElement {
-  return h('div', { class: 'slots' }, ...gear.slots.map((s, i) => (s ? artifactChip(s) : socketChip(slotKindAt(gear, i)))));
-}
-
 // ─── Зелья ─────────────────────────────────────────────────────────────────
 
 export const POTION_COLOR = '#6fd97a';
@@ -273,22 +217,6 @@ export function potionChip(id: string | null): HTMLElement {
 /** Что вытеснит новое зелье; null — слот пуст. */
 export function potionReplaceNote(run: RunState): string | null {
   return run.hero.potion ? `Заменит: ${potionDef(run.hero.potion).name}` : null;
-}
-
-export function potionCard(id: string, footer?: Child, note?: string | null): HTMLElement {
-  const variant = potionCardVariant(id, footer, note);
-  if (variant) return variant;
-  const def = potionDef(id);
-  return h(
-    'div',
-    { class: 'card potion-card', style: `border-color:${POTION_COLOR}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph', style: `color:${POTION_COLOR}` }, def.glyph), h('span', { class: 'card-name' }, def.name)),
-    h('div', { class: 'card-sub', style: `color:${POTION_COLOR}` }, 'Зелье · расходник'),
-    h('div', { class: 'card-desc' }, ...markKeywords(def.describe)),
-    h('div', { class: 'card-cost' }, 'Пьётся в бою бесплатно'),
-    note ? h('div', { class: 'note' }, note) : null,
-    footer ? h('div', { class: 'card-foot' }, footer) : null,
-  );
 }
 
 /** Иконка типа оружия у бейджа тира. С героем окрашена по владению: зелёный владеет, красный нет. */
@@ -350,32 +278,6 @@ export function gearStatInfo(gear: GearInstance, def?: HeroDef): { text: string;
   return own ? { text, tip: `Кубик оружия ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: герой не владеет этим типом оружия` } : { text };
 }
 
-function gearStatLine(gear: GearInstance, def?: HeroDef): HTMLElement {
-  const { text, tip } = gearStatInfo(gear, def);
-  return h('div', tip ? { class: 'card-desc', tip } : { class: 'card-desc' }, text);
-}
-
-/**
- * Карточка экипировки в награде и у торговца: в шапке имя (тир — в подсказке и цветом рамки) и иконка типа, кубик в руках героя, дельты к надетому
- * (deltas — строки из diff.ts), перк, внизу сокеты чипами и справа от них кнопка. Число сокетов не пишем: его видно по чипам.
- */
-export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Child; deltas?: HTMLElement[]; run?: RunState } = {}): HTMLElement {
-  const variant = gearCardVariant(gear, opts);
-  if (variant) return variant;
-  const info = GEAR_TIERS[gear.tier];
-  const { def, footer, deltas } = opts;
-  const isWeapon = gear.kind === 'weapon';
-  return h(
-    'div',
-    { class: 'card gear-card', style: `border-color:${info.color}` },
-    h('div', { class: 'card-head' }, h('span', { class: 'glyph' }, isWeapon ? '⚔' : '⛨'), h('span', { class: 'card-name', tip: tierTip(gear.tier) }, gear.name), gearTypeIcon(gear, def), reachDots(gear, def)),
-    gearStatLine(gear, def),
-    ...(deltas ?? []),
-    perkLine(gear, def),
-    h('div', { class: 'card-foot' }, slotsRow(gear), footer),
-  );
-}
-
 /**
  * Умения героя одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇».
  * Цвет иконки — владение и умение носить: зелёный да, красный нет.
@@ -430,29 +332,6 @@ export function statusIcons(c: Combatant, enemy?: EnemyState): HTMLElement {
   );
 }
 
-export function statsGrid(s: DerivedStats): HTMLElement {
-  const row = (k: string, v: string, tip: string) => h('div', { class: 'stat', tip }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
-  return h(
-    'div',
-    { class: 'stats-grid' },
-    row('Урон', `${s.dmgMin + s.str}–${s.dmgMax + s.str}`, 'Урон базовой атаки: разброс оружия + Сила'),
-    row('DEF', `${s.def}`, `Защита. «Защититься» даёт 80 % от неё${s.defendBonus ? ' и бонуса брони' : ''}, округление вверх: +${defendBlock(s)} блока`),
-    row('STA', `${s.sta}${s.firstTurnSta ? ` (+${s.firstTurnSta})` : ''}`, 'Очки действий за ход'),
-    row('MP', `${s.maxMp}${s.mpRegen ? ` (+${s.mpRegen})` : ''}`, 'Мана и реген за ход'),
-    row('Устал.', `−${Math.round((1 - s.fatigue) * 100)}%`, 'На столько слабее каждая следующая атака в этом ходу'),
-    row('Крит', `${Math.round(s.crit * 100)} %`, 'Шанс критического удара'),
-    row('Крит. урон', `${s.critDmg} %`, 'Сколько процентов обычного урона наносит крит'),
-    s.firstHit ? row('1-й удар', `+${s.firstHit}`, 'Бонус урона первого удара в ходу') : null,
-    s.spellPower ? row('Закл.', `+${s.spellPower}`, 'Бонус к урону заклинаний') : null,
-    s.thorns ? row('Шипы', `${s.thorns}`, 'Урон атакующему') : null,
-    s.lifesteal ? row('Вамп.', `${s.lifesteal}`, 'Лечение при базовой атаке') : null,
-    s.onHitBleed ? row('Кровь', `${s.onHitBleed}`, 'Кровотечение с каждого удара на 2 хода') : null,
-    s.onHitBurn ? row('Горение', `${s.onHitBurn}`, 'Горение с каждого удара на 2 хода') : null,
-    s.onHitPoison ? row('Яд', `${s.onHitPoison}`, 'Яд с каждого удара на 3 хода') : null,
-    s.regen ? row('Реген', `${s.regen}`, 'HP в начале хода') : null,
-  );
-}
-
 /**
  * Модалка выбора слота для артефакта: карточка артефакта слева, справа оружие и броня со своими сокетами
  * в той же сетке 2×2, что и в консоли. Пустой сокет — «Вставить», занятый — «Заменить», старый артефакт пропадёт.
@@ -479,7 +358,7 @@ export function pendingModal(app: App): HTMLElement | null {
     return h(
       'div',
       { class: 'pm-gear', style: `border-color:${info.color}` },
-      gearMiniHead(gear) ?? h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, kind === 'weapon' ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name)),
+      gearMiniHead(gear),
       h(
         'div',
         { class: 'gt-sockets' },

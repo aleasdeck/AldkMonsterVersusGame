@@ -1,242 +1,55 @@
 import { h, type Child } from './dom';
-import type { ArtTier, ArtifactInstance, DerivedStats, GearInstance, HeroDef, RunState, SlotKind, StatusId } from '../engine/types';
+import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef, RunState, SlotKind, StatusId } from '../engine/types';
 import { artifactCost, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
-import {
-  ARMOR_TYPE_NAMES,
-  ART_TIER_COLORS,
-  GEAR_TIERS,
-  WEAPON_TYPE_NAMES,
-  affixText,
-  armorType,
-  baseOf,
-  canWearArmor,
-  canWieldWeapon,
-  hasPerk,
-  weaponDice,
-  weaponReach,
-  weaponType,
-  weaponTypeText,
-} from '../data/gear';
+import { ARMOR_TYPE_NAMES, ART_TIER_COLORS, GEAR_TIERS, WEAPON_TYPE_NAMES, affixText, armorType, baseOf, canWearArmor, canWieldWeapon, hasPerk, weaponDice, weaponReach, weaponType, weaponTypeText } from '../data/gear';
 import { ARCHETYPES, archetypeCounts, artifactTags } from '../data/archetypes';
 import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, findSameArtifact, slotKindAt } from '../engine/equipment';
 import { innateOf, socketedArtifacts } from '../engine/stats';
 import { heroStats } from '../engine/run';
 import { markKeywords } from './keywords';
 import { statusIcon, uiIcon, type UiIconId } from './icons';
-import { archetypeTip, reachDots, slotKindTip, socketChip, tierTip } from './components';
+import { POTION_COLOR, archetypeTip, reachDots, slotKindTip, socketChip, tierTip } from './components';
 import { artifactShort } from './gearTile';
-import { dotted, effectText, kindParam, paramChip, slotParam, tierPips, useParams, type Param } from './cardParts';
+import { dotted, effectText, kindParam, slotParam } from './cardParts';
 import { gearCompare, type CompareRow } from './diff';
-import { UI } from './variants';
 
-// ─── Карточки-прототипы v0.50 (variants.ts) ─────────────────────────────────
-// Общая структура всех карточек: 1) кто это — иконка, имя цветом тира, тир точками, род и тип; 2) главное число или параметры
-// применения — цена, перезарядка, цель; 3) что делает — описание с иконками статусов и выделенными числами; 4) что это даст
-// сборке — набор архетипа, дубликат, сравнение с надетым; 5) действие. Варианты A/B/C раскладывают те же части по-разному.
+// ─── Карточки предметов, артефактов и зелий (v0.50) ─────────────────────────
+// Одна грамматика на все карточки награды, торговца, сундука и окна выбора сокета: 1) шапка — значок в рамке и имя цветом тира
+// (тир только цветом, без точек), под именем строка «что это»: тип и дальность у предмета, род, архетип и тип сокета у артефакта;
+// 2) таблица — у предмета сравнение «надето → эта», у артефакта параметры применения; 3) текст — перк абзацем или описание
+// эффекта с иконками статусов и числами цветом смысла; 4) подвал — сокеты предмета и кнопка. Плитка экипировки в консоли
+// собрана из тех же частей.
 
 /** Цвет имени по тиру: у первого — обычный текст (серый цвет тира читается как «выключено»). */
 function nameColor(tier: number, color: string): string {
   return tier <= 1 ? 'var(--text)' : color;
 }
 
+/** Шапка карточки: значок в рамке цвета тира, имя и строка «что это» под ним. */
+function itemHead(icon: Child, color: string, name: string, nameStyle: string, nameTip: string | null, typeLine: Child[], iconTip: string | null = null): HTMLElement {
+  return h(
+    'div',
+    { class: 'item-head' },
+    h('span', { class: 'item-icon', style: `border-color:${color}`, tip: iconTip }, icon),
+    h('div', { class: 'item-title' }, h('span', { class: 'item-name', style: nameStyle, tip: nameTip }, name), typeLine.length ? h('div', { class: 'item-type' }, ...typeLine) : null),
+  );
+}
+
 // ─── Артефакты ─────────────────────────────────────────────────────────────
 
-/** Подсказка к тиру артефакта: тир и описание следующего. */
-function artTierTip(inst: ArtifactInstance): string {
-  const def = artifactDef(inst.id);
-  const next = inst.tier < 3 ? `\nТир ${inst.tier + 1}: ${effectText(def, (inst.tier + 1) as ArtTier)}` : '\nМаксимальный тир';
-  return `Тир ${inst.tier} из 3${next}`;
-}
-
-/** Метки архетипов словами и цветом: «▲ Огонь». У общей вещи — «общая». */
-function archLabels(id: string): Child[] {
-  const tags = artifactTags(id);
-  if (tags.length === 0) return [h('span', { class: 'arch-label none', tip: 'Общая вещь: не входит в наборы архетипов' }, 'общая')];
-  return tags.map((t) => h('span', { class: 'arch-label', style: `color:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, `${ARCHETYPES[t].glyph} ${ARCHETYPES[t].name}`));
-}
-
-/** Особые пометки: ключевая вещь (ломает правило за цену) и навык героя (персональный). */
-function specialLabels(id: string, compactSig = false): Child[] {
+/** Особые пометки: ключевая вещь (ломает правило за цену) словом и навык героя короной; что это — в подсказке. */
+function specialLabels(id: string): Child[] {
   const def = artifactDef(id);
   const out: Child[] = [];
   if (def.keystone) out.push(h('span', { class: 'special-label key', tip: 'Ключевая вещь архетипа: ломает правило за цену, выпадает только тиром 1' }, uiIcon('key', 14), 'ключевая'));
   const owner = SIGNATURE_OWNER[id];
-  if (owner) out.push(h('span', { class: 'special-label sig', tip: `Врождённый навык героя «${heroDef(owner).name}»: не занимает сокет, уровень растёт с локацией` }, uiIcon('crown', 14), compactSig ? null : 'навык героя'));
+  if (owner) out.push(h('span', { class: 'special-label sig', tip: `Врождённый навык героя «${heroDef(owner).name}»: не занимает сокет, уровень растёт с локацией` }, uiIcon('crown', 14)));
   return out;
 }
 
-/**
- * Что артефакт даст сборке (v0.43 архетипы): дубликат поднимет тир стоящего, новая вещь продвинет набор — «▲ Огонь 2/3: …»,
- * если порог набора срабатывает. Без забега (коллекция, выбор героя) — ничего.
- */
-function buildNotes(run: RunState | undefined, inst: ArtifactInstance): HTMLElement[] {
-  if (!run) return [];
-  const out: HTMLElement[] = [];
-  const same = findSameArtifact(run.hero, inst.id);
-  if (same?.art) {
-    const next = Math.min(3, Math.max(same.art.tier + 1, inst.tier));
-    out.push(
-      h(
-        'div',
-        { class: `build-note ${same.art.tier >= 3 ? 'bad' : 'good'}` },
-        uiIcon(same.art.tier >= 3 ? 'cross' : 'star', 14),
-        same.art.tier >= 3 ? 'Уже на максимальном тире' : `Дубликат: тир стоящего ${same.art.tier} → ${next}`,
-      ),
-    );
-    return out;
-  }
-  const innate = innateOf(run.hero);
-  const counts = archetypeCounts([...socketedArtifacts(run.hero.weapon, run.hero.armor), ...(innate ? [innate] : [])]);
-  // Только то, что меняет решение: сработает порог набора. «Огонь 1/3» у первой вещи архетипа — шум, его и так видно по метке.
-  for (const tag of artifactTags(inst.id)) {
-    const arch = ARCHETYPES[tag];
-    const n = (counts[tag] ?? 0) + 1;
-    const bonus = n >= 2 && n <= 3 ? arch.sets[n as 2 | 3] : undefined;
-    if (!bonus) continue;
-    out.push(
-      h(
-        'div',
-        { class: 'build-note set', style: `color:${arch.color}`, tip: archetypeTip(arch, n) },
-        h('span', { class: 'arch-glyph' }, '▲'),
-        `${arch.name} ${n}/3: ${bonus.text}`,
-      ),
-    );
-  }
-  return out;
-}
-
-/**
- * Живое число приёма (как «!D!» в Slay the Spire): урон, блок или лечение с нынешним снаряжением героя — то же, что будет
- * на плитке в бою. Без забега и у пассивки — нет; у приёмов без числа (призыв, толчок) — тоже нет.
- */
-function liveParam(inst: ArtifactInstance, run?: RunState): Param | null {
-  if (!run) return null;
-  const def = artifactDef(inst.id);
-  if (def.kind !== 'active') return null;
-  const text = artifactShort(inst, heroStats(run));
-  if (!/^[+\d]/.test(text)) return null;
-  const icon: UiIconId = /блок/.test(text) ? 'block' : /HP/.test(text) ? 'heal' : /STA/.test(text) ? 'sta' : /MP/.test(text) ? 'mp' : 'dmg';
-  const short = text.replace(/ (?:всем|блока|HP|STA|MP)$/, '');
-  return { icon, text: short, tip: `С вашим снаряжением сейчас: ${text}. Это же число будет на плитке в бою`, cls: 'live' };
-}
-
-function descOf(inst: ArtifactInstance): Child[] {
-  return markKeywords(effectText(artifactDef(inst.id), inst.tier), { icons: true, numbers: true });
-}
-
-/** A — «Полоса параметров»: шапка с портретом и тиром, строка рода и меток, полоса чипов цены/КД/цели, описание, сборка. */
-function artCardA(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
-  const def = artifactDef(inst.id);
-  const color = ART_TIER_COLORS[inst.tier];
-  const kind = kindParam(def);
-  const slot = slotParam(def);
-  const live = liveParam(inst, run);
-  const params = [...(live ? [live] : []), ...useParams(def, inst.tier)];
-  return h(
-    'div',
-    { class: `card art-card av av-a ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`, style: `border-color:${color}` },
-    h(
-      'div',
-      { class: 'av-head' },
-      h('span', { class: 'av-portrait', style: `border-color:${color}` }, def.glyph),
-      h(
-        'div',
-        { class: 'av-title' },
-        h('div', { class: 'av-name', style: `color:${nameColor(inst.tier, color)}` }, def.name),
-        h('div', { class: 'av-tags' }, ...dotted([h('span', { class: `kind-label ${kind.cls}`, tip: kind.tip }, uiIcon(kind.icon, 14), kind.text), h('span', { class: `kind-label ${slot.cls}`, tip: slot.tip }, uiIcon(slot.icon, 14), slot.text), ...archLabels(inst.id), ...specialLabels(inst.id)])),
-      ),
-      tierPips(inst.tier, 3, color, artTierTip(inst)),
-    ),
-    params.length ? h('div', { class: 'av-params' }, ...params.map(paramChip)) : null,
-    h('div', { class: 'av-desc' }, ...descOf(inst)),
-    ...buildNotes(run, inst),
-    note ?? null,
-    footer ? h('div', { class: 'card-foot' }, footer) : null,
-  );
-}
-
-/** Ярлык цены в углу карточки B: цифра на цвете ресурса; у пассивки — знак «всегда». */
-function costGem(def: ReturnType<typeof artifactDef>, tier: ArtTier): HTMLElement {
-  const params = useParams(def, tier).filter((p) => p.icon === 'sta' || p.icon === 'mp');
-  if (def.kind !== 'active') return h('div', { class: 'avb-gem passive', tip: 'Пассивный артефакт: работает сам, пока стоит в сокете' }, uiIcon('passive', 16));
-  return h('div', { class: 'avb-gems' }, ...params.map((p) => h('div', { class: `avb-gem ${p.cls}`, tip: p.tip }, uiIcon(p.icon, 14), h('span', null, p.text))));
-}
-
-/** B — «Карта с углами»: цена в левом верхнем углу, перезарядка в правом, архетип лентой снизу, тир и сокет в нижнем ряду. */
-function artCardB(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
-  const def = artifactDef(inst.id);
-  const color = ART_TIER_COLORS[inst.tier];
-  const kind = kindParam(def);
-  const slot = slotParam(def);
-  const cd = useParams(def, inst.tier).find((p) => p.icon === 'cd' || p.icon === 'uses');
-  const target = useParams(def, inst.tier).find((p) => p.cls?.startsWith('t-'));
-  const tags = artifactTags(inst.id);
-  const live = liveParam(inst, run);
-  return h(
-    'div',
-    { class: `card art-card av av-b ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`, style: `border-color:${color}` },
-    costGem(def, inst.tier),
-    cd ? h('div', { class: 'avb-cd', tip: cd.tip }, uiIcon(cd.icon, 14), h('span', null, cd.text)) : null,
-    h('div', { class: 'avb-head' }, h('span', { class: 'avb-glyph', style: `color:${color}` }, def.glyph), h('span', { class: 'avb-name', style: `color:${nameColor(inst.tier, color)}` }, def.name)),
-    h('div', { class: 'avb-type' }, ...dotted([h('span', { class: kind.cls, tip: kind.tip }, kind.text), target ? h('span', { tip: target.tip }, uiIcon(target.icon, 14), target.text) : null, ...specialLabels(inst.id)])),
-    live ? h('div', { class: 'avb-live', tip: live.tip }, uiIcon(live.icon, 18), h('b', null, live.text)) : null,
-    h('div', { class: 'avb-desc' }, ...descOf(inst)),
-    ...buildNotes(run, inst),
-    note ?? null,
-    footer ? h('div', { class: 'card-foot' }, footer) : null,
-    h(
-      'div',
-      { class: 'avb-bottom' },
-      ...(tags.length
-        ? tags.map((t) => h('span', { class: 'avb-ribbon', style: `background:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, `${ARCHETYPES[t].glyph} ${ARCHETYPES[t].name}`))
-        : [h('span', { class: 'avb-ribbon none', tip: 'Общая вещь: не входит в наборы архетипов' }, 'общая')]),
-      h('span', { class: 'avb-spacer' }),
-      tierPips(inst.tier, 3, color, artTierTip(inst)),
-      h('span', { class: 'avb-slot', tip: slot.tip }, uiIcon(slot.icon, 14)),
-    ),
-  );
-}
-
-/** C — «Рейка слева»: столбец с портретом, тиром и параметрами применения; справа имя, метки, описание и сборка. */
-function artCardC(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
-  const def = artifactDef(inst.id);
-  const color = ART_TIER_COLORS[inst.tier];
-  const kind = kindParam(def);
-  const slot = slotParam(def);
-  const live = liveParam(inst, run);
-  const params = [...(live ? [live] : []), ...useParams(def, inst.tier)];
-  const railParam = (p: Param) => h('div', { class: `avc-param ${p.cls ?? ''}`, tip: p.tip }, uiIcon(p.icon, 14, p.color), p.text ? h('span', null, p.text) : null);
-  return h(
-    'div',
-    { class: `card art-card av av-c ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`, style: `border-color:${color}` },
-    h(
-      'div',
-      { class: 'avc-rail' },
-      h('div', { class: 'avc-glyph', style: `color:${color}` }, def.glyph),
-      tierPips(inst.tier, 3, color, artTierTip(inst)),
-      def.kind === 'active' ? null : railParam({ icon: 'passive', text: '', tip: kind.tip }),
-      ...params.map(railParam),
-      h('div', { class: 'avc-slot' }, railParam({ ...slot, text: '' })),
-    ),
-    h(
-      'div',
-      { class: 'avc-body' },
-      h('div', { class: 'avc-name', style: `color:${nameColor(inst.tier, color)}` }, def.name),
-      h('div', { class: 'avc-tags' }, ...dotted([h('span', { class: kind.cls, tip: kind.tip }, kind.text), ...archLabels(inst.id), ...specialLabels(inst.id)])),
-      h('div', { class: 'avc-desc' }, ...descOf(inst)),
-      ...buildNotes(run, inst),
-      note ?? null,
-      footer ? h('div', { class: 'card-foot' }, footer) : null,
-    ),
-  );
-}
-
-// ─── Артефакт D — «как экипировка» ─────────────────────────────────────────
-// Та же грамматика, что у выбранной карточки предметов (B): рамка и имя цветом тира без точек, под именем род, архетип и тип сокета;
-// таблица параметров со значками (цена, КД, число, цель) вместо таблицы сравнения; описание абзацем, как перк; внизу кнопка.
-
+/** Строка таблицы артефакта: значок, имя, значение справа. */
 interface ArtRow {
   icon: UiIconId;
   name: string;
@@ -246,9 +59,9 @@ interface ArtRow {
   tip?: string;
   /** Строка во всю ширину таблицы: двойная цена («1 STA + 1 MP») не помещается в полколонки. */
   wide?: boolean;
-  /** Цвет значения и значка — у строки набора цвет архетипа. */
+  /** Цвет значения и значка — у ячейки набора цвет архетипа. */
   color?: string;
-  /** Вместо пиксельной иконки — глиф архетипа. */
+  /** Вместо пиксельной иконки — глиф (у набора — ▲). */
   glyph?: string;
 }
 
@@ -261,8 +74,59 @@ const plural = (n: number, one: string, few: string, many: string) => {
 };
 
 /**
- * Строки таблицы артефакта: цена, перезарядка или лимит за ход, живое число с нынешним снаряжением и — у дубликата — тир в сокете
- * «было → станет», как строки сравнения у предметов. Пассивка без дубликата таблицы не имеет.
+ * Живое число приёма (как «!D!» в Slay the Spire): урон, блок или лечение с нынешним снаряжением героя — то же, что будет
+ * на плитке в бою. Без забега и у пассивки — нет; у приёмов без числа (призыв, толчок) — тоже нет.
+ */
+function liveRow(inst: ArtifactInstance, run?: RunState): ArtRow | null {
+  if (!run) return null;
+  const def = artifactDef(inst.id);
+  if (def.kind !== 'active') return null;
+  const text = artifactShort(inst, heroStats(run));
+  if (!/^[+\d]/.test(text)) return null;
+  const icon: UiIconId = /блок/.test(text) ? 'block' : /HP/.test(text) ? 'heal' : /STA/.test(text) ? 'sta' : /MP/.test(text) ? 'mp' : 'dmg';
+  return { icon, name: LIVE_NAMES[icon] ?? 'число', value: text.replace(/ (?:всем|блока|HP|STA|MP)$/, ''), tip: `С вашим снаряжением сейчас: ${text}. Это же число будет на плитке в бою` };
+}
+
+/**
+ * Цель приёма (решение пользователя: точки дальности у артефакта не смотрятся): «в упор» — только первый в ряду, «любая» — любой
+ * враг, «все враги», «на себя». Физический приём без своей дальности бьёт как оружие в руках героя: с луком — любую цель, с мечом
+ * и плетью — первого (плеть хлещет ряд только базовым ударом).
+ */
+function targetRow(inst: ArtifactInstance, run?: RunState): ArtRow | null {
+  const def = artifactDef(inst.id);
+  if (def.kind !== 'active' || !def.target) return null;
+  if (def.target === 'self') return { icon: 'self', name: 'цель', value: 'на себя', tip: 'На себя: применяется сразу, цель выбирать не нужно' };
+  if (def.target === 'allEnemies') return { icon: 'all', name: 'цель', value: 'все враги', tip: 'Бьёт всех врагов разом' };
+  const own = def.reach ?? (def.school === 'magic' ? 'any' : null);
+  const byWeapon = run && weaponReach(run.hero.weapon, heroDef(run.hero.defId)) === 'any' ? 'any' : 'melee';
+  const reach = own ?? byWeapon;
+  const how = own ? '' : '\nКак оружие в руках героя: ближнее — первого в ряду, дальнее, магическое и копьё — любого';
+  return reach === 'melee'
+    ? { icon: 'one', name: 'цель', value: 'в упор', tip: `Одна цель, только первый в ряду${how}` }
+    : { icon: 'one', name: 'цель', value: 'любая', tip: `Одна цель, любой враг в ряду${how}` };
+}
+
+/**
+ * Порог набора архетипа, который вещь включит: «▲ набор — Щит 2/3», текст бонуса в подсказке. Отдельная строка под описанием
+ * в две строки выталкивала кнопку за рамку (Таран у Воина со Щитовым ударом). Шаг без бонуса и дубликат (он в своей ячейке) не пишутся.
+ */
+function setRows(run: RunState | undefined, inst: ArtifactInstance): ArtRow[] {
+  if (!run || findSameArtifact(run.hero, inst.id)?.art) return [];
+  const innate = innateOf(run.hero);
+  const counts = archetypeCounts([...socketedArtifacts(run.hero.weapon, run.hero.armor), ...(innate ? [innate] : [])]);
+  const out: ArtRow[] = [];
+  for (const tag of artifactTags(inst.id)) {
+    const arch = ARCHETYPES[tag];
+    const n = (counts[tag] ?? 0) + 1;
+    const bonus = n >= 2 && n <= 3 ? arch.sets[n as 2 | 3] : undefined;
+    if (bonus) out.push({ icon: 'star', glyph: '▲', color: arch.color, name: 'набор', value: `${arch.name} ${n}/3`, tip: `Включит бонус набора «${arch.name}» ${n}/3: ${bonus.text}` });
+  }
+  return out;
+}
+
+/**
+ * Ячейки таблицы артефакта: цена, перезарядка или лимит за ход, живое число, цель, порог набора и — у дубликата — тир в сокете
+ * «было → станет», как строки сравнения у предметов. Пассивка без набора и дубликата таблицы не имеет.
  */
 function artRows(inst: ArtifactInstance, run?: RunState): ArtRow[] {
   const def = artifactDef(inst.id);
@@ -286,12 +150,12 @@ function artRows(inst: ArtifactInstance, run?: RunState): ArtRow[] {
     });
     const uses = def.usesPerTurn?.(inst.tier) ?? 0;
     const cd = def.cooldown?.(inst.tier) ?? 0;
-    // «КД» — то же слово, что на плитках боя и в подсказке ключевого слова «Перезарядка»; полностью — в подсказке строки.
+    // «КД» — то же слово, что на плитках боя и в подсказке ключевого слова «Перезарядка»; полностью — в подсказке ячейки.
     if (uses > 1) rows.push({ icon: 'uses', name: 'лимит', value: `${uses} за ход`, tip: `До ${uses} раз за ход, без перезарядки` });
     else if (uses === 1 || cd === 1) rows.push({ icon: 'uses', name: 'лимит', value: 'раз в ход', tip: 'Не чаще раза в ход' });
     else if (cd > 1) rows.push({ icon: 'cd', name: 'КД', value: `${cd} ${plural(cd, 'ход', 'хода', 'ходов')}`, tip: `Перезарядка: после применения приём недоступен ${cd} ${plural(cd, 'ход', 'хода', 'ходов')}` });
-    const live = liveParam(inst, run);
-    if (live) rows.push({ icon: live.icon, name: LIVE_NAMES[live.icon] ?? 'число', value: live.text, tip: live.tip });
+    const live = liveRow(inst, run);
+    if (live) rows.push(live);
     const target = targetRow(inst, run);
     if (target) rows.push(target);
   }
@@ -306,44 +170,6 @@ function artRows(inst: ArtifactInstance, run?: RunState): ArtRow[] {
     );
   }
   return rows;
-}
-
-/**
- * Цель приёма строкой таблицы (решение пользователя: точки дальности у артефакта не смотрятся): «в упор» — только первый в ряду,
- * «любая» — любой враг, «все враги», «на себя». Физический приём без своей дальности бьёт как оружие в руках героя: с луком — любую
- * цель, с мечом и плетью — первого (плеть хлещет ряд только базовым ударом).
- */
-function targetRow(inst: ArtifactInstance, run?: RunState): ArtRow | null {
-  const def = artifactDef(inst.id);
-  if (def.kind !== 'active' || !def.target) return null;
-  if (def.target === 'self') return { icon: 'self', name: 'цель', value: 'на себя', tip: 'На себя: применяется сразу, цель выбирать не нужно' };
-  if (def.target === 'allEnemies') return { icon: 'all', name: 'цель', value: 'все враги', tip: 'Бьёт всех врагов разом' };
-  const own = def.reach ?? (def.school === 'magic' ? 'any' : null);
-  const byWeapon = run && weaponReach(run.hero.weapon, heroDef(run.hero.defId)) === 'any' ? 'any' : 'melee';
-  const reach = own ?? byWeapon;
-  const how = own ? '' : '\nКак оружие в руках героя: ближнее — первого в ряду, дальнее, магическое и копьё — любого';
-  return reach === 'melee'
-    ? { icon: 'one', name: 'цель', value: 'в упор', tip: `Одна цель, только первый в ряду${how}` }
-    : { icon: 'one', name: 'цель', value: 'любая', tip: `Одна цель, любой враг в ряду${how}` };
-}
-
-/**
- * Порог набора архетипа, который вещь включит, — строкой таблицы во всю ширину, как дубликат: «▲ набор — Щит 2/3», текст бонуса
- * в подсказке. Отдельная строка под описанием в две строки выталкивала кнопку за рамку (Таран у Воина со Щитовым ударом).
- * Шаг без бонуса и дубликат (он в своей строке) не пишутся.
- */
-function setRows(run: RunState | undefined, inst: ArtifactInstance): ArtRow[] {
-  if (!run || findSameArtifact(run.hero, inst.id)?.art) return [];
-  const innate = innateOf(run.hero);
-  const counts = archetypeCounts([...socketedArtifacts(run.hero.weapon, run.hero.armor), ...(innate ? [innate] : [])]);
-  const out: ArtRow[] = [];
-  for (const tag of artifactTags(inst.id)) {
-    const arch = ARCHETYPES[tag];
-    const n = (counts[tag] ?? 0) + 1;
-    const bonus = n >= 2 && n <= 3 ? arch.sets[n as 2 | 3] : undefined;
-    if (bonus) out.push({ icon: 'star', glyph: '▲', color: arch.color, name: 'набор', value: `${arch.name} ${n}/3`, tip: `Включит бонус набора «${arch.name}» ${n}/3: ${bonus.text}` });
-  }
-  return out;
 }
 
 /** Таблица параметров тем же видом, что сравнение у предметов: значок, имя, значение справа; в широкой карточке — в две колонки. */
@@ -364,111 +190,55 @@ function artTable(rows: ArtRow[]): HTMLElement | null {
   );
 }
 
-/** D — «как экипировка»: шапка (род, архетип, тип сокета словом), таблица параметров с целью, описание, строка набора, кнопка. */
-function artCardD(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
+/**
+ * Карточка артефакта в награде, у торговца и в окне выбора сокета: шапка (род, архетип, тип сокета словом), таблица параметров,
+ * описание эффекта, кнопка. note — строка перед подвалом, footer — кнопка. run — контекст забега: живое число, цель по оружию,
+ * порог набора и дубликат считаются по герою; без забега (коллекция) — только то, что знает сам артефакт.
+ */
+export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
   const def = artifactDef(inst.id);
   const color = ART_TIER_COLORS[inst.tier];
   const kind = kindParam(def);
   const slot = slotParam(def);
-  const tags = artifactTags(inst.id);
   const typeLine = dotted([
     h('span', { class: kind.cls, tip: kind.tip }, kind.text),
-    ...tags.map((t) => h('span', { class: 'arch-label', style: `color:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, `${ARCHETYPES[t].glyph} ${ARCHETYPES[t].name}`)),
-    ...specialLabels(inst.id, true),
-    // Тип сокета словом в той же строке (решение пользователя) — вместо пунктирного квадрата в подвале; цвет и значок — как у сокетов в консоли.
+    ...artifactTags(inst.id).map((t) => h('span', { class: 'arch-label', style: `color:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, `${ARCHETYPES[t].glyph} ${ARCHETYPES[t].name}`)),
+    ...specialLabels(inst.id),
+    // Тип сокета словом в той же строке (решение пользователя); цвет и значок — как у подписей сокетов в консоли.
     h('span', { class: `slot-label slot-${def.slot}`, tip: slot.tip }, uiIcon(slot.icon, 14), ARTIFACT_SLOT_NAME[def.slot]),
   ]);
+  const tierTipText = `Тир ${inst.tier} из 3`;
   return h(
     'div',
-    { class: `card art-card av avd ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`, style: `border-color:${color}` },
-    h(
-      'div',
-      { class: 'gv-head' },
-      h('span', { class: 'gv-icon', style: `border-color:${color}`, tip: `Тир ${inst.tier} из 3` }, h('span', { class: 'avd-glyph', style: `color:${color}` }, def.glyph)),
-      h('div', { class: 'gv-title' }, h('span', { class: 'gv-name', style: `color:${nameColor(inst.tier, color)}`, tip: `Тир ${inst.tier} из 3` }, def.name), h('div', { class: 'gv-type' }, ...typeLine)),
-    ),
+    { class: `card art-card ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`.replace(/\s+/g, ' ').trim(), style: `border-color:${color}` },
+    itemHead(h('span', { class: 'item-glyph', style: `color:${color}` }, def.glyph), color, def.name, `color:${nameColor(inst.tier, color)}`, tierTipText, typeLine, tierTipText),
     artTable(artRows(inst, run)),
-    h('div', { class: 'avd-desc' }, ...descOf(inst)),
+    h('div', { class: 'art-desc' }, ...markKeywords(effectText(def, inst.tier), { icons: true, numbers: true })),
     note ?? null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
 }
 
 /**
- * Зелье в варианте карточек артефактов: та же раскладка, что у артефакта, — чтобы ряд награды и прилавок читались одинаково.
- * Цена всегда нулевая (пьётся бесплатно), тира и сокета нет.
+ * Зелье — той же раскладкой, что артефакт, чтобы ряд награды и прилавок читались одинаково: цена всегда «бесплатно», тира и сокета нет.
+ * note — что вытеснит новое зелье (слот один).
  */
-export function potionCardVariant(id: string, footer?: Child, note?: string | null): HTMLElement | null {
-  if (UI.ac === 'old') return null;
+export function potionCard(id: string, footer?: Child, note?: string | null): HTMLElement {
   const def = potionDef(id);
-  const color = '#6fd97a';
-  const desc = h('div', { class: UI.ac === 'b' ? 'avb-desc' : UI.ac === 'c' ? 'avc-desc' : 'av-desc' }, ...markKeywords(def.describe, { icons: true, numbers: true }));
-  const noteEl = note ? h('div', { class: 'build-note' }, uiIcon('cross', 14), note) : null;
-  const foot = footer ? h('div', { class: 'card-foot' }, footer) : null;
-  const tags = [h('span', { class: 'kind-label potion-kind' }, uiIcon('heal', 14), 'Зелье'), h('span', { class: 'kind-label' }, 'пьётся бесплатно'), h('span', { class: 'kind-label' }, 'одно на герое')];
-  if (UI.ac === 'b')
-    return h(
-      'div',
-      { class: 'card av av-b potion-card', style: `border-color:${color}` },
-      h('div', { class: 'avb-gems' }, h('div', { class: 'avb-gem c-free', tip: 'Пьётся в бою бесплатно' }, uiIcon('sta', 14), h('span', null, '0'))),
-      h('div', { class: 'avb-head' }, h('span', { class: 'avb-glyph', style: `color:${color}` }, def.glyph), h('span', { class: 'avb-name', style: `color:${color}` }, def.name)),
-      h('div', { class: 'avb-type' }, ...dotted(tags.slice(0, 2))),
-      desc,
-      noteEl,
-      foot,
-      h('div', { class: 'avb-bottom' }, h('span', { class: 'avb-ribbon', style: `background:${color}` }, 'зелье'), h('span', { class: 'avb-spacer' })),
-    );
-  if (UI.ac === 'd')
-    return h(
-      'div',
-      { class: 'card art-card av avd potion-card', style: `border-color:${color}` },
-      h(
-        'div',
-        { class: 'gv-head' },
-        h('span', { class: 'gv-icon', style: `border-color:${color}` }, h('span', { class: 'avd-glyph', style: `color:${color}` }, def.glyph)),
-        h('div', { class: 'gv-title' }, h('span', { class: 'gv-name', style: `color:${color}` }, def.name), h('div', { class: 'gv-type' }, h('span', { class: 'potion-kind' }, 'Зелье'))),
-      ),
-      artTable([{ icon: 'sta', name: 'цена', value: 'бесплатно', cls: 'good', tip: 'Пьётся в бою бесплатно; слот зелья один' }]),
-      h('div', { class: 'avd-desc' }, ...markKeywords(def.describe, { icons: true, numbers: true })),
-      noteEl,
-      foot,
-    );
-  if (UI.ac === 'c')
-    return h(
-      'div',
-      { class: 'card av av-c potion-card', style: `border-color:${color}` },
-      h('div', { class: 'avc-rail' }, h('div', { class: 'avc-glyph', style: `color:${color}` }, def.glyph), h('div', { class: 'avc-param c-free', tip: 'Пьётся в бою бесплатно' }, uiIcon('sta', 14), h('span', null, '0'))),
-      h('div', { class: 'avc-body' }, h('div', { class: 'avc-name', style: `color:${color}` }, def.name), h('div', { class: 'avc-tags' }, ...dotted(tags.slice(0, 2))), desc, noteEl, foot),
-    );
   return h(
     'div',
-    { class: 'card av av-a potion-card', style: `border-color:${color}` },
-    h('div', { class: 'av-head' }, h('span', { class: 'av-portrait', style: `border-color:${color};color:${color}` }, def.glyph), h('div', { class: 'av-title' }, h('div', { class: 'av-name', style: `color:${color}` }, def.name), h('div', { class: 'av-tags' }, ...dotted(tags)))),
-    desc,
-    noteEl,
-    foot,
+    { class: 'card art-card potion-card', style: `border-color:${POTION_COLOR}` },
+    itemHead(h('span', { class: 'item-glyph', style: `color:${POTION_COLOR}` }, def.glyph), POTION_COLOR, def.name, `color:${POTION_COLOR}`, null, [h('span', { class: 'potion-kind' }, 'Зелье')]),
+    artTable([{ icon: 'sta', name: 'цена', value: 'бесплатно', cls: 'good', tip: 'Пьётся в бою бесплатно; слот зелья один' }]),
+    h('div', { class: 'art-desc' }, ...markKeywords(def.describe, { icons: true, numbers: true })),
+    note ? h('div', { class: 'build-note' }, uiIcon('cross', 14), note) : null,
+    footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
-}
-
-/** Карточка артефакта в выбранном варианте; null — вариант «как сейчас», рисует components.ts. */
-export function artifactCardVariant(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement | null {
-  switch (UI.ac) {
-    case 'a':
-      return artCardA(inst, footer, note, run);
-    case 'b':
-      return artCardB(inst, footer, note, run);
-    case 'c':
-      return artCardC(inst, footer, note, run);
-    case 'd':
-      return artCardD(inst, footer, note, run);
-    default:
-      return null;
-  }
 }
 
 // ─── Экипировка ────────────────────────────────────────────────────────────
 
-/** Пиксельная иконка типа предмета: меч / лук / жезл у оружия, ромб плотности у брони. */
+/** Пиксельная иконка типа предмета: меч / лук / жезл у оружия, шлем / кираса / перо у брони. */
 export function gearIconId(gear: GearInstance): UiIconId {
   if (gear.kind === 'weapon') return weaponType(gear);
   return armorType(gear);
@@ -514,7 +284,7 @@ function gearTypeTip(gear: GearInstance): string {
   return gearTypeName(gear);
 }
 
-/** Главное число предмета: кубик в руках героя у оружия, DEF и HP у брони. */
+/** Главное число предмета без сравнения (карточка без забега): кубик в руках героя у оружия, DEF и HP у брони. */
 function mainStats(gear: GearInstance, def?: HeroDef): HTMLElement[] {
   if (gear.kind === 'weapon') {
     const d = def ? weaponDice(def, gear) : { min: gear.dmgMin, max: gear.dmgMax };
@@ -535,28 +305,20 @@ function mainStats(gear: GearInstance, def?: HeroDef): HTMLElement[] {
   return out;
 }
 
-/** Строка перка: иконка, имя, описание; не работает у героя — зачёркнута с причиной. */
-function perkRow(gear: GearInstance, def: HeroDef | undefined, short = false): HTMLElement | null {
+/**
+ * Строка перка: значок, имя и текст одним абзацем — текст идёт сразу за именем и переносится под него. Не работает у героя —
+ * зачёркнута целиком, причина в подсказке.
+ */
+function perkRow(gear: GearInstance, def: HeroDef | undefined): HTMLElement | null {
   const perk = baseOf(gear.kind, gear.base).perk;
   if (!perk) return null;
   const ok = works(gear, def);
   const text = perk.text(gear.tier);
   const tip = `Перк базы «${perk.name}»: ${text}${ok ? '' : '\nНе работает: герой не владеет этим типом'}`;
-  if (short) return h('span', { class: `prop-chip perk ${ok ? '' : 'off'}`, tip }, uiIcon('perk', 14), perk.name);
-  // Имя и текст одним абзацем: текст идёт сразу за именем и переносится под него, а не узким столбиком справа от длинного имени.
-  return h('div', { class: `prop-row perk ${ok ? '' : 'off'}`, tip }, uiIcon('perk', 14), h('span', { class: 'prop-body' }, h('span', { class: 'prop-name' }, perk.name), ' ', ...markKeywords(text, { numbers: true })));
+  return h('div', { class: `prop-row perk ${ok ? '' : 'off'}`.trim(), tip }, uiIcon('perk', 14), h('span', { class: 'prop-body' }, h('span', { class: 'prop-name' }, perk.name), ' ', ...markKeywords(text, { numbers: true })));
 }
 
-/** Строка аффикса — случайной прибавки предмета. */
-function affixRow(gear: GearInstance, short = false): HTMLElement | null {
-  if (!gear.affix) return null;
-  const text = affixText(gear.affix);
-  const tip = `Случайный бонус предмета: ${text}`;
-  if (short) return h('span', { class: 'prop-chip affix', tip }, uiIcon('affix', 14), text);
-  return h('div', { class: 'prop-row affix', tip }, uiIcon('affix', 14), h('span', { class: 'prop-text' }, ...markKeywords(text, { numbers: true })));
-}
-
-/** Сокеты предмета значками типа с подсказкой; стоящие артефакты — глифом. */
+/** Сокеты предмета в подвале карточки: пустой — пунктирный квадрат цвета типа, занятый — глиф артефакта. */
 function socketIcons(gear: GearInstance): HTMLElement {
   return h(
     'div',
@@ -588,7 +350,6 @@ const COMPARE_ICONS: Record<string, UiIconId | { status: StatusId }> = {
   mpRegen: 'mp',
   sta: 'sta',
   firstHit: 'dmg',
-  slots: 'slotAny',
 };
 
 function compareIcon(key: string): HTMLElement {
@@ -604,41 +365,24 @@ function compareIcon(key: string): HTMLElement {
 const arrow = (dir: number) => h('span', { class: `dir ${dir > 0 ? 'up' : dir < 0 ? 'dn' : 'eq'}` }, dir > 0 ? '▲' : dir < 0 ? '▼' : '=');
 
 /**
- * Шапка карточки экипировки: иконка типа и имя цветом тира (тир только цветом — решение пользователя, так имя помещается целиком);
- * вторая строка — тип цветом владения и точки дальности.
+ * Шапка предмета: иконка типа и имя цветом тира (тир только цветом — решение пользователя, так имя помещается целиком);
+ * под именем тип цветом владения и точки дальности (без подписи — кого достаёт удар, пишет подсказка к точкам).
  */
-function gearHead(gear: GearInstance, def?: HeroDef, withType = true): HTMLElement[] {
+function gearHead(gear: GearInstance, def?: HeroDef): HTMLElement {
   const color = GEAR_TIERS[gear.tier].color;
-  const reach = reachDots(gear, def);
   const skill = typeSkill(gear, def);
   const typeTip = [gearTypeTip(gear), skill.tip].filter(Boolean).join('\n');
-  return [
-    h(
-      'div',
-      { class: 'gv-head' },
-      h('span', { class: 'gv-icon', style: `border-color:${color}`, tip: gearTypeTip(gear) }, uiIcon(gearIconId(gear), 24, color)),
-      h(
-        'div',
-        { class: 'gv-title' },
-        h('span', { class: 'gv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
-        withType
-          ? // Дальность — только точками, без подписи (решение пользователя): кого достаёт удар, пишет подсказка к точкам.
-            h('div', { class: 'gv-type' }, ...dotted([h('span', { class: skill.cls, tip: typeTip }, gearTypeShort(gear)), reach]))
-          : null,
-      ),
-    ),
-  ];
+  return itemHead(uiIcon(gearIconId(gear), 24, color), color, gear.name, `color:${nameColor(gear.tier, color)}`, tierTip(gear.tier), dotted([h('span', { class: skill.cls || null, tip: typeTip }, gearTypeShort(gear)), reachDots(gear, def)]), gearTypeTip(gear));
 }
 
-/** Шапка предмета для модалки выбора сокета (v0.50): иконка типа и имя цветом тира. null — вариант «как сейчас». */
-export function gearMiniHead(gear: GearInstance): HTMLElement | null {
-  if (UI.gc === 'old') return null;
+/** Шапка предмета для окна выбора сокета: иконка типа и имя цветом тира. */
+export function gearMiniHead(gear: GearInstance): HTMLElement {
   const color = GEAR_TIERS[gear.tier].color;
   return h(
     'div',
-    { class: 'gtv-head' },
-    h('span', { class: 'gv-icon', style: `border-color:${color}`, tip: gearTypeTip(gear) }, uiIcon(gearIconId(gear), 18, color)),
-    h('span', { class: 'gtv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
+    { class: 'item-mini-head' },
+    h('span', { class: 'item-icon', style: `border-color:${color}`, tip: gearTypeTip(gear) }, uiIcon(gearIconId(gear), 18, color)),
+    h('span', { class: 'item-mini-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
   );
 }
 
@@ -651,104 +395,33 @@ function overflowNote(names: string[]): HTMLElement | null {
 export interface GearCardOpts {
   def?: HeroDef;
   footer?: Child;
-  deltas?: HTMLElement[];
   run?: RunState;
 }
 
-/** A — «Паспорт»: шапка, главное число с дельтами столбиком, строки перка и аффикса с иконками, сокеты и кнопка. */
-function gearCardA(gear: GearInstance, o: GearCardOpts): HTMLElement {
-  const cmp = o.run ? gearCompare(o.run, gear) : null;
-  const deltas = (cmp?.rows ?? []).filter((r) => r.dir !== 0);
-  return h(
-    'div',
-    { class: 'card gear-card gv gv-a', style: `border-color:${GEAR_TIERS[gear.tier].color}` },
-    ...gearHead(gear, o.def),
-    h(
-      'div',
-      { class: 'gv-main' },
-      h('div', { class: 'gv-stats' }, ...mainStats(gear, o.def)),
-      // Урон крупно — уже новый, поэтому в дельте рядом — что было: «▲ было 4–6». Остальное — знаком и величиной.
-      deltas.length
-        ? h(
-            'div',
-            { class: 'gv-deltas', tip: deltas.map((r) => `${r.name}: ${r.before} → ${r.after}`).join('\n') },
-            ...deltas.slice(0, 4).map((r) => h('span', { class: r.dir > 0 ? 'up' : 'dn' }, `${r.dir > 0 ? '▲' : '▼'} ${r.key === 'dmg' ? `было ${r.before}` : r.delta}`)),
-          )
-        : null,
-    ),
-    h('div', { class: 'gv-props' }, perkRow(gear, o.def), affixRow(gear)),
-    overflowNote(cmp?.overflow ?? []),
-    h('div', { class: 'card-foot' }, socketIcons(gear), o.footer),
-  );
-}
-
-/** B — «Сравнение» (выбран пользователем): таблица «надето → эта» по всем меняющимся статам, перк строкой, сокеты чипами в подвале. */
-function gearCardB(gear: GearInstance, o: GearCardOpts): HTMLElement {
+/**
+ * Карточка экипировки в награде, у торговца и в сундуке («сравнение с надетым», решение пользователя): шапка, таблица «надето → эта»
+ * по статам, которые меняются (сокеты не пишутся — их видно в подвале), перк абзацем, сокеты и кнопка.
+ */
+export function gearCard(gear: GearInstance, o: GearCardOpts = {}): HTMLElement {
   const cmp = o.run ? gearCompare(o.run, gear) : null;
   const row = (r: CompareRow) =>
-    h('div', { class: `cmp-row ${r.dir > 0 ? 'up' : r.dir < 0 ? 'dn' : ''}` }, compareIcon(r.key), h('span', { class: 'cmp-name' }, r.name), h('span', { class: 'cmp-before' }, r.before), h('span', { class: 'cmp-arrow' }, '→'), h('span', { class: 'cmp-after' }, r.after), arrow(r.dir));
-  // Сокеты в таблицу не идут: их видно чипами в подвале карточки (решение пользователя).
+    h('div', { class: `cmp-row ${r.dir > 0 ? 'up' : r.dir < 0 ? 'dn' : ''}`.trim() }, compareIcon(r.key), h('span', { class: 'cmp-name' }, r.name), h('span', { class: 'cmp-before' }, r.before), h('span', { class: 'cmp-arrow' }, '→'), h('span', { class: 'cmp-after' }, r.after), arrow(r.dir));
   const rows = cmp?.rows ?? [];
   return h(
     'div',
-    { class: 'card gear-card gv gv-b', style: `border-color:${GEAR_TIERS[gear.tier].color}` },
-    ...gearHead(gear, o.def),
+    { class: 'card gear-card', style: `border-color:${GEAR_TIERS[gear.tier].color}` },
+    gearHead(gear, o.def),
     cmp
       ? h(
           'div',
           { class: 'cmp', tip: `Слева — что надето сейчас, справа — с этим предметом${rows.length > 4 ? `\n${rows.slice(4).map((r) => `${r.name}: ${r.before} → ${r.after}`).join('\n')}` : ''}` },
           ...rows.slice(0, 4).map(row),
         )
-      : h('div', { class: 'gv-stats' }, ...mainStats(gear, o.def)),
-    // Перк переносится (просьба пользователя): после строки «сокеты» в таблице место под вторую строку есть.
-    h('div', { class: 'gv-props' }, perkRow(gear, o.def)),
+      : h('div', { class: 'item-stats' }, ...mainStats(gear, o.def)),
+    h('div', { class: 'item-props' }, perkRow(gear, o.def)),
     overflowNote(cmp?.overflow ?? []),
     h('div', { class: 'card-foot' }, socketIcons(gear), o.footer),
   );
-}
-
-/** C — «Компакт»: шапка без строки типа, крупное число со стрелкой, перк и аффикс чипами (описание — в подсказке), сокеты. */
-function gearCardC(gear: GearInstance, o: GearCardOpts): HTMLElement {
-  const cmp = o.run ? gearCompare(o.run, gear) : null;
-  const changed = (cmp?.rows ?? []).filter((r) => r.dir !== 0);
-  const main = cmp?.rows.find((r) => r.key === (gear.kind === 'weapon' ? 'dmg' : 'def'));
-  const others = changed.filter((r) => r !== main);
-  const reach = reachDots(gear, o.def);
-  return h(
-    'div',
-    { class: 'card gear-card gv gv-c', style: `border-color:${GEAR_TIERS[gear.tier].color}` },
-    ...gearHead(gear, o.def, false),
-    h(
-      'div',
-      { class: 'gv-main' },
-      h('div', { class: 'gv-stats' }, ...mainStats(gear, o.def)),
-      main && main.dir !== 0 ? h('span', { class: `gv-verdict ${main.dir > 0 ? 'up' : 'dn'}`, tip: `Надето: ${main.before}` }, `${main.dir > 0 ? '▲' : '▼'} ${main.before} → ${main.after}`) : null,
-    ),
-    h(
-      'div',
-      { class: 'gv-chips' },
-      perkRow(gear, o.def, true),
-      affixRow(gear, true),
-      reach ? h('span', { class: 'prop-chip', tip: 'Дальность удара' }, reach) : null,
-    ),
-    others.length ? h('div', { class: 'gv-more', tip: others.map((r) => `${r.name}: ${r.before} → ${r.after}`).join('\n') }, ...dotted(others.slice(0, 3).map((r) => h('span', { class: r.dir > 0 ? 'up' : 'dn' }, `${r.dir > 0 ? '▲' : '▼'} ${r.delta}`)))) : null,
-    overflowNote(cmp?.overflow ?? []),
-    h('div', { class: 'card-foot' }, socketIcons(gear), o.footer),
-  );
-}
-
-/** Карточка экипировки в выбранном варианте; null — вариант «как сейчас». */
-export function gearCardVariant(gear: GearInstance, o: GearCardOpts): HTMLElement | null {
-  switch (UI.gc) {
-    case 'a':
-      return gearCardA(gear, o);
-    case 'b':
-      return gearCardB(gear, o);
-    case 'c':
-      return gearCardC(gear, o);
-    default:
-      return null;
-  }
 }
 
 // ─── Плитка экипировки в консоли ───────────────────────────────────────────
@@ -804,18 +477,16 @@ function tileStatsRow(gear: GearInstance, def: HeroDef): HTMLElement {
 }
 
 /**
- * Плитка экипировки консоли (вариант B, правки пользователя): шапка как у карточки — иконка и имя цветом тира, под именем тип цветом
- * владения и дальность; ниже строка статов с аффиксом, строка перка, сокеты прижаты к низу сеткой 2×2.
+ * Плитка экипировки в консоли хабов: шапка как у карточки (иконка и имя цветом тира, под именем тип цветом владения и дальность),
+ * строка статов с аффиксом, перк, сокеты прижаты к низу сеткой 2×2.
  */
-export function gearTileVariant(gear: GearInstance, def: HeroDef, s: DerivedStats): HTMLElement | null {
-  if (UI.gc === 'old') return null;
+export function hubGearTile(gear: GearInstance, def: HeroDef, s: DerivedStats): HTMLElement {
   return h(
     'div',
-    { class: `gear-tile gtv ${gear.kind}`, style: `border-color:${GEAR_TIERS[gear.tier].color}` },
-    ...gearHead(gear, def),
+    { class: `gear-tile hub-tile ${gear.kind}`, style: `border-color:${GEAR_TIERS[gear.tier].color}` },
+    gearHead(gear, def),
     tileStatsRow(gear, def),
     perkRow(gear, def) ?? h('div', { class: 'prop-row dim' }, 'без перка'),
     h('div', { class: 'gt-sockets' }, ...gear.slots.map((a, i) => tileSocket(a, gear, i, s))),
   );
 }
-
