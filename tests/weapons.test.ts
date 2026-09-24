@@ -135,7 +135,7 @@ describe('перки баз в статах', () => {
 
   it('меч — защита, топор — усталость, посох — мана, жезл — реген, сфера — шипы', () => {
     const w = heroDef('warrior');
-    expect(computeStats(w, weapon('sword', 5), armorOf('warrior')).def).toBe(6 + 1 + 1);
+    expect(computeStats(w, weapon('sword', 5), armorOf('warrior')).def).toBe(5 + 1 + 1);
     expect(computeStats(w, weapon('axe', 5), armorOf('warrior')).fatigue).toBeCloseTo(0.8); // своя 0.75 + перк топора
     const m = heroDef('mage');
     expect(computeStats(m, weapon('staff', 5), armorOf('mage')).maxMp).toBe(5 + 2);
@@ -267,9 +267,10 @@ describe('ярость берсерка', () => {
     expect(state.hero.sta).toBe(3); // шкура без перка: лишней стамины в первый ход нет
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
-    expect(state.hero.hp).toBe(hp0 - 2);
+    // v0.49: цена крови 1, Сила 3 на первом тире.
+    expect(state.hero.hp).toBe(hp0 - 1);
     expect(state.hero.sta).toBe(5); // +2 STA на первом тире
-    expect(getStatus(state.hero, 'strength')?.value).toBe(2);
+    expect(getStatus(state.hero, 'strength')?.value).toBe(3);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'rage' })).toMatch(/Перезарядка/);
     endTurn(state);
     resolveEnemyTurn(state, rng);
@@ -283,10 +284,10 @@ describe('ярость берсерка', () => {
     const hp0 = state.hero.hp;
     performAction(state, { type: 'artifact', artifactId: 'rage' }, rng);
     expect(state.hero.block).toBe(block);
-    expect(state.hero.hp).toBe(hp0 - 2);
+    expect(state.hero.hp).toBe(hp0 - 1);
 
     const low = mkBattle('berserk', ['bear'], undefined, 1, true);
-    low.state.hero.hp = 2;
+    low.state.hero.hp = 1;
     expect(canUseAction(low.state, { type: 'artifact', artifactId: 'rage' })).toBe('Слишком мало HP');
     low.state.hero.hp = 3;
     expect(canUseAction(low.state, { type: 'artifact', artifactId: 'rage' })).toBeNull();

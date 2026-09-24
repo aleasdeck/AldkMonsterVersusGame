@@ -306,7 +306,7 @@ describe('архетипы фазы 6 (v0.47)', () => {
     expect(state.hero.block).toBe(7);
   });
 
-  it('Возмездие: Насмешка удваивает шипы, набор 3 колет всех; Око за око бьёт полученным', () => {
+  it('Возмездие: Насмешка усиливает шипы в полтора раза, набор 3 колет всех; Око за око бьёт полученным', () => {
     const { state, rng } = mkBattle('warrior', ['wolf', 'rat'], [a('thorns', 2), a('spiked_armor'), a('taunt'), a('eye_for_eye')]);
     const [wolf, rat] = state.enemies;
     wolf.hp = rat.hp = 99;
@@ -317,9 +317,9 @@ describe('архетипы фазы 6 (v0.47)', () => {
     state.hero.block = 0;
     const hp = state.hero.hp;
     pass(state, rng);
-    // Шипы: 4 (тир 2) + 2 (набор 2) = 6, ×2 насмешкой = 12 — каждому врагу.
-    expect(wolf.hp).toBe(99 - 12);
-    expect(rat.hp).toBe(99 - 12);
+    // Шипы: 4 (тир 2) + 2 (набор 2) = 6, ×1.5 насмешкой (v0.49) = 9 — каждому врагу.
+    expect(wolf.hp).toBe(99 - 9);
+    expect(rat.hp).toBe(99 - 9);
     const taken = hp - state.hero.hp;
     expect(state.hero.takenLast).toBe(taken);
     const before = wolf.hp;
@@ -432,11 +432,11 @@ describe('архетипы фазы 6 (v0.47)', () => {
     expect(getStatus(bear, 'vulnerable')).toBeDefined();
   });
 
-  it('лёд крепчает: второе Оцепенение того же врага требует 5 Холода, скованный Холод не копит', () => {
+  it('лёд крепчает: первое Оцепенение — 4 Холода, второе — 6, скованный Холод не копит', () => {
     const { state, rng } = mkBattle('mage', ['bear'], [a('ice_shard', 3)]);
     const bear = state.enemies[0];
     bear.hp = 999;
-    bear.statuses.push({ id: 'cold', value: 1, turns: -1 });
+    bear.statuses.push({ id: 'cold', value: 2, turns: -1 });
     performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: bear.uid }, rng);
     expect(getStatus(bear, 'frozen')).toBeDefined();
     expect(bear.freezes).toBe(1);
@@ -446,9 +446,9 @@ describe('архетипы фазы 6 (v0.47)', () => {
     expect(getStatus(bear, 'cold')).toBeUndefined();
     pass(state, rng);
     expect(getStatus(bear, 'frozen')).toBeUndefined();
-    bear.statuses.push({ id: 'cold', value: 3, turns: -1 });
+    bear.statuses.push({ id: 'cold', value: 4, turns: -1 });
     performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: bear.uid }, rng);
-    // 3 + 2 = 5 — ровно новый порог.
+    // 4 + 2 = 6 — ровно новый порог.
     expect(getStatus(bear, 'frozen')).toBeDefined();
     expect(bear.freezes).toBe(2);
   });

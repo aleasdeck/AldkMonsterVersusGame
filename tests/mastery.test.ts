@@ -147,8 +147,8 @@ describe('вторые черты (v0.45)', () => {
     const { state, rng } = mkBattle('paladin', 'redemption', ['bear']);
     state.hero.hp = 10;
     performAction(state, { type: 'artifact', artifactId: 'light_hammer', target: state.enemies[0].uid }, rng);
-    // Молот лечит 2 на первом уровне — в первый ход 4.
-    expect(state.hero.hp).toBe(14);
+    // Молот лечит 1 на первом уровне (v0.49) — в первый ход 2.
+    expect(state.hero.hp).toBe(12);
   });
 
   it('Жажда: за убитого 3 HP и +1 Сила до конца боя', () => {

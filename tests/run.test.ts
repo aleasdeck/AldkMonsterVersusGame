@@ -988,7 +988,7 @@ describe('персональные артефакты', () => {
     // Навык вне сокетов (v0.44): оба стартовых сокета пусты, пассивка навыка — в статах.
     expect(second.hero.weapon.slots).toEqual([null]);
     expect(second.hero.armor.slots).toEqual([null]);
-    expect(heroStats(second).riposte).toBe(60);
+    expect(heroStats(second).riposte).toBe(45);
     expect(canDropFor(second.hero, 'riposte')).toBe(false);
     expect(canDropFor(plain.hero, 'crippling_shot')).toBe(true);
     expect(() => newRun('warrior', 1, 0, 'rage')).toThrow(/Not a signature/);

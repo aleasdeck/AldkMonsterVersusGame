@@ -181,8 +181,8 @@ const list: ArtifactDef[] = [
     // (решение пользователя), взамен транс гасит каждый удар врага, как кольчуга, — иначе на половине бот не выживал.
     slot: 'armor',
     tags: ['series'],
-    mods: (tier) => ({ lowHpStr: t(3, 4, 5)(tier), lowHpSta: 1, lowHpReduce: t(1, 2, 3)(tier) }),
-    describe: (tier) => `Пока HP ниже половины: +${t(3, 4, 5)(tier)} к Силе, +1 STA в начале хода, каждый удар врага слабее на ${t(1, 2, 3)(tier)}`,
+    mods: (tier) => ({ lowHpStr: t(3, 4, 5)(tier), lowHpSta: 1, lowHpReduce: t(1, 1, 2)(tier) }),
+    describe: (tier) => `Пока HP ниже половины: +${t(3, 4, 5)(tier)} к Силе, +1 STA в начале хода, каждый удар врага слабее на ${t(1, 1, 2)(tier)}`,
   },
   // ── Связки (v0.38): пассивки, которые читают состояние цели или свои же приёмы ──
   {
@@ -347,8 +347,8 @@ const list: ArtifactDef[] = [
     // щит бьёт сам. Когда блок гасит удар врага, ударивший получает долю среднего урона оружия с Силой (riposteDamage в combat.ts):
     // без кубика, усталости и крита, не больше одного ответа каждому врагу за его ход, шипы врага об ответ не ранят. Щитовой удар
     // даёт блок, блок бьёт в ответ — «Защититься» перестаёт быть пасом.
-    mods: (tier) => ({ riposte: t(60, 80, 100)(tier) }),
-    describe: (tier) => `Когда блок гасит удар врага, ударивший получает ${t(60, 80, 100)(tier)} % урона оружия (раз за его ход)`,
+    mods: (tier) => ({ riposte: t(45, 60, 75)(tier) }),
+    describe: (tier) => `Когда блок гасит удар врага, ударивший получает ${t(45, 60, 75)(tier)} % урона оружия (раз за его ход)`,
   },
   {
     id: 'rage',
@@ -363,12 +363,13 @@ const list: ArtifactDef[] = [
     target: 'self',
     effects: (tier) => [
       // Цена крови 2/1/1 (v0.14): с одной Яростью на старте и без Клича при 3/2/2 Берсерк давал 34 % у бота, с 2/1/1 — 47 %.
-      { type: 'selfDamage', amount: t(2, 1, 1)(tier) },
+      // v0.49: 1/1/1 и Сила 3/4/5 — в длинном бою (v0.46) с испытаниями Берсерк ① лёг до 19 %, гибнул на элите и боссе первого акта; стало 34 %.
+      { type: 'selfDamage', amount: t(1, 1, 1)(tier) },
       { type: 'gainSta', amount: t(2, 2, 3)(tier) },
       // v0.38: +2/3/4 вместо +1/2/3 — компенсация Берсерку за ушедшие Камень силы и Мощный удар (он лёг на 21 % у бота).
-      { type: 'status', target: 'self', status: 'strength', value: t(2, 3, 4)(tier), turns: 1 },
+      { type: 'status', target: 'self', status: 'strength', value: t(3, 4, 5)(tier), turns: 1 },
     ],
-    describe: (tier) => `Ранит себя на ${t(2, 1, 1)(tier)} HP, даёт +${t(2, 2, 3)(tier)} стамины и +${t(2, 3, 4)(tier)} к Силе на этот ход. КД 2`,
+    describe: (tier) => `Ранит себя на ${t(1, 1, 1)(tier)} HP, даёт +${t(2, 2, 3)(tier)} стамины и +${t(3, 4, 5)(tier)} к Силе на этот ход. КД 2`,
   },
   {
     id: 'second_wind',
@@ -513,10 +514,10 @@ const list: ArtifactDef[] = [
     // Блок — доля урона, а не плоские +3/4/5 (v0.18): с оружием третьего акта плоский блок не гасил и половины удара.
     // v0.37: полный удар оружия вместо 0.75 и толчок вместо сквозняка — щит отбрасывает первого, и до задних доходит очередь.
     effects: (tier) => [
-      { type: 'attack', bonus: 0, target: 'enemy', blockPct: t(0.6, 0.7, 0.8)(tier) },
+      { type: 'attack', bonus: 0, target: 'enemy', blockPct: t(0.5, 0.6, 0.7)(tier) },
       { type: 'push', target: 'enemy' },
     ],
-    describe: (tier) => `Удар оружием; ${t(60, 70, 80)(tier)} % нанесённого урона становится Блоком, цель отброшена на клетку назад. КД 2`,
+    describe: (tier) => `Удар оружием; ${t(50, 60, 70)(tier)} % нанесённого урона становится Блоком, цель отброшена на клетку назад. КД 2`,
   },
   {
     id: 'shield_ram',
@@ -551,9 +552,9 @@ const list: ArtifactDef[] = [
     reach: 'melee',
     effects: (tier) => [
       { type: 'attack', bonus: t(1, 2, 3)(tier), target: 'enemy' },
-      { type: 'heal', amount: t(2, 3, 4)(tier) },
+      { type: 'heal', amount: t(1, 2, 3)(tier) },
     ],
-    describe: (tier) => `Атака +${t(1, 2, 3)(tier)} и лечение ${t(2, 3, 4)(tier)} HP. 1 STA + 1 MP, КД 3`,
+    describe: (tier) => `Атака +${t(1, 2, 3)(tier)} и лечение ${t(1, 2, 3)(tier)} HP. 1 STA + 1 MP, КД 3`,
   },
   {
     id: 'grapple_hook',
@@ -908,9 +909,9 @@ const list: ArtifactDef[] = [
     // Второй персональный Мага (v0.33): урон по площади и по времени против Волшебной стрелы-«пулемёта».
     effects: (tier) => [
       { type: 'spell', amount: t(2, 3, 4)(tier), target: 'allEnemies' },
-      { type: 'status', target: 'allEnemies', status: 'burn', value: t(1, 2, 2)(tier), turns: 2 },
+      { type: 'status', target: 'allEnemies', status: 'burn', value: t(1, 1, 2)(tier), turns: 2 },
     ],
-    describe: (tier) => `${t(2, 3, 4)(tier)} урона заклинанием всем врагам и Горение ${t(1, 2, 2)(tier)} на 2 хода всем. Раз в ход`,
+    describe: (tier) => `${t(2, 3, 4)(tier)} урона заклинанием всем врагам и Горение ${t(1, 1, 2)(tier)} на 2 хода всем. Раз в ход`,
   },
   {
     id: 'hex',
@@ -941,15 +942,16 @@ const list: ArtifactDef[] = [
     slot: 'armor',
     tags: ['retribution', 'light'],
     school: 'magic',
-    cost: { mp: 1 },
-    cooldown: () => 3,
+    cost: { mp: 2 },
+    cooldown: () => 4,
     target: 'self',
     effects: (tier) => [
-      { type: 'status', target: 'self', status: 'thorns', value: t(2, 3, 4)(tier), turns: 3 },
+      { type: 'status', target: 'self', status: 'thorns', value: t(1, 2, 3)(tier), turns: 3 },
       // Регенерация 2/2/3, а не 1/1/2 (бот 18 → 24 %): Паладин без Молота лечится только ей.
-      { type: 'status', target: 'self', status: 'regen', value: t(2, 2, 3)(tier), turns: 3 },
+      // v0.49: 1/1/2, Шипы 1/2/3, 2 MP и КД 4 — Ореол заводит сразу Возмездие и Свет, и Паладин ② держался на 64–68 %; стало 40 %.
+      { type: 'status', target: 'self', status: 'regen', value: t(1, 1, 2)(tier), turns: 3 },
     ],
-    describe: (tier) => `Шипы ${t(2, 3, 4)(tier)} и Регенерация ${t(2, 2, 3)(tier)} на 3 хода. КД 3`,
+    describe: (tier) => `Шипы ${t(1, 2, 3)(tier)} и Регенерация ${t(1, 1, 2)(tier)} на 3 хода. КД 4`,
   },
   // ── Связки (v0.38) ──
   {
@@ -1174,10 +1176,10 @@ const list: ArtifactDef[] = [
     cooldown: () => 2,
     target: 'self',
     effects: (tier) => [
-      { type: 'status', target: 'self', status: 'thorns', value: t(4, 6, 8)(tier), turns: 3 },
-      { type: 'block', amount: t(4, 5, 6)(tier) },
+      { type: 'status', target: 'self', status: 'thorns', value: t(3, 5, 7)(tier), turns: 3 },
+      { type: 'block', amount: t(3, 4, 5)(tier) },
     ],
-    describe: (tier) => `Шипы ${t(4, 6, 8)(tier)} на 3 хода и +${t(4, 5, 6)(tier)} Блока. КД 2`,
+    describe: (tier) => `Шипы ${t(3, 5, 7)(tier)} на 3 хода и +${t(3, 4, 5)(tier)} Блока. КД 2`,
   },
   {
     id: 'taunt',
@@ -1194,7 +1196,7 @@ const list: ArtifactDef[] = [
       { type: 'status', target: 'self', status: 'taunt', value: 1, turns: 1 },
       { type: 'block', amount: t(2, 3, 4)(tier) },
     ],
-    describe: (tier) => `До конца хода врагов ваши Шипы и Ответный удар вдвое сильнее, враги бьют вас, а не союзника; +${t(2, 3, 4)(tier)} Блока. Бесплатно, КД 3`,
+    describe: (tier) => `До конца хода врагов ваши Шипы и Ответный удар в полтора раза сильнее, враги бьют вас, а не союзника; +${t(2, 3, 4)(tier)} Блока. Бесплатно, КД 3`,
   },
   {
     id: 'eye_for_eye',

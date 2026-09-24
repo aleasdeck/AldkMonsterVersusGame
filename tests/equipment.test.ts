@@ -177,9 +177,10 @@ describe('расчёт статов', () => {
   it('складывает героя, броню и пассивки', () => {
     const h = mkHero('warrior');
     const s = computeStats(heroDef('warrior'), h.weapon, h.armor);
-    expect(s.maxHp).toBe(46 + 6);
-    // 6 героя + 1 кольчуга + 1 Парирование меча
-    expect(s.def).toBe(6 + 1 + 1);
+    // v0.49: Воин 43 HP и 5 DEF.
+    expect(s.maxHp).toBe(43 + 6);
+    // 5 героя + 1 кольчуга + 1 Парирование меча
+    expect(s.def).toBe(5 + 1 + 1);
     expect([s.dmgMin, s.dmgMax]).toEqual([4, 6]);
     expect(s.sta).toBe(3);
   });
@@ -188,7 +189,7 @@ describe('расчёт статов', () => {
     const h = mkHero('warrior');
     addArtifact(h, { id: 'troll_heart', tier: 3 });
     const s = computeStats(heroDef('warrior'), h.weapon, h.armor);
-    expect(s.maxHp).toBe(46 + 18);
+    expect(s.maxHp).toBe(43 + 18);
   });
 
   it('броня даёт DEF и HP по тиру и типу: тяжёлая — защита, средняя — ровно, лёгкая — почти без защиты', () => {

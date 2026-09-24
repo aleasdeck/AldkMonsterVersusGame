@@ -79,10 +79,10 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   charge: 'Заряды заклинаний: обычный удар тратит все и бьёт сильнее за каждый',
   rage: 'Накопленный урон: набрав треть максимума HP, Берсерк впадает в Неистовство',
   fury: '+1 STA в начале хода и удары без усталости до конца хода',
-  cold: 'Копится; набрав 3, враг цепенеет — пропускает ход, а Холод обнуляется. Каждое следующее Оцепенение того же врага требует на 2 Холода больше; скованный Холод не копит',
+  cold: 'Копится; набрав 4, враг цепенеет — пропускает ход, а Холод обнуляется. Каждое следующее Оцепенение того же врага требует на 2 Холода больше; скованный Холод не копит',
   frozen: 'Скован льдом: пропускает свой ход. Считается оглушением — «Оглушающий удар» бьёт по нему критом',
   focus: 'Следующий удар оружием — крит наверняка',
-  taunt: 'В ход врагов Шипы и Ответный удар вдвое сильнее, враги бьют героя, а не союзника',
+  taunt: 'В ход врагов Шипы и Ответный удар в полтора раза сильнее, враги бьют героя, а не союзника',
 };
 
 /** Стихии заточки: какую рану может получить оружие. */
@@ -91,8 +91,11 @@ export const ENCHANT_ELEMENTS: StatusId[] = ['burn', 'poison', 'bleed'];
 /** Проклятия на враге, которые считает «Резонанс»: всё, что герой навесил ему во вред. */
 export const DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen'];
 
-/** Сколько Холода нужно, чтобы враг оцепенел в первый раз (v0.47). */
-export const COLD_FREEZE = 3;
+/** «Насмешка» (v0.47): во столько раз сильнее Шипы и Ответный удар героя в ход врагов (2 → 1.5 в v0.49). */
+export const TAUNT_MULT = 1.5;
+
+/** Сколько Холода нужно, чтобы враг оцепенел в первый раз (v0.47; 3 → 4 в v0.49: набор «Холод» 3/3 выигрывал почти всегда). */
+export const COLD_FREEZE = 4;
 /**
  * Лёд крепчает: каждое следующее Оцепенение того же врага требует на столько Холода больше. Без этого набор «Холод» 3/3
  * замораживал всех через ход и выигрывал у бота 40 забегов из 41 (SIM v0.47, профиль наборов).
@@ -627,8 +630,8 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
       // «Ответный удар»: блок погасил удар — ударивший получает долю среднего урона оружия с Силой, раз за свой ход.
       if (b > 0 && source && !source.riposted && source.hp > 0 && riposteDamage(h) > 0) {
         source.riposted = true;
-        // «Насмешка» (v0.47): ответ вдвое, пока герой дразнит.
-        const r = riposteDamage(h) * (getStatus(h, 'taunt') ? 2 : 1);
+        // «Насмешка» (v0.47): ответ сильнее, пока герой дразнит.
+        const r = Math.round(riposteDamage(h) * (getStatus(h, 'taunt') ? TAUNT_MULT : 1));
         log(state, `Ответный удар: ${r} урона ${source.name} (щит погасил ${b})`);
         damageEnemy(state, source, r, 'hit', { noThorns: true, src: 'riposte' });
       }
@@ -654,7 +657,7 @@ function damageHero(state: BattleState, amount: number, kind: DamageKind, source
   }
   state.events.push({ type: 'damage', target: 'hero', amount: rest, kind: rest === 0 ? 'blocked' : kind });
   if (kind === 'hit' && source) {
-    const th = (h.stats.thorns + statusValue(h, 'thorns')) * (getStatus(h, 'taunt') ? 2 : 1);
+    const th = Math.round((h.stats.thorns + statusValue(h, 'thorns')) * (getStatus(h, 'taunt') ? TAUNT_MULT : 1));
     if (th > 0) {
       // Набор «Возмездие» 3 (v0.47): шипы колют всех врагов, а не только ударившего.
       const victims = h.stats.thornsAll > 0 ? state.enemies.filter((x) => x.hp > 0) : [source];

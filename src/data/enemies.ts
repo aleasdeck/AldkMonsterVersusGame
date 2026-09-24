@@ -598,7 +598,8 @@ const list: EnemyDef[] = [
     actions: [
       act('spit', 'Огненный плевок', [
         { type: 'attack', amount: 7 },
-        { type: 'debuff', status: 'burn', value: 3, turns: 3 },
+        // v0.49: Горение 3 → 2 — три Импа жгли по 9 за ход.
+        { type: 'debuff', status: 'burn', value: 2, turns: 3 },
       ]),
       act('mischief', 'Проказа', [
         { type: 'debuff', status: 'weak', value: 1, turns: 2 },
@@ -1337,7 +1338,8 @@ const list: EnemyDef[] = [
         { type: 'attack', amount: 8 },
         { type: 'debuff', status: 'burn', value: 2, turns: 2 },
       ]),
-      act('boom', 'Подрыв', [{ type: 'selfDestruct', amount: 20, burn: 3 }]),
+      // v0.49: Подрыв 20 → 16 — «Крыса + Пират + Мартышка» убивала бота в первом и втором акте чаще любой рядовой встречи.
+      act('boom', 'Подрыв', [{ type: 'selfDestruct', amount: 16, burn: 3 }]),
     ],
     // Фитиль на два хода (v0.34.2): два броска, потом Подрыв — на 22 HP есть два хода, а не один. С одним броском
     // в третьем акте пара мартышек рвалась на 64 за ход, и убить обеих ближним оружием было нельзя.
@@ -1451,7 +1453,8 @@ const list: EnemyDef[] = [
       withFx({ kind: 'orb', color: '#ffb347' }, act('pistol', 'Пистоль', [{ type: 'attack', amount: 12, pierce: true }])),
       act('all_hands', 'Свистать всех наверх', [{ type: 'summon', enemyId: 'pirate', count: 1 }]),
       act('aim', 'Наводит пушки', [{ type: 'block', amount: 12 }]),
-      withFx({ kind: 'orb', color: '#ff7b00' }, act('broadside', 'Бортовой залп', [{ type: 'attack', amount: 28 }])),
+      // v0.49: 28 → 22 — Капитан был главным убийцей бота в первом акте (28 гибелей из 678 на 1200 забегах).
+      withFx({ kind: 'orb', color: '#ff7b00' }, act('broadside', 'Бортовой залп', [{ type: 'attack', amount: 22 }])),
       act('curse', 'Проклятие', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 3 }]),
     ],
     ai: {

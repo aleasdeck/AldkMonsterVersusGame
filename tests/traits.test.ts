@@ -50,13 +50,13 @@ describe('черты героев (v0.44)', () => {
     expect(state.hero.innate).toBe('shield_bash');
   });
 
-  it('Воин «Стойка»: удар оружием даёт блок, с третьей локации — 2', () => {
+  it('Воин «Стойка»: удар оружием даёт 1 блока на любом уровне (v0.49: удвоение с третьей локации убрано)', () => {
     const one = mkBattle('warrior', ['bear']);
     performAction(one.state, { type: 'attack', target: one.state.enemies[0].uid }, one.rng);
     expect(one.state.hero.block).toBe(1);
     const three = mkBattle('warrior', ['bear'], { level: 3 });
     performAction(three.state, { type: 'attack', target: three.state.enemies[0].uid }, three.rng);
-    expect(three.state.hero.block).toBe(2);
+    expect(three.state.hero.block).toBe(1);
   });
 
   it('Маг «Заряд»: заклинание копит заряд до трёх, обычный удар тратит все', () => {
@@ -81,17 +81,15 @@ describe('черты героев (v0.44)', () => {
     expect(getStatus(state.enemies[0], 'poison')).toEqual({ id: 'poison', value: 2, turns: 3 });
   });
 
-  it('Паладин «Вера»: половина лечения сверх максимума — блок', () => {
+  it('Паладин «Вера»: 30 % лечения сверх максимума — блок (v0.49: было 50 %)', () => {
     const { state, rng } = mkBattle('paladin', ['bear']);
-    state.hero.hp = state.hero.maxHp - 1;
-    // Молот света лечит 2 на первом уровне: 1 до максимума, 1 сверху — половина (округление) в блок.
-    performAction(state, { type: 'artifact', artifactId: 'light_hammer', target: state.enemies[0].uid }, rng);
-    expect(state.hero.hp).toBe(state.hero.maxHp);
-    expect(state.hero.block).toBe(Math.round(1 * 0.5));
-    state.hero.block = 0;
-    state.hero.statuses.push({ id: 'regen', value: 6, turns: 2 });
+    state.enemies[0].statuses.push({ id: 'stun', value: 1, turns: -1 });
+    state.hero.hp = state.hero.maxHp;
+    state.hero.statuses.push({ id: 'regen', value: 10, turns: 2 });
     pass(state, rng);
-    expect(state.log.some((l) => l.includes('вера: избыток лечения'))).toBe(true);
+    expect(state.hero.hp).toBe(state.hero.maxHp);
+    expect(state.hero.block).toBe(3);
+    expect(state.log.some((l) => l.includes('вера: избыток лечения 10'))).toBe(true);
   });
 
   it('Берсерк «Ярость»: треть HP полученного урона — Неистовство: +1 STA и удары без усталости', () => {
