@@ -1,6 +1,6 @@
 import { h, type Child } from './dom';
-import type { ArtifactInstance, DerivedStats, GearInstance, HeroDef, RunState, SlotKind, StatusId } from '../engine/types';
-import { artifactCost, artifactDef } from '../data/artifacts';
+import type { ArtTier, ArtifactInstance, DerivedStats, Effect, GearInstance, HeroDef, RunState, SlotKind, StatusId } from '../engine/types';
+import { artifactCost, artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { ARMOR_TYPE_NAMES, ART_TIER_COLORS, GEAR_TIERS, WEAPON_TYPE_NAMES, affixText, armorType, baseOf, canWearArmor, canWieldWeapon, hasPerk, weaponDice, weaponReach, weaponType, weaponTypeText } from '../data/gear';
@@ -8,10 +8,10 @@ import { ARCHETYPES, archetypeCounts, artifactTags } from '../data/archetypes';
 import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, findSameArtifact, slotKindAt } from '../engine/equipment';
 import { innateOf, socketedArtifacts } from '../engine/stats';
 import { heroStats } from '../engine/run';
+import { rangeText, restAttackRange, skillBlock, skillHeal } from '../engine/combat';
 import { markKeywords } from './keywords';
 import { statusIcon, uiIcon, type UiIconId } from './icons';
 import { POTION_COLOR, archetypeTip, reachDots, slotKindTip, socketChip, tierTip } from './components';
-import { artifactShort } from './gearTile';
 import { dotted, effectText, kindParam, slotParam } from './cardParts';
 import { gearCompare, type CompareRow } from './diff';
 
@@ -65,26 +65,145 @@ interface ArtRow {
   glyph?: string;
 }
 
-const LIVE_NAMES: Partial<Record<UiIconId, string>> = { dmg: 'урон', block: 'блок', heal: 'лечение', sta: 'стамина', mp: 'мана' };
-
 const plural = (n: number, one: string, few: string, many: string) => {
   const m10 = n % 10;
   const m100 = n % 100;
   return m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
 };
 
+const pct = (v: number) => `${Math.round(v * 100)} %`;
+
+// ─── Число приёма вне боя (v0.50) ──────────────────────────────────────────
+// Как в Slay the Spire и Hades: текст описания держит правило («удар 50 % урона оружия»), посчитанное число с нынешним
+// снаряжением стоит рядом с пометкой «сейчас», а из чего оно сложилось — в подсказке. Считает движок (restAttackRange,
+// skillBlock, skillHeal), поэтому карточка, сокет в консоли и лист «Персонаж» пишут то же число, с которого плитка боя начинает ход.
+// Формулы от состояния боя (Таран, Пролом, Испепеление, взрыв ран) числа вне боя не имеют: блока и Горения цели ещё нет.
+
+/** Смысл числа: иконка и цвет. */
+export type RestKind = 'dmg' | 'block' | 'heal' | 'sta' | 'mp';
+
+export interface RestValue {
+  kind: RestKind;
+  /** «2–3», «2×3–4», «+6», «3 за удар». */
+  text: string;
+  /** По всем врагам. */
+  all: boolean;
+  /** Из чего сложилось число; null — это собственное число вещи, пересчитывать нечего. */
+  calc: string | null;
+}
+
 /**
- * Живое число приёма (как «!D!» в Slay the Spire): урон, блок или лечение с нынешним снаряжением героя — то же, что будет
- * на плитке в бою. Без забега и у пассивки — нет; у приёмов без числа (призыв, толчок) — тоже нет.
+ * Число приёма вне боя с этими статами: урон удара (кубик в руках героя, Сила, прибавка и доля приёма, ключевая вещь),
+ * заклинания с Силой заклинаний, блок и лечение с прибавками наборов, стамина и мана. weapon — имя оружия для расчёта в подсказке.
  */
-function liveRow(inst: ArtifactInstance, run?: RunState): ArtRow | null {
-  if (!run) return null;
+export function restValue(inst: ArtifactInstance, s: DerivedStats, weapon = 'Оружие'): RestValue | null {
   const def = artifactDef(inst.id);
   if (def.kind !== 'active') return null;
-  const text = artifactShort(inst, heroStats(run));
-  if (!/^[+\d]/.test(text)) return null;
-  const icon: UiIconId = /блок/.test(text) ? 'block' : /HP/.test(text) ? 'heal' : /STA/.test(text) ? 'sta' : /MP/.test(text) ? 'mp' : 'dmg';
-  return { icon, name: LIVE_NAMES[icon] ?? 'число', value: text.replace(/ (?:всем|блока|HP|STA|MP)$/, ''), tip: `С вашим снаряжением сейчас: ${text}. Это же число будет на плитке в бою` };
+  const effects = def.effects?.(inst.tier) ?? [];
+  const attacks = effects.filter((e): e is Extract<Effect, { type: 'attack' }> => e.type === 'attack');
+  if (attacks.length) {
+    const a = attacks[0];
+    const mult = a.mult ?? 1;
+    const r = restAttackRange(s, a.bonus, mult);
+    const hits = attacks.length;
+    let calc = `${weapon} ${s.dmgMin}–${s.dmgMax}${s.str ? ` + Сила ${s.str}` : ''}${a.bonus ? ` + ${a.bonus} приёма` : ''}`;
+    if (mult !== 1) calc += `, × ${pct(mult)}`;
+    if (s.strikeMult) calc += `, × ${pct(1 + s.strikeMult)} удара оружием`;
+    calc += ` = ${rangeText(r)}${hits > 1 ? ` за удар, ${hits} ${plural(hits, 'удар', 'удара', 'ударов')}` : ''}`;
+    return { kind: 'dmg', text: `${hits > 1 ? `${hits}×` : ''}${rangeText(r)}`, all: a.target === 'allEnemies', calc };
+  }
+  for (const e of effects) {
+    switch (e.type) {
+      case 'spell': {
+        const n = e.amount + s.spellPower;
+        return { kind: 'dmg', text: `${n}`, all: e.target === 'allEnemies', calc: s.spellPower ? `${e.amount} + Сила заклинаний ${s.spellPower} = ${n}` : null };
+      }
+      case 'block': {
+        const n = skillBlock(s, e.amount);
+        return { kind: 'block', text: `+${n}`, all: false, calc: n !== e.amount ? `${e.amount} + ${n - e.amount} набора «Щит» = ${n}` : null };
+      }
+      case 'heal': {
+        const n = skillHeal(s, e.amount);
+        const how = s.noHeal > 0 ? 'лечение не действует: «Мученик»' : `${e.amount}${s.healAdd ? ` + ${s.healAdd}` : ''}${s.healMult ? `, × ${pct(1 + s.healMult)}` : ''} = ${n}`;
+        return { kind: 'heal', text: `+${n}`, all: false, calc: n !== e.amount ? how : null };
+      }
+      case 'gainSta':
+        return { kind: 'sta', text: `+${e.amount}`, all: false, calc: null };
+      case 'gainMp':
+        return { kind: 'mp', text: `+${e.amount}`, all: false, calc: null };
+      case 'finisher': {
+        // Тот же расчёт, что finisherPer в бою: доля среднего удара с Силой, не меньше 1.
+        const avg = (s.dmgMin + s.dmgMax) / 2 + s.str;
+        const per = Math.max(1, Math.round((avg * e.pct) / 100));
+        return { kind: 'dmg', text: `${per} за удар`, all: false, calc: `${e.pct} % среднего удара ${avg} (${weapon} ${s.dmgMin}–${s.dmgMax}${s.str ? ` + Сила ${s.str}` : ''}) = ${per} за каждый удар этого хода` };
+      }
+      default:
+        continue;
+    }
+  }
+  return null;
+}
+
+/** Хвост числа в сокете консоли: «+6 блока», «+2 STA». */
+const SHORT_TAIL: Record<RestKind, string> = { dmg: '', block: ' блока', heal: ' HP', sta: ' STA', mp: ' MP' };
+
+/**
+ * Короткое число артефакта для сокета: «2–3», «5–8 всем», «+2 STA»; у приёма-формулы — что он делает («блок ×1», «взрыв ран»),
+ * у пассивных — описание.
+ */
+export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
+  const def = artifactDef(inst.id);
+  if (def.kind !== 'active') return def.describe(inst.tier);
+  const v = restValue(inst, s);
+  if (v) return `${v.text}${SHORT_TAIL[v.kind]}${v.all ? ' всем' : ''}`;
+  for (const e of def.effects?.(inst.tier) ?? []) {
+    switch (e.type) {
+      case 'blockStrike':
+        return `блок ×${e.mult}`;
+      case 'summon':
+        return 'призыв';
+      case 'cleanse':
+        return 'снимает раны';
+      case 'status':
+        return e.target === 'self' ? 'бафф' : 'дебафф';
+      case 'pull':
+        return 'в первый ряд';
+      case 'detonate':
+        return e.target === 'allEnemies' ? 'взрыв ран всем' : 'взрыв ран';
+      case 'spread':
+        return e.statuses.includes('bleed') ? 'кровь на всех' : 'заражение';
+      case 'scorch':
+        return `огонь цели ×${e.mult}`;
+      case 'breakBlock':
+        return `блок цели ×${e.mult}`;
+      case 'chain':
+        return `${e.amount} вдогонку`;
+      case 'enchant':
+        return `стихия ${e.value}`;
+      case 'push':
+        return 'толчок назад';
+      case 'amplify':
+        return `яд ×${e.mult}`;
+      case 'blockBurst':
+        return `блок ×${e.pct} всем`;
+      default:
+        continue;
+    }
+  }
+  return artifactCostText(def, inst.tier);
+}
+
+const LIVE_ICON: Record<RestKind, UiIconId> = { dmg: 'dmg', block: 'block', heal: 'heal', sta: 'sta', mp: 'mp' };
+
+/**
+ * Ячейка «сейчас»: посчитанное число приёма с нынешним снаряжением, расчёт — в подсказке (как «(Наносит X урона)» в Slay the Spire 2).
+ * Только когда число посчитано, а не переписано из описания: собственное «+2 STA» уже стоит в тексте.
+ */
+function liveRow(inst: ArtifactInstance, s: DerivedStats | null, weapon?: string): ArtRow | null {
+  if (!s) return null;
+  const v = restValue(inst, s, weapon);
+  if (!v?.calc) return null;
+  return { icon: LIVE_ICON[v.kind], name: 'сейчас', value: v.text, tip: `Сейчас, с вашим снаряжением: ${v.calc}.\nС этого числа плитка начинает ход; в бою его меняют усталость, статусы и цель` };
 }
 
 /**
@@ -125,49 +244,64 @@ function setRows(run: RunState | undefined, inst: ArtifactInstance): ArtRow[] {
 }
 
 /**
- * Ячейки таблицы артефакта: цена, перезарядка или лимит за ход, живое число, цель, порог набора и — у дубликата — тир в сокете
- * «было → станет», как строки сравнения у предметов. Пассивка без набора и дубликата таблицы не имеет.
+ * Ячейки применения: цена, перезарядка или лимит за ход, число «сейчас» и цель. s — статы героя: живое число и хватит ли запаса
+ * на цену; run — оружие в руках (цель физического приёма, имя в расчёте). Без героя (коллекция) — только то, что знает вещь.
+ */
+function useRows(inst: ArtifactInstance, s: DerivedStats | null, run?: RunState): ArtRow[] {
+  const def = artifactDef(inst.id);
+  if (def.kind !== 'active') return [];
+  const rows: ArtRow[] = [];
+  const c = artifactCost(def, inst.tier);
+  const parts: string[] = [];
+  if (c.sta === 'all') parts.push('вся STA');
+  else if (c.sta) parts.push(`${c.sta} STA`);
+  if (c.mp) parts.push(`${c.mp} MP`);
+  // Цена, которую герою не заплатить никогда (максимум меньше цены), — красным: как урон оружия чужого типа.
+  const short = !!s && ((c.mp ?? 0) > s.maxMp || (typeof c.sta === 'number' && c.sta > s.sta));
+  rows.push({
+    icon: c.mp && !c.sta ? 'mp' : 'sta',
+    name: 'цена',
+    value: parts.length ? parts.join(' + ') : 'бесплатно',
+    cls: short ? 'bad' : parts.length ? undefined : 'good',
+    tip: short ? 'Герою не хватает запаса: максимум меньше цены приёма' : 'Сколько стоит применить приём',
+    wide: parts.length > 1,
+  });
+  const uses = def.usesPerTurn?.(inst.tier) ?? 0;
+  const cd = def.cooldown?.(inst.tier) ?? 0;
+  // «КД» — то же слово, что на плитках боя и в подсказке ключевого слова «Перезарядка»; полностью — в подсказке ячейки.
+  if (uses > 1) rows.push({ icon: 'uses', name: 'лимит', value: `${uses} за ход`, tip: `До ${uses} раз за ход, без перезарядки` });
+  else if (uses === 1 || cd === 1) rows.push({ icon: 'uses', name: 'лимит', value: 'раз в ход', tip: 'Не чаще раза в ход' });
+  else if (cd > 1) rows.push({ icon: 'cd', name: 'КД', value: `${cd} ${plural(cd, 'ход', 'хода', 'ходов')}`, tip: `Перезарядка: после применения приём недоступен ${cd} ${plural(cd, 'ход', 'хода', 'ходов')}` });
+  const live = liveRow(inst, s, run?.hero.weapon.name);
+  if (live) rows.push(live);
+  const target = targetRow(inst, run);
+  if (target) rows.push(target);
+  return rows;
+}
+
+/**
+ * Ячейки карточки артефакта: применение, порог набора и — у дубликата — тир в сокете «было → станет», как строки сравнения
+ * у предметов; число «сейчас» у дубликата тоже «было → станет» (как «Lv.1 → Lv.2» в Hades). Пассивка без набора и дубликата
+ * таблицы не имеет.
  */
 function artRows(inst: ArtifactInstance, run?: RunState): ArtRow[] {
-  const def = artifactDef(inst.id);
-  const rows: ArtRow[] = [];
-  if (def.kind === 'active') {
-    const c = artifactCost(def, inst.tier);
-    const parts: string[] = [];
-    if (c.sta === 'all') parts.push('вся STA');
-    else if (c.sta) parts.push(`${c.sta} STA`);
-    if (c.mp) parts.push(`${c.mp} MP`);
-    // Цена, которую герою не заплатить никогда (максимум меньше цены), — красным: как урон оружия чужого типа.
-    const s = run ? heroStats(run) : null;
-    const short = !!s && ((c.mp ?? 0) > s.maxMp || (typeof c.sta === 'number' && c.sta > s.sta));
-    rows.push({
-      icon: c.mp && !c.sta ? 'mp' : 'sta',
-      name: 'цена',
-      value: parts.length ? parts.join(' + ') : 'бесплатно',
-      cls: short ? 'bad' : parts.length ? undefined : 'good',
-      tip: short ? 'Герою не хватает запаса: максимум меньше цены приёма' : 'Сколько стоит применить приём',
-      wide: parts.length > 1,
-    });
-    const uses = def.usesPerTurn?.(inst.tier) ?? 0;
-    const cd = def.cooldown?.(inst.tier) ?? 0;
-    // «КД» — то же слово, что на плитках боя и в подсказке ключевого слова «Перезарядка»; полностью — в подсказке ячейки.
-    if (uses > 1) rows.push({ icon: 'uses', name: 'лимит', value: `${uses} за ход`, tip: `До ${uses} раз за ход, без перезарядки` });
-    else if (uses === 1 || cd === 1) rows.push({ icon: 'uses', name: 'лимит', value: 'раз в ход', tip: 'Не чаще раза в ход' });
-    else if (cd > 1) rows.push({ icon: 'cd', name: 'КД', value: `${cd} ${plural(cd, 'ход', 'хода', 'ходов')}`, tip: `Перезарядка: после применения приём недоступен ${cd} ${plural(cd, 'ход', 'хода', 'ходов')}` });
-    const live = liveRow(inst, run);
-    if (live) rows.push(live);
-    const target = targetRow(inst, run);
-    if (target) rows.push(target);
-  }
+  const s = run ? heroStats(run) : null;
+  const rows = useRows(inst, s, run);
   rows.push(...setRows(run, inst));
   const same = run ? findSameArtifact(run.hero, inst.id) : null;
   if (same?.art) {
-    const next = Math.min(3, Math.max(same.art.tier + 1, inst.tier));
+    const next = Math.min(3, Math.max(same.art.tier + 1, inst.tier)) as ArtTier;
     rows.push(
       same.art.tier >= 3
         ? { icon: 'star', name: 'дубликат', value: 'максимум', cls: 'bad', tip: 'Такой артефакт уже стоит на максимальном тире — дубликат ничего не даст' }
         : { icon: 'star', name: 'дубликат', value: `${same.art.tier} → ${next}`, cls: 'good', tip: `Сольётся со стоящим в сокете: тир ${same.art.tier} → ${next}` },
     );
+    const live = rows.find((r) => r.name === 'сейчас');
+    if (live && s && same.art.tier < 3) {
+      const before = restValue(same.art, s)?.text;
+      const after = restValue({ id: inst.id, tier: next }, s)?.text;
+      if (before && after && before !== after) Object.assign(live, { value: `${before} → ${after}`, wide: true, cls: 'good' });
+    }
   }
   return rows;
 }
@@ -190,6 +324,20 @@ function artTable(rows: ArtRow[]): HTMLElement | null {
   );
 }
 
+/** Строка «что это» под именем артефакта: род, архетипы, особые пометки и тип сокета словом. */
+function artTypeLine(inst: ArtifactInstance): Child[] {
+  const def = artifactDef(inst.id);
+  const kind = kindParam(def);
+  const slot = slotParam(def);
+  return dotted([
+    h('span', { class: kind.cls, tip: kind.tip }, kind.text),
+    ...artifactTags(inst.id).map((t) => h('span', { class: 'arch-label', style: `color:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, `${ARCHETYPES[t].glyph} ${ARCHETYPES[t].name}`)),
+    ...specialLabels(inst.id),
+    // Тип сокета словом в той же строке (решение пользователя); цвет и значок — как у подписей сокетов в консоли.
+    h('span', { class: `slot-label slot-${def.slot}`, tip: slot.tip }, uiIcon(slot.icon, 14), ARTIFACT_SLOT_NAME[def.slot]),
+  ]);
+}
+
 /**
  * Карточка артефакта в награде, у торговца и в окне выбора сокета: шапка (род, архетип, тип сокета словом), таблица параметров,
  * описание эффекта, кнопка. note — строка перед подвалом, footer — кнопка. run — контекст забега: живое число, цель по оружию,
@@ -198,20 +346,11 @@ function artTable(rows: ArtRow[]): HTMLElement | null {
 export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
   const def = artifactDef(inst.id);
   const color = ART_TIER_COLORS[inst.tier];
-  const kind = kindParam(def);
-  const slot = slotParam(def);
-  const typeLine = dotted([
-    h('span', { class: kind.cls, tip: kind.tip }, kind.text),
-    ...artifactTags(inst.id).map((t) => h('span', { class: 'arch-label', style: `color:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, `${ARCHETYPES[t].glyph} ${ARCHETYPES[t].name}`)),
-    ...specialLabels(inst.id),
-    // Тип сокета словом в той же строке (решение пользователя); цвет и значок — как у подписей сокетов в консоли.
-    h('span', { class: `slot-label slot-${def.slot}`, tip: slot.tip }, uiIcon(slot.icon, 14), ARTIFACT_SLOT_NAME[def.slot]),
-  ]);
   const tierTipText = `Тир ${inst.tier} из 3`;
   return h(
     'div',
     { class: `card art-card ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`.replace(/\s+/g, ' ').trim(), style: `border-color:${color}` },
-    itemHead(h('span', { class: 'item-glyph', style: `color:${color}` }, def.glyph), color, def.name, `color:${nameColor(inst.tier, color)}`, tierTipText, typeLine, tierTipText),
+    itemHead(h('span', { class: 'item-glyph', style: `color:${color}` }, def.glyph), color, def.name, `color:${nameColor(inst.tier, color)}`, tierTipText, artTypeLine(inst), tierTipText),
     artTable(artRows(inst, run)),
     h('div', { class: 'art-desc' }, ...markKeywords(effectText(def, inst.tier), { icons: true, numbers: true })),
     note ?? null,
@@ -488,5 +627,59 @@ export function hubGearTile(gear: GearInstance, def: HeroDef, s: DerivedStats): 
     tileStatsRow(gear, def),
     perkRow(gear, def) ?? h('div', { class: 'prop-row dim' }, 'без перка'),
     h('div', { class: 'gt-sockets' }, ...gear.slots.map((a, i) => tileSocket(a, gear, i, s))),
+  );
+}
+
+// ─── Лист «Персонаж» (v0.50) ───────────────────────────────────────────────
+// Та же грамматика, что у карточек: экипировка — шапкой, строкой статов и перком, артефакты — строками с глифом в рамке цвета
+// тира, именем и строкой «что это», параметрами применения значками и описанием. Места в листе меньше, чем в карточке,
+// поэтому параметры идут строкой без названий (как в узкой колонке торговца): что это — пишет подсказка значка.
+
+/** Параметры артефакта строкой: значок и значение, название и расчёт — в подсказке. */
+function inlineParams(rows: ArtRow[]): HTMLElement | null {
+  if (!rows.length) return null;
+  return h(
+    'div',
+    { class: 'sheet-art-params' },
+    ...rows.map((r) => h('span', { class: `sheet-art-param ${r.cls ?? ''}`.trim(), tip: r.tip ?? null }, r.glyph ? h('span', { style: r.color ? `color:${r.color}` : null }, r.glyph) : uiIcon(r.icon, 14), r.value)),
+  );
+}
+
+/** Артефакт в листе: глиф в рамке цвета тира, имя цветом тира и род, параметры значками, описание целиком. */
+function sheetArtifact(inst: ArtifactInstance, s: DerivedStats, run: RunState): HTMLElement {
+  const def = artifactDef(inst.id);
+  const color = ART_TIER_COLORS[inst.tier];
+  const tierTipText = `Тир ${inst.tier} из 3`;
+  return h(
+    'div',
+    { class: `sheet-art ${def.keystone ? 'keystone' : ''}`.trim() },
+    h('span', { class: 'item-icon', style: `border-color:${color}`, tip: tierTipText }, h('span', { class: 'item-glyph', style: `color:${color}` }, def.glyph)),
+    h(
+      'div',
+      { class: 'sheet-art-body' },
+      h('div', { class: 'sheet-art-head' }, h('span', { class: 'sheet-art-name', style: `color:${nameColor(inst.tier, color)}`, tip: tierTipText }, def.name), h('span', { class: 'item-type' }, ...artTypeLine(inst))),
+      inlineParams(useRows(inst, s, run)),
+      h('div', { class: 'art-desc' }, ...markKeywords(effectText(def, inst.tier), { icons: true, numbers: true })),
+    ),
+  );
+}
+
+/** Свободный сокет в листе: пунктир цвета типа, значок и тип словами — как пустой сокет плитки в консоли. */
+function sheetSocket(kind: SlotKind): HTMLElement {
+  return h('div', { class: `sheet-art empty k-${kind}`, tip: slotKindTip(kind) }, h('span', { class: 'item-icon' }, uiIcon(SLOT_ICON[kind], 16)), h('span', { class: 'sheet-art-name' }, `свободный ${SLOT_KIND_NAME[kind]} сокет`));
+}
+
+/**
+ * Экипировка в листе «Персонаж»: шапка как у карточки (тип цветом владения, дальность точками), строка статов с аффиксом,
+ * перк абзацем целиком и все артефакты строками. s — статы, которыми считаются числа «сейчас» (в бою — боевые).
+ */
+export function sheetGearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, run: RunState): HTMLElement {
+  return h(
+    'div',
+    { class: `gear-tile sheet-tile ${gear.kind}`, style: `border-color:${GEAR_TIERS[gear.tier].color}` },
+    gearHead(gear, def),
+    tileStatsRow(gear, def),
+    perkRow(gear, def),
+    h('div', { class: 'sheet-arts' }, ...gear.slots.map((a, i) => (a ? sheetArtifact(a, s, run) : sheetSocket(slotKindAt(gear, i))))),
   );
 }

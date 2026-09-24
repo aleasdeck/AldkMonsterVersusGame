@@ -81,9 +81,11 @@ if (heroParam) {
   // &sig=riposte — начать с указанным персональным артефактом героя, открыт он или нет.
   app.newRun(heroParam, seedRaw ? Number(seedRaw) >>> 0 : undefined, true, params.get('sig') ?? undefined);
   const run = app.run!;
-  // &art=id1,id2 — досыпать артефакты в оружие (для отладки интерфейса); сокеты под них универсальные, тип артефакта не важен
-  for (const id of (params.get('art') ?? '').split(',').filter(Boolean)) {
-    run.hero.weapon.slots.push({ id, tier: 1 });
+  // &art=id1,id2@3 — досыпать артефакты в оружие (для отладки интерфейса), тир через @ (по умолчанию 1); сокеты под них
+  // универсальные, тип артефакта не важен
+  for (const spec of (params.get('art') ?? '').split(',').filter(Boolean)) {
+    const [id, tier] = spec.split('@');
+    run.hero.weapon.slots.push({ id, tier: Math.max(1, Math.min(3, Number(tier) || 1)) as ArtTier });
     run.hero.weapon.slotKinds.push('any');
   }
   // &events=gnome_art — каждая клетка события в этом забеге разыгрывает заданный вид (живой забег, нужное событие)

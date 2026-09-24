@@ -4,33 +4,11 @@ import { statusIcon } from './icons';
 import { artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
-import {
-  ARMOR_TYPE_GLYPHS,
-  ARMOR_TYPE_NAMES,
-  ART_TIER_COLORS,
-  GEAR_TIERS,
-  WEAPON_TYPE_GLYPHS,
-  WEAPON_TYPE_NAMES,
-  armorSkillTitle,
-  armorType,
-  armorTypeTitle,
-  canWearArmor,
-  canWieldWeapon,
-  gearPerkText,
-  gearStatText,
-  hasPerk,
-  weaponDice,
-  weaponSkillTitle,
-  weaponReach,
-  weaponReachTitle,
-  weaponType,
-  weaponTypeTitle,
-} from '../data/gear';
+import { ART_TIER_COLORS, GEAR_TIERS, weaponReach, weaponReachTitle } from '../data/gear';
 import { collectibleLines, type Collectible, type FoundState } from '../data/collection';
-import type { ArmorType, HeroDef, WeaponType } from '../engine/types';
+import type { HeroDef } from '../engine/types';
 import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, canPlaceArtifact, findSameArtifact, gearOf, slotAccepts, slotKindAt, socketRefs } from '../engine/equipment';
 import { STATUS_HINTS, STATUS_NAMES, onDeathInfo } from '../engine/combat';
-import { markKeywords } from './keywords';
 import type { App } from './app';
 import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
 import type { ArchetypeId } from '../engine/types';
@@ -219,23 +197,6 @@ export function potionReplaceNote(run: RunState): string | null {
   return run.hero.potion ? `Заменит: ${potionDef(run.hero.potion).name}` : null;
 }
 
-/** Иконка типа оружия у бейджа тира. С героем окрашена по владению: зелёный владеет, красный нет. */
-export function weaponTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
-  const type = weaponType(gear);
-  const cls = def ? (canWieldWeapon(def, gear) ? 'skill-yes' : 'skill-no') : '';
-  return h('span', { class: `wtype-icon ${cls}`.trim(), tip: weaponTypeTitle(gear, def) }, WEAPON_TYPE_GLYPHS[type]);
-}
-
-/** Иконка типа брони у бейджа тира. С героем окрашена по умению носить: зелёный умеет, красный не умеет. Без перка — серая. */
-export function armorTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
-  const cls = def && hasPerk(gear) ? (canWearArmor(def, gear) ? 'skill-yes' : 'skill-no') : '';
-  return h('span', { class: `wtype-icon ${cls}`.trim(), tip: armorTypeTitle(gear, def) }, ARMOR_TYPE_GLYPHS[armorType(gear)]);
-}
-
-export function gearTypeIcon(gear: GearInstance, def?: HeroDef): HTMLElement {
-  return gear.kind === 'weapon' ? weaponTypeIcon(gear, def) : armorTypeIcon(gear, def);
-}
-
 /**
  * Маркер дальности оружия (v0.26): три точки — ряд врагов. Ближнее оружие красит первую (достаёт только первого),
  * дальнее, магическое, копьё и плеть — все три. С героем — в его руках: плеть у не владеющего красит одну.
@@ -245,55 +206,6 @@ export function reachDots(gear: GearInstance, def?: HeroDef): HTMLElement | null
   const reach = weaponReach(gear, def);
   const lit = reach === 'melee' ? 1 : 3;
   return h('span', { class: `reach-dots reach-${reach}`, tip: weaponReachTitle(gear, def) }, ...[0, 1, 2].map((i) => h('i', { class: i < lit ? 'on' : '' })));
-}
-
-/** Строка перка базы: название своим цветом, описание после двоеточия. Предмет, которым герой не владеет, — перк зачёркнут, причина в подсказке. */
-export function perkLine(gear: GearInstance, def?: HeroDef): HTMLElement | null {
-  const perk = gearPerkText(gear);
-  if (!perk) return null;
-  const off =
-    def && gear.kind === 'weapon' && !canWieldWeapon(def, gear)
-      ? `${def.name} не владеет ${WEAPON_TYPE_NAMES[weaponType(gear)].toLowerCase()} оружием: перк не работает`
-      : def && gear.kind === 'armor' && !canWearArmor(def, gear)
-        ? `${def.name} не умеет носить ${ARMOR_TYPE_NAMES[armorType(gear)].toLowerCase()} броню: перк не работает`
-        : null;
-  if (off) return h('div', { class: 'card-perk off', tip: off }, h('s', null, perk));
-  const sep = perk.indexOf(':');
-  const name = sep > 0 ? perk.slice(0, sep) : perk;
-  const text = sep > 0 ? perk.slice(sep + 1) : '';
-  // Полный текст в подсказке: в узких карточках торговца строка перка обрезается.
-  return h('div', { class: 'card-perk', tip: perk }, h('span', { class: 'perk-name' }, name), text ? ':' : null, ...markKeywords(text));
-}
-
-/**
- * Статы экипировки одной строкой — одинаково в карточке награды и в плитке консоли: «Урон 4–6, ✦ +1 Сила»,
- * «+2 DEF, +4 HP, ✦ +1 шипы». У оружия — кубик в руках героя (владение уже учтено), без «2–6 → 1–4»:
- * исходный кубик и причина — в подсказке. Без героя (коллекция) — как есть.
- */
-export function gearStatInfo(gear: GearInstance, def?: HeroDef): { text: string; tip?: string } {
-  if (gear.kind !== 'weapon' || !def) return { text: gearStatText(gear) };
-  const d = weaponDice(def, gear);
-  const own = d.min !== gear.dmgMin || d.max !== gear.dmgMax;
-  const text = gearStatText({ ...gear, dmgMin: d.min, dmgMax: d.max });
-  return own ? { text, tip: `Кубик оружия ${gear.dmgMin}–${gear.dmgMax}, в руках героя ${d.min}–${d.max}: герой не владеет этим типом оружия` } : { text };
-}
-
-/**
- * Умения героя одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇».
- * Цвет иконки — владение и умение носить: зелёный да, красный нет.
- * Названия, доля кубика и свойство типа — в подсказке при наведении на иконку; карточки предметов этого не повторяют.
- */
-export function skillLine(def: HeroDef): HTMLElement {
-  const weapons: WeaponType[] = ['melee', 'ranged', 'magic'];
-  const armors: ArmorType[] = ['heavy', 'medium', 'light'];
-  return h(
-    'div',
-    { class: 'skill-line' },
-    h('span', { class: 'lbl', tip: 'Владение оружием: зелёный владеет, красный нет — кубик вдвое и перк базы не работает. Наведи на иконку' }, 'Оружие:'),
-    ...weapons.map((t) => h('span', { class: def.weaponSkill[t] ? 'skill-yes' : 'skill-no', tip: weaponSkillTitle(t, def.weaponSkill[t]) }, WEAPON_TYPE_GLYPHS[t])),
-    h('span', { class: 'lbl', tip: 'Умение носить броню: зелёный перк работает, красный нет. Наведи на иконку' }, 'Броня:'),
-    ...armors.map((t) => h('span', { class: def.armorSkill[t] ? 'skill-yes' : 'skill-no', tip: armorSkillTitle(t, def.armorSkill[t]) }, ARMOR_TYPE_GLYPHS[t])),
-  );
 }
 
 /** Золотая монета в тексте: «Перебросить за 5 ◉». */

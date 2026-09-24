@@ -520,24 +520,7 @@ p {
   margin-left: auto;
   white-space: nowrap;
 }
-/* Умения одной строкой: «Оружие: ⚔ ➶ ✦  Броня: ◆ ◈ ◇», подписи серые, иконки — цветом владения или умения (skill-yes/skill-no). */
-.skill-line {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  flex-wrap: wrap;
-  font-size: 15px;
-}
-.skill-line .lbl {
-  color: var(--dim);
-}
-.skill-line .lbl + .lbl,
-.skill-line span:not(.lbl) + .lbl {
-  margin-left: 8px;
-}
-.skill-line span:not(.lbl) {
-  cursor: help;
-}
+
 /* Владение оружием и умение носить броню: два состояния, зелёный да, красный нет. */
 .skill-yes {
   color: #8ce99a;
@@ -545,20 +528,7 @@ p {
 .skill-no {
   color: #ff8787;
 }
-/* Иконка типа оружия или брони рядом с именем; цвет — владение или умение героя (классы skill-*). */
-.wtype-icon {
-  font-size: 15px;
-  line-height: 1;
-  color: var(--dim);
-  cursor: help;
-}
-/* Цвет владения должен перебивать серый по умолчанию. */
-.wtype-icon.skill-yes {
-  color: #8ce99a;
-}
-.wtype-icon.skill-no {
-  color: #ff8787;
-}
+
 /* Маркер дальности оружия: три точки — ряд врагов; горят те, кого оружие достаёт (ближнее — первую, остальное — все). */
 .reach-dots {
   display: inline-flex;
@@ -580,22 +550,6 @@ p {
 }
 .reach-dots.reach-row i.on {
   background: #ffab40;
-}
-.card-perk {
-  font-size: 15px;
-  color: #b8c0ff;
-}
-/* Название перка — отдельным цветом от описания. */
-.perk-name {
-  color: #ff9f6b;
-}
-/* Перк брони, которую герой не умеет носить: зачёркнут и приглушён. */
-.card-perk.off {
-  color: var(--dim);
-  cursor: help;
-}
-.card-perk.off s {
-  text-decoration: line-through;
 }
 
 .stats-grid {
@@ -813,10 +767,7 @@ p {
 .card-desc {
   font-size: 18px;
 }
-.card-cost {
-  font-size: 16px;
-  color: var(--mp);
-}
+
 .coin {
   color: #ffd166;
 }
@@ -865,10 +816,7 @@ p {
 .cards .card-desc {
   font-size: 16px;
 }
-.cards .card-perk {
-  font-size: 14px;
-  line-height: 1.1;
-}
+
 .cards .note {
   font-size: 14px;
 }
@@ -1604,6 +1552,10 @@ p {
   gap: 2px;
   cursor: pointer;
 }
+/* Тир артефакта (v0.50) — рамка цветом шкалы тиров, как у карточки; наведение и выбор перекрашивают её жёлтым. */
+.tile.tiered {
+  border-color: var(--tier);
+}
 .tile:hover {
   border-color: var(--accent);
 }
@@ -1640,6 +1592,16 @@ p {
   font-size: 13px;
   color: var(--dim);
 }
+.tile-value .ui-icon {
+  align-self: center;
+}
+/* Число против карточки (v0.50, как в Slay the Spire): сильнее, чем в листе, — зелёное, слабее — красное. */
+.tile-value.up {
+  color: var(--good);
+}
+.tile-value.dn {
+  color: var(--bad);
+}
 .tile-name {
   font-size: 13px;
   line-height: 1;
@@ -1649,24 +1611,28 @@ p {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Цена (v0.50) — пиксельный значок ресурса и число цветом ресурса, как ячейка «цена» на карточке. */
 .tile-cost {
   position: absolute;
-  top: -1px;
-  right: -1px;
-  font-size: 13px;
+  top: 2px;
+  right: 2px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 15px;
   line-height: 1;
-  padding: 2px 4px;
-  color: #000;
+  padding: 1px 3px 1px 2px;
+  background: #0e0e18;
+  border: 1px solid #2c2c44;
   z-index: 1;
 }
 .cost-sta {
-  background: var(--sta);
+  color: var(--sta);
 }
 .cost-mp {
-  background: var(--mp);
-  color: #fff;
+  color: var(--mp);
 }
-/* Восемь плиток и больше — два ряда по 62 px: иконка и число в строку, имя ниже. */
+/* Восемь плиток и больше — два ряда по 62 px: иконка и число в строку, имя ниже; цена — мелко в углу, без рамки. */
 .tiles.rows-2 .tile {
   height: 62px;
   flex-direction: row;
@@ -1674,6 +1640,14 @@ p {
   gap: 0 6px;
   padding: 4px 2px;
   align-content: center;
+}
+.tiles.rows-2 .tile-cost {
+  top: 0;
+  right: 0;
+  font-size: 13px;
+  padding: 0 2px 1px 1px;
+  border: none;
+  background: transparent;
 }
 .tiles.rows-2 .tile-glyph {
   font-size: 22px;
@@ -1702,6 +1676,9 @@ p {
   position: absolute;
   right: 4px;
   bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   font-size: 40px;
   line-height: 1;
   color: var(--mp);
@@ -2042,44 +2019,7 @@ p {
   gap: 5px;
   min-width: 0;
 }
-.gt-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  white-space: nowrap;
-}
-.gt-head .glyph {
-  font-size: 24px;
-  color: var(--accent);
-  line-height: 1;
-}
-.gt-name {
-  font-size: 20px;
-  color: var(--accent);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.gt-head .wtype-icon {
-  font-size: 17px;
-  flex: none;
-}
-/* Статы у правого края шапки — та же строка, что в карточке награды. */
-.gt-dice {
-  margin-left: auto;
-  font-size: 16px;
-  color: var(--text);
-  flex: none;
-  white-space: nowrap;
-}
-.gear-tile .card-perk {
-  font-size: 15px;
-  line-height: 1.05;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+
 /* Сокеты — сетка 2×2 с ячейками одинаковой ширины; ячейки под несуществующие сокеты не рисуются. */
 .gt-sockets {
   display: grid;
@@ -2147,41 +2087,6 @@ p {
   border: 2px dashed;
   font-size: 17px;
 }
-/* Полный список артефактов в оверлее: чип, имя с тиром и ценой, описание, следующий тир. */
-.art-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.art-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  font-size: 15px;
-  line-height: 1.1;
-}
-.art-row .chip {
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-  flex: none;
-}
-.art-row.empty {
-  align-items: center;
-  color: #666;
-}
-.art-row-body {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.art-row-name {
-  font-size: 17px;
-}
-.art-row-desc {
-  color: var(--text);
-}
 
 /* ─── Оверлей «Персонаж» и пауза ───────────────────────────────────── */
 
@@ -2234,9 +2139,7 @@ p {
 .sheet-stats .stat {
   cursor: help;
 }
-.sheet-left .skill-line {
-  margin-top: 6px;
-}
+
 .sheet-potion {
   margin-top: auto;
   display: flex;
@@ -2410,11 +2313,7 @@ p {
 .shop .card > * {
   flex-shrink: 0;
 }
-.shop .card-perk {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+
 .shop .note {
   font-size: 14px;
 }
@@ -2931,8 +2830,7 @@ p {
 .event-card .card-foot .btn {
   padding: 2px 12px;
 }
-.event-card .note,
-.event-card .card-perk {
+.event-card .note {
   font-size: 14px;
   line-height: 1.05;
 }
@@ -3034,19 +2932,28 @@ p {
   width: 30px;
   height: 30px;
 }
+/* Навык и черта в листе (v0.50): глиф навыка в рамке цвета уровня, звезда черты — строками. */
 .sheet-innate {
   display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sheet-innate-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   font-size: 16px;
   line-height: 1.05;
   cursor: help;
 }
-.sheet-innate .chip {
-  width: 26px;
-  height: 26px;
-  flex: none;
+.sheet-innate .item-icon {
+  width: 24px;
+  height: 24px;
 }
+.sheet-innate .item-glyph {
+  font-size: 16px;
+}
+
 /* v0.44: навык, черта и наборы добавили строк — блоки листа держат свою высоту, прокручиваются только статы. */
 .sheet-left > * {
   flex: none;
@@ -3932,4 +3839,162 @@ p {
 }
 .hs-ladder-row.on .hs-ladder-need {
   color: var(--good);
+}
+
+/* ─── Лист «Персонаж»: плитки статов, владение, экипировка (v0.50) ─────── */
+
+/* Главные статы плитками в две колонки: значок, число, подпись одной строкой — как на выборе героя, но плотнее. */
+.sheet-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.sheet-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 7px;
+  background: #121220;
+  border: 2px solid #2c2c44;
+  white-space: nowrap;
+  cursor: help;
+}
+.sheet-stat b {
+  font-size: 19px;
+  color: #fff;
+  font-weight: inherit;
+}
+.sheet-stat small {
+  font-size: 14px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Особые свойства — строками поменьше: их бывает много, прокручиваются только они. */
+.sheet-stats .stat {
+  font-size: 16px;
+}
+/* Владение значками: своё в зелёной рамке, чужое тускло в красной. */
+.sheet-prof {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+}
+.sheet-prof .dim {
+  margin-right: 2px;
+}
+.sheet-prof-gap {
+  margin-left: 10px;
+}
+.prof-mini {
+  width: 26px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0e0e18;
+  border: 1px solid #3d6b46;
+  cursor: help;
+}
+.prof-mini.no {
+  border-color: #6b2a2a;
+}
+.prof-mini.no .ui-icon {
+  opacity: 0.35;
+}
+/* Экипировка листа: шапка, статы и перк как у плитки консоли, но перк целиком и артефакты строками с описанием. */
+.gear-tile.sheet-tile {
+  gap: 4px;
+  padding: 6px 10px 8px;
+  flex: none;
+}
+.sheet-arts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+.sheet-art {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+.sheet-art .item-icon {
+  width: 30px;
+  height: 30px;
+}
+.sheet-art .item-glyph {
+  font-size: 18px;
+}
+.sheet-art-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sheet-art-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+.sheet-art-name {
+  font-size: 18px;
+  line-height: 1.05;
+}
+.sheet-art-head .item-type {
+  font-size: 14px;
+}
+.sheet-art-params {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px 12px;
+  font-size: 15px;
+  line-height: 1.1;
+}
+.sheet-art-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #fff;
+  cursor: help;
+}
+.sheet-art-param.good {
+  color: var(--good);
+}
+.sheet-art-param.bad {
+  color: var(--bad);
+}
+.sheet-art.keystone .item-icon {
+  box-shadow: inset 0 0 0 1px #ffd16688;
+}
+/* Свободный сокет — пунктир цвета типа во всю строку, как пустой сокет плитки в консоли. */
+.sheet-art.empty {
+  align-items: center;
+  padding: 2px 6px 2px 0;
+  border: 2px dashed var(--border);
+  opacity: 0.85;
+}
+.sheet-art.empty .item-icon {
+  background: transparent;
+  border: none;
+}
+.sheet-art.empty .sheet-art-name {
+  font-size: 16px;
+}
+.sheet-art.empty.k-weapon {
+  border-color: var(--slot-weapon);
+  color: var(--slot-weapon);
+}
+.sheet-art.empty.k-armor {
+  border-color: var(--slot-armor);
+  color: var(--slot-armor);
+}
+.sheet-art.empty.k-any {
+  border-color: var(--slot-any);
+  color: var(--slot-any);
 }

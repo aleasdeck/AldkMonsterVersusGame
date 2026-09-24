@@ -1128,14 +1128,36 @@ export function previewAttack(state: BattleState, bonus = 0, mult = 1, target?: 
   const tb = turnBonus(h, h.strikes);
   const flat = heroStr(h) + bonus + firstHitBonus(state) + (isHidden(h) ? h.stats.backstab : 0) + (target ? vsTargetBonus(h, target).total : 0) + lowHpBonus(target, lowHp) + tb.shield + tb.momentum;
   const row = target ? state.enemies.indexOf(target as EnemyState) : 0;
-  const scale = mult * fatigueMult(state) * strikeMultOn(h, target, Math.max(0, row));
-  let min = Math.floor((h.stats.dmgMin + flat) * scale);
-  let max = Math.floor((h.stats.dmgMax + flat) * scale);
-  if (getStatus(h, 'weak')) {
-    min = Math.floor(min * 0.75);
-    max = Math.floor(max * 0.75);
-  }
-  return { min: Math.max(0, min), max: Math.max(0, max) };
+  const r = strikeRange(h.stats, flat, mult * fatigueMult(state) * strikeMultOn(h, target, Math.max(0, row)));
+  if (getStatus(h, 'weak')) return { min: Math.floor(r.min * 0.75), max: Math.floor(r.max * 0.75) };
+  return r;
+}
+
+/** Ядро разброса удара: (кубик в руках героя + плоские прибавки) × множители, вниз. Общее для боя и карточек вне боя. */
+function strikeRange(s: DerivedStats, flat: number, scale: number): DamageRange {
+  return { min: Math.max(0, Math.floor((s.dmgMin + flat) * scale)), max: Math.max(0, Math.floor((s.dmgMax + flat) * scale)) };
+}
+
+/**
+ * Разброс удара вне боя (v0.50): кубик в руках героя, Сила, прибавка приёма и множитель ключевой вещи — без усталости, статусов,
+ * цели и бонуса первого удара. Это число карточки, листа «Персонаж» и сокета в консоли; плитка боя считает тем же ядром
+ * (previewAttack) и добавляет то, что знает только бой, поэтому её цвет честно показывает, выше или ниже карточки удар сейчас.
+ */
+export function restAttackRange(s: DerivedStats, bonus = 0, mult = 1): DamageRange {
+  return strikeRange(s, s.str + bonus, mult * Math.max(0.1, 1 + s.strikeMult));
+}
+
+/** Блок приёма с прибавкой набора «Щит» — тот же, что встанет в бою. */
+export function skillBlock(s: DerivedStats, amount: number): number {
+  return amount + s.blockSkillAdd;
+}
+
+/**
+ * Лечение приёма с прибавками набора «Свет» и «Обета» вне боя; «Мученик» глушит его в ноль. Проклятие склепа и «Искупление»
+ * первого хода — условия боя, их добавляет healHero.
+ */
+export function skillHeal(s: DerivedStats, amount: number): number {
+  return s.noHeal > 0 ? 0 : Math.round((amount + s.healAdd) * (1 + s.healMult));
 }
 
 /**
@@ -1288,7 +1310,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       damageHero(state, eff.amount, 'dot', undefined, true);
       break;
     case 'block':
-      gainBlock(state, h, 'hero', eff.amount + h.stats.blockSkillAdd);
+      gainBlock(state, h, 'hero', skillBlock(h.stats, eff.amount));
       break;
     case 'heal':
       healHero(state, eff.amount, 'лечение');

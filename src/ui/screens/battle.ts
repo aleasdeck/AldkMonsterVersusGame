@@ -4,22 +4,23 @@ import { ROLE_INFO, enemyDef } from '../../data/enemies';
 import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
-import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, attackExtra, canUseAction, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { ART_TIER_COLORS, SWEEP_MULT } from '../../data/gear';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
-import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
+import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
 import { MAX_ALLIES } from '../../engine/types';
 import { bar, coin, statusIcons } from '../components';
 import { heroSprite } from '../heroSprite';
 import { enemySprite, hasEnemySheet } from '../enemySprite';
-import { markIcon, statusIcon } from '../icons';
+import { markIcon, statusIcon, uiIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
 import { tintVar } from '../tint';
 import { runFrame } from '../frame';
 import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
 import { runLogBody } from './runLog';
+import { effectText } from '../cardParts';
 
 /**
  * Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы.
@@ -205,6 +206,13 @@ export interface TileSpec {
   name: string;
   /** Крупное число или короткий эффект. */
   value: Child[];
+  /**
+   * Число против карточки (v0.50, как `!D!` в Slay the Spire): 1 — удар сейчас сильнее, чем на карточке и в листе (Сила от статуса,
+   * удар из тени, «Разгон»), −1 — слабее (усталость, Слабость), 0 или нет — как на карточке. Красит число зелёным или красным.
+   */
+  dir?: number;
+  /** Тир артефакта: рамка плитки цветом той же шкалы, что у карточки (со второго тира; удар и защита — без тира). */
+  tier?: ArtTier;
   cost: { kind: 'sta' | 'mp' | 'none'; text: string };
   /** Причина недоступности приёма как такового: стамина, перезарядка, лимит; для приёма с целью — по лучшей из целей. */
   err: string | null;
@@ -231,7 +239,8 @@ function tile(app: App, spec: TileSpec, busy: boolean, index: number): HTMLEleme
   const el = h(
     'button',
     {
-      class: `tile ${off ? 'off' : ''} ${cd ? 'cooling' : ''} ${armed ? 'armed' : ''}`,
+      class: `tile ${off ? 'off' : ''} ${cd ? 'cooling' : ''} ${armed ? 'armed' : ''} ${spec.tier && spec.tier > 1 ? 'tiered' : ''}`,
+      style: spec.tier && spec.tier > 1 ? `--tier:${ART_TIER_COLORS[spec.tier]}` : null,
       'aria-disabled': off ? 'true' : null,
       'aria-pressed': spec.targeted ? (armed ? 'true' : 'false') : null,
       onclick: () => {
@@ -241,11 +250,12 @@ function tile(app: App, spec: TileSpec, busy: boolean, index: number): HTMLEleme
       },
     },
     cd ? h('div', { class: 'cd-fill', style: `height:${pct}%` }) : null,
-    cd ? h('div', { class: 'cd-num' }, `${cd.left}`) : null,
-    spec.cost.kind !== 'none' ? h('span', { class: `tile-cost cost-${spec.cost.kind}` }, spec.cost.text) : null,
+    cd ? h('div', { class: 'cd-num' }, uiIcon('cd', 14), `${cd.left}`) : null,
+    // Цена — пиксельным значком ресурса и числом, как ячейка «цена» на карточке и полоски STA/MP в консоли.
+    spec.cost.kind !== 'none' ? h('span', { class: `tile-cost cost-${spec.cost.kind}` }, uiIcon(spec.cost.kind, 12), spec.cost.text) : null,
     index < 9 ? h('span', { class: 'tile-key' }, `${index + 1}`) : null,
     h('div', { class: 'tile-glyph' }, spec.glyph),
-    h('div', { class: 'tile-value' }, ...spec.value),
+    h('div', { class: `tile-value ${spec.dir ? (spec.dir > 0 ? 'up' : 'dn') : ''}`.trim() }, ...spec.value),
     h('div', { class: 'tile-name' }, spec.name),
   );
   return bindPreview(app, el, () => ({ ...spec.preview(), err: busy ? 'Ход врагов' : spec.err }));
@@ -261,24 +271,29 @@ function costBadge(def: ArtifactDef, tier: ArtTier): TileSpec['cost'] {
   return { kind: 'none', text: '' };
 }
 
-/** Крупное число плитки по первому значимому эффекту приёма. */
-function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
-  const atk = effects.find((e) => e.type === 'attack');
-  if (atk && atk.type === 'attack' && range) return [rangeText(range), atk.target === 'allEnemies' ? h('small', null, 'всем') : null];
+/**
+ * Крупное число плитки по первому значимому эффекту приёма — тот же расчёт, что число «сейчас» на карточке (restValue в cards.ts),
+ * плюс то, что знает только бой. Единица — пиксельным значком (блок, HP, STA, MP), как в таблицах карточек; многоударный приём —
+ * «2×3–4», урон за удар.
+ */
+function effectValue(effects: Effect[], range: DamageRange | null, s: DerivedStats): Child[] {
+  const attacks = effects.filter((e) => e.type === 'attack');
+  const atk = attacks[0];
+  if (atk && atk.type === 'attack' && range) return [`${attacks.length > 1 ? `${attacks.length}×` : ''}${rangeText(range)}`, atk.target === 'allEnemies' ? h('small', null, 'всем') : null];
   for (const e of effects) {
     switch (e.type) {
       case 'spell':
-        return [`${e.amount}`, e.target === 'allEnemies' ? h('small', null, 'всем') : null];
+        return [range ? rangeText(range) : `${e.amount}`, e.target === 'allEnemies' ? h('small', null, 'всем') : null];
       case 'block':
-        return [`+${e.amount}`, h('small', null, '⛨')];
+        return [`+${skillBlock(s, e.amount)}`, uiIcon('block', 14)];
       case 'blockStrike':
         return [range ? rangeText(range) : '0', h('small', null, `⛨×${e.mult}`)];
       case 'heal':
-        return [`+${e.amount}`, h('small', null, 'HP')];
+        return [`+${skillHeal(s, e.amount)}`, uiIcon('heal', 14)];
       case 'gainSta':
-        return [`+${e.amount}`, h('small', null, 'STA')];
+        return [`+${e.amount}`, uiIcon('sta', 14)];
       case 'gainMp':
-        return [`+${e.amount}`, h('small', null, 'MP')];
+        return [`+${e.amount}`, uiIcon('mp', 14)];
       case 'status':
         return [statusIcon(e.status, 18), e.value > 1 || e.status === 'strength' ? ` ${e.value}` : e.turns > 0 ? ` ${e.turns}х` : ''];
       case 'summon':
@@ -351,6 +366,11 @@ export function actionSpecs(app: App): TileSpec[] {
     return range ? { target, range, kind } : {};
   };
 
+  /** Число против карточки (v0.50): сравнение по сумме границ разброса; нет базы — нет цвета. */
+  const dirOf = (cur: DamageRange | null, base: DamageRange | null): number => (cur && base ? Math.sign(cur.min + cur.max - (base.min + base.max)) : 0);
+  /** Хвост ридаута «(обычно 2–3)», когда удар сейчас не такой, как на карточке и в листе: видно, откуда зелёный или красный. */
+  const usual = (cur: DamageRange | null, base: DamageRange | null): string => (base && dirOf(cur, base) ? ` (обычно ${rangeText(base)})` : '');
+
   const atkAction = (t: number): PlayerAction => ({ type: 'attack', target: t });
   // Плеть хлещет весь ряд на долю урона — число на плитке уже с ней, с пометкой «всем».
   const sweep = b.hero.stats.sweep > 0;
@@ -361,6 +381,8 @@ export function actionSpecs(app: App): TileSpec[] {
     return sure || sureCritOn(b.hero, e) ? critX(r) : r;
   };
   const atkRange = atkRangeOn(0, sweep ? SWEEP_MULT : 1, false);
+  // Урон удара вне боя — «урон» в листе «Персонаж»: от него плитка краснеет с усталостью и зеленеет от Силы и удара в спину.
+  const atkBase = restAttackRange(b.hero.stats, 0, sweep ? SWEEP_MULT : 1);
   const atkTargets = uids(atkAction(first));
   const atkName = stealthed ? 'Удар в спину' : 'Ударить';
   specs.push({
@@ -368,6 +390,7 @@ export function actionSpecs(app: App): TileSpec[] {
     glyph: '⚔',
     name: atkName,
     value: [rangeText(atkRange), sweep ? h('small', null, 'всем') : null],
+    dir: dirOf(atkRange, atkBase),
     cost: { kind: 'sta', text: '1' },
     err: tileErr(atkAction, true),
     targeted: true,
@@ -375,7 +398,7 @@ export function actionSpecs(app: App): TileSpec[] {
     targets: atkTargets,
     preview: (t) => ({
       title: atkName,
-      parts: ['1 STA', `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}`, reachWord(actionReach(b, atkAction(first))), `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`],
+      parts: ['1 STA', `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}${usual(atkRange, atkBase)}`, reachWord(actionReach(b, atkAction(first))), `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`],
       targets: atkTargets,
       ...onTarget(atkAction, t, atkRangeOn(0, sweep ? SWEEP_MULT : 1, false, t), 'hit'),
     }),
@@ -470,6 +493,9 @@ export function actionSpecs(app: App): TileSpec[] {
       return null;
     };
     const range = rangeOn();
+    const hits = effects.filter((e) => e.type === 'attack').length;
+    // Число карточки (restValue в cards.ts): удар оружием и заклинание; у формул от состояния боя базы нет.
+    const base = atkEff && atkEff.type === 'attack' ? restAttackRange(b.hero.stats, atkEff.bonus, atkEff.mult ?? 1) : spellEff && spellEff.type === 'spell' ? { min: spellEff.amount + b.hero.stats.spellPower, max: spellEff.amount + b.hero.stats.spellPower } : null;
     // Взрыв ран бьёт мимо блока, как рана; пролом — по уже снятому блоку: штриховка без вычета блока.
     if ((detEff && !atkEff) || breakEff || scorchEff) kind = 'dot';
     const kindOn = (t?: number): 'hit' | 'spell' | 'dot' => {
@@ -486,7 +512,9 @@ export function actionSpecs(app: App): TileSpec[] {
       glyph: ad.glyph,
       name: ad.name,
       // При двух союзниках плитка призыва пишет причину прямо на себе, а не просто темнеет.
-      value: err === 'Рядом нет места' ? [h('small', null, 'нет места')] : effectValue(effects, range),
+      value: err === 'Рядом нет места' ? [h('small', null, 'нет места')] : effectValue(effects, range, b.hero.stats),
+      dir: dirOf(range, base),
+      tier: inst.tier,
       cost: costBadge(ad, inst.tier),
       err,
       cooldown: cd > 0 ? { left: cd, total: Math.max(total, cd) } : undefined,
@@ -495,7 +523,8 @@ export function actionSpecs(app: App): TileSpec[] {
       targets,
       preview: (t) => ({
         title: `${ad.name} · тир ${inst.tier}`,
-        parts: [artifactCostText(ad, inst.tier), ad.describe(inst.tier), targeted ? reachWord(actionReach(b, action(first))) : '', total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
+        // Описание — тем же текстом, что на карточке (без хвостов «КД 3» и «Раз в ход»: они здесь отдельными частями).
+        parts: [artifactCostText(ad, inst.tier), range && base ? `${hits > 1 ? `${hits}×` : ''}${rangeText(range)} урона${usual(range, base)}` : '', effectText(ad, inst.tier), targeted ? reachWord(actionReach(b, action(first))) : '', total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
         targets,
         ...(targeted ? onTarget(action, t, rangeOn(t) ?? undefined, kindOn(t)) : {}),
       }),
