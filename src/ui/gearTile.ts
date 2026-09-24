@@ -6,6 +6,7 @@ import { artifactChip, gearStatInfo, gearTypeIcon, perkLine, reachDots, slotKind
 import { slotKindAt } from '../engine/equipment';
 import type { SlotKind } from '../engine/types';
 import { markKeywords } from './keywords';
+import { gearTileVariant } from './cards';
 
 /**
  * Короткое число артефакта для сокета: «12–18», «5–8 всем», «+2 STA», у пассивных — описание.
@@ -106,6 +107,9 @@ export interface GearTileOpts {
  * сетка сокетов 2×2 с чипом, именем и числом артефакта. Ячейки под несуществующие сокеты не рисуются.
  */
 export function gearTile(gear: GearInstance, def: HeroDef, s: DerivedStats, opts: GearTileOpts = {}): HTMLElement {
+  // Прототипы v0.50: плитка консоли в варианте карточек экипировки; лист персонажа (expanded) пока старый.
+  const variant = opts.expanded ? null : gearTileVariant(gear, def, s);
+  if (variant) return variant;
   const info = GEAR_TIERS[gear.tier];
   const isWeapon = gear.kind === 'weapon';
   // Статы той же строкой, что и в карточке награды: «Урон 4–6, ✦ +1 Сила» / «+2 DEF, +4 HP».

@@ -5,19 +5,26 @@ import { EVENT_WEIGHTS, LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locati
 import { offerTrials, startEvent } from './engine/run';
 import { TRIALS } from './data/trials';
 import { createBattle } from './engine/combat';
-import { heroDef } from './data/heroes';
+import { HERO_LIST, heroDef } from './data/heroes';
 import type { EventKind, LocationId } from './engine/types';
 import { ART_TIERS, COLLECTIBLES, findKey } from './data/collection';
 import { ENEMY_LIST, enemyDef } from './data/enemies';
 import { loadProfile, saveProfile } from './ui/save';
-import { upgradeGearTier } from './data/gear';
+import { GEAR_TIERS, baseArmorStats, baseDamage, baseOf, baseTitle, rollAffix, rollSlotKinds, upgradeGearTier } from './data/gear';
+import type { ArtTier, DerivedStats, GearAffix, GearKind, GearTier, LootItem, SlotKind } from './engine/types';
+import type { Rng } from './engine/rng';
 import { setTint } from './ui/tint';
+import { applyUiParams } from './ui/variants';
 
+const HERO_LIST_IDS = HERO_LIST.map((d) => d.id);
 const WIDTH = 960;
 const HEIGHT = 540;
 
 const root = document.getElementById('app');
 if (!root) throw new Error('#app not found');
+
+// Прототипы интерфейса (variants.ts): &ui=a — все три области, &hs= / &gc= / &ac= — по одной; разбираются до первой отрисовки.
+applyUiParams(new URLSearchParams(window.location.search));
 
 function fit(): void {
   const scale = Math.min(window.innerWidth / WIDTH, window.innerHeight / HEIGHT);
@@ -122,16 +129,29 @@ if (heroParam) {
   if (roomParam) run.roomIndex = Math.max(0, Math.min(ROOMS_PER_LOCATION - 1, Number(roomParam) || 0));
   const phase = params.get('phase');
   if (phase === 'reward' || phase === 'won') {
+    const dice = [run.hero.weapon.dmgMin, run.hero.weapon.dmgMax];
     run.hero.weapon.dmgMin = 999;
     run.hero.weapon.dmgMax = 999;
     app.enterRoom();
     for (const e of run.battle?.enemies.slice() ?? []) app.battleAction({ type: 'attack', target: e.uid }, false);
     // &phase=won — остаться на плашке победы, не забирая награду; &log=1 — сразу раскрыть лог боя.
-    if (phase === 'reward') app.finishBattle();
+    if (phase === 'reward') {
+      app.finishBattle();
+      // Чит нужен только на бой: в награде кубик в консоли и сравнение с надетым должны быть настоящими.
+      [run.hero.weapon.dmgMin, run.hero.weapon.dmgMax] = dice;
+      app.render();
+    }
     else if (params.get('log')) app.toggleLog();
     // &focus=attack|defense — сразу выбрать пул награды (без него экран ждёт выбора); &take=art выбирает «Нападение» сам.
     const focus = params.get('focus') ?? (params.get('take') === 'art' ? 'attack' : null);
     if (focus === 'attack' || focus === 'defense') app.chooseRewardFocus(focus);
+    // &offer=w:whip:2:onHitBleed=1,art:fireball:1 — заменить варианты награды заданными (прототипы карточек v0.50, см. debugOffer)
+    const offer = debugOffer(params.get('offer'), run.rng);
+    if (offer.length && run.rewards[0]) {
+      run.rewards[0].focus ??= 'attack';
+      run.rewards[0].options = offer;
+      app.render();
+    }
     // &take=art — сразу взять первый артефакт из награды (открывает выбор слота)
     if (params.get('take') === 'art') {
       const i = run.rewards[0]?.options.findIndex((o) => o.kind === 'artifact') ?? -1;
@@ -148,6 +168,15 @@ if (heroParam) {
   } else if (phase === 'shop' || phase === 'camp') {
     run.roomIndex = 2;
     startEvent(run, phase);
+    // &offer=… у торговца — первый предмет, первый артефакт и первое зелье из списка встают на прилавок
+    const offer = debugOffer(params.get('offer'), run.rng);
+    if (run.shop && offer.length) {
+      for (const it of offer) {
+        if (it.kind === 'gear') run.shop.gear = it.gear;
+        else if (it.kind === 'artifact') run.shop.artifact = it.artifact;
+        else run.shop.potion = it.potion;
+      }
+    }
     app.render();
   } else if (phase === 'end') {
     run.phase = 'defeat';
@@ -180,6 +209,11 @@ if (heroParam) {
   // ?screen=select|collection|bestiary|stats — сразу нужный экран вне забега; &loc=crypt — вкладка бестиария
   const screen = params.get('screen');
   const locParam = params.get('loc');
+  // &tab=start|mastery — вкладка превью героя в прототипах экрана выбора (v0.50); &pick=mage — какой герой подсвечен
+  const tab = params.get('tab');
+  if (tab === 'start' || tab === 'mastery') app.heroTab = tab;
+  const pick = params.get('pick');
+  if (pick && HERO_LIST_IDS.includes(pick)) app.heroPick = pick;
   if (screen === 'select') app.showHeroSelect();
   else if (screen === 'collection') app.showCollection();
   else if (screen === 'bestiary') app.showBestiary(locParam && locParam in LOCATION_BY_ID ? (locParam as LocationId) : undefined);
@@ -231,4 +265,55 @@ function mockRuns(): RunsFeed {
     ]);
   }
   return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken', 'weapon', 'armor', 'artifacts'], rows };
+}
+
+/**
+ * Отладочный набор предметов из адреса (прототипы карточек v0.50): `w:<база>:<тир>[:<стат>=<число>][:s=<сокеты>]` — оружие,
+ * `a:…` — броня, `art:<id>:<тир>` — артефакт, `p:<зелье>`; через запятую. Сокеты буквами: w — оружейный, a — бронный,
+ * x — универсальный (`s=wx`). Без аффикса в адресе он бросается случайно; `none` — без аффикса.
+ */
+function debugOffer(spec: string | null, rng: Rng): LootItem[] {
+  const out: LootItem[] = [];
+  for (const part of (spec ?? '').split(',').filter(Boolean)) {
+    const [kind, id, tierRaw, ...rest] = part.split(':');
+    if (kind === 'p') {
+      out.push({ kind: 'potion', potion: id });
+      continue;
+    }
+    if (kind === 'art') {
+      out.push({ kind: 'artifact', artifact: { id, tier: Math.max(1, Math.min(3, Number(tierRaw) || 1)) as ArtTier } });
+      continue;
+    }
+    const gk: GearKind = kind === 'w' ? 'weapon' : 'armor';
+    const tier = Math.max(1, Math.min(5, Number(tierRaw) || 1)) as GearTier;
+    const base = baseOf(gk, id);
+    const dmg = baseDamage(base, tier);
+    const arm = baseArmorStats(base, tier);
+    const n = GEAR_TIERS[tier].slots;
+    let affix: GearAffix | null = rollAffix(rng, gk, tier);
+    let kinds: SlotKind[] = rollSlotKinds(rng, gk, n);
+    for (const r of rest) {
+      const [k, v] = r.split('=');
+      if (k === 's') kinds = Array.from({ length: n }, (_, i) => (v[i] === 'w' ? 'weapon' : v[i] === 'a' ? 'armor' : 'any'));
+      else if (k === 'none') affix = null;
+      else affix = { stat: k as keyof DerivedStats, value: Number(v) };
+    }
+    out.push({
+      kind: 'gear',
+      gear: {
+        kind: gk,
+        tier,
+        base: id,
+        name: baseTitle(base, tier),
+        dmgMin: gk === 'weapon' ? dmg.min : 0,
+        dmgMax: gk === 'weapon' ? dmg.max : 0,
+        def: gk === 'armor' ? arm.def : 0,
+        hp: gk === 'armor' ? arm.hp : 0,
+        affix,
+        slots: Array.from({ length: n }, () => null),
+        slotKinds: kinds,
+      },
+    });
+  }
+  return out;
 }

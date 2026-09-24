@@ -1,5 +1,6 @@
 import type { App } from './app';
 import { awaitsFocus, awaitsTrial } from '../engine/run';
+import { cycleVariant } from './variants';
 
 /**
  * Горячие клавиши забега: 1–9 приёмы по порядку плиток (выбрать; номер уже выбранного — применить к цели), в награде 1/2 — пул,
@@ -12,6 +13,15 @@ export function installHotkeys(app: App): void {
     const t = ev.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    // Прототипы интерфейса (variants.ts): Shift+1/2/3 листают варианты выбора героя, карточек экипировки и артефактов на любом экране.
+    // По коду клавиши, а не по символу: Shift+1 в русской и английской раскладке даёт разные знаки.
+    const area = ev.shiftKey ? ({ Digit1: 'hs', Digit2: 'gc', Digit3: 'ac' } as const)[ev.code as 'Digit1' | 'Digit2' | 'Digit3'] : undefined;
+    if (area) {
+      ev.preventDefault();
+      app.showToast(cycleVariant(area));
+      app.render();
+      return;
+    }
     if (app.screen !== 'run' || !app.run) return;
     const key = ev.key;
     const lower = key.toLowerCase();

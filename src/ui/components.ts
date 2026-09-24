@@ -35,6 +35,7 @@ import type { App } from './app';
 import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
 import type { ArchetypeId } from '../engine/types';
 import { canPendingSmelt, smeltTargets } from '../engine/run';
+import { artifactCardVariant, gearCardVariant, potionCardVariant } from './cards';
 
 /** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
 /**
@@ -205,8 +206,14 @@ export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: ()
   );
 }
 
-/** note — строка перед подвалом: заметка об апгрейде или дельты (diff.ts). footer — кнопка, встаёт справа внизу. */
-export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Child): HTMLElement {
+/**
+ * note — строка перед подвалом: заметка об апгрейде или дельты (diff.ts). footer — кнопка, встаёт справа внизу.
+ * run — контекст забега для прототипов карточек (v0.50): прогресс набора архетипа и дубликат считаются по герою.
+ */
+export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
+  // Прототипы v0.50: вариант карточки рисует cards.ts; заметку о дубликате он пишет сам, поэтому note с ней ему не передаётся.
+  const variant = artifactCardVariant(inst, footer, run ? null : note, run);
+  if (variant) return variant;
   const def = artifactDef(inst.id);
   const color = ART_TIER_COLORS[inst.tier];
   return h(
@@ -269,6 +276,8 @@ export function potionReplaceNote(run: RunState): string | null {
 }
 
 export function potionCard(id: string, footer?: Child, note?: string | null): HTMLElement {
+  const variant = potionCardVariant(id, footer, note);
+  if (variant) return variant;
   const def = potionDef(id);
   return h(
     'div',
@@ -350,7 +359,9 @@ function gearStatLine(gear: GearInstance, def?: HeroDef): HTMLElement {
  * Карточка экипировки в награде и у торговца: в шапке имя (тир — в подсказке и цветом рамки) и иконка типа, кубик в руках героя, дельты к надетому
  * (deltas — строки из diff.ts), перк, внизу сокеты чипами и справа от них кнопка. Число сокетов не пишем: его видно по чипам.
  */
-export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Child; deltas?: HTMLElement[] } = {}): HTMLElement {
+export function gearCard(gear: GearInstance, opts: { def?: HeroDef; footer?: Child; deltas?: HTMLElement[]; run?: RunState } = {}): HTMLElement {
+  const variant = gearCardVariant(gear, opts);
+  if (variant) return variant;
   const info = GEAR_TIERS[gear.tier];
   const { def, footer, deltas } = opts;
   const isWeapon = gear.kind === 'weapon';
@@ -503,7 +514,7 @@ export function pendingModal(app: App): HTMLElement | null {
       { class: 'panel modal' },
       h('h2', null, displaced ? 'Вытесненный артефакт: куда переставить?' : 'Куда вставить артефакт?'),
       h('p', { class: 'dim' }, hint),
-      h('div', { class: 'pm-body' }, artifactCard(art), h('div', { class: 'pm-gears' }, group('weapon'), group('armor'))),
+      h('div', { class: 'pm-body' }, artifactCard(art, undefined, undefined, run), h('div', { class: 'pm-gears' }, group('weapon'), group('armor'))),
       smeltRow(app, art),
       h(
         'div',

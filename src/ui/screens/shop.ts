@@ -43,7 +43,7 @@ export function shopScreen(app: App): HTMLElement {
 
   const gearErr = canShopBuyGear(run);
   const gearEl = shop.gear
-    ? gearCard(shop.gear, { def, deltas: gearDiffLines(run, shop.gear), footer: buyButton(gearPrice(shop.gear), gearErr, () => app.shopBuyGear()) })
+    ? gearCard(shop.gear, { def, run, deltas: gearDiffLines(run, shop.gear), footer: buyButton(gearPrice(shop.gear), gearErr, () => app.shopBuyGear()) })
     : soldCard('Экипировка');
 
   const artErr = canShopBuyArtifact(run);
@@ -52,7 +52,7 @@ export function shopScreen(app: App): HTMLElement {
     // Дубликат апгрейдит стоящий — заметка об этом.
     const merge = artifactMergeNote(run, shop.artifact);
     const note = merge ? h('div', { class: 'note' }, merge) : null;
-    artEl = artifactCard(shop.artifact, buyButton(artifactPrice(shop.artifact), artErr, () => app.shopBuyArtifact()), note);
+    artEl = artifactCard(shop.artifact, buyButton(artifactPrice(shop.artifact), artErr, () => app.shopBuyArtifact()), note, run);
   } else artEl = soldCard('Артефакт');
 
   const potionErr = canShopBuyPotion(run);

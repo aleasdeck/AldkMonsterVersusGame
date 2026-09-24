@@ -91,6 +91,8 @@ export class App {
   heroPick: string = HERO_LIST[0].id;
   /** Текст поля «Сид» на экране выбора — переживает перерисовку при клике по плитке. */
   seedText = '';
+  /** Вкладка превью героя в прототипах экрана выбора (v0.50, variants.ts): описание, выбор на старт или мастерство. */
+  heroTab: 'hero' | 'start' | 'mastery' = 'hero';
   /** Вкладка-локация и выбранная запись в бестиарии. */
   bestiaryLoc: LocationId = 'forest';
   bestiaryPick: string | null = null;
@@ -414,6 +416,11 @@ export class App {
 
   selectHero(id: string): void {
     this.heroPick = id;
+    this.render();
+  }
+
+  setHeroTab(tab: 'hero' | 'start' | 'mastery'): void {
+    this.heroTab = tab;
     this.render();
   }
 

@@ -3238,3 +3238,1282 @@ p {
 .coll-tile.sealed .coll-name {
   opacity: 0.7;
 }
+
+/* ─── Прототипы v0.50: общие части карточек (cards.ts, cardParts.ts) ─────────── */
+
+/* Пиксельная иконка параметра в строке текста: по центру строки, не сжимается. */
+.ui-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  flex: none;
+}
+/* Тир точками: горят набранные, цвет — цвет тира. */
+.tier-pips {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+  cursor: help;
+}
+.tier-pips i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  background: #24243a;
+  box-shadow: 0 0 0 1px #000;
+}
+/* Числа эффекта: ярче текста, чтобы глаз цеплялся за «3 на 3 хода». */
+.num {
+  font-weight: inherit;
+  color: #fff3c4;
+}
+/* Иконка статуса перед ключевым словом. */
+.kw.with-icon .kw-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+.sep {
+  color: #55557a;
+  margin: 0 4px;
+}
+/* Чип параметра: иконка и значение в рамке; цвет значения — ресурс или вид параметра. */
+.param {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 6px 0 4px;
+  border: 1px solid var(--border);
+  background: #0e0e18;
+  font-size: 16px;
+  line-height: 1;
+  cursor: help;
+}
+.param.c-sta .param-text {
+  color: var(--sta);
+}
+.param.c-mp .param-text {
+  color: var(--mp);
+}
+.param.c-free .param-text {
+  color: var(--good);
+}
+.param.c-cd .param-text {
+  color: #c9ccd1;
+}
+.param.t-one .param-text,
+.param.t-all .param-text {
+  color: #ffb3b3;
+}
+.param.t-self .param-text {
+  color: var(--good);
+}
+/* Род, тип сокета, архетип, особые пометки — короткими метками с иконкой. */
+.kind-label,
+.special-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: help;
+}
+.k-passive {
+  color: #aab4d8;
+}
+.k-skill {
+  color: #f6dd7a;
+}
+.k-spell {
+  color: #c9a8ff;
+}
+.slot-weapon {
+  color: var(--slot-weapon);
+}
+.slot-armor {
+  color: var(--slot-armor);
+}
+.arch-label {
+  cursor: help;
+  white-space: nowrap;
+}
+.arch-label.none {
+  color: #66668a;
+}
+.special-label.key,
+.special-label.sig {
+  color: var(--accent);
+}
+/* Что вещь даст сборке: дубликат, шаг набора, потеря артефакта. */
+.build-note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+  line-height: 1.05;
+  color: var(--dim);
+  cursor: help;
+}
+.build-note.good {
+  color: var(--good);
+}
+.build-note.bad {
+  color: var(--bad);
+}
+.build-note .arch-glyph {
+  flex: none;
+}
+
+/* ─── Артефакт A — «полоса параметров» ─────────────────────────────── */
+
+.av.av-a {
+  gap: 5px;
+}
+.av-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.av-portrait {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--accent);
+  background: #0e0e18;
+  border: 2px solid var(--border);
+}
+.av-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.av-name {
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.av-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 15px;
+  line-height: 1.1;
+  color: var(--dim);
+}
+.av-head .tier-pips {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.av-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.av-desc {
+  font-size: 16px;
+  line-height: 1.12;
+}
+
+/* ─── Артефакт B — «карта с углами» ─────────────────────────────────── */
+
+.card.av-b {
+  position: relative;
+  overflow: visible;
+  gap: 4px;
+  padding-top: 16px;
+  padding-bottom: 28px;
+}
+.avb-gems,
+.avb-gem.passive {
+  position: absolute;
+  top: -12px;
+  left: 8px;
+}
+.avb-gems {
+  display: flex;
+  gap: 3px;
+}
+.avb-gems .avb-gem {
+  position: static;
+}
+.avb-gem,
+.avb-cd {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 6px 0 5px;
+  background: #11111c;
+  border: 2px solid var(--sta);
+  color: var(--sta);
+  font-size: 19px;
+  line-height: 1;
+  box-shadow: 2px 2px 0 #000;
+  cursor: help;
+}
+.avb-gem.c-mp {
+  border-color: var(--mp);
+  color: var(--mp);
+}
+.avb-gem.c-free {
+  border-color: var(--good);
+  color: var(--good);
+}
+.avb-gem.passive {
+  border-color: #6f7aa6;
+  padding: 0 5px;
+}
+.avb-cd {
+  position: absolute;
+  top: -12px;
+  right: 8px;
+  border-color: #7a7d86;
+  color: #d8dbe2;
+}
+.avb-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.avb-glyph {
+  font-size: 24px;
+  line-height: 1;
+  flex: none;
+}
+.avb-name {
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.avb-type {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  font-size: 15px;
+  color: var(--dim);
+}
+.avb-type > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.avb-desc {
+  font-size: 16px;
+  line-height: 1.12;
+  text-align: center;
+  padding-top: 4px;
+  border-top: 1px dotted #33334d;
+}
+.av-b .build-note {
+  justify-content: center;
+}
+/* Нижняя кромка: ленты архетипов слева, тир и значок сокета справа — поверх рамки карточки. */
+.avb-bottom {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  height: 22px;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.avb-ribbon {
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  font-size: 15px;
+  color: #0b0b12;
+  cursor: help;
+}
+.avb-ribbon.none {
+  background: #2c2c44;
+  color: #8a8aa8;
+}
+.avb-spacer {
+  flex: 1;
+}
+.avb-bottom .tier-pips {
+  align-self: center;
+}
+.avb-slot {
+  display: flex;
+  align-items: center;
+  padding: 0 5px;
+  background: #11111c;
+  cursor: help;
+}
+
+/* ─── Артефакт C — «рейка слева» ────────────────────────────────────── */
+
+.card.av-c {
+  flex-direction: row;
+  padding: 0;
+  gap: 0;
+}
+.avc-rail {
+  width: 46px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 0;
+  background: #10101b;
+  border-right: 2px solid #2c2c44;
+}
+.avc-glyph {
+  font-size: 26px;
+  line-height: 1;
+}
+.avc-param {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: help;
+}
+.avc-param.c-sta span {
+  color: var(--sta);
+}
+.avc-param.c-mp span {
+  color: var(--mp);
+}
+.avc-param.c-free span {
+  color: var(--good);
+}
+.avc-param.t-one span,
+.avc-param.t-all span {
+  color: #ffb3b3;
+}
+.avc-param.t-self span {
+  color: var(--good);
+}
+.avc-slot {
+  margin-top: auto;
+}
+.avc-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 10px 8px;
+}
+.avc-name {
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.avc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 15px;
+  color: var(--dim);
+}
+.avc-desc {
+  font-size: 16px;
+  line-height: 1.12;
+}
+
+/* ─── Экипировка: общие части вариантов ─────────────────────────────── */
+
+.gv {
+  gap: 5px;
+}
+.gv-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.gv-icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0e0e18;
+  border: 2px solid var(--border);
+  cursor: help;
+}
+.gv-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gv-name {
+  min-width: 0;
+  font-size: 20px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gv-head .tier-pips {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.gv-type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 15px;
+  line-height: 1.1;
+  color: var(--dim);
+}
+.gv-type > span {
+  cursor: help;
+}
+.skill-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.skill-label.yes {
+  color: #8ce99a;
+}
+.skill-label.no {
+  color: #ff8787;
+}
+.gv-reach {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.gv-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px dotted #33334d;
+  border-bottom: 1px dotted #33334d;
+}
+.gv-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.big-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  cursor: help;
+}
+.big-stat b {
+  font-size: 28px;
+  line-height: 1;
+  color: #fff;
+  font-weight: inherit;
+}
+.big-stat small {
+  font-size: 15px;
+  color: var(--dim);
+}
+.big-stat.bad b {
+  color: #ff8787;
+}
+.gv-deltas {
+  margin-left: auto;
+  max-width: 62%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 8px;
+  font-size: 15px;
+  line-height: 1.1;
+  cursor: help;
+}
+.gv-deltas .up,
+.gv-more .up,
+.gv-verdict.up {
+  color: var(--good);
+}
+.gv-deltas .dn,
+.gv-more .dn,
+.gv-verdict.dn {
+  color: var(--bad);
+}
+.gv-props {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.prop-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 15px;
+  line-height: 1.1;
+  cursor: help;
+}
+.prop-row .ui-icon {
+  align-self: center;
+}
+.prop-name {
+  color: #ff9f6b;
+  flex: none;
+}
+.prop-row.affix .prop-text {
+  color: #c9d0ff;
+}
+.prop-row.off,
+.prop-row.off .prop-name {
+  color: #77778f;
+  text-decoration: line-through;
+}
+.sock-icons {
+  display: flex;
+  gap: 4px;
+}
+.sock-icons .chip {
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+}
+
+/* ─── Экипировка B — «сравнение с надетым» ─────────────────────────── */
+
+.cmp {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 16px;
+  line-height: 1.1;
+  padding: 2px 0 4px;
+  border-top: 1px dotted #33334d;
+  border-bottom: 1px dotted #33334d;
+}
+.cmp-row {
+  display: grid;
+  grid-template-columns: 16px 1fr auto 14px auto 14px;
+  white-space: nowrap;
+  align-items: center;
+  gap: 5px;
+}
+.cmp-caption {
+  font-size: 14px;
+  color: #66668a;
+}
+.cmp-name {
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmp-before {
+  color: #8a8aa8;
+  text-align: right;
+}
+.cmp-arrow {
+  color: #55557a;
+  text-align: center;
+}
+.cmp-after {
+  color: #fff;
+}
+.cmp-row.up .cmp-after {
+  color: var(--good);
+}
+.cmp-row.dn .cmp-after {
+  color: var(--bad);
+}
+.dir {
+  font-size: 13px;
+  text-align: center;
+}
+.dir.up {
+  color: var(--good);
+}
+.dir.dn {
+  color: var(--bad);
+}
+.dir.eq {
+  color: #55557a;
+}
+.cmp-sockets {
+  font-size: 14px;
+}
+.cmp-sockets.up {
+  color: var(--good);
+}
+.cmp-sockets.dn {
+  color: var(--bad);
+}
+
+/* ─── Экипировка C — «компакт» ─────────────────────────────────────── */
+
+.gv-verdict {
+  margin-left: auto;
+  font-size: 16px;
+  cursor: help;
+}
+.gv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.prop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 6px 0 4px;
+  border: 1px solid var(--border);
+  background: #0e0e18;
+  font-size: 16px;
+  line-height: 1;
+  cursor: help;
+  white-space: nowrap;
+}
+.prop-chip.perk {
+  color: #ff9f6b;
+}
+.prop-chip.affix {
+  color: #c9d0ff;
+}
+.prop-chip.off {
+  color: #77778f;
+  text-decoration: line-through;
+}
+.gv-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 15px;
+  cursor: help;
+}
+
+/* ─── Плитка консоли в вариантах карточек ───────────────────────────── */
+
+.gear-tile.gtv {
+  gap: 5px;
+  padding: 6px 10px;
+}
+.gtv-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.gtv .gv-icon {
+  width: 28px;
+  height: 28px;
+}
+.gtv-name {
+  font-size: 20px;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gtv-stat {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 20px;
+  color: #fff;
+  flex: none;
+  cursor: help;
+}
+.gtv-props {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gtv .prop-row {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gtv .prop-row.dim {
+  color: #66668a;
+}
+.sock .sock-glyph {
+  width: 28px;
+  flex: none;
+  text-align: center;
+  font-size: 17px;
+}
+
+/* ─── Узкие карточки торговца в вариантах ───────────────────────────── */
+
+.shop .av-desc,
+.shop .avb-desc,
+.shop .avc-desc {
+  font-size: 15px;
+}
+.shop .av-name,
+.shop .avb-name,
+.shop .avc-name,
+.shop .gv-name {
+  font-size: 18px;
+}
+.shop .big-stat b {
+  font-size: 24px;
+}
+.shop .gv .prop-row {
+  font-size: 14px;
+}
+
+/* Узкая колонка торговца: дельты уходят под крупное число, а не сжимают его. */
+.shop .gv-main {
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+.shop .gv-deltas {
+  max-width: none;
+  margin-left: 0;
+  justify-content: flex-start;
+}
+/* Ключевая вещь архетипа ломает правило за цену — тонкая золотая кромка внутри рамки. */
+.art-card.av.keystone {
+  box-shadow: inset 0 0 0 1px #ffd16688;
+}
+
+/* ─── Прототипы v0.50: превью героя (heroSelectVariants.ts) ─────────── */
+
+.hero-preview.hsv {
+  gap: 8px;
+  padding: 10px 16px 12px;
+}
+.hsv-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+.hsv-header .hero-sprite,
+.hsv-header .sprite {
+  flex: none;
+}
+.hsv-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.hsv-name {
+  font-size: 32px;
+  line-height: 1;
+  color: var(--accent);
+}
+.hsv-role {
+  font-size: 17px;
+  line-height: 1.12;
+}
+/* Вкладки: активная сливается с полем под ней, неактивные — приглушены. */
+.hsv-tabs {
+  display: flex;
+  gap: 4px;
+  flex: none;
+  border-bottom: 2px solid var(--border);
+}
+.hsv-tab {
+  font: inherit;
+  font-size: 19px;
+  color: var(--dim);
+  background: transparent;
+  border: 2px solid transparent;
+  border-bottom: none;
+  margin-bottom: -2px;
+  padding: 2px 14px 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.hsv-tab:hover {
+  color: var(--text);
+}
+.hsv-tab.active {
+  color: var(--accent);
+  background: var(--panel-2);
+  border-color: var(--border);
+  border-bottom: 2px solid var(--panel-2);
+}
+.hsv-body {
+  flex: 1;
+  min-height: 0;
+}
+.hsv-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: auto;
+}
+.hsv-start {
+  margin-left: auto;
+  flex: none;
+}
+.hsv-label {
+  font-size: 15px;
+  color: var(--dim);
+}
+/* Статы плитками: иконка, число, подпись. */
+.hsv-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.hsv-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #121220;
+  border: 2px solid #2c2c44;
+  cursor: help;
+}
+.hsv-stat-body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+.hsv-stat b {
+  font-size: 23px;
+  color: #fff;
+  font-weight: inherit;
+  white-space: nowrap;
+}
+.hsv-stat small {
+  font-size: 14px;
+  color: var(--dim);
+}
+.hsv-stats.compact {
+  gap: 4px;
+}
+.hsv-stats.compact .hsv-stat {
+  padding: 2px 5px;
+  gap: 5px;
+}
+.hsv-stats.compact .hsv-stat b {
+  font-size: 19px;
+}
+/* Владение: своё ярко, чужое тускло и зачёркнуто. */
+.hsv-prof {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hsv-prof-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.hsv-prof-row .hsv-label {
+  width: 58px;
+}
+.prof-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 6px 0 4px;
+  border: 1px solid var(--border);
+  background: #0e0e18;
+  font-size: 16px;
+  cursor: help;
+}
+.prof-chip.yes {
+  color: #d6f0da;
+  border-color: #3d6b46;
+}
+.prof-chip.no {
+  color: #5c5c7a;
+  text-decoration: line-through;
+}
+.prof-chip.no .ui-icon {
+  opacity: 0.45;
+}
+.hsv-gear {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hsv-gear-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  cursor: help;
+}
+.hsv-gear-row b {
+  color: #fff;
+  font-weight: inherit;
+}
+.hsv-gear-perk {
+  color: #ff9f6b;
+  font-size: 15px;
+}
+.hsv-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 18px;
+}
+.hsv-hero-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 10px;
+}
+/* Выбор на старт карточками (A, C): строка на группу, подпись слева, два варианта. */
+.hsv-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+}
+.hsv-choice-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+.hsv-choice-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  font-size: 18px;
+  color: var(--accent);
+}
+.hsv-choice-label small {
+  font-size: 14px;
+  line-height: 1.05;
+  color: var(--dim);
+}
+.hsv-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 4px 8px 5px;
+  background: var(--panel-2);
+  border: 2px solid var(--border);
+  cursor: pointer;
+  transition: border-color 90ms;
+}
+.hsv-option:hover:not(.locked) {
+  border-color: #7a7aa8;
+}
+.hsv-option.selected {
+  border-color: var(--accent);
+  background: #262111;
+  box-shadow: 0 0 10px #ffd16633;
+}
+.hsv-option.locked {
+  cursor: help;
+  border-style: dashed;
+  background: #151522;
+}
+.hsv-option-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 18px;
+  line-height: 1.05;
+}
+.hsv-option-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hsv-option.selected .hsv-option-title {
+  color: var(--accent);
+}
+.hsv-option.locked .hsv-option-title {
+  color: #8a8aa8;
+}
+.hsv-option-mark {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 14px;
+  color: var(--good);
+}
+.hsv-option-lock {
+  margin-left: auto;
+  flex: none;
+  font-size: 14px;
+  color: #b09a5a;
+}
+.hsv-option-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.hsv-option-params .param {
+  height: 20px;
+  font-size: 15px;
+}
+.hsv-option-text {
+  font-size: 15px;
+  line-height: 1.1;
+}
+.hsv-option.locked .hsv-option-text {
+  color: #77778f;
+}
+.hsv-option.locked .num {
+  color: inherit;
+}
+.hsv-glyph {
+  width: 18px;
+  flex: none;
+  text-align: center;
+  font-size: 18px;
+  color: var(--accent);
+}
+/* Выбор переключателями (B): сегменты, описание только у выбранного. */
+.hsv-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.hsv-toggle-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hsv-toggle-head {
+  font-size: 16px;
+  color: var(--accent);
+}
+.hsv-toggle-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.seg {
+  display: flex;
+  gap: 4px;
+}
+.seg-opt {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 16px;
+  padding: 1px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text);
+  background: #0e0e18;
+  border: 2px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.seg-opt.selected {
+  color: var(--accent);
+  background: #262111;
+  border-color: var(--accent);
+}
+.seg-opt.locked {
+  color: #66668a;
+  border-style: dashed;
+  cursor: help;
+}
+.hsv-toggle-text {
+  font-size: 15px;
+  line-height: 1.1;
+}
+.hsv-b .hsv-cols {
+  flex: 1;
+  min-height: 0;
+  align-items: start;
+}
+.hsv-col {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+/* Полоса мастерства с пятью ступенями (подвал A и B). */
+.hsv-mastery-strip {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: help;
+}
+.hsv-mastery-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 17px;
+  color: var(--accent);
+}
+.hsv-rungs {
+  display: flex;
+  align-items: center;
+}
+.hsv-rung {
+  display: flex;
+  align-items: center;
+}
+.hsv-rung-line {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: #3a3a5a;
+}
+.hsv-rung.on .hsv-rung-line {
+  background: var(--accent);
+}
+.hsv-rung > .ui-icon {
+  box-sizing: content-box;
+  padding: 3px;
+  border: 2px solid #3a3a5a;
+  background: #0e0e18;
+}
+.hsv-rung.on > .ui-icon {
+  border-color: var(--accent);
+}
+.hsv-rung.next > .ui-icon {
+  border-color: #b09a5a;
+  border-style: dashed;
+}
+.hsv-mastery-next {
+  font-size: 14px;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Вкладка «Мастерство» (C): лестница уровней. */
+.hsv-mastery {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+}
+.hsv-mastery-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 19px;
+}
+.hsv-mastery-top .mastery-bar {
+  flex: 1;
+  height: 8px;
+  margin: 0;
+}
+.hsv-mastery-level {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+}
+.hsv-mastery-how {
+  font-size: 15px;
+  color: var(--dim);
+}
+.hsv-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hsv-ladder-row {
+  display: grid;
+  grid-template-columns: 18px 18px 200px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px;
+  background: #121220;
+  border: 2px solid #2c2c44;
+  font-size: 18px;
+  color: #77778f;
+}
+.hsv-ladder-row.on {
+  color: var(--text);
+  border-color: #3d6b46;
+}
+.hsv-ladder-row.next {
+  color: var(--text);
+  border-color: #b09a5a;
+  border-style: dashed;
+}
+.hsv-ladder-lvl {
+  text-align: center;
+  color: var(--accent);
+}
+.hsv-ladder-what {
+  color: #ffd98a;
+}
+.hsv-ladder-row:not(.on) .hsv-ladder-what {
+  color: #9a9ab0;
+}
+.hsv-ladder-need {
+  font-size: 15px;
+  color: var(--dim);
+}
+.hsv-ladder-row.on .hsv-ladder-need {
+  color: var(--good);
+}
+.hsv-loadout {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 18px;
+  cursor: help;
+}
+.hsv-loadout > span:not(.sep) {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* v0.50: столбцы вкладки «Герой» — владение шире, снаряжение уже; в B левая колонка шире правой. */
+.hsv-hero-tab .hsv-cols {
+  grid-template-columns: 1.25fr 1fr;
+}
+.hsv-b .hsv-cols {
+  grid-template-columns: 1.15fr 1fr;
+}
+.hsv-stats.compact .hsv-stat small {
+  white-space: nowrap;
+}
+.prof-chip.no {
+  padding: 0 4px;
+}
+.hsv-hero-tab .hsv-loadout {
+  font-size: 17px;
+}
+.hsv-loadout .ui-icon {
+  margin-right: 4px;
+}

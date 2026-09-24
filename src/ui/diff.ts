@@ -78,6 +78,52 @@ export function gearDiff(run: RunState, gear: GearInstance): GearDiff {
 }
 
 
+/** Строка сравнения с надетым для прототипов карточек (v0.50): стат, было, станет и знак разницы. */
+export interface CompareRow {
+  key: string;
+  name: string;
+  before: string;
+  after: string;
+  /** 1 — лучше, −1 — хуже, 0 — поровну. */
+  dir: number;
+  /** Короткая дельта для чипа: «+2 DEF», «урон». */
+  delta: string;
+}
+
+export interface GearCompare {
+  rows: CompareRow[];
+  /** Имена артефактов, которым в новом предмете не хватит сокета. */
+  overflow: string[];
+  slotsBefore: number;
+  slotsAfter: number;
+}
+
+/**
+ * Сравнение предмета с надетым по тем же статам, что и дельты: урон и DEF/HP всегда (для своего вида предмета), прочие — если меняются.
+ * Урон — кубик в руках героя без Силы, как крупное число на карточке; Сила — своей строкой.
+ */
+export function gearCompare(run: RunState, gear: GearInstance): GearCompare {
+  const def = heroDef(run.hero.defId);
+  const p = previewGearSwap(def, run.hero, gear);
+  const b = p.before;
+  const a = p.after;
+  const rows: CompareRow[] = [];
+  const num = (key: string, name: string, vb: number, va: number, fmt = (v: number) => `${v}`, always = false) => {
+    if (!always && Math.abs(va - vb) < 1e-9) return;
+    const d = va - vb;
+    rows.push({ key, name, before: fmt(vb), after: fmt(va), dir: Math.sign(d), delta: Math.abs(d) < 1e-9 ? '' : `${d > 0 ? '+' : '−'}${fmt(Math.abs(d))} ${name}` });
+  };
+  if (gear.kind === 'weapon') {
+    const sb = b.dmgMin + b.dmgMax;
+    const sa = a.dmgMin + a.dmgMax;
+    rows.push({ key: 'dmg', name: 'урон', before: `${b.dmgMin}–${b.dmgMax}`, after: `${a.dmgMin}–${a.dmgMax}`, dir: Math.sign(sa - sb), delta: sa === sb ? '' : 'урон' });
+  }
+  num('def', 'DEF', b.def, a.def, undefined, gear.kind === 'armor');
+  num('hp', 'HP', b.maxHp, a.maxHp, undefined, gear.kind === 'armor');
+  for (const x of EXTRA) num(x.key, x.name, b[x.key], a[x.key], x.pct ? (v) => `${Math.round(v * 100)} %` : undefined);
+  return { rows, overflow: p.overflow.map((x) => artifactDef(x.id).name), slotsBefore: p.slotsBefore, slotsAfter: p.slotsAfter };
+}
+
 /** Строки дельт для карточки: статы и, если есть, «не поместится». */
 export function gearDiffLines(run: RunState, gear: GearInstance): HTMLElement[] {
   const d = gearDiff(run, gear);

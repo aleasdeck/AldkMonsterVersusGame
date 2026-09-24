@@ -11,6 +11,7 @@ import { HERO_MASTERY, MASTERY_LEVELS, UNLOCK_LEVEL, nextLevelXp, nextUnlockText
 import { baseOf } from '../../data/gear';
 import type { HeroDef } from '../../engine/types';
 import type { App } from '../app';
+import { heroPreviewVariant } from './heroSelectVariants';
 
 /** Число — как есть, любая другая строка — хэш; пусто — случайный сид. */
 function parseSeed(raw: string): number | undefined {
@@ -192,6 +193,6 @@ export function heroSelectScreen(app: App): HTMLElement {
       h('span', { class: 'title-sm' }, 'Выбор героя'),
       h('label', { class: 'seed-label' }, 'Сид: ', seedInput),
     ),
-    h('div', { class: 'body' }, h('div', { class: 'hero-grid' }, ...HERO_LIST.map((d) => heroTile(app, d))), heroPreview(app, def)),
+    h('div', { class: 'body' }, h('div', { class: 'hero-grid' }, ...HERO_LIST.map((d) => heroTile(app, d))), heroPreviewVariant(app, def, parseSeed) ?? heroPreview(app, def)),
   );
 }

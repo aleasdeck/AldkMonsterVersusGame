@@ -26,7 +26,7 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
   const def = heroDef(run.hero.defId);
   return [
     pickable(
-      gearCard(ev.gear, { def, deltas: gearDiffLines(run, ev.gear), footer: button('Надеть', () => app.takeChest(), { class: 'primary', disabled: !!run.pending }) }),
+      gearCard(ev.gear, { def, run, deltas: gearDiffLines(run, ev.gear), footer: button('Надеть', () => app.takeChest(), { class: 'primary', disabled: !!run.pending }) }),
       run.pending ? undefined : () => app.takeChest(),
     ),
   ];

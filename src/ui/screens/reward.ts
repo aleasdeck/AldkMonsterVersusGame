@@ -59,14 +59,14 @@ export function rewardScreen(app: App): HTMLElement {
       // Заметка только про слияние с уже стоящим артефактом; дельт у артефакта нет — они повторяли бы описание.
       const note = artifactMergeNote(run, item.artifact);
       return pickable(
-        artifactCard(item.artifact, button('Взять', () => app.takeReward(i), { class: 'primary' }), note ? h('div', { class: 'note' }, note) : null),
+        artifactCard(item.artifact, button('Взять', () => app.takeReward(i), { class: 'primary' }), note ? h('div', { class: 'note' }, note) : null, run),
         () => app.takeReward(i),
       );
     }
     if (item.kind === 'potion') {
       return pickable(potionCard(item.potion, button('Взять', () => app.takeReward(i), { class: 'primary' }), potionReplaceNote(run)), () => app.takeReward(i));
     }
-    return pickable(gearCard(item.gear, { def, deltas: gearDiffLines(run, item.gear), footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i));
+    return pickable(gearCard(item.gear, { def, run, deltas: gearDiffLines(run, item.gear), footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i));
   });
 
   const rerollErr = canReroll(run);
