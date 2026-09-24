@@ -6,6 +6,7 @@ import { enemyDef } from '../src/data/enemies';
 import { heroDef } from '../src/data/heroes';
 import { addArtifact, socketRefs } from '../src/engine/equipment';
 import type { RunState } from '../src/engine/types';
+import { planTurn } from './sim/bot';
 
 /** Забег ровно перед клеткой события, где сидит вор. */
 function gnomeRun(seed = 1, heroId = 'warrior'): RunState {
@@ -175,6 +176,22 @@ describe('гном-вещекрад', () => {
     finishBattle(run);
     expect(run.event).toMatchObject({ kind: 'gnome_art', result: 'slain', artifact: stolen });
     expect(socketRefs(run.hero).some((s) => s.art?.id === stolen.id)).toBe(true);
+  });
+
+  it('кража в пробном ходе бота не трогает статы настоящего героя (v0.51)', () => {
+    // Бот считает ходы на копиях боя, а статы героя у копий общие с настоящим: вещекрад в пробном ходе врагов срезал
+    // прибавку артефакта с настоящего героя, и так на каждом переборе — бот бил вора на 0, а блок уходил в минус тысячи.
+    const run = snatcherRun();
+    const b = run.battle!;
+    const before = { ...b.hero.stats };
+    planTurn(b, run.rng);
+    expect(b.hero.stats).toEqual(before);
+    // Настоящая кража снимает прибавку, но новым объектом статов — старый (общий с копиями) цел.
+    const old = b.hero.stats;
+    passTurn(run);
+    expect(b.stolenArtifact).not.toBeNull();
+    expect(old).toEqual(before);
+    expect(b.hero.stats).not.toBe(old);
   });
 
   it('пустые сокеты — вор уходит ни с чем, ставки нет', () => {

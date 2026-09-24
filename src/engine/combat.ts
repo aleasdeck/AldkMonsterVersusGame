@@ -2156,11 +2156,16 @@ function stripArtifactMods(state: BattleState, art: ArtifactInstance): void {
   // Моды бывают и у приёма («Оглушающий удар» несёт крит по оглушённым): снимаем у любого, у кого они есть.
   if (!def.mods) return;
   const mods = def.mods(art.tier);
-  for (const key of Object.keys(mods) as (keyof DerivedStats)[]) h.stats[key] -= mods[key] ?? 0;
+  // Статы — новым объектом, а не правкой на месте (v0.51): копии боя, на которых бот считает ходы, делят объект статов
+  // с настоящим боем, и кража в пробном ходе врагов срезала прибавку с настоящего героя — на каждом переборе заново
+  // (крит уходил в 0, шипы и «Резонанс» в минус, бот бил вора на 0 и получал тысячи урона сквозь отрицательный блок).
+  const stats = { ...h.stats };
+  for (const key of Object.keys(mods) as (keyof DerivedStats)[]) stats[key] -= mods[key] ?? 0;
   // Те же границы, что в computeStats: шанс крита 0..1, крит-урон не ниже 100 %, усталость не выше 1.
-  h.stats.crit = Math.min(1, Math.max(0, h.stats.crit));
-  h.stats.critDmg = Math.max(100, h.stats.critDmg);
-  h.stats.fatigue = Math.min(1, h.stats.fatigue);
+  stats.crit = Math.min(1, Math.max(0, stats.crit));
+  stats.critDmg = Math.max(100, stats.critDmg);
+  stats.fatigue = Math.min(1, stats.fatigue);
+  h.stats = stats;
   h.maxHp = h.stats.maxHp;
   h.maxMp = h.stats.maxMp;
   h.maxSta = h.stats.sta;
