@@ -4598,20 +4598,25 @@ p {
   color: #fff3c4;
   font-weight: inherit;
 }
-/* C: на вкладке «Герой» владение одно под статами — чипы крупнее, в размер плиток статов. */
+/* C: на вкладке «Герой» владение стоит в той же сетке, что плитки статов (4 колонки, тот же зазор): подпись в первой колонке,
+   три типа — под остальными. Все шесть плашек одной ширины и встают столбиками, без лесенки (просьба пользователя). */
 .hsv-c .hsv-hero-tab .hsv-prof {
-  gap: 8px;
+  gap: 6px;
 }
 .hsv-c .hsv-hero-tab .hsv-prof-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
 .hsv-c .hsv-hero-tab .hsv-prof-row .hsv-label {
-  width: 72px;
+  width: auto;
+  align-self: center;
   font-size: 17px;
 }
 .hsv-c .hsv-hero-tab .prof-chip {
-  height: 30px;
-  padding: 0 10px 0 7px;
-  gap: 6px;
+  height: 32px;
+  min-width: 0;
+  padding: 0 10px 0 9px;
+  gap: 7px;
   font-size: 18px;
 }
