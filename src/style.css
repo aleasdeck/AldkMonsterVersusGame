@@ -4795,3 +4795,8 @@ p {
   color: inherit;
   border-bottom-color: transparent;
 }
+/* Пассивка без таблицы: описание отделено от шапки той же пунктирной чертой, что таблица у приёма и у предмета. */
+.avd .gv-head + .avd-desc {
+  border-top: 1px dotted #33334d;
+  padding-top: 4px;
+}
