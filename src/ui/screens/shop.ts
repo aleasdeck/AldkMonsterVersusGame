@@ -7,11 +7,12 @@ import { artifactCard, gearCard, potionCard } from '../cards';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
+import { paramTip, whyTip } from '../tips';
 import type { App } from '../app';
 
 /** Кнопка покупки: «Купить 5 ◉» без «за» — в четырёх узких колонках каждое слово на счету; причина недоступности — в подсказке. */
 function buyButton(cost: number, err: string | null, onclick: () => void): HTMLElement {
-  return button(h('span', null, `Купить ${cost} `, coin()), onclick, { class: 'primary', disabled: !!err, tip: err ?? undefined });
+  return button(h('span', null, `Купить ${cost} `, coin()), onclick, { class: 'primary', disabled: !!err, tip: err ? whyTip(err) : undefined });
 }
 
 /** Карточка проданного товара: место остаётся, чтобы ряд не прыгал. */
@@ -65,7 +66,9 @@ export function shopScreen(app: App): HTMLElement {
       button('Уйти', () => app.leaveShop(), { class: 'primary', disabled: !!run.pending }),
       button(h('span', null, `Перебросить за ${REROLL_COST} `, coin()), () => app.shopReroll(), {
         disabled: !!rerollErr,
-        tip: rerollErr ?? 'Завезти новый товар: обновятся все три места, даже раскупленные, и лекарь снова примет. Один раз за визит.',
+        tip: rerollErr
+          ? whyTip(rerollErr)
+          : paramTip({ glyph: '↻' }, 'Переброс', 'Завезти новый товар: обновятся все три места, даже раскупленные, и лекарь снова примет', { color: 'var(--accent)', note: 'Один раз за визит' }),
       }),
     ),
   );

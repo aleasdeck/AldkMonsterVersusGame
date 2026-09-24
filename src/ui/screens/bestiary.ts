@@ -5,9 +5,24 @@ import { describeAction, type ActionScale } from '../../engine/combat';
 import { enemySprite as spriteImg } from '../enemySprite';
 import { enemySize } from '../characterSize';
 import type { EnemyDef, LocationId } from '../../engine/types';
+import { paramTip } from '../tips';
+import type { TipFn } from '../dom';
 import type { App } from '../app';
 
 const RANK_NAMES: Record<EnemyDef['rank'], string> = { normal: 'Рядовой', elite: 'Элита', boss: 'Босс' };
+
+/** Цвет ранга — тот же, что у рамки плитки и строки ранга в записи; рядовой — без своего цвета. */
+const RANK_COLORS: Record<EnemyDef['rank'], string | undefined> = { normal: undefined, elite: '#b388ff', boss: '#ff6b6b' };
+
+/** Подсказка плитки альбома: имя цветом ранга, ранг и роль под именем; не встреченный — замок и когда откроется. */
+function tileTip(def: EnemyDef, open: boolean): TipFn {
+  if (!open) return paramTip('lock', 'Ещё не встречен', 'Запись откроется, когда этот враг появится в бою — сам, по призыву или отделившись от другого');
+  return paramTip(null, def.name, undefined, {
+    color: RANK_COLORS[def.rank],
+    sub: [RANK_NAMES[def.rank], def.role ? `${ROLE_INFO[def.role].icon} ${ROLE_INFO[def.role].name}` : null, locationDef(def.location).name],
+    action: 'Клик — открыть запись',
+  });
+}
 
 /** В альбоме вся шкала уменьшена пропорционально, стопы стоят на нижнем краю слота. */
 function portrait(def: EnemyDef, box: number, cls = ''): HTMLElement {
@@ -29,7 +44,7 @@ function enemyTile(app: App, def: EnemyDef, open: boolean, selected: boolean): H
     'div',
     {
       class: `beast-tile rank-${def.rank} ${open ? '' : 'locked'} ${selected ? 'selected' : ''}`,
-      tip: open ? `${def.name} · ${RANK_NAMES[def.rank]}` : 'Ещё не встречен',
+      tip: tileTip(def, open),
       onclick: () => app.bestiarySelect(def.id),
     },
     portrait(def, 48, open ? '' : 'silhouette'),
@@ -143,7 +158,7 @@ export function bestiaryScreen(app: App): HTMLElement {
     return button(
       h('span', null, l.name, h('span', { class: 'beast-tab-count' }, `${open}/${own.length}`)),
       () => app.showBestiary(l.id),
-      { class: `small beast-tab ${l.id === loc ? 'selected' : ''}`, tip: l.desc },
+      { class: `small beast-tab ${l.id === loc ? 'selected' : ''}`, tip: paramTip(null, l.name, l.desc, { aside: `${open}/${own.length}`, sub: ['локация'] }) },
     );
   });
 

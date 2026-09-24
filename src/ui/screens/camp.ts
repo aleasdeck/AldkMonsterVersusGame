@@ -1,8 +1,8 @@
 import { button, h } from '../dom';
-import { artifactDef, artifactFullText } from '../../data/artifacts';
+import { artifactDef } from '../../data/artifacts';
 import { upgradableSockets } from '../../engine/equipment';
 import { campHealAmount, currentLocation, heroStats } from '../../engine/run';
-import { artifactChip, pickable } from '../components';
+import { artifactChip, artifactTip, pickable } from '../components';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
@@ -43,11 +43,9 @@ export function campScreen(app: App): HTMLElement {
             const art = s.art!;
             const def = artifactDef(art.id);
             const nextTier = (art.tier + 1) as ArtTier;
-            const tip = `Сейчас: ${artifactFullText(def, art.tier)}\nСтанет: ${artifactFullText(def, nextTier)}`;
-            const tipTitle = `${def.name}, тир ${art.tier} → ${nextTier}`;
             return h(
               'div',
-              { class: 'forge-row', tip, tipTitle },
+              { class: 'forge-row', tip: artifactTip(art, { upgrade: true }) },
               artifactChip(s.art),
               h('span', { class: 'forge-name' }, def.name),
               h('span', { class: 'forge-tier' }, `${art.tier} → ${nextTier}`),
