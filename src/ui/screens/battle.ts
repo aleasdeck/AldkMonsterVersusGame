@@ -5,7 +5,7 @@ import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
@@ -301,6 +301,10 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return [`${e.amount}`, h('small', null, 'вдогонку')];
       case 'enchant':
         return [statusIcon('enchant', 18), ` ${e.value}`];
+      case 'amplify':
+        return [statusIcon(e.status, 18), ` ×${e.mult}`];
+      case 'blockBurst':
+        return [range ? rangeText(range) : '0', h('small', null, 'всем')];
       default:
         continue;
     }
@@ -410,7 +414,10 @@ export function actionSpecs(app: App): TileSpec[] {
     const rangeOn = (t?: number): DamageRange | null => {
       const e = t === undefined ? undefined : findEnemy(b, t);
       if (atkEff && atkEff.type === 'attack') {
-        const r = atkRangeOn(atkEff.bonus, atkEff.mult ?? 1, !!atkEff.sureCrit, t, atkEff.lowHp);
+        // Око за око и Кара (v0.47): прибавка от хода боя; Раскол — множитель по оцепеневшей цели.
+        const extra = attackExtra(b.hero, atkEff);
+        const shatter = atkEff.vsFrozen && e && e.statuses.some((st) => st.id === 'frozen') ? atkEff.vsFrozen : 1;
+        const r = atkRangeOn(atkEff.bonus + extra.revenge + extra.smite, (atkEff.mult ?? 1) * shatter, !!atkEff.sureCrit, t, atkEff.lowHp);
         // Вскрытие: удар плюс взрыв крови на цели — на плитке только удар, по цели вместе.
         if (detEff && detEff.type === 'detonate' && e) {
           const burst = Math.floor(remainingDot(e, detEff.statuses) * detEff.mult);
@@ -438,6 +445,12 @@ export function actionSpecs(app: App): TileSpec[] {
         return { min: dmg, max: dmg };
       }
       if (chainEff && chainEff.type === 'chain') return { min: chainEff.amount, max: chainEff.amount };
+      const burstEff = effects.find((x) => x.type === 'blockBurst');
+      if (burstEff && burstEff.type === 'blockBurst') {
+        // Обвал щита: доля всего блока каждому врагу.
+        const dmg = Math.floor(b.hero.block * burstEff.pct);
+        return { min: dmg, max: dmg };
+      }
       if (scorchEff && scorchEff.type === 'scorch') {
         // Испепеление: Горение цели × mult, мимо блока; на плитке — по первому горящему.
         const tgt = e ?? b.enemies.find((x) => x.statuses.some((st) => st.id === 'burn'));

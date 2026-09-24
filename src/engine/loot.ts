@@ -131,7 +131,7 @@ const DUPLICATE_WEIGHT = 3;
 const SYNERGY_WEIGHT = 3;
 
 /** Проклятия, которые читает «Резонанс»: он платит за любое из них, поэтому дружит с любой заводкой. */
-const ALL_DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable'];
+const ALL_DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen'];
 
 /** Какие статусы артефакт вешает на врага и на каких у него выплата. */
 interface ArtifactStatuses {
@@ -163,14 +163,23 @@ function artifactStatuses(id: string): ArtifactStatuses {
   }
   if (m.poisonVuln) pays.add('poison');
   if (m.spellVsBurn) pays.add('burn');
-  if (m.stunCrit) pays.add('stun');
+  if (m.stunCrit) {
+    pays.add('stun');
+    pays.add('cold');
+  }
   if (m.perDebuff) for (const st of ALL_DEBUFFS) pays.add(st);
+  // Архетипы v0.47: заводки на ударе и выплаты по статусам.
+  if (m.onHitCold) applies.add('cold');
+  if (m.poisonAdd || m.poisonNoDecay || m.poisonWeaken) pays.add('poison');
+  if (m.coldAdd || m.frozenLong || m.freezeVuln) pays.add('cold');
   for (const e of def.effects?.(3) ?? []) {
     if (e.type === 'status' && e.target !== 'self') applies.add(e.status);
     // Стихийная заточка вешает случайную из трёх ран — заводит любую выплату по ранам.
     if (e.type === 'enchant') for (const st of ['bleed', 'burn', 'poison'] as StatusId[]) applies.add(st);
     if (e.type === 'detonate' || e.type === 'spread') for (const st of e.statuses) pays.add(st);
     if (e.type === 'scorch') pays.add('burn');
+    if (e.type === 'amplify') pays.add(e.status);
+    if (e.type === 'attack' && e.vsFrozen) pays.add('cold');
     if (e.type === 'spell' && e.vsWeak) pays.add('weak');
   }
   const out: ArtifactStatuses = { applies: [...applies], pays: [...pays] };
@@ -186,6 +195,7 @@ function heroApplies(hero: HeroPersistent, s: DerivedStats): Set<StatusId> {
   if (s.onHitPoison > 0) out.add('poison');
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
+  if (s.onHitCold > 0) out.add('cold');
   for (const id of heroArts(hero)) for (const st of artifactStatuses(id).applies) out.add(st);
   return out;
 }

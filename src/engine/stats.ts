@@ -121,6 +121,27 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     firstTurnHeal: 0,
     killThirst: 0,
     ambushStun: 0,
+    poisonAdd: 0,
+    poisonNoDecay: 0,
+    poisonWeaken: 0,
+    blockSkillAdd: 0,
+    blockToDmg: 0,
+    maxHpPct: 0,
+    thornsAll: 0,
+    hitStr: 0,
+    noHeal: 0,
+    healAdd: 0,
+    healMult: 0,
+    healSmite: 0,
+    momentum: 0,
+    noDefend: 0,
+    thirdFree: 0,
+    critOnlySure: 0,
+    critSta: 0,
+    onHitCold: 0,
+    coldAdd: 0,
+    frozenLong: 0,
+    freezeVuln: 0,
   };
   applyMods(s, weaponPerkMods(weapon, def));
   applyMods(s, armorPerkMods(armor, def));
@@ -143,6 +164,8 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
   s.fatigue = Math.min(1, s.fatigue);
   // Две ключевые вещи с минусом к удару не обнуляют его совсем.
   s.strikeMult = Math.max(-0.9, s.strikeMult);
+  // Минус к максимуму HP ключевой вещи («Бастион», «Обет», v0.47) — долей от всего набранного, но не ниже половины.
+  if (s.maxHpPct !== 0) s.maxHp = Math.max(1, Math.round(s.maxHp * Math.max(0.5, 1 + s.maxHpPct)));
   return s;
 }
 

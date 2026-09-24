@@ -39,6 +39,10 @@ const STATUS_STEMS: Record<StatusId, string> = {
   charge: 'заряд(?:а|ы|ов|ом|у|е)?',
   rage: 'ярост[а-яё]*',
   fury: 'неистовств[а-яё]*',
+  cold: 'холод(?:а|у|ом|е)?',
+  frozen: 'оцепен[а-яё]*',
+  focus: 'верн(?:ый|ого|ым) глаз(?:а|ом)?',
+  taunt: 'насмешк[а-яё]*',
 };
 
 const KEYWORDS: Keyword[] = [

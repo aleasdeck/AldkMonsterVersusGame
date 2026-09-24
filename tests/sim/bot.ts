@@ -488,6 +488,7 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
   if (s.stunOnCrit > 0) out.add('stun');
   if (s.spellIgniteAll > 0) out.add('burn');
   if (s.backstabPoison > 0) out.add('poison');
+  if (s.onHitCold > 0) out.add('cold');
   for (const art of heldArts(run, except)) {
     const def = artifactDef(art.id);
     for (const e of def.effects?.(art.tier) ?? []) {
@@ -509,12 +510,16 @@ function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
     if (m.dotLeech) out.add('bleed').add('poison');
     if (m.poisonVuln) out.add('poison');
     if (m.spellVsBurn) out.add('burn');
-    if (m.stunCrit) out.add('stun');
-    if (m.perDebuff) for (const id of ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable'] as StatusId[]) out.add(id);
+    if (m.stunCrit) out.add('stun').add('cold');
+    if (m.perDebuff) for (const id of ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold'] as StatusId[]) out.add(id);
+    if (m.poisonAdd || m.poisonNoDecay || m.poisonWeaken) out.add('poison');
+    if (m.coldAdd || m.frozenLong || m.freezeVuln) out.add('cold');
     for (const e of def.effects?.(art.tier) ?? []) {
       if (e.type === 'detonate' || e.type === 'spread') for (const id of e.statuses) out.add(id);
       if (e.type === 'spell' && e.vsWeak) out.add('weak');
       if (e.type === 'scorch') out.add('burn');
+      if (e.type === 'amplify') out.add(e.status);
+      if (e.type === 'attack' && e.vsFrozen) out.add('cold');
     }
   }
   return out;
@@ -616,7 +621,43 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.spellSta ?? 0) * (magic ? avg * s.fatigue * W.enemyHp * 3 : 0.3);
     v += (m.skillMp ?? 0) * (magic && hasPhysicalActive(run.hero, inst.id) ? W.mp * 3 : 0.2);
     // Крит по оглушённому: один-два удара за оглушение.
-    v += (m.stunCrit ?? 0) * avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5 * (def.kind === 'active' || applies.has('stun') ? 1 : 0.2);
+    v += (m.stunCrit ?? 0) * avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5 * (def.kind === 'active' || applies.has('stun') || applies.has('cold') ? 1 : 0.2);
+    // ── Архетипы v0.47 ──
+    const pays = heroPaysFor(run, inst.id);
+    const onHit = (st: StatusId) => (pays.has(st) ? 1.5 : 1);
+    // Заводки на ударе (Зазубренное лезвие, Тлеющий и Отравленный клинок): рана с каждого удара, два тика, три хода боя.
+    v += (m.onHitBleed ?? 0) * s.sta * 5 * W.enemyHp * onHit('bleed');
+    v += (m.onHitBurn ?? 0) * s.sta * 5 * W.enemyHp * onHit('burn');
+    v += (m.onHitPoison ?? 0) * s.sta * 6 * W.enemyHp * onHit('poison');
+    const poisonApps = s.onHitPoison > 0 ? s.sta : 0.8;
+    v += (m.poisonAdd ?? 0) * poisonApps * 3 * 2 * W.enemyHp * src('poison');
+    // Бессрочный яд копится весь бой — примерно вдвое больше тиков.
+    v += (m.poisonNoDecay ?? 0) * poisonApps * 3 * 3 * W.enemyHp * src('poison');
+    // Отравленный бьёт слабее: доля среднего удара врага (около 8) за ход, яд висит две трети боя.
+    v += (m.poisonWeaken ?? 0) * 8 * 3 * 0.6 * 5 * src('poison');
+    v += (m.blockSkillAdd ?? 0) * 3 * 0.8;
+    v += (m.blockToDmg ?? 0) * 6 * s.sta * 3 * W.enemyHp;
+    v += (m.maxHpPct ?? 0) * s.maxHp * 0.7;
+    v += (m.thornsAll ?? 0) * (s.thorns + 1) * 2 * 0.8;
+    // «Мученик»: Сила копится с каждого пропущенного удара — к середине боя около +2.
+    v += (m.hitStr ?? 0) * 4 * 2;
+    const healPerFight = s.regen * 4 + s.lifesteal * s.sta * 3 + 6;
+    v -= (m.noHeal ?? 0) * healPerFight;
+    v += (m.healAdd ?? 0) * (2 + (s.regen > 0 ? 4 : 0) + (s.lifesteal > 0 ? s.sta * 3 : 0));
+    v += (m.healMult ?? 0) * healPerFight;
+    v += (m.healSmite ?? 0) * healPerFight * W.enemyHp;
+    v += (m.overhealBlock ?? 0) * 3;
+    // «Разгон»: за ход ударов sta прибавка m × (0 + 1 + … + sta−1).
+    v += (m.momentum ?? 0) * ((s.sta * (s.sta - 1)) / 2) * 3 * W.enemyHp;
+    v -= (m.noDefend ?? 0) * defendBlock(s) * 1.5;
+    v += (m.thirdFree ?? 0) * (s.sta >= 3 ? avg * s.fatigue ** 2 * W.enemyHp * 3 : 0);
+    v -= (m.critOnlySure ?? 0) * s.crit * avg * (s.critDmg / 100 - 1) * 12;
+    v += (m.critSta ?? 0) * Math.min(1, s.crit * s.sta + 0.2) * avg * W.enemyHp * 3;
+    // Холод: три — ход врага пропущен (около шести HP героя); удары приносят его по лимиту за ход.
+    v += (m.onHitCold ?? 0) > 0 ? (Math.min(m.onHitCold ?? 0, s.sta) * 4 * 6) / 3 : 0;
+    v += (m.coldAdd ?? 0) * 3 * src('cold');
+    v += (m.frozenLong ?? 0) * 6 * src('cold');
+    v += (m.freezeVuln ?? 0) * avg * (VULNERABLE_MULT - 1) * s.sta * 2 * W.enemyHp * src('cold');
     return v;
   }
 }
@@ -646,6 +687,18 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         // «Добивание»: возврат стамины срабатывает примерно на каждом третьем ударе; прибавка по раненому — на каждом третьем тоже.
         if (e.refundOnKill) per += e.refundOnKill * avg * s.fatigue * W.enemyHp * 0.35;
         if (e.lowHp) per += e.lowHp.bonus * W.enemyHp * 0.35;
+        // Око за око — около шести полученных за ход врагов; Кара — около трёх вылеченных за ход; Раскол — по оцепеневшему.
+        if (e.revenge) per += 6 * e.revenge * W.enemyHp;
+        if (e.smite) per += (s.regen + 3) * e.smite * W.enemyHp;
+        if (e.vsFrozen) per += avg * (e.vsFrozen - 1) * W.enemyHp * (applies.has('cold') || s.onHitCold > 0 ? 0.5 : 0.1);
+        break;
+      case 'amplify':
+        // Катализатор: яд на цели (при заводке около четырёх) растёт на (mult−1), тикает ещё около трёх ходов.
+        per += (applies.has(e.status) ? 4 : 0.5) * (e.mult - 1) * 3 * W.enemyHp;
+        break;
+      case 'blockBurst':
+        // Обвал щита: блок к моменту обвала — обычно «Защититься» и плащ; бьёт каждого.
+        per += (defendBlock(s) + s.blockTurn) * e.pct * 1.8 * W.enemyHp;
         break;
       case 'detonate': {
         // Взрыв ран: сколько раны ещё нанесли бы — при заводке в руках примерно два тика средней силы; по всем — суммой каждому.
@@ -724,6 +777,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           else if (e.status === 'echo') per += avg * W.enemyHp * 0.9;
           else if (e.status === 'regen') per += e.value * turns;
           else if (e.status === 'thorns') per += e.value * turns * 1.5;
+          else if (e.status === 'focus') per += avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5;
+          else if (e.status === 'taunt') per += (s.thorns + 2) * 2 + ((s.riposte / 100) * avg * W.enemyHp);
           else if (e.status === 'exhaust') per -= e.value * avg * W.enemyHp;
           else per += 2;
         } else {
@@ -731,6 +786,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           if (e.status === 'stun') per += 6 * many;
           else if (e.status === 'vulnerable') per += turns * avg * (VULNERABLE_MULT - 1) * many;
           else if (e.status === 'weak') per += turns * 2 * many;
+          // Холод: каждые три — пропущенный ход врага (около шести HP героя).
+          else if (e.status === 'cold') per += (e.value / 3) * 6 * many;
           else per += e.value * turns * W.enemyHp * many;
         }
         break;

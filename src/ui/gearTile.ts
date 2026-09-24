@@ -58,6 +58,10 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return `стихия ${e.value}`;
       case 'push':
         return 'толчок назад';
+      case 'amplify':
+        return `яд ×${e.mult}`;
+      case 'blockBurst':
+        return `блок ×${e.pct} всем`;
       default:
         continue;
     }

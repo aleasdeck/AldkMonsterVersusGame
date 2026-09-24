@@ -76,6 +76,16 @@ const LOCKED_LIST: { id: string; how: UnlockHow }[] = [
   { id: 'blood_bath', how: { kind: 'set', arch: 'blood' } },
   { id: 'blood_oath', how: { kind: 'boss', arch: 'blood' } },
   { id: 'incinerate', how: { kind: 'set', arch: 'fire' } },
+  // Фаза 6 (v0.47): по выплате за набор 3/3 и по ключевой вещи за босса с набором — у тех, чьи ключевые не в мастерстве героя.
+  { id: 'catalyst', how: { kind: 'set', arch: 'poison' } },
+  { id: 'shield_slam', how: { kind: 'set', arch: 'shield' } },
+  { id: 'eye_for_eye', how: { kind: 'set', arch: 'retribution' } },
+  { id: 'martyr', how: { kind: 'boss', arch: 'retribution' } },
+  { id: 'smite', how: { kind: 'set', arch: 'light' } },
+  { id: 'echo_strike', how: { kind: 'set', arch: 'series' } },
+  { id: 'steady_aim', how: { kind: 'set', arch: 'shadow' } },
+  { id: 'shatter', how: { kind: 'set', arch: 'cold' } },
+  { id: 'permafrost', how: { kind: 'boss', arch: 'cold' } },
   // Ключевые вещи героев — мастерством 3 (HERO_MASTERY), пока артефакта нет в данных, строки не появляется.
   ...Object.entries(HERO_MASTERY).map(([hero, m]) => ({ id: m.keystone, how: { kind: 'mastery', hero } as UnlockHow })),
 ];

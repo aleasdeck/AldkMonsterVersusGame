@@ -31,11 +31,12 @@ describe('артефакты и слоты', () => {
     expect(HERO_LIST.filter((d) => artifactDef(d.signatures[1]).slot === 'armor').map((d) => d.id)).toEqual(['warrior', 'paladin', 'berserk']);
   });
 
-  it('типы артефактов: 42 оружейных и 30 бронных, у каждого тип задан', () => {
+  it('типы артефактов: 51 оружейный и 41 бронный, у каждого тип задан', () => {
     const ids = Object.keys(ARTIFACTS);
     // v0.43: пилот архетипов — +4 оружейных (Зазубренное лезвие, Кровавая баня, Тлеющий клинок, Испепеление) и +3 бронных (Клятва крови, Жаропрочность, Пироман).
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(42);
-    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(30);
+    // v0.47: остальные архетипы — +9 оружейных и +11 бронных (все ключевые вещи бронные).
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'weapon').length).toBe(51);
+    expect(ids.filter((id) => ARTIFACTS[id].slot === 'armor').length).toBe(41);
   });
 
   it('сокет своего типа не принимает чужой артефакт, универсальный принимает любой', () => {

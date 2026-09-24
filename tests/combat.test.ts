@@ -28,7 +28,8 @@ const LEGACY_PAIR: Record<string, [string, string]> = {
   mage: ['fireball', 'mana_shield'],
   assassin: ['smoke_bomb', 'poison_vial'],
   paladin: ['heal', 'turtle_shell'],
-  berserk: ['war_cry', 'rage'],
+  // v0.47: Клич и Ярость оба из «Серии» — вместе давали бы набор 2/3 и сдвигали усталость во всех тестах Берсерка.
+  berserk: ['war_cry', 'cross_current'],
   archer: ['aimed_shot', 'crippling_shot'],
 };
 
@@ -297,7 +298,8 @@ describe('статусы', () => {
   it('шипы героя ранят атакующего', () => {
     const { state, rng } = mkBattle('warrior', ['wolf'], { extra: [{ id: 'thorns', tier: 2 }] });
     pass(state, rng);
-    expect(first(state).hp).toBe(12 - 2);
+    // Шипы второго тира — 4 (v0.47: 1/2/3 → 3/4/5).
+    expect(first(state).hp).toBe(12 - 4);
   });
 
   // Обратная сторона (шипы героя против блока врага) в игре недостижима: блок врага сгорает в начале его хода,
@@ -1179,7 +1181,8 @@ describe('v0.14: уязвимость и новые артефакты', () => {
     const p = mkBattle('paladin', ['bear'], { extra: [{ id: 'light_hammer', tier: 1 }] });
     p.state.hero.hp = 10;
     performAction(p.state, { type: 'artifact', artifactId: 'light_hammer', target: first(p.state).uid }, p.rng);
-    expect(p.state.hero.hp).toBe(12);
+    // Молот 2 + набор «Свет» 2 (Молот и Лечение из пары тестового Паладина, v0.47) — +1.
+    expect(p.state.hero.hp).toBe(13);
     expect(p.state.hero.sta).toBe(2);
     expect(p.state.hero.mp).toBe(5);
     expect(canUseAction(p.state, { type: 'artifact', artifactId: 'light_hammer', target: first(p.state).uid })).toMatch(/Перезарядка/);
@@ -1256,7 +1259,7 @@ describe('v0.33: вторые персональные артефакты', () =
     expect(getStatus(state.hero, 'regen')).toEqual({ id: 'regen', value: 2, turns: 3 });
     pass(state, rng);
     expect(bear.hp).toBe(35 - 2); // медведь бьёт Лапой — и ранится о шипы
-    expect(state.hero.hp).toBe(20 - 11 + 2); // Лапа 9 + Сила громилы 2, регенерация 2 в начале хода
+    expect(state.hero.hp).toBe(20 - 11 + 3); // Лапа 9 + Сила громилы 2; регенерация 2 + набор «Свет» 2 (Ореол и Лечение) 1
   });
 
   it('Боевой транс: Сила, лишняя стамина и гашение удара приходят только ниже половины HP', () => {
@@ -1269,7 +1272,8 @@ describe('v0.33: вторые персональные артефакты', () =
     state.hero.hp = 22; // ровно половина — ещё не транс
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(bear.hp).toBe(35 - 5);
-    expect(previewAttack(state)).toEqual({ min: Math.floor(5 * 0.85), max: Math.floor(5 * 0.85) });
+    // Усталость 0.85 + набор «Серия» 2 (Клич из пары и Транс, v0.47) 0.05.
+    expect(previewAttack(state)).toEqual({ min: Math.floor(5 * 0.9), max: Math.floor(5 * 0.9) });
     // Удар медведя по не раненому герою — без гашения: тот же первый удар в отдельном бою.
     const calm = mkBattle('berserk', ['bear'], { extra: [{ id: 'battle_trance', tier: 1 }] });
     calm.state.hero.hp = 22;
@@ -1277,7 +1281,7 @@ describe('v0.33: вторые персональные артефакты', () =
     const fullHit = 22 - calm.state.hero.hp;
     expect(fullHit).toBeGreaterThan(1);
     state.hero.hp = 21;
-    expect(previewAttack(state)).toEqual({ min: Math.floor(8 * 0.85), max: Math.floor(8 * 0.85) });
+    expect(previewAttack(state)).toEqual({ min: Math.floor(8 * 0.9), max: Math.floor(8 * 0.9) });
     pass(state, rng);
     // Раненому транс гасит единицу с удара; в начале хода 3 STA + 1 от транса.
     expect(state.hero.hp).toBe(21 - (fullHit - 1));
@@ -1359,7 +1363,8 @@ describe('лог боя', () => {
     const bear = first(state);
     bear.block = 2;
     performAction(state, { type: 'artifact', artifactId: 'hex' }, rng);
-    expect(state.log.at(-1)).toBe('Медведь: Уязвимость на 2 хода');
+    // v0.47: Сглаз — ещё и заводка Холода; с Подсечным выстрелом из пары тестового Воина набор «Холод» 2 даёт +1.
+    expect(state.log.slice(-2)).toEqual(['Медведь: Уязвимость на 2 хода', 'Медведь: Холод 2 до конца боя']);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     // меч 5 → уязвимость 6.25 → 6, блок 2 → 4 по HP
     expect(state.log.at(-1)).toBe('Герой бьёт Медведь: 5 (кубик 5) → 4 по HP (уязвимость ×1.25 = 6, блок −2)');
@@ -1482,8 +1487,9 @@ describe('v0.38: связки', () => {
     const [a, b] = state.enemies;
     performAction(state, { type: 'artifact', artifactId: 'poison_vial', target: b.uid }, rng);
     performAction(state, { type: 'artifact', artifactId: 'contagion', target: b.uid }, rng);
-    expect(getStatus(a, 'poison')).toEqual({ id: 'poison', value: 2, turns: 4 });
-    expect(getStatus(b, 'poison')).toEqual({ id: 'poison', value: 2, turns: 4 });
+    // Флакон 2 + набор «Яд» 2 (Флакон и Заражение, v0.47) 1.
+    expect(getStatus(a, 'poison')).toEqual({ id: 'poison', value: 3, turns: 4 });
+    expect(getStatus(b, 'poison')).toEqual({ id: 'poison', value: 3, turns: 4 });
     expect(state.hero.sta).toBe(0);
   });
 
@@ -1520,24 +1526,25 @@ describe('v0.38: связки', () => {
     expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 6, turns: 3 });
   });
 
-  it('Ледяной осколок бьёт вдвое по уже Слабой цели', () => {
+  it('Ледяной осколок (v0.47): урон и Холод; три Холода — Оцепенение, враг пропускает ход', () => {
     const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'ice_shard', tier: 1 }] });
     const boar = first(state);
     performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: boar.uid }, rng);
+    // 3 + сила заклинаний Мага 1
     expect(boar.hp).toBe(18 - 4);
-    expect(getStatus(boar, 'weak')).toEqual({ id: 'weak', value: 1, turns: 1 });
-    boar.intent = 'ram';
-    pass(state, rng);
-    // Слабость сгорела в конце хода кабана — второй осколок бьёт как первый; с ещё висящей — вдвое
+    expect(getStatus(boar, 'cold')).toEqual({ id: 'cold', value: 1, turns: -1 });
     expect(getStatus(boar, 'weak')).toBeUndefined();
-    performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: boar.uid }, rng);
-    expect(boar.hp).toBe(18 - 4 - 4);
+    boar.statuses.find((st) => st.id === 'cold')!.value = 2;
     boar.intent = 'ram';
     pass(state, rng);
-    boar.statuses.push({ id: 'weak', value: 1, turns: 2 });
     performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: boar.uid }, rng);
-    expect(boar.hp).toBe(18 - 4 - 4 - 8);
-    expect(state.log.some((l) => l.includes('по слабому ×2'))).toBe(true);
+    expect(getStatus(boar, 'cold')).toBeUndefined();
+    expect(getStatus(boar, 'frozen')).toEqual({ id: 'frozen', value: 1, turns: -1 });
+    const hp = state.hero.hp;
+    pass(state, rng);
+    expect(state.hero.hp).toBe(hp);
+    expect(getStatus(boar, 'frozen')).toBeUndefined();
+    expect(state.log.some((l) => l.includes('скован льдом'))).toBe(true);
   });
 
   it('Пролом щита: снимает блок цели и наносит его уроном; без блока недоступен', () => {
