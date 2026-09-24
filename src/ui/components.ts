@@ -1,26 +1,29 @@
-import { button, h } from './dom';
-import type { ArtTier, ArtifactInstance, Combatant, EnemyState, GearInstance, GearKind, GearTier, RunState, SlotKind, StatusId } from '../engine/types';
-import { statusIcon } from './icons';
+import { button, h, type Child, type Tip, type TipFn } from './dom';
+import type { ArtTier, ArtifactInstance, ArtifactSlot, Combatant, DerivedStats, EnemyState, GearInstance, GearKind, GearTier, RunState, SlotKind, Status, StatusId } from '../engine/types';
+import { STATUS_COLORS, statusIcon, uiIcon, uiIconColor, type UiIconId } from './icons';
 import { artifactCostText, artifactDef, artifactFullText } from '../data/artifacts';
 import { potionDef } from '../data/potions';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
-import { ART_TIER_COLORS, GEAR_TIERS, weaponReach, weaponReachTitle } from '../data/gear';
-import { collectibleLines, type Collectible, type FoundState } from '../data/collection';
+import { ART_TIER_COLORS, GEAR_TIERS, REACH_NAMES, weaponReach } from '../data/gear';
+import { type Collectible, type FoundState } from '../data/collection';
 import type { HeroDef } from '../engine/types';
 import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, canPlaceArtifact, findSameArtifact, gearOf, slotAccepts, slotKindAt, socketRefs } from '../engine/equipment';
-import { STATUS_HINTS, STATUS_NAMES, freezeAt, onDeathInfo } from '../engine/combat';
+import { STATUS_NAMES, freezeAt, onDeathInfo, type ActionPart, type IntentKind } from '../engine/combat';
 import type { App } from './app';
 import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
 import type { ArchetypeId } from '../engine/types';
 import { canPendingSmelt, smeltTargets } from '../engine/run';
-import { artifactCard, gearMiniHead } from './cards';
+import { LIVE_ICON, artTypeItems, artifactCard, gearMiniHead, restValue } from './cards';
+import { paramChip, useParams } from './cardParts';
+import { statusHint } from './keywords';
+import { paramTip, tierDiff, tipAction, tipChip, tipChips, tipHead, tipLines, tipNote, tipPips, tipSection, tipText, turnsWord, whyTip, type TipIcon, type TipLine, type Tone } from './tips';
 
 /** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
 /**
  * Полоска HP. Блок — наложением поверх заливки слева, шириной в долю максимума (первые N HP прикрыты),
  * и «(+N)» цветом щита в подписи; у героя и врагов одинаково.
  */
-export function bar(cls: string, cur: number, max: number, label = '', tip = '', block = 0): HTMLElement {
+export function bar(cls: string, cur: number, max: number, label = '', tip: Tip = '', block = 0): HTMLElement {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
   const blockPct = max > 0 ? Math.min(100, (block / max) * 100) : 0;
   return h(
@@ -33,6 +36,19 @@ export function bar(cls: string, cur: number, max: number, label = '', tip = '',
 }
 
 /**
+ * Подсказка полоски HP (v0.52): здоровье шапкой, блок — строкой со значком щита и тем, что он погасит.
+ * hero — полоска героя: его блок сгорает в начале следующего хода, а врагу подсказка напоминает, что щит держит и заклинания.
+ */
+export function hpTip(cur: number, max: number, block: number, hero: boolean): TipFn {
+  return () => [
+    tipHead({ icon: 'hp', title: 'Здоровье', color: uiIconColor('hp'), aside: h('b', { class: 'tip-val' }, `${cur}/${max}`) }),
+    block > 0
+      ? tipLines([{ icon: 'block', label: `Блок ${block}:`, text: hero ? `первые ${block} урона удара уйдут в него; сгорает в начале следующего хода` : `первые ${block} урона удара или заклинания уйдут в него` }])
+      : null,
+  ];
+}
+
+/**
  * Расходуемый ресурс: полоска во всю ширину, как HP, поделённая на секции —
  * по одному очку. Очки сверх максимума («Кольцо выносливости», «Второе дыхание»: 5/4)
  * дорисовываются своими секциями другого цвета — видно, что это бонус, а не база.
@@ -42,13 +58,13 @@ export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElemen
   const total = Math.max(cur, max);
   for (let i = 0; i < total; i++) segs.push(h('div', { class: `seg ${i < cur ? 'on' : ''} ${i >= max ? 'extra' : ''}` }));
   const label = kind === 'sta' ? 'STA' : 'MP';
-  const extra = cur > max ? ` (+${cur - max} сверх максимума)` : '';
-  return h(
-    'div',
-    { class: `bar bar-${kind}`, tip: `${kind === 'sta' ? 'Стамина' : 'Мана'} ${cur}/${max}${extra}` },
-    h('div', { class: 'segs' }, ...segs),
-    h('span', { class: 'bar-text' }, `${label} ${cur}/${max}`),
+  const tip = paramTip(
+    kind,
+    kind === 'sta' ? 'Стамина' : 'Мана',
+    kind === 'sta' ? 'Очки действий: удар и «Защититься» — по 1, приёмы — по цене. Полностью восстанавливаются в начале хода' : 'Цена заклинаний. Реген в начале хода, полностью — после комнаты',
+    { aside: h('b', { class: 'tip-val' }, `${cur}/${max}`), note: cur > max ? `+${cur - max} сверх максимума` : undefined, noteTone: 'good' },
   );
+  return h('div', { class: `bar bar-${kind}`, tip }, h('div', { class: 'segs' }, ...segs), h('span', { class: 'bar-text' }, `${label} ${cur}/${max}`));
 }
 
 /**
@@ -58,20 +74,41 @@ export function segBar(kind: 'sta' | 'mp', cur: number, max: number): HTMLElemen
 export function collectibleTile(c: Collectible, st: FoundState, lockedHow = ''): HTMLElement {
   if (!st.open) {
     // Закрытая мастерством вещь (v0.45): силуэт с условием — альбом заодно и список целей.
-    if (lockedHow) return h('div', { class: 'coll-tile locked sealed', tip: `${c.name}\nЗакрыто. Как открыть: ${lockedHow}` }, h('span', { class: 'coll-glyph' }, '🔒'), h('span', { class: 'coll-name' }, c.name));
-    return h('div', { class: 'coll-tile locked', tip: 'Ещё не найдено' }, h('span', { class: 'coll-glyph' }, '?'), h('span', { class: 'coll-name' }, '???'));
+    if (lockedHow) {
+      return h(
+        'div',
+        { class: 'coll-tile locked sealed', tip: paramTip('lock', c.name, undefined, { sub: [c.sub.split(' · ')[0], 'закрыто'], note: `Как открыть: ${lockedHow}`, noteTone: 'accent' }) },
+        h('span', { class: 'coll-glyph' }, '🔒'),
+        h('span', { class: 'coll-name' }, c.name),
+      );
+    }
+    return h('div', { class: 'coll-tile locked', tip: paramTip('lock', 'Ещё не найдено', 'Запись откроется, когда вещь побывает у героя в руках') }, h('span', { class: 'coll-glyph' }, '?'), h('span', { class: 'coll-name' }, '???'));
   }
   // Метки без своей подсказки: наведение на любую точку плитки должно показывать её описание целиком.
   const pips = st.tiers.length
     ? h('span', { class: 'coll-tiers' }, ...st.tiers.map((ok) => h('i', { class: `coll-pip ${ok ? 'on' : ''}`, style: ok ? `background:${c.color}` : '' })))
     : null;
-  return h(
-    'div',
-    { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, tip: [c.name, c.sub, ...collectibleLines(c, st)].join('\n') },
-    pips,
-    h('span', { class: 'coll-glyph', style: `color:${c.color}` }, c.glyph),
-    h('span', { class: 'coll-name' }, c.name),
-  );
+  return h('div', { class: `coll-tile kind-${c.kind}`, style: `border-color:${c.color}`, tip: collectibleTip(c, st) }, pips, h('span', { class: 'coll-glyph', style: `color:${c.color}` }, c.glyph), h('span', { class: 'coll-name' }, c.name));
+}
+
+/** Подсказка записи коллекции: шапка цветом вида вещи, у артефакта — тиры строками (закрытый — «???»), у остального — описание абзацами. */
+function collectibleTip(c: Collectible, st: FoundState): TipFn {
+  return () => {
+    const out: Child[] = [tipHead({ icon: { glyph: c.glyph, color: c.color }, title: c.name, color: c.color, nameColor: 'var(--text)', sub: c.sub.split(' · ') })];
+    if (c.tiers) {
+      out.push(
+        tipLines(
+          c.tiers.map((text, i) => {
+            const tier = (i + 1) as ArtTier;
+            const open = st.tiers[i];
+            return { icon: { glyph: '●', color: open ? ART_TIER_COLORS[tier] : '#3a3a5a' }, label: `Тир ${tier}:`, ...(open ? { text } : { value: '???', tone: 'dim' as const }) };
+          }),
+        ),
+      );
+    }
+    if (c.desc) out.push(...c.desc.split('\n').map((line) => tipText(line)));
+    return out;
+  };
 }
 
 /**
@@ -89,22 +126,49 @@ export function pickable(el: HTMLElement, onclick?: () => void): HTMLElement {
   return el;
 }
 
-/** Подсказка к имени экипировки: тир словами. Бейджа тира нет — его показывает цвет рамки. */
-export function tierTip(tier: GearTier): string {
-  return `${GEAR_TIERS[tier].name} предмет, тир ${tier}`;
+/**
+ * Подсказка к имени экипировки: тир словами и лестница из пяти тиров цветами — видно, где предмет на шкале. Бейджа тира нет —
+ * его показывает цвет рамки.
+ */
+export function tierTip(tier: GearTier): TipFn {
+  return () => {
+    const info = GEAR_TIERS[tier];
+    const tiers = [1, 2, 3, 4, 5] as GearTier[];
+    return [
+      tipHead({ title: `${info.name} предмет`, color: info.color, nameColor: tier <= 1 ? 'var(--text)' : info.color, aside: `тир ${tier}/5` }),
+      h('div', { class: 'tip-ladder' }, ...tiers.map((t) => h('span', { class: `tip-ladder-step ${t === tier ? 'on' : ''}`.trim(), style: `--c:${GEAR_TIERS[t].color}` }, GEAR_TIERS[t].name))),
+      tipText('Выше тир — сильнее кубик и броня и больше сокетов. Кузнец поднимает тир на 1'),
+    ];
+  };
 }
 
 // ─── Архетипы (v0.43) ──────────────────────────────────────────────────────
 
-/** Подсказка к метке архетипа: суть и оба порога набора. */
-export function archetypeTip(arch: ArchetypeDef, count?: number): string {
-  const lines = [`${arch.name}${count !== undefined ? ` ${count}/3` : ''}: ${arch.desc}`];
-  for (const n of [2, 3] as const) {
-    const b = arch.sets[n];
-    if (b) lines.push(`${count !== undefined && count >= n ? '✓' : '·'} ${n} вещи: ${b.text}`);
-  }
-  if (!arch.sets[2] && !arch.sets[3]) lines.push('Бонусы набора появятся позже');
-  return lines.join('\n');
+/**
+ * Подсказка метки архетипа: суть и оба порога набора строками. С числом вещей у героя — взятые пороги зелёным с галочкой,
+ * остальные приглушённо.
+ */
+export function archetypeTip(arch: ArchetypeDef, count?: number): TipFn {
+  return () => {
+    const lines: TipLine[] = [];
+    for (const n of [2, 3] as const) {
+      const b = arch.sets[n];
+      if (!b) continue;
+      const on = count !== undefined && count >= n;
+      lines.push({ icon: on ? 'check' : undefined, label: `${n} вещи:`, text: b.text, tone: count === undefined ? undefined : on ? 'good' : 'dim' });
+    }
+    return [
+      tipHead({
+        icon: { glyph: arch.glyph, color: arch.color },
+        title: arch.name,
+        color: arch.color,
+        sub: ['архетип', 'набор из 3 вещей'],
+        aside: count !== undefined ? h('b', { class: 'tip-val', style: `color:${arch.color}` }, `${Math.min(count, 3)}/3`) : undefined,
+      }),
+      tipText(arch.desc),
+      lines.length ? tipSection('Бонусы набора', [tipLines(lines)]) : tipNote('Бонусы набора появятся позже'),
+    ];
+  };
 }
 
 /** Счётчики наборов героя: «♦ 2/3» по каждому архетипу, у которого есть хоть одна вещь (лист персонажа). */
@@ -124,16 +188,62 @@ export function setCounters(arts: ArtifactInstance[]): HTMLElement | null {
   );
 }
 
-export function artifactTitle(inst: ArtifactInstance): string {
-  const def = artifactDef(inst.id);
-  const lines = [`${def.name} (тир ${inst.tier})`, artifactFullText(def, inst.tier)];
-  const tags = artifactTags(inst.id);
-  if (tags.length) lines.push(`Архетип: ${tags.map((t) => ARCHETYPES[t].name).join(', ')}${def.keystone ? ' · ключевая вещь' : ''}`);
-  if (def.kind === 'active') lines.push(`Цена: ${artifactCostText(def, inst.tier)}`);
-  else lines.push('Пассивный');
-  lines.push(`${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет`);
-  if (inst.tier < 3) lines.push(`Следующий тир: ${artifactFullText(def, (inst.tier + 1) as ArtTier)}`);
-  return lines.join('\n');
+// ─── Подсказка артефакта (v0.52) ───────────────────────────────────────────
+
+export interface ArtifactTipOpts {
+  /** Статы героя: число «сейчас» чипом рядом с ценой. */
+  stats?: DerivedStats;
+  /** Оговорка перед хвостом: «Врождённый навык: не занимает сокет». */
+  note?: string;
+  /** Значок и тон оговорки: по умолчанию корона и акцент (навык героя). */
+  noteIcon?: TipIcon;
+  noteTone?: Tone;
+  /** Что сделает клик: «вставить сюда». */
+  action?: string;
+  /** Кузница и переплавка: следующий тир — главное, подписан «Станет». */
+  upgrade?: boolean;
+  /** До какого тира растёт при слиянии: дубликат тира 3 поднимает тир 1 сразу до 3. По умолчанию — на один. */
+  to?: ArtTier;
+}
+
+/**
+ * Подсказка артефакта — та же грамматика, что у карточки: глиф в рамке цвета тира и имя, справа тир; под именем род, архетипы,
+ * пометки и тип сокета; параметры применения чипами (цена, КД или лимит, цель, число «сейчас»); описание с иконками статусов;
+ * следующий тир под пунктиром — изменившиеся числа выделены.
+ */
+export function artifactTip(inst: ArtifactInstance, o: ArtifactTipOpts = {}): TipFn {
+  return () => {
+    const def = artifactDef(inst.id);
+    const color = ART_TIER_COLORS[inst.tier];
+    const next = (o.to ?? Math.min(3, inst.tier + 1)) as ArtTier;
+    const live = o.stats ? restValue(inst, o.stats) : null;
+    const out: Child[] = [
+      tipHead({
+        icon: { glyph: def.glyph, color },
+        title: def.name,
+        color,
+        nameColor: inst.tier <= 1 ? 'var(--text)' : color,
+        aside: h('span', { style: `color:${color}` }, o.upgrade && inst.tier < 3 ? `тир ${inst.tier} → ${next}` : `тир ${inst.tier}/3`),
+        sub: artTypeItems(inst),
+      }),
+      tipChips([
+        ...useParams(def, inst.tier).map(paramChip),
+        live ? tipChip(LIVE_ICON[live.kind], h('span', null, `${live.text}${live.all ? ' всем' : ''}`, h('span', { class: 'dim' }, ' сейчас')), 'c-live') : null,
+      ]),
+      tipText(def.describe(inst.tier)),
+    ];
+    if (o.note) out.push(tipNote(o.note, o.noteIcon ?? 'crown', o.noteTone ?? 'accent'));
+    if (inst.tier < 3) {
+      // Цена меняется с тиром у немногих (Дымовая шашка) — тогда и она в сравнении.
+      const c0 = artifactCostText(def, inst.tier);
+      const c1 = artifactCostText(def, next);
+      const cur = artifactFullText(def, inst.tier) + (c0 !== c1 ? `. Цена ${c0}` : '');
+      const nxt = artifactFullText(def, next) + (c0 !== c1 ? `. Цена ${c1}` : '');
+      out.push(tipSection(o.upgrade ? `Станет, тир ${next}:` : `Тир ${next}:`, tierDiff(cur, nxt), ART_TIER_COLORS[next]));
+    } else if (o.upgrade) out.push(tipNote('Уже максимальный тир', 'star'));
+    if (o.action) out.push(tipAction(o.action));
+    return out;
+  };
 }
 
 /** Подпись персонального артефакта: чей он. Пусто для общих. */
@@ -149,18 +259,26 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Значок типа сокета: оружейный, бронный, универсальный. */
 export const SLOT_KIND_GLYPH: Record<SlotKind, string> = { weapon: '⚔', armor: '⛨', any: '◇' };
 
-/** Подсказка к сокету по типу: что в него встаёт. */
-export function slotKindTip(kind: SlotKind): string {
-  if (kind === 'any') return 'Универсальный сокет: принимает любой артефакт';
-  return `${cap(SLOT_KIND_NAME[kind])} сокет: принимает только ${ARTIFACT_SLOT_NAME[kind]} артефакты`;
+/** Пиксельная иконка типа сокета — в консоли, листе и подсказках. */
+export const SLOT_ICON: Record<SlotKind, UiIconId> = { weapon: 'slotWeapon', armor: 'slotArmor', any: 'slotAny' };
+
+const SLOT_PLURAL: Record<ArtifactSlot, string> = { weapon: 'оружейные', armor: 'бронные' };
+
+/** Подсказка к сокету по типу: что в него встаёт; state — «свободен», action — что сделает клик. */
+export function slotKindTip(kind: SlotKind, o: { state?: string; action?: string } = {}): TipFn {
+  return () => [
+    tipHead({ icon: SLOT_ICON[kind], title: `${cap(SLOT_KIND_NAME[kind])} сокет`, color: uiIconColor(SLOT_ICON[kind]), aside: o.state }),
+    tipText(kind === 'any' ? 'Принимает любой артефакт: и оружейный, и бронный' : `Принимает только ${SLOT_PLURAL[kind]} артефакты`),
+    o.action ? tipAction(o.action) : null,
+  ];
 }
 
 /** Пустой чип сокета с его типом — в подвале карточки экипировки. */
 export function socketChip(kind: SlotKind): HTMLElement {
-  return h('div', { class: `chip chip-empty k-${kind}`, tip: slotKindTip(kind) }, SLOT_KIND_GLYPH[kind]);
+  return h('div', { class: `chip chip-empty k-${kind}`, tip: slotKindTip(kind, { state: 'свободен' }) }, SLOT_KIND_GLYPH[kind]);
 }
 
-export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: () => void; selected?: boolean } = {}): HTMLElement {
+export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: () => void; selected?: boolean; note?: string; stats?: DerivedStats } = {}): HTMLElement {
   if (!inst) return h('div', { class: 'chip chip-empty', tip: 'Пустой слот' }, '·');
   const def = artifactDef(inst.id);
   const color = ART_TIER_COLORS[inst.tier];
@@ -169,7 +287,7 @@ export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: ()
     {
       class: `chip ${def.kind} ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${opts.selected ? 'selected' : ''} ${opts.onclick ? 'clickable' : ''}`,
       style: `border-color:${color}`,
-      tip: artifactTitle(inst),
+      tip: artifactTip(inst, { note: opts.note, stats: opts.stats }),
       onclick: opts.onclick,
     },
     h('span', { class: 'chip-glyph' }, def.glyph),
@@ -181,15 +299,26 @@ export function artifactChip(inst: ArtifactInstance | null, opts: { onclick?: ()
 
 export const POTION_COLOR = '#6fd97a';
 
-export function potionTitle(id: string): string {
-  const def = potionDef(id);
-  return `${def.name}\n${def.describe}\nПьётся в бою бесплатно и пропадает. Слот один.`;
+/** Подсказка зелья: глиф и имя зелёным, «бесплатно» чипом, эффект абзацем. */
+export function potionTip(id: string): TipFn {
+  return () => {
+    const def = potionDef(id);
+    return [
+      tipHead({ icon: { glyph: def.glyph, color: POTION_COLOR }, title: def.name, color: POTION_COLOR, sub: [h('span', { class: 'potion-kind' }, 'Зелье'), 'расходник'] }),
+      tipChips([tipChip('sta', 'бесплатно', 'c-free')]),
+      tipText(def.describe),
+      tipNote('Пьётся в бою и пропадает. Слот зелья один'),
+    ];
+  };
 }
+
+/** Пустой слот зелья: откуда они берутся. */
+export const EMPTY_POTION_TIP = paramTip({ glyph: '·', color: POTION_COLOR }, 'Слот зелья пуст', 'Зелья падают с монстров и продаются у торговца', { color: POTION_COLOR });
 
 /** Чип зелья — как чип артефакта, но без тира. Пустой слот — прочерк. */
 export function potionChip(id: string | null): HTMLElement {
-  if (!id) return h('div', { class: 'chip chip-empty', tip: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' }, '·');
-  return h('div', { class: 'chip potion', style: `border-color:${POTION_COLOR}`, tip: potionTitle(id) }, h('span', { class: 'chip-glyph' }, potionDef(id).glyph));
+  if (!id) return h('div', { class: 'chip chip-empty', tip: EMPTY_POTION_TIP }, '·');
+  return h('div', { class: 'chip potion', style: `border-color:${POTION_COLOR}`, tip: potionTip(id) }, h('span', { class: 'chip-glyph' }, potionDef(id).glyph));
 }
 
 /** Что вытеснит новое зелье; null — слот пуст. */
@@ -205,7 +334,16 @@ export function reachDots(gear: GearInstance, def?: HeroDef): HTMLElement | null
   if (gear.kind !== 'weapon') return null;
   const reach = weaponReach(gear, def);
   const lit = reach === 'melee' ? 1 : 3;
-  return h('span', { class: `reach-dots reach-${reach}`, tip: weaponReachTitle(gear, def) }, ...[0, 1, 2].map((i) => h('i', { class: i < lit ? 'on' : '' })));
+  const cells = () => [0, 1, 2].map((i) => h('i', { class: i < lit ? 'on' : '' }));
+  // Подсказка: те же три клетки ряда покрупнее и словами, кого достаёт удар; у плети в чужих руках — почему только первого.
+  const lost = def && weaponReach(gear) === 'row' && reach === 'melee';
+  const tip = paramTip(reach === 'melee' ? 'one' : 'all', 'Дальность', cap(REACH_NAMES[reach]), {
+    color: 'var(--accent)',
+    aside: h('span', { class: `reach-dots reach-${reach}` }, ...cells()),
+    note: lost ? `Перк «Хлёст» не работает: ${def!.name} не владеет ближним оружием` : undefined,
+    noteTone: 'bad',
+  });
+  return h('span', { class: `reach-dots reach-${reach}`, tip }, ...cells());
 }
 
 /** Золотая монета в тексте: «Перебросить за 5 ◉». */
@@ -214,11 +352,59 @@ export function coin(): HTMLElement {
 }
 
 export function goldBadge(gold: number): HTMLElement {
-  return h('span', { class: 'gold', tip: 'Золото: капает за бои, тратится на переброс награды' }, `◉ ${gold}`);
+  const tip = paramTip({ glyph: '◉', color: 'var(--accent)' }, 'Золото', 'Капает за бои и события. Тратится у торговца, кузнеца и на переброс награды', { color: 'var(--accent)', aside: h('b', { class: 'tip-val' }, `${gold}`) });
+  return h('span', { class: 'gold', tip }, `◉ ${gold}`);
 }
+
+// ─── Статусы ───────────────────────────────────────────────────────────────
 
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
 const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge', 'evade', 'enchant'];
+
+/** Значок строки эффекта приёма врага по виду; статус — своей иконкой, замах — стрелкой «дальше». */
+const PART_ICON: Record<IntentKind, TipIcon> = { attack: 'dmg', defend: 'block', buff: 'str', debuff: 'skull', heal: 'heal', summon: { glyph: '☍', color: '#ffab91' }, special: 'star' };
+
+/** Эффекты приёма врага строками со значками — подсказка намерения, «Предсмертия» и союзника. */
+export function actionPartLines(parts: ActionPart[]): HTMLElement | null {
+  return tipLines(
+    parts.map((p) => {
+      let icon: TipIcon = p.next ? 'arrow' : p.status ? { status: p.status } : PART_ICON[p.kind];
+      // Кража и отъём ресурсов — значком того, что уходит.
+      if (!p.status && /маны/.test(p.text)) icon = 'mp';
+      else if (!p.status && /золота/.test(p.text)) icon = { glyph: '◉', color: 'var(--accent)' };
+      return { icon, text: p.text, tone: p.next ? 'dim' : undefined };
+    }),
+  );
+}
+
+/**
+ * Подсказка статуса на бойце: иконка и имя цветом статуса, справа сила, под именем срок; правило — с подставленным числом
+ * («4 урона в начале хода»). Холод на враге — шкалой до Оцепенения, «Предсмертие» — эффектами при гибели строками.
+ */
+export function statusTip(s: Status, enemy?: EnemyState): TipFn {
+  return () => {
+    const color = STATUS_COLORS[s.id];
+    const showValue = VALUE_STATUSES.includes(s.id) && (s.id !== 'dodge' || s.value > 1);
+    // Холод на враге (v0.51.1): «накоплено/порог» — сколько осталось до Оцепенения; порог у каждого врага свой (лёд крепчает).
+    const coldCap = s.id === 'cold' && enemy ? freezeAt(enemy) : 0;
+    const sub: Child[] = [];
+    if (s.turns > 0) sub.push(h('span', null, uiIcon('cd', 12), `ещё ${s.turns} ${turnsWord(s.turns)}`));
+    else if (s.turns < 0 && s.id !== 'doom') sub.push('до конца боя');
+    if (s.element) sub.push(h('span', null, 'стихия ', statusIcon(s.element, 12), ` ${STATUS_NAMES[s.element]}`));
+    const val = coldCap ? `${s.value}/${coldCap}` : showValue ? `${s.value}` : '';
+    const out: Child[] = [tipHead({ icon: { status: s.id }, title: STATUS_NAMES[s.id], color, sub, aside: val ? h('b', { class: 'tip-val', style: `color:${color}` }, val) : undefined })];
+    if (coldCap) {
+      const left = Math.max(0, coldCap - s.value);
+      out.push(h('div', { class: 'tip-text' }, tipPips(coldCap, s.value, color), ' ', h('span', { class: 'tip-accent' }, `ещё ${left} — и враг оцепенеет`)));
+    }
+    const doom = s.id === 'doom' && enemy ? onDeathInfo(enemy) : null;
+    if (doom) {
+      out.push(tipText(`Погибнув, враг напоследок применит «${doom.name}»:`));
+      out.push(actionPartLines(doom.parts));
+    } else out.push(tipText(statusHint(s.id, showValue ? s.value : null)));
+    return out;
+  };
+}
 
 /**
  * Статусы бойца. Для врага передаётся он сам: «Предсмертие» тогда расписывает в подсказке
@@ -230,18 +416,11 @@ export function statusIcons(c: Combatant, enemy?: EnemyState): HTMLElement {
     { class: 'statuses' },
     ...c.statuses.map((s) => {
       const showValue = VALUE_STATUSES.includes(s.id) && (s.id !== 'dodge' || s.value > 1);
-      // Холод на враге (v0.51.1): «накоплено/порог» — сколько осталось до Оцепенения; порог у каждого врага свой (лёд крепчает).
       const coldCap = s.id === 'cold' && enemy ? freezeAt(enemy) : 0;
       const valueText = coldCap ? `${s.value}/${coldCap}` : showValue ? `${s.value}` : '';
-      const doom = s.id === 'doom' && enemy ? onDeathInfo(enemy) : null;
-      const hint = doom ? `${doom.name} — ${doom.detail}.\nСработает, когда враг погибнет` : s.element ? `Стихия: ${STATUS_NAMES[s.element]}. ${STATUS_HINTS[s.id]}` : STATUS_HINTS[s.id];
-      const head = coldCap
-        ? `${STATUS_NAMES[s.id]} ${s.value} из ${coldCap}: ещё ${Math.max(0, coldCap - s.value)} — и враг оцепенеет`
-        : `${STATUS_NAMES[s.id]}${showValue ? ` ${s.value}` : ''}${s.turns > 0 ? `, ходов: ${s.turns}` : ''}`;
-      const title = `${head}\n${hint}`;
       return h(
         'span',
-        { class: `status status-${s.id}`, tip: title },
+        { class: `status status-${s.id}`, tip: statusTip(s, enemy) },
         statusIcon(s.id, 18),
         valueText ? h('span', { class: 'status-val' }, valueText) : null,
         s.turns > 0 ? h('span', { class: 'status-turns' }, `${s.turns}`) : null,
@@ -290,7 +469,7 @@ export function pendingModal(app: App): HTMLElement | null {
             'button',
             {
               class: `sock pm-sock k-${sk} ${a ? '' : 'empty'} ${off ? 'off' : ''}`,
-              tip: why ?? (a ? `${artifactTitle(a)}\n— заменить: вытесненный встанет в очередь` : `${slotKindTip(sk)}\n— вставить сюда`),
+              tip: why ? whyTip(why, 'Сюда нельзя') : a ? artifactTip(a, { action: 'Заменить: вытесненный встанет в очередь' }) : slotKindTip(sk, { state: 'свободен', action: 'Вставить сюда' }),
               onclick: () => {
                 if (!off) app.pendingPlace(kind, index);
               },
@@ -316,7 +495,7 @@ export function pendingModal(app: App): HTMLElement | null {
       h(
         'div',
         { class: 'row' },
-        p.cancellable ? button('Отмена', () => app.pendingCancel()) : button('Выбросить', () => app.pendingDiscard(), { class: 'danger', tip: 'Артефакт пропадёт' }),
+        p.cancellable ? button('Отмена', () => app.pendingCancel()) : button('Выбросить', () => app.pendingDiscard(), { class: 'danger', tip: paramTip('cross', 'Выбросить', 'Артефакт пропадёт насовсем', { color: '#ff6b6b' }) }),
       ),
     ),
   );
@@ -334,14 +513,25 @@ function smeltRow(app: App, art: ArtifactInstance): HTMLElement | null {
   return h(
     'div',
     { class: 'smelt-row' },
-    h('span', { class: 'dim', tip: tags.length ? 'Переплавить этот артефакт: он пропадёт, а артефакт того же архетипа в сокете получит +1 тир' : 'Общая вещь: переплавляется в тир любому артефакту в сокете' }, 'Переплавить в:'),
+    h(
+      'span',
+      {
+        class: 'dim',
+        tip: paramTip(
+          'star',
+          'Переплавка',
+          tags.length ? 'Этот артефакт пропадёт, а артефакт того же архетипа в сокете получит +1 тир' : 'Общая вещь: переплавляется в тир любому артефакту в сокете',
+        ),
+      },
+      'Переплавить в:',
+    ),
     ...targets.map((t) =>
       button(
         `${artifactDef(t.art!.id).name} ${t.art!.tier}→${t.art!.tier + 1}`,
         () => {
           if (!canPendingSmelt(run, t.kind, t.index)) app.pendingSmelt(t.kind, t.index);
         },
-        { class: 'small', tip: `${artifactTitle(t.art!)}\n— получит тир ${t.art!.tier + 1}, ${artifactDef(art.id).name} пропадёт` },
+        { class: 'small', tip: artifactTip(t.art!, { upgrade: true, action: `Переплавить: «${artifactDef(art.id).name}» пропадёт` }) },
       ),
     ),
   );

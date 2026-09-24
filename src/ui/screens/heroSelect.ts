@@ -1,7 +1,7 @@
-import { button, h, type Child } from '../dom';
+import { button, h, type Child, type TipFn } from '../dom';
 import { HERO_LIST, heroDef } from '../../data/heroes';
 import { artifactDef } from '../../data/artifacts';
-import { ARMOR_TYPE_NAMES, GEAR_TIERS, WEAPON_TYPE_NAMES, armorSkillTitle, baseOf, gearPerkText, makeStartingGear, weaponSkillTitle } from '../../data/gear';
+import { ARMOR_TYPE_NAMES, GEAR_TIERS, WEAPON_TYPE_NAMES, baseOf, gearPerkText, makeStartingGear } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
 import { defendBlock } from '../../engine/combat';
@@ -12,6 +12,8 @@ import { heroLevelOf, heroXpOf, pickedSignature, pickedStart, pickedTrait, signa
 import { uiIcon, type UiIconId } from '../icons';
 import { markKeywords } from '../keywords';
 import { paramChip, useParams } from '../cardParts';
+import { armorSkillTip, weaponSkillTip } from '../cards';
+import { paramTip, tipBar, tipHead, tipLines, tipText } from '../tips';
 import type { DerivedStats, GearTier, HeroDef } from '../../engine/types';
 import type { App } from '../app';
 
@@ -46,14 +48,32 @@ function tileMarks(app: App, def: HeroDef): HTMLElement[] {
   return out;
 }
 
-/** Подсказка плитки: роль, мастерство с опытом до следующего уровня, забеги и победы. */
-function tileTip(app: App, def: HeroDef): string {
-  const level = heroLevelOf(app.profile, def.id);
-  const xp = heroXpOf(app.profile, def.id);
-  const next = nextLevelXp(level);
-  const runs = app.profile.heroRuns[def.id] ?? 0;
-  const wins = app.profile.heroWins[def.id] ?? 0;
-  return `${def.role}\nМастерство ${level}${next ? ` · ${xp}/${next} опыта` : ' · максимум'}\nЗабегов: ${runs}, побед: ${wins}`;
+/**
+ * Подсказка плитки: портрет и имя шапкой, роль абзацем, мастерство — полосой опыта до следующего уровня цветом метки уровня,
+ * забеги и победы — строкой с короной.
+ */
+function tileTip(app: App, def: HeroDef): TipFn {
+  return () => {
+    const level = heroLevelOf(app.profile, def.id);
+    const xp = heroXpOf(app.profile, def.id);
+    const next = nextLevelXp(level);
+    const from = MASTERY_LEVELS[level - 1];
+    const runs = app.profile.heroRuns[def.id] ?? 0;
+    const wins = app.profile.heroWins[def.id] ?? 0;
+    const color = GEAR_TIERS[Math.min(5, Math.max(1, level)) as GearTier].color;
+    return [
+      tipHead({ icon: heroAvatar(def.id, 24), title: def.name }),
+      tipText(def.role),
+      tipLines([
+        {
+          icon: uiIcon('star', 14, level >= 2 ? color : undefined),
+          label: `Мастерство ${level}`,
+          value: next ? h('span', null, tipBar(xp - from, next - from, level >= 2 ? color : '#ffd166'), h('span', { class: 'tip-dim' }, ` ${xp}/${next}`)) : h('span', { class: 'tip-dim' }, 'максимум'),
+        },
+        { icon: 'crown', label: 'Забегов:', value: h('span', null, h('b', { class: 'tip-value' }, `${runs}`), h('span', { class: 'tip-label' }, ', побед: '), h('b', { class: 'tip-value' }, `${wins}`)) },
+      ]),
+    ];
+  };
 }
 
 /** Плитка в сетке слева: аватарка во всю ширину, имя и метки. Клик — превью, двойной клик — сразу в забег. */
@@ -88,7 +108,8 @@ function header(def: HeroDef): HTMLElement {
 
 /** Статы плитками: иконка, крупное число, подпись. Как считается — в подсказке. */
 function statTiles(s: DerivedStats): HTMLElement {
-  const tile = (icon: UiIconId, value: string, label: string, tip: string) => h('div', { class: 'hs-stat', tip }, uiIcon(icon, 20), h('div', { class: 'hs-stat-body' }, h('b', null, value), h('small', null, label)));
+  const tile = (icon: UiIconId, value: string, label: string, tip: string) =>
+    h('div', { class: 'hs-stat', tip: paramTip(icon, label.charAt(0).toUpperCase() + label.slice(1), tip, { aside: h('b', { class: 'tip-val' }, value) }) }, uiIcon(icon, 20), h('div', { class: 'hs-stat-body' }, h('b', null, value), h('small', null, label)));
   return h(
     'div',
     { class: 'hs-stats' },
@@ -108,14 +129,14 @@ function statTiles(s: DerivedStats): HTMLElement {
  * Чипы одной ширины сеткой (просьба пользователя: без «лесенки»); что даёт владение и свойство типа — в подсказке к чипу.
  */
 function proficiency(def: HeroDef): HTMLElement {
-  const chip = (icon: UiIconId, name: string, ok: boolean, tip: string) => h('span', { class: `prof-chip ${ok ? 'yes' : 'no'}`, tip }, uiIcon(ok ? icon : 'cross', 14), name);
+  const chip = (icon: UiIconId, name: string, ok: boolean, tip: TipFn) => h('span', { class: `prof-chip ${ok ? 'yes' : 'no'}`, tip }, uiIcon(ok ? icon : 'cross', 14), name);
   return h(
     'div',
     { class: 'hs-prof' },
     h('span', { class: 'hs-label' }, 'Оружие'),
-    ...(['melee', 'ranged', 'magic'] as const).map((t) => chip(t, WEAPON_TYPE_NAMES[t], def.weaponSkill[t], weaponSkillTitle(t, def.weaponSkill[t]))),
+    ...(['melee', 'ranged', 'magic'] as const).map((t) => chip(t, WEAPON_TYPE_NAMES[t], def.weaponSkill[t], weaponSkillTip(t, def.weaponSkill[t]))),
     h('span', { class: 'hs-label' }, 'Броня'),
-    ...(['heavy', 'medium', 'light'] as const).map((t) => chip(t, ARMOR_TYPE_NAMES[t], def.armorSkill[t], armorSkillTitle(t, def.armorSkill[t]))),
+    ...(['heavy', 'medium', 'light'] as const).map((t) => chip(t, ARMOR_TYPE_NAMES[t], def.armorSkill[t], armorSkillTip(t, def.armorSkill[t]))),
   );
 }
 
@@ -190,7 +211,11 @@ function optionCard(o: Option): HTMLElement {
     'div',
     {
       class: `hs-option ${o.selected ? 'selected' : ''} ${o.open ? '' : 'locked'}`,
-      tip: o.open ? (o.selected ? 'Выбрано: с этим герой начнёт забег' : 'Нажмите, чтобы выбрать') : `Закрыто. Откроется: ${o.lockFull ?? o.lock.toLowerCase()}`,
+      tip: o.open
+        ? o.selected
+          ? paramTip('check', 'Выбрано', 'С этим герой начнёт забег')
+          : paramTip(null, o.title, undefined, { action: 'Клик — выбрать' })
+        : paramTip('lock', 'Закрыто', `Откроется: ${o.lockFull ?? o.lock.toLowerCase()}`),
       onclick: () => {
         if (o.open) o.pick();
       },

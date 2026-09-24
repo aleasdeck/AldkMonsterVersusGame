@@ -9,6 +9,8 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import type { RewardFocus } from '../../engine/types';
+import { paramTip, whyTip } from '../tips';
+import type { TipFn } from '../dom';
 import type { App } from '../app';
 
 /** Подписи пулов награды: имя, значок, что внутри. Клавиши 1 и 2 — по порядку карточек. */
@@ -16,6 +18,12 @@ export const FOCUS_INFO: Record<RewardFocus, { name: string; glyph: string; desc
   attack: { name: 'Нападение', glyph: '⚔', desc: 'Оружие и оружейные артефакты: урон, приёмы, крит.' },
   defense: { name: 'Защита', glyph: '⛨', desc: 'Броня и бронные артефакты: здоровье, блок, лечение, ресурсы.' },
 };
+
+/** Подсказка выбранного пула над наградой: значок и имя цветом пула, что в него входит. */
+function focusTip(focus: RewardFocus): TipFn {
+  const info = FOCUS_INFO[focus];
+  return paramTip({ glyph: info.glyph }, info.name, info.desc, { color: focus === 'attack' ? '#ff8787' : '#8ecae6', sub: ['пул награды'] });
+}
 
 /** Карточка пула: имя, описание и сколько сокетов под артефакты этого типа у героя свободно — подсказка к слепому выбору. */
 function focusCard(app: App, focus: RewardFocus, key: number): HTMLElement {
@@ -73,7 +81,7 @@ export function rewardScreen(app: App): HTMLElement {
       'div',
       { class: 'title-row' },
       h('h2', null, screen?.title ?? 'Награда'),
-      screen?.focus ? h('span', { class: `focus-chip ${screen.focus}`, tip: FOCUS_INFO[screen.focus].desc }, `${FOCUS_INFO[screen.focus].glyph} ${FOCUS_INFO[screen.focus].name}`) : null,
+      screen?.focus ? h('span', { class: `focus-chip ${screen.focus}`, tip: focusTip(screen.focus) }, `${FOCUS_INFO[screen.focus].glyph} ${FOCUS_INFO[screen.focus].name}`) : null,
       h('p', { class: 'dim' }, screen?.note ?? (screen?.source === 'potion' ? 'Слот зелья один: новое вытеснит старое.' : 'Можно взять только одно.')),
     ),
     h('div', { class: 'cards' }, ...cards),
@@ -83,7 +91,7 @@ export function rewardScreen(app: App): HTMLElement {
       button('Пропустить', () => app.skipReward()),
       button(h('span', null, `Перебросить за ${REROLL_COST} `, coin()), () => app.rerollReward(), {
         disabled: !!rerollErr,
-        tip: rerollErr ?? 'Заменить все варианты на новые. Один раз на награду.',
+        tip: rerollErr ? whyTip(rerollErr) : paramTip({ glyph: '↻' }, 'Переброс', 'Заменить все варианты на новые', { color: 'var(--accent)', note: 'Один раз на награду' }),
       }),
     ),
   );

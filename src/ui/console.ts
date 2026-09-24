@@ -4,13 +4,20 @@ import { potionDef } from '../data/potions';
 import { canUseAction } from '../engine/combat';
 import { heroStats } from '../engine/run';
 import type { PlayerAction } from '../engine/types';
-import { artifactChip, bar, potionChip, potionTitle, segBar } from './components';
+import { EMPTY_POTION_TIP, artifactChip, bar, hpTip, potionChip, potionTip, segBar } from './components';
 import { innateOf } from '../engine/stats';
-import { traitDef } from '../data/traits';
+import { traitDef, type TraitDef } from '../data/traits';
 import { hubGearTile } from './cards';
 import { heroAvatar } from './heroSprite';
 import { bindPreview } from './preview';
+import { paramTip } from './tips';
+import type { TipFn } from './dom';
 import type { App } from './app';
+
+/** Подсказка черты героя (v0.44): звезда и имя, правило на нынешнем уровне навыка. */
+export function traitTip(trait: TraitDef, level: number): TipFn {
+  return paramTip('star', trait.name, trait.describe(level), { sub: ['черта героя', `уровень ${level}`] });
+}
 
 /** Строка зелья под полосками: в бою кликабельна, во время хода врагов серая. Пустой слот — пунктирный чип с подписью. */
 function potionLine(app: App): HTMLElement {
@@ -18,7 +25,7 @@ function potionLine(app: App): HTMLElement {
   const b = run.phase === 'battle' ? run.battle : null;
   const id = b ? b.hero.potion : run.hero.potion;
   if (!id) {
-    return h('div', { class: 'potion-line empty', tip: 'Слот зелья пуст. Зелья падают с монстров и продаются у торговца' }, potionChip(null), h('span', { class: 'dim' }, 'слот зелья пуст'));
+    return h('div', { class: 'potion-line empty', tip: EMPTY_POTION_TIP }, potionChip(null), h('span', { class: 'dim' }, 'слот зелья пуст'));
   }
   const def = potionDef(id);
   if (b) {
@@ -40,7 +47,7 @@ function potionLine(app: App): HTMLElement {
     );
     return bindPreview(app, el, () => ({ title: def.name, parts: ['зелье, бесплатно', def.describe, 'слот после этого пуст'], err }));
   }
-  return h('div', { class: 'potion-line', tip: potionTitle(id) }, potionChip(id), h('span', { class: 'potion-name' }, def.name));
+  return h('div', { class: 'potion-line', tip: potionTip(id) }, potionChip(id), h('span', { class: 'potion-name' }, def.name));
 }
 
 /**
@@ -73,12 +80,12 @@ export function heroBlock(app: App): HTMLElement {
       h(
         'div',
         { class: 'c-hero-title' },
-        h('div', { class: 'name', tip: trait ? `Черта «${trait.name}»: ${trait.describe(level)}` : '' }, def.name),
+        h('div', { class: 'name', tip: trait ? traitTip(trait, level) : '' }, def.name),
         h('button', { class: 'link', onclick: () => app.toggleSheet(), tip: 'Статы, экипировка, умения (C)' }, 'Персонаж ›'),
       ),
-      innate ? h('div', { class: 'c-innate', tip: 'Врождённый навык: не занимает сокет, уровень растёт с каждой локацией' }, artifactChip(innate)) : null,
+      innate ? h('div', { class: 'c-innate' }, artifactChip(innate, { note: 'Врождённый навык: не занимает сокет, уровень растёт с каждой локацией', stats: b ? b.hero.stats : s })) : null,
     ),
-    bar('hp', hp, maxHp, 'HP', b && b.hero.block > 0 ? `Блок ${b.hero.block}: первые ${b.hero.block} урона удара уйдут в него, сгорает в начале следующего хода` : '', b?.hero.block ?? 0),
+    bar('hp', hp, maxHp, 'HP', hpTip(hp, maxHp, b?.hero.block ?? 0, true), b?.hero.block ?? 0),
     segBar('sta', sta, maxSta),
     maxMp > 0 ? segBar('mp', mp, maxMp) : h('div', { class: 'bar-gap' }),
     potionLine(app),

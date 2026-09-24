@@ -4,7 +4,10 @@ import { ACTS_PER_RUN, EVENT_NAMES, ROOM_KINDS, ROOM_NAMES } from '../data/locat
 import { artifactDef } from '../data/artifacts';
 import { currentLocation, currentRoomKind } from '../engine/run';
 import type { RoomKind } from '../engine/types';
-import { goldBadge } from './components';
+import { artifactTip, goldBadge } from './components';
+import { paramTip, tipHead, tipNote, tipText } from './tips';
+import type { TipFn } from './dom';
+import type { TrialDef } from '../data/trials';
 import type { App } from './app';
 
 /** Иконки клеток этажа — в ленте топбара и на карте. */
@@ -14,6 +17,15 @@ export const ROOM_ICONS: Record<RoomKind, string> = {
   elite: '☠',
   shop: '◉',
   boss: '♛',
+};
+
+/** Цвет клетки в подсказке ленты: бой — красным, элита — фиолетовым, босс — золотом. */
+const ROOM_COLORS: Record<RoomKind, string> = {
+  fight: '#ff8787',
+  event: '#8ecae6',
+  elite: '#c9a0ff',
+  shop: '#ffd166',
+  boss: '#ffab40',
 };
 
 /** «12:34» или «1:02:03» — таймер забега в топбаре. */
@@ -35,8 +47,13 @@ function roomStrip(app: App): HTMLElement {
     { class: 'room-strip' },
     ...ROOM_KINDS.map((k, i) => {
       const state = i < cur ? 'done' : i === cur ? 'current' : 'future';
-      const note = i < cur ? ' — пройдено' : i === cur ? ' — сейчас' : '';
-      return h('span', { class: `room-cell ${state} room-${k}`, tip: `${i + 1}. ${ROOM_NAMES[k]}${note}` }, ROOM_ICONS[k]);
+      const tip = paramTip({ glyph: ROOM_ICONS[k] }, ROOM_NAMES[k], undefined, {
+        color: ROOM_COLORS[k],
+        aside: `клетка ${i + 1}/${ROOM_KINDS.length}`,
+        note: i < cur ? 'Пройдено' : i === cur ? 'Вы здесь' : undefined,
+        noteTone: i === cur ? 'accent' : 'dim',
+      });
+      return h('span', { class: `room-cell ${state} room-${k}`, tip }, ROOM_ICONS[k]);
     }),
   );
 }
@@ -45,12 +62,21 @@ function roomStrip(app: App): HTMLElement {
  * Топбар забега, 40 px: слева кнопка-иконка «Персонаж» и золото; по центру акт, локация,
  * вид комнаты и лента клеток; справа ход (только в бою), таймер и меню. Полосок, портрета и имени здесь нет — решение пользователя.
  */
+/** Подсказка испытания (v0.48): значок и имя шапкой, правило абзацем, кого бьёт и чем отвечать — советом под лампой. */
+export function trialTip(t: TrialDef, act: number): TipFn {
+  return () => [
+    tipHead({ icon: { glyph: t.glyph }, title: t.name, color: '#ff9f6b', sub: ['испытание локации', 'до конца локации'] }),
+    tipText(t.desc(act)),
+    tipNote(t.hint, 'bulb'),
+  ];
+}
+
 /** Чип испытания локации (v0.48): значок и подсказка с правилом — действует до конца локации. */
 function trialChip(app: App): HTMLElement | null {
   const id = app.run?.trial;
   if (!id) return null;
   const t = trialDef(id);
-  return h('span', { class: 'trial-chip', tip: `${t.desc(app.run!.locationIndex)}\n${t.hint}`, tipTitle: `Испытание: ${t.name}` }, t.glyph);
+  return h('span', { class: 'trial-chip', tip: trialTip(t, app.run!.locationIndex) }, t.glyph);
 }
 
 export function topbar(app: App): HTMLElement {
@@ -70,15 +96,21 @@ export function topbar(app: App): HTMLElement {
       goldBadge(run.gold),
       // Пока вор режет кошель, украденное висит рядом с золотом: видно, сколько уйдёт, если его упустить.
       run.battle && run.battle.stolen > 0
-        ? h('span', { class: 'gold-stolen', tip: 'Уже срезано вором: пропадёт, если он удерёт, и вернётся, если его убить' }, `−${run.battle.stolen}`)
+        ? h(
+            'span',
+            {
+              class: 'gold-stolen',
+              tip: paramTip({ glyph: '◉' }, 'Срезано вором', 'Пропадёт, если он удерёт, и вернётся, если его убить', { color: '#ff6b6b', aside: h('b', { class: 'tip-val' }, `−${run.battle.stolen}`) }),
+            },
+            `−${run.battle.stolen}`,
+          )
         : null,
       run.battle?.stolenArtifact
         ? h(
             'span',
             {
               class: 'gold-stolen',
-              tip: `«${artifactDef(run.battle.stolenArtifact.id).name}» в мешке вора: пропадёт вместе с ним, если он удерёт`,
-              tipTitle: 'Стянутый артефакт',
+              tip: artifactTip(run.battle.stolenArtifact, { note: 'В мешке вора: пропадёт вместе с ним, если он удерёт, и вернётся, если его убить', noteIcon: 'alert', noteTone: 'bad' }),
             },
             `−${artifactDef(run.battle.stolenArtifact.id).glyph}`,
           )

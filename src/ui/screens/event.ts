@@ -10,6 +10,7 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import { markKeywords } from '../keywords';
+import { whyTip } from '../tips';
 import type { EventState, GearKind, GearTier } from '../../engine/types';
 import type { App } from '../app';
 
@@ -44,7 +45,7 @@ function altarCards(app: App, ev: EventState & { kind: 'altar' }): HTMLElement[]
     h('div', { class: 'glyph big' }, '✝'),
     h('div', { class: 'card-name' }, 'Молитва'),
     h('div', { class: 'card-desc' }, `Восстановить 30 % максимума HP: +${heal} (сейчас ${run.hero.hp}/${max}).`),
-    h('div', { class: 'card-foot' }, button('Помолиться', () => app.altarPray(), { class: 'primary', disabled: !!prayErr, tip: prayErr ?? undefined })),
+    h('div', { class: 'card-foot' }, button('Помолиться', () => app.altarPray(), { class: 'primary', disabled: !!prayErr, tip: prayErr ? whyTip(prayErr) : undefined })),
   );
   const pray = prayErr ? prayCard : pickable(prayCard, () => app.altarPray());
   const err = canAltarSacrifice(run);
@@ -67,7 +68,7 @@ function altarCards(app: App, ev: EventState & { kind: 'altar' }): HTMLElement[]
     h('div', { class: 'card-name' }, 'Жертва'),
     h('div', { class: 'card-desc' }, `Отдать ${cost} HP (сейчас ${run.hero.hp}/${max}) и забрать артефакт.`),
     loot,
-    h('div', { class: 'card-foot' }, button('Принести жертву', () => app.altarSacrifice(), { class: 'primary', disabled: !!err, tip: err ?? undefined })),
+    h('div', { class: 'card-foot' }, button('Принести жертву', () => app.altarSacrifice(), { class: 'primary', disabled: !!err, tip: err ? whyTip(err) : undefined })),
   );
   return [pray, err ? sacrifice : pickable(sacrifice, () => app.altarSacrifice())];
 }
@@ -91,7 +92,7 @@ function forgeCards(app: App): HTMLElement[] {
       h(
         'div',
         { class: 'card-foot' },
-        button(h('span', null, `Улучшить ${forgePrice(gear)} `, coin()), () => app.forgeUpgrade(kind), { class: 'primary', disabled: !!err, tip: err ?? undefined }),
+        button(h('span', null, `Улучшить ${forgePrice(gear)} `, coin()), () => app.forgeUpgrade(kind), { class: 'primary', disabled: !!err, tip: err ? whyTip(err) : undefined }),
       ),
     );
   });

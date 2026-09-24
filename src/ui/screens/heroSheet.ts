@@ -4,14 +4,17 @@ import { potionDef } from '../../data/potions';
 import { defendBlock, rangeText, restAttackRange } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
 import type { DerivedStats, HeroDef, HeroPersistent } from '../../engine/types';
-import { artifactTitle, bar, potionChip, setCounters } from '../components';
+import { artifactTip, bar, hpTip, potionChip, setCounters } from '../components';
 import { innateOf, socketedArtifacts } from '../../engine/stats';
 import { artifactDef } from '../../data/artifacts';
 import { traitDef } from '../../data/traits';
-import { ARMOR_TYPE_NAMES, ART_TIER_COLORS, WEAPON_TYPE_NAMES, armorSkillTitle, weaponSkillTitle } from '../../data/gear';
-import { sheetGearTile } from '../cards';
+import { ART_TIER_COLORS } from '../../data/gear';
+import { armorSkillTip, sheetGearTile, weaponSkillTip } from '../cards';
 import { uiIcon, type UiIconId } from '../icons';
 import { heroAvatar } from '../heroSprite';
+import { traitTip } from '../console';
+import { paramTip } from '../tips';
+import type { TipFn } from '../dom';
 import type { App } from '../app';
 
 // ─── Оверлей «Персонаж» (v0.50) ────────────────────────────────────────────
@@ -23,7 +26,8 @@ import type { App } from '../app';
  * карточки и плитки боя (restAttackRange: с ключевой вещью «удар оружием»); дальности здесь нет — её показывают точки у оружия.
  */
 function statTiles(s: DerivedStats): HTMLElement {
-  const tile = (icon: UiIconId, value: string, label: string, tip: string) => h('div', { class: 'sheet-stat', tip }, uiIcon(icon, 16), h('b', null, value), h('small', null, label));
+  const tile = (icon: UiIconId, value: string, label: string, tip: string) =>
+    h('div', { class: 'sheet-stat', tip: paramTip(icon, label.charAt(0).toUpperCase() + label.slice(1), tip, { aside: h('b', { class: 'tip-val' }, value) }) }, uiIcon(icon, 16), h('b', null, value), h('small', null, label));
   return h(
     'div',
     { class: 'sheet-stat-grid' },
@@ -40,7 +44,7 @@ function statTiles(s: DerivedStats): HTMLElement {
 
 /** Особые свойства полными словами — всё, чего нет в плитках; строки с нулевым значением не показываются. */
 function statRows(s: DerivedStats): HTMLElement[] {
-  const row = (k: string, v: string, tip: string) => h('div', { class: 'stat', tip }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
+  const row = (k: string, v: string, tip: string) => h('div', { class: 'stat', tip: paramTip(null, k, tip, { aside: h('b', { class: 'tip-val' }, v) }) }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
   const pct = (v: number) => `${Math.round(v * 100)} %`;
   const rows: (HTMLElement | null)[] = [
     s.critRamp ? row('Азарт', `+${pct(s.critRamp)}`, 'Столько шанса крита копится с каждого удара без крита; крит сбрасывает') : null,
@@ -110,12 +114,12 @@ function innateBlock(hero: HeroPersistent): HTMLElement | null {
     { class: 'sheet-innate' },
     h(
       'div',
-      { class: 'sheet-innate-row', tip: `${artifactTitle(innate)}\nВрождённый навык: не занимает сокет, уровень = номер локации` },
+      { class: 'sheet-innate-row', tip: artifactTip(innate, { note: 'Врождённый навык: не занимает сокет, уровень = номер локации' }) },
       h('span', { class: 'item-icon', style: `border-color:${color}` }, h('span', { class: 'item-glyph', style: `color:${color}` }, def.glyph)),
       h('span', null, h('span', { class: 'dim' }, 'Навык '), def.name, h('span', { class: 'dim' }, ` · ур. ${innate.tier}`)),
     ),
     trait
-      ? h('div', { class: 'sheet-innate-row', tip: trait.describe(innate.tier) }, h('span', { class: 'item-icon' }, uiIcon('star', 16)), h('span', null, h('span', { class: 'dim' }, 'Черта '), h('span', { class: 'trait-name' }, trait.name)))
+      ? h('div', { class: 'sheet-innate-row', tip: traitTip(trait, innate.tier) }, h('span', { class: 'item-icon' }, uiIcon('star', 16)), h('span', null, h('span', { class: 'dim' }, 'Черта '), h('span', { class: 'trait-name' }, trait.name)))
       : null,
   );
 }
@@ -125,14 +129,14 @@ function innateBlock(hero: HeroPersistent): HTMLElement | null {
  * чужое тускло в красной. Названия и что даёт владение — в подсказке значка.
  */
 function proficiency(def: HeroDef): HTMLElement {
-  const chip = (icon: UiIconId, name: string, ok: boolean, tip: string) => h('span', { class: `prof-mini ${ok ? 'yes' : 'no'}`, tip: `${name}: ${tip}` }, uiIcon(icon, 16));
+  const chip = (icon: UiIconId, ok: boolean, tip: TipFn) => h('span', { class: `prof-mini ${ok ? 'yes' : 'no'}`, tip }, uiIcon(icon, 16));
   return h(
     'div',
     { class: 'sheet-prof' },
     h('span', { class: 'dim' }, 'Оружие'),
-    ...(['melee', 'ranged', 'magic'] as const).map((t) => chip(t, WEAPON_TYPE_NAMES[t], def.weaponSkill[t], weaponSkillTitle(t, def.weaponSkill[t]))),
+    ...(['melee', 'ranged', 'magic'] as const).map((t) => chip(t, def.weaponSkill[t], weaponSkillTip(t, def.weaponSkill[t]))),
     h('span', { class: 'dim sheet-prof-gap' }, 'Броня'),
-    ...(['heavy', 'medium', 'light'] as const).map((t) => chip(t, ARMOR_TYPE_NAMES[t], def.armorSkill[t], armorSkillTitle(t, def.armorSkill[t]))),
+    ...(['heavy', 'medium', 'light'] as const).map((t) => chip(t, def.armorSkill[t], armorSkillTip(t, def.armorSkill[t]))),
   );
 }
 
@@ -155,7 +159,7 @@ export function heroSheet(app: App): HTMLElement {
         'div',
         { class: 'sheet-left' },
         h('div', { class: 'sheet-head' }, heroAvatar(def.id, 80), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
-        bar('hp', hp, s.maxHp, 'HP'),
+        bar('hp', hp, s.maxHp, 'HP', hpTip(hp, s.maxHp, b?.hero.block ?? 0, true), b?.hero.block ?? 0),
         statTiles(s),
         innateBlock(run.hero),
         setCounters([...socketedArtifacts(run.hero.weapon, run.hero.armor), ...(innateOf(run.hero) ? [innateOf(run.hero)!] : [])]),

@@ -2,6 +2,21 @@ export type Child = Node | string | number | null | undefined | false;
 
 type Attrs = Record<string, unknown> | null;
 
+/**
+ * Подсказка элемента (v0.52): строка — tooltip.ts оформит её сама (строки абзацами, ключевые слова и числа цветом), функция —
+ * сборщик подсказки в грамматике карточек (tips.ts). Сборщик зовётся только при наведении: экран перерисовывается целиком,
+ * и собирать сотни подсказок заранее незачем.
+ */
+export type TipFn = () => Child[];
+export type Tip = string | TipFn;
+
+const richTips = new WeakMap<Element, TipFn>();
+
+/** Сборщик подсказки элемента, если она не строкой. */
+export function richTipOf(el: Element): TipFn | undefined {
+  return richTips.get(el);
+}
+
 /** Крошечный конструктор DOM: h('div', { class: 'x', onclick: fn }, 'text', child). */
 export function h(tag: string, attrs: Attrs = null, ...children: Child[]): HTMLElement {
   const el = document.createElement(tag);
@@ -11,9 +26,14 @@ export function h(tag: string, attrs: Attrs = null, ...children: Child[]): HTMLE
       if (key === 'class') el.className = String(value);
       else if (key === 'style') el.setAttribute('style', String(value));
       else if (key === 'html') el.innerHTML = String(value);
-      // Свои подсказки (tooltip.ts): tip → data-tip, tipTitle → data-tip-title. Нативный title не используется.
-      else if (key === 'tip') el.setAttribute('data-tip', String(value));
-      else if (key === 'tipTitle') el.setAttribute('data-tip-title', String(value));
+      // Свои подсказки (tooltip.ts): tip → data-tip (сборщик — в richTips, атрибут пустой: по нему слой находит цель),
+      // tipTitle → data-tip-title. Нативный title не используется.
+      else if (key === 'tip') {
+        if (typeof value === 'function') {
+          richTips.set(el, value as TipFn);
+          el.setAttribute('data-tip', '');
+        } else el.setAttribute('data-tip', String(value));
+      } else if (key === 'tipTitle') el.setAttribute('data-tip-title', String(value));
       else if (key.startsWith('on') && typeof value === 'function') {
         el.addEventListener(key.slice(2).toLowerCase(), value as EventListener);
       } else if (key === 'disabled') {
@@ -34,7 +54,7 @@ export function append(el: HTMLElement, children: Child[]): void {
   }
 }
 
-export function button(label: Child, onclick: () => void, opts: { class?: string; disabled?: boolean; tip?: string } = {}): HTMLElement {
+export function button(label: Child, onclick: () => void, opts: { class?: string; disabled?: boolean; tip?: Tip } = {}): HTMLElement {
   return h(
     'button',
     {

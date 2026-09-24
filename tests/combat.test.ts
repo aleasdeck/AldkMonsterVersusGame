@@ -481,6 +481,23 @@ describe('новые механики врагов', () => {
     expect(info.selfStatuses).toEqual(['thorns']);
   });
 
+  it('приём врага раскладывается на части для подсказки: тот же текст, у каждой вид и статус (v0.52)', () => {
+    const beetle = enemyDef('beetle');
+    const info = describeAction(beetle, beetle.actions.find((a) => a.id === 'shell')!);
+    expect(info.parts.map((p) => p.text).join(', ')).toBe(info.detail);
+    expect(info.parts.map((p) => p.kind)).toEqual(['defend', 'buff']);
+    expect(info.parts[1].status).toBe('thorns');
+    // Реакция и удар в упор — оговорками отдельно, а в тексте намерения по-прежнему после перевода строки.
+    const { state, rng } = mkBattle('warrior', ['troll']);
+    const t = first(state);
+    pass(state, rng);
+    t.hp = 20;
+    pass(state, rng);
+    const intent = computeIntent(t, state);
+    expect(intent.notes).toContain('Реакция: сам ниже половины HP');
+    expect(intent.text.split('\n').slice(1)).toEqual(intent.notes);
+  });
+
   it('травяной отвар лечит и снимает все отрицательные эффекты', () => {
     const { state, rng } = mkBattle('warrior', ['spider'], { extra: [{ id: 'herbal_brew', tier: 1 }] });
     const h = state.hero;

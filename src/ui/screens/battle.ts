@@ -1,19 +1,20 @@
-import { button, h, type Child } from '../dom';
+import { button, h, type Child, type TipFn } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { ROLE_INFO, enemyDef } from '../../data/enemies';
 import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ART_TIER_COLORS, SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
 import { MAX_ALLIES } from '../../engine/types';
-import { bar, coin, statusIcons } from '../components';
+import { actionPartLines, bar, coin, hpTip, statusIcons } from '../components';
 import { heroSprite } from '../heroSprite';
 import { enemySprite, hasEnemySheet } from '../enemySprite';
-import { markIcon, statusIcon, uiIcon } from '../icons';
+import { MARK_COLORS, STATUS_COLORS, markIcon, statusIcon, uiIcon } from '../icons';
+import { paramTip, tipHead, tipLines, tipNote, tipText, turnsWord } from '../tips';
 import { backgroundStyle } from '../backgrounds';
 import { tintVar } from '../tint';
 import { runFrame } from '../frame';
@@ -26,7 +27,8 @@ import { logHead, runLogBody } from './runLog';
  * `enemy` — сам враг: нужен «Предсмертию», чтобы подсказка расписала его эффект при смерти.
  */
 function badges(c: Combatant, withBlock: boolean, enemy?: EnemyState, ...extra: Child[]): HTMLElement {
-  return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${c.block}`) : null, ...extra, statusIcons(c, enemy));
+  const tip = paramTip('block', 'Блок', `Первые ${c.block} урона удара или заклинания уйдут в него; раны бьют мимо`, { aside: h('b', { class: 'tip-val' }, `${c.block}`), note: 'Сгорает в начале следующего хода, если броня не держит его' });
+  return h('div', { class: 'badges' }, withBlock && c.block > 0 ? h('span', { class: 'block-badge', tip }, `⛨ ${c.block}`) : null, ...extra, statusIcons(c, enemy));
 }
 
 /**
@@ -38,23 +40,55 @@ function fatigueBadge(b: BattleState): HTMLElement | null {
   if (hero.attacks === 0 || hero.stats.fatigue >= 1) return null;
   const pct = Math.round(fatigueMult(b) * 100);
   const step = Math.round((1 - hero.stats.fatigue) * 100);
-  return h(
-    'span',
-    {
-      class: 'fatigue-badge',
-      tip: `Атак в этом ходу: ${hero.attacks}. Каждая следующая на ${step} % слабее предыдущей: удары и физические приёмы сейчас бьют на ${pct} % от полного урона. Заклинания, раны и шипы усталость не трогает; на новом ходу счётчик обнуляется`,
-      tipTitle: `Усталость: ${pct} % урона`,
-    },
-    statusIcon('exhaust', 16),
-    `${hero.attacks}`,
-  );
+  const color = STATUS_COLORS.exhaust;
+  const tip: TipFn = () => [
+    tipHead({ icon: { status: 'exhaust' }, title: 'Усталость', color, sub: [`атак в этом ходу: ${hero.attacks}`], aside: h('b', { class: 'tip-val', style: `color:${color}` }, `${pct} %`) }),
+    tipText(`Удары и физические приёмы сейчас бьют на ${pct} % от полного урона: каждая следующая атака на ${step} % слабее предыдущей`),
+    tipNote('Заклинания, раны и шипы усталость не трогает; на новом ходу счётчик обнуляется'),
+  ];
+  return h('span', { class: 'fatigue-badge', tip }, statusIcon('exhaust', 16), `${hero.attacks}`);
 }
 
-/** Что значит пометка удара: подсказка у иконки на пилюле. */
+/** Что значит пометка удара: подсказка у иконки на пилюле и строка в подсказке намерения. */
 const MARK_TIPS: Record<ActionMark, { title: string; text: string }> = {
   pierce: { title: 'Сквозь блок', text: 'Удар не тратит блок героя и бьёт прямо по HP: щит от него не спасает' },
   drain: { title: 'Вампиризм', text: 'Враг вылечится на столько, сколько урона дошло до HP' },
 };
+
+function markTip(mark: ActionMark): TipFn {
+  return () => [tipHead({ icon: markIcon(mark, 16), title: MARK_TIPS[mark].title, color: MARK_COLORS[mark] }), tipText(MARK_TIPS[mark].text)];
+}
+
+/** Цвет вида намерения — тот же, что у пилюли (style.css, .intent-*): им подсказка красит значок, имя и рамку. */
+const INTENT_COLORS: Record<IntentKind, string> = {
+  attack: '#ff6b6b',
+  defend: '#8ecae6',
+  buff: '#f9a825',
+  debuff: '#b388ff',
+  heal: '#80ed99',
+  summon: '#ffab91',
+  special: '#ffd166',
+};
+
+/**
+ * Подсказка намерения (v0.52): значок вида и имя приёма цветом пилюли, справа её число, под именем — чей ход и цель; эффекты
+ * строками со своими значками (удар клинком, рана — иконкой статуса, замах — стрелкой), пометки удара с пояснением,
+ * оговорки (реакция, в упор, ярость) — мелко с «!».
+ */
+function intentTip(intent: IntentInfo, target: string | null, ally = false): TipFn {
+  return () => {
+    const color = ally ? '#80ed99' : INTENT_COLORS[intent.kind];
+    const sub: Child[] = [ally ? 'ход союзника' : 'намерение врага'];
+    if (target) sub.push(h('span', null, 'цель: ', h('span', { class: 'tip-value' }, target)));
+    return [
+      tipHead({ icon: { glyph: intent.icon, color }, title: intent.name, color, sub, aside: intent.label ? h('b', { class: 'tip-val', style: `color:${color}` }, intent.label) : undefined }),
+      actionPartLines(intent.parts),
+      tipLines(intent.marks.map((m) => ({ icon: markIcon(m, 14), label: `${MARK_TIPS[m].title}:`, text: MARK_TIPS[m].text }))),
+      ...intent.notes.map((n) => tipNote(n, 'alert', 'accent')),
+      ally ? tipNote('Ходит сам после вашего хода') : null,
+    ];
+  };
+}
 
 /**
  * Хвост пилюли: сначала свойства самого удара (пробитие блока, вампиризм), потом остальные виды эффектов приёма мелкими иконками —
@@ -64,8 +98,7 @@ const MARK_TIPS: Record<ActionMark, { title: string; text: string }> = {
 function intentExtras(intent: IntentInfo): Child[] {
   const out: Child[] = [];
   for (const mark of intent.marks) {
-    const tip = MARK_TIPS[mark];
-    out.push(h('span', { class: 'pill-extra intent-mark', tip: tip.text, tipTitle: tip.title }, markIcon(mark, 16)));
+    out.push(h('span', { class: 'pill-extra intent-mark', tip: markTip(mark) }, markIcon(mark, 16)));
   }
   for (const kind of intent.kinds.slice(1)) {
     if (kind === 'debuff') {
@@ -80,16 +113,20 @@ function intentExtras(intent: IntentInfo): Child[] {
 }
 
 /** Пилюля намерения: иконка и число, цвет по главному эффекту, остальные эффекты хвостом; название, расшифровка и цель — в подсказке. */
-function intentPill(b: BattleState, e: EnemyState): HTMLElement {
+function intentPill(b: BattleState, e: EnemyState, heroName: string): HTMLElement {
   const intent = computeIntent(e, b);
-  if (intent.stunned) return h('div', { class: 'pill intent-stunned', tip: 'Пропустит следующий ход', tipTitle: 'Оглушён' }, statusIcon('stun', 18), 'оглушён');
+  if (intent.stunned) {
+    const frozen = e.statuses.some((st) => st.id === 'frozen');
+    const tip = paramTip({ status: frozen ? 'frozen' : 'stun' }, frozen ? 'Скован льдом' : 'Оглушён', 'Пропустит свой ход. Ваши удары по нему — всегда крит', { color: STATUS_COLORS[frozen ? 'frozen' : 'stun'] });
+    return h('div', { class: 'pill intent-stunned', tip }, statusIcon('stun', 18), 'оглушён');
+  }
   // «Чаща» (v0.48): в первый ход намерения не видно.
-  if (intent.hidden) return h('div', { class: 'pill intent-special', tip: 'Испытание «Чаща»: в первый ход боя намерения врагов скрыты', tipTitle: 'Не разглядеть' }, h('span', { class: 'pill-icon' }, '?'));
+  if (intent.hidden) return h('div', { class: 'pill intent-special', tip: paramTip({ glyph: '?' }, 'Не разглядеть', 'Испытание «Чаща»: в первый ход боя намерения врагов скрыты', { color: 'var(--accent)' }) }, h('span', { class: 'pill-icon' }, '?'));
   // Враги бьют первого союзника раньше героя.
-  const victim = intent.kind === 'attack' ? `\nЦель: ${b.allies[0]?.name ?? 'герой'}` : '';
+  const victim = intent.kinds.includes('attack') ? (b.allies[0]?.name ?? heroName) : null;
   return h(
     'div',
-    { class: `pill intent-${intent.kind}`, tip: `${intent.text}${victim}`, tipTitle: intent.name },
+    { class: `pill intent-${intent.kind}`, tip: intentTip(intent, victim) },
     h('span', { class: 'pill-icon' }, intent.icon),
     intent.label ? h('span', { class: 'pill-label' }, intent.label) : null,
     ...intentExtras(intent),
@@ -100,12 +137,12 @@ function intentPill(b: BattleState, e: EnemyState): HTMLElement {
 function fleeTimer(e: EnemyState): HTMLElement | null {
   const left = turnsToFlee(e);
   if (left === null) return null;
-  const word = left === 1 ? 'сбежит в этот ход' : `сбежит через ${left} ход(а)`;
-  return h(
-    'div',
-    { class: `flee-timer ${left <= 1 ? 'urgent' : ''}`, tip: `${word} и унесёт всё срезанное. Убить нужно раньше`, tipTitle: 'Побег' },
-    `⏳ ${left}`,
-  );
+  const when = left === 1 ? 'в этот ход' : `через ${left} ${turnsWord(left)}`;
+  const tip = paramTip({ glyph: '⏳' }, 'Побег', 'Удерёт и унесёт всё срезанное. Убить нужно раньше', {
+    color: left <= 1 ? '#e63946' : 'var(--accent)',
+    aside: h('b', { class: 'tip-val' }, when),
+  });
+  return h('div', { class: `flee-timer ${left <= 1 ? 'urgent' : ''}`, tip }, `⏳ ${left}`);
 }
 
 /**
@@ -128,15 +165,25 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
       'data-uid': e.uid,
       onclick: () => app.applyArmed(e.uid),
     },
-    intentPill(app.run!.battle!, e),
+    intentPill(app.run!.battle!, e, heroDef(app.run!.hero.defId).name),
     fleeTimer(e),
     e.statuses.length ? badges(e, false, e) : null,
-    bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
+    bar('hp', e.hp, e.maxHp, '', hpTip(e.hp, e.maxHp, e.block, false), e.block),
     h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, px, '', e)),
     h('div', { class: 'name' }, roleMark(app.run!.battle!, e), e.name),
   );
   return bindPreview(app, el, () => enemyPreview(app, e.uid));
 }
+
+/** Цвет роли — тот же, что у значка перед именем (style.css, .role-mark.role-*). */
+const ROLE_COLORS: Record<keyof typeof ROLE_INFO, string> = {
+  guard: '#8fb8ff',
+  brute: '#ff9f6b',
+  swarm: '#c9ccd1',
+  shooter: '#c9a0ff',
+  caster: '#c9a0ff',
+  support: '#80ed99',
+};
 
 /**
  * Значок роли перед именем (v0.46): страж, громила, рой, стрелок, заклинатель, поддержка — с правилом позиции в подсказке.
@@ -146,10 +193,13 @@ function roleMark(b: BattleState, e: EnemyState): Child {
   const role = enemyDef(e.defId).role;
   const guard = coveringGuard(b, e);
   const marks: Child[] = [];
-  if (guard) marks.push(h('span', { class: 'role-mark covered', tip: `Первый удар за ход по нему примет ${guard.name}. Второй пройдёт; Крюк и толчок страж не перехватывает`, tipTitle: 'Под прикрытием' }, '⛉'));
+  if (guard) {
+    const tip = paramTip({ glyph: '⛉' }, 'Под прикрытием', `Первый удар за ход по нему примет ${guard.name}. Второй пройдёт; Крюк и толчок страж не перехватывает`, { color: ROLE_COLORS.guard });
+    marks.push(h('span', { class: 'role-mark covered', tip }, '⛉'));
+  }
   if (role) {
     const info = ROLE_INFO[role];
-    marks.push(h('span', { class: `role-mark role-${role}`, tip: info.rule, tipTitle: info.name }, info.icon));
+    marks.push(h('span', { class: `role-mark role-${role}`, tip: paramTip({ glyph: info.icon }, info.name, info.rule, { color: ROLE_COLORS[role], sub: ['роль врага'] }) }, info.icon));
   }
   return marks.length ? h('span', { class: 'role-marks' }, ...marks) : null;
 }
@@ -179,8 +229,14 @@ function allyView(b: BattleState, a: AllyState, underFire: boolean): HTMLElement
   return h(
     'div',
     { class: 'ally', 'data-uid': a.uid, style: enemySizeStyle(size) },
-    h('div', { class: 'pill pill-ally', tip: `${intent.text}\nХодит сам после вашего хода`, tipTitle: `${a.name}: ${intent.name}` }, h('span', { class: 'pill-icon' }, intent.icon), `${intent.label}${tail}`.trim()),
-    h('div', { class: 'badges' }, underFire ? h('span', { class: 'under-fire', tip: 'Враги атакуют этого союзника раньше героя' }, '◀ под ударом') : null, a.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${a.block}`) : null, statusIcons(a)),
+    h('div', { class: 'pill pill-ally', tip: intentTip(intent, intent.target, true) }, h('span', { class: 'pill-icon' }, intent.icon), `${intent.label}${tail}`.trim()),
+    h(
+      'div',
+      { class: 'badges' },
+      underFire ? h('span', { class: 'under-fire', tip: paramTip({ glyph: '◀' }, 'Под ударом', `Враги атакуют ${a.name} раньше героя`, { color: '#ff6b6b' }) }, '◀ под ударом') : null,
+      a.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${a.block}`) : null,
+      statusIcons(a),
+    ),
     h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, size.px, '', a)),
     h('div', { class: 'name' }, a.name),
     bar('hp', a.hp, a.maxHp, '', '', a.block),
@@ -189,7 +245,7 @@ function allyView(b: BattleState, a: AllyState, underFire: boolean): HTMLElement
 
 /** Пунктирный силуэт свободного места рядом с героем — пока есть призывающий артефакт и союзников меньше двух. */
 function summonGhost(): HTMLElement {
-  return h('div', { class: 'ally ghost', tip: 'Свободное место для союзника: призыв поставит его сюда' }, h('div', { class: 'ghost-box' }, '☍'), h('div', { class: 'name dim' }, 'место'));
+  return h('div', { class: 'ally ghost', tip: paramTip({ glyph: '☍' }, 'Место для союзника', 'Призыв поставит его сюда', { color: '#80ed99' }) }, h('div', { class: 'ghost-box' }, '☍'), h('div', { class: 'name dim' }, 'место'));
 }
 
 // ─── Плитки приёмов ─────────────────────────────────────────────────────────

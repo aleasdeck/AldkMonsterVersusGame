@@ -1,10 +1,11 @@
-import { h } from './dom';
+import { append, h, richTipOf, type Child } from './dom';
+import { plainTip } from './tips';
 
 /**
- * Свои подсказки вместо нативного `title`: один слой на кадр, появление мгновенное,
- * текст из `data-tip`, заголовок из `data-tip-title`. Слой живёт внутри кадра #app,
- * поэтому масштаб кадра (transform: scale в main.ts) на него действует сам собой,
- * а координаты элементов пересчитываются из экранных в кадровые делением на масштаб.
+ * Свои подсказки вместо нативного `title`: один слой на кадр, появление мгновенное. Содержимое — сборщик из richTips (dom.ts,
+ * грамматика tips.ts) или строка `data-tip` с заголовком `data-tip-title`, которую оформляет plainTip. Слой живёт внутри
+ * кадра #app, поэтому масштаб кадра (transform: scale в main.ts) на него действует сам собой, а координаты элементов
+ * пересчитываются из экранных в кадровые делением на масштаб.
  */
 
 const FRAME_W = 960;
@@ -23,16 +24,26 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function show(t: Element): void {
-  if (!root || !layer) return;
+/** Содержимое подсказки элемента: сборщик или оформленная строка; пусто — подсказки нет. */
+function contentOf(t: Element): Child[] {
+  const rich = richTipOf(t);
+  if (rich) return rich();
   const text = t.getAttribute('data-tip') ?? '';
   const title = t.getAttribute('data-tip-title');
-  if (!text && !title) return;
+  return text || title ? plainTip(text, title) : [];
+}
+
+function show(t: Element): void {
+  if (!root || !layer) return;
+  const content = contentOf(t).filter((c) => c !== null && c !== undefined && c !== false);
+  if (!content.length) return;
   current = t;
-  const parts: HTMLElement[] = [];
-  if (title) parts.push(h('div', { class: 'tip-title' }, title));
-  if (text) parts.push(h('div', { class: 'tip-text' }, text));
-  layer.replaceChildren(...parts);
+  layer.replaceChildren();
+  append(layer, content);
+  // Рамка подсказки — цветом вещи из шапки (тир, статус, архетип), как рамка карточки.
+  const accent = (layer.firstElementChild as HTMLElement | null)?.dataset.accent;
+  if (accent) layer.style.setProperty('--tip-accent', accent);
+  else layer.style.removeProperty('--tip-accent');
   // Перерисовка экрана сносит слой вместе с остальным — возвращаем его на место при первом показе.
   if (!layer.isConnected) root.appendChild(layer);
   layer.hidden = false;

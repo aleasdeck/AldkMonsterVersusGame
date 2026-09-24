@@ -457,13 +457,6 @@ export const REACH_NAMES: Record<WeaponReach, string> = {
   row: `весь ряд одним ударом, ${Math.round(SWEEP_MULT * 100)} % урона каждому`,
 };
 
-/** Подсказка к маркеру дальности: что достаёт оружие, а у плети в чужих руках — почему только первого. */
-export function weaponReachTitle(gear: GearInstance, def?: HeroDef): string {
-  const reach = weaponReach(gear, def);
-  const lost = def && weaponReach(gear) === 'row' && reach === 'melee' ? ` (перк «Хлёст» не работает: ${def.name} не владеет ближним оружием)` : '';
-  return `Дальность: ${REACH_NAMES[reach]}${lost}`;
-}
-
 /** Владеет ли герой этим оружием. Нет — кубик вдвое и перк базы не работает, свойство типа, аффикс и артефакты остаются. */
 export function canWieldWeapon(def: HeroDef, gear: GearInstance): boolean {
   return def.weaponSkill[weaponType(gear)];
@@ -519,18 +512,7 @@ export function gearPerkText(gear: GearInstance): string {
   return base.perk ? `${base.perk.name}: ${base.perk.text(gear.tier)}` : '';
 }
 
-/** Подсказка пункта строки владения оружием. */
-export function weaponSkillTitle(type: WeaponType, skilled: boolean): string {
-  const head = `${WEAPON_TYPE_NAMES[type]} оружие · ${skilled ? 'Владеет: полный кубик и перк базы' : `Не владеет: кубик ${pct(UNSKILLED_DICE_MULT)}, перк базы не работает, аффикс и артефакты остаются`}`;
-  return `${head}\nСвойство типа: ${weaponTypeHint(type)}`;
-}
-
-/** Подсказка пункта строки умений брони. */
-export function armorSkillTitle(type: ArmorType, skilled: boolean): string {
-  return `${ARMOR_TYPE_NAMES[type]} броня · ${skilled ? 'Умеет носить: перк базы работает' : 'Не умеет носить: перк базы не работает, DEF, HP и аффикс остаются'}`;
-}
-
-/** Свойство типа без привязки к тиру — для подсказки строки владения, где конкретного оружия нет. */
+/** Свойство типа без привязки к тиру — для подсказки владения (cards.ts: weaponSkillTip), где конкретного оружия нет. */
 export function weaponTypeHint(type: WeaponType): string {
   if (type === 'magic') return `−1 к максимуму урона, +${MAGIC_SPELL_POWER[0]}…+${MAGIC_SPELL_POWER[4]} к заклинаниям по тиру`;
   return weaponTypeText(type, 1);

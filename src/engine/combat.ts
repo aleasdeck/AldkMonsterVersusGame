@@ -60,7 +60,8 @@ export const STATUS_NAMES: Record<StatusId, string> = {
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
-  strength: '+N к урону атак до конца боя',
+  // Срок у Силы свой у каждого источника (клич — на два хода, ярость — на ход, баф врага — до конца боя): подсказка статуса пишет его отдельно.
+  strength: '+N к урону атак, пока держится',
   weak: 'Урон атак −25 %',
   bleed: 'N урона в начале хода, игнорирует блок. Складывается: новое наложение добавляет силу',
   burn: 'N урона в начале хода, игнорирует блок. Складывается: новое наложение добавляет силу',
@@ -2424,6 +2425,8 @@ export interface ActionInfo {
   text: string;
   /** Только перечень эффектов, без названия приёма: «Атака 12, Горение 2 на 2 хода». */
   detail: string;
+  /** Те же эффекты по одному, с видом и статусом (v0.52): подсказка рисует каждый своей строкой со значком. */
+  parts: ActionPart[];
   kinds: IntentKind[];
   statuses: StatusId[];
   /** Статусы, которые враг вешает на себя (шипы, уклонение): хвост пилюли рисует их иконкой, а не общей стрелкой. */
@@ -2432,10 +2435,21 @@ export interface ActionInfo {
   marks: ActionMark[];
 }
 
+/** Один эффект приёма врага для подсказки: вид (значок строки), текст и статус, если эффект его вешает. */
+export interface ActionPart {
+  kind: IntentKind;
+  text: string;
+  status?: StatusId;
+  /** Замах: строка о том, что прилетит следующим ходом. */
+  next?: boolean;
+}
+
 export interface IntentInfo extends ActionInfo {
   stunned: boolean;
   /** Намерение скрыто испытанием «Чаща» (v0.48): первый ход боя игрок играет вслепую. */
   hidden?: boolean;
+  /** Оговорки к ходу (v0.52): реакция на состояние боя, удар в упор, ярость боя — в `text` они же после перевода строки. */
+  notes: string[];
 }
 
 /**
@@ -2471,7 +2485,13 @@ const INTENT_PRIORITY: IntentKind[] = ['attack', 'summon', 'debuff', 'heal', 'de
 
 /** Текст приёма (или эффекта при смерти) по его эффектам — общий для намерения в бою и записи бестиария. */
 export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyEffect[] }, s: ActionScale = BASE_SCALE): ActionInfo {
-  const parts: string[] = [];
+  const rich: ActionPart[] = [];
+  /** Эффект одной строкой: в перечень для текста и в части для подсказки. */
+  const parts = {
+    push(text: string, kind: IntentKind = 'special', status?: StatusId) {
+      rich.push(status ? { kind, text, status } : { kind, text });
+    },
+  };
   const kinds: IntentKind[] = [];
   const statuses: StatusId[] = [];
   const selfStatuses: StatusId[] = [];
@@ -2488,26 +2508,26 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         if (eff.pierce) marks.push('pierce');
         if (eff.drain) marks.push('drain');
         const notes = [eff.pierce ? 'сквозь блок' : '', eff.drain ? 'вампиризм' : ''].filter(Boolean);
-        parts.push(`Атака ${label}${notes.length ? ` (${notes.join(', ')})` : ''}`);
+        parts.push(`Атака ${label}${notes.length ? ` (${notes.join(', ')})` : ''}`, 'attack');
         kinds.push('attack');
         break;
       }
       case 'block': {
         const blk = scaled(s.blockMult, eff.amount);
         if (!label) label = `${blk}`;
-        parts.push(`Блок ${blk}${eff.target === 'allies' ? ' всем' : eff.target === 'neighbors' ? ' соседям' : ''}`);
+        parts.push(`Блок ${blk}${eff.target === 'allies' ? ' всем' : eff.target === 'neighbors' ? ' соседям' : ''}`, 'defend');
         kinds.push('defend');
         break;
       }
       case 'dodge':
-        parts.push(`Уклонение от ${eff.value} атак(и)`);
+        parts.push(`Уклонение от ${eff.value} атак(и)`, 'buff', 'dodge');
         kinds.push('buff');
         selfStatuses.push('dodge');
         break;
       case 'selfDestruct': {
         const dmg = Math.max(1, Math.round((scaled(s.dmgMult, eff.amount) + s.strength) * (s.enrage ?? 1)));
         label = `${dmg}`;
-        parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${scaled(s.dmgMult, eff.burn)}` : ''}`);
+        parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${scaled(s.dmgMult, eff.burn)}` : ''}`, 'attack', eff.burn ? 'burn' : undefined);
         kinds.push('attack');
         if (eff.burn) {
           kinds.push('debuff');
@@ -2516,19 +2536,19 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         break;
       }
       case 'stealGold':
-        parts.push(`Крадёт ${eff.amount} золота, свой уворот −${EVADE_DROP} %`);
+        parts.push(`Крадёт ${eff.amount} золота, свой уворот −${EVADE_DROP} %`, 'debuff');
         kinds.push('debuff');
         break;
       case 'stealArtifact':
-        parts.push(`Крадёт случайный артефакт, свой уворот −${EVADE_DROP} %`);
+        parts.push(`Крадёт случайный артефакт, свой уворот −${EVADE_DROP} %`, 'debuff');
         kinds.push('debuff');
         break;
       case 'evade':
-        parts.push(`Уворот ${eff.value} %: удары и заклинания мимо`);
+        parts.push(`Уворот ${eff.value} %: удары и заклинания мимо`, 'buff', 'evade');
         kinds.push('buff');
         break;
       case 'flee':
-        parts.push('Удирает с украденным');
+        parts.push('Удирает с украденным', 'special');
         kinds.push('special');
         break;
       case 'none':
@@ -2537,43 +2557,45 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
       case 'buffStr':
         parts.push(
           `+${scaled(s.dmgMult, eff.amount)} к урону (${eff.target === 'self' ? 'себе' : eff.target === 'allies' ? 'всем союзникам' : eff.target === 'neighbors' ? 'соседям' : 'всем: ' + def.name})`,
+          'buff',
+          'strength',
         );
         kinds.push('buff');
         break;
       case 'heal':
-        parts.push(`Лечит ${scaled(s.hpMult, eff.amount)} (${eff.target === 'self' ? 'себя' : eff.target === 'neighbors' ? 'соседей' : 'всех союзников'})`);
+        parts.push(`Лечит ${scaled(s.hpMult, eff.amount)} (${eff.target === 'self' ? 'себя' : eff.target === 'neighbors' ? 'соседей' : 'всех союзников'})`, 'heal');
         kinds.push('heal');
         break;
       case 'cleanse':
-        parts.push('Снимает с себя раны');
+        parts.push('Снимает с себя раны', 'heal');
         kinds.push('heal');
         break;
       case 'reveal':
-        parts.push('Снимает с героя Скрытность');
+        parts.push('Снимает с героя Скрытность', 'debuff', 'stealth');
         kinds.push('debuff');
         break;
       case 'debuff': {
         const dur = eff.turns > 0 ? ` на ${eff.turns} ход(а)` : '';
         const val = isDot(eff.status) ? ` ${scaled(s.dmgMult, eff.value)}` : '';
-        parts.push(`${STATUS_NAMES[eff.status]}${val}${dur}`);
+        parts.push(`${STATUS_NAMES[eff.status]}${val}${dur}`, 'debuff', eff.status);
         kinds.push('debuff');
         statuses.push(eff.status);
         break;
       }
       case 'drainMp':
-        parts.push(`−${eff.amount} маны герою`);
+        parts.push(`−${eff.amount} маны герою`, 'debuff');
         kinds.push('debuff');
         break;
       case 'summon':
-        parts.push(`Призыв: ${enemyDef(eff.enemyId).name}${eff.count > 1 ? ` ×${eff.count}` : ''}`);
+        parts.push(`Призыв: ${enemyDef(eff.enemyId).name}${eff.count > 1 ? ` ×${eff.count}` : ''}`, 'summon');
         kinds.push('summon');
         break;
       case 'invuln':
-        parts.push('Неуязвимость на ход');
+        parts.push('Неуязвимость на ход', 'special', 'invuln');
         kinds.push('special');
         break;
       case 'thorns':
-        parts.push(`Шипы ${scaled(s.dmgMult, eff.amount)}${eff.turns ? ` на ${eff.turns} хода` : ''}`);
+        parts.push(`Шипы ${scaled(s.dmgMult, eff.amount)}${eff.turns ? ` на ${eff.turns} хода` : ''}`, 'buff', 'thorns');
         kinds.push('buff');
         selfStatuses.push('thorns');
         break;
@@ -2581,15 +2603,20 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
   }
   // Замах: сам ход пустой, но игроку важно, что прилетит следом — это и есть предупреждение.
   const next = 'next' in a && typeof a.next === 'string' ? def.actions.find((x) => x.id === a.next) : undefined;
-  if (next) parts.push(`следующим ходом — ${describeAction(def, next, s).text}`);
+  if (next) {
+    const n = describeAction(def, next, s);
+    rich.push({ kind: n.kind, text: `следующим ходом — ${n.text}`, next: true });
+  }
   const kind = INTENT_PRIORITY.find((k) => kinds.includes(k)) ?? 'special';
+  const texts = rich.map((p) => p.text);
   return {
     kind,
     icon: INTENT_ICON[kind],
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: a.name,
-    text: parts.length ? `${a.name}: ${parts.join(', ')}` : a.name,
-    detail: parts.join(', '),
+    text: texts.length ? `${a.name}: ${texts.join(', ')}` : a.name,
+    detail: texts.join(', '),
+    parts: rich,
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: statuses.filter((id, i) => statuses.indexOf(id) === i),
     selfStatuses: selfStatuses.filter((id, i) => selfStatuses.indexOf(id) === i),
@@ -2637,7 +2664,14 @@ export function computeIntent(e: EnemyState, state?: BattleState): IntentInfo {
     // Ход перехода: босс не атакует, только ставит стражу — игроку окно на удар, лечение или блок, но не бесплатное.
     const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, blockMult: e.blockMult, strength: 0, weak: false });
     const guard = info.detail ? ` — ${info.detail}` : '';
-    return { ...info, text: `${a.name}: босс собирается с силами и в этот ход не атакует${guard}`, detail: `переход во вторую фазу, без атаки${guard}`, stunned: !!getStatus(e, 'stun') };
+    return {
+      ...info,
+      text: `${a.name}: босс собирается с силами и в этот ход не атакует${guard}`,
+      detail: `переход во вторую фазу, без атаки${guard}`,
+      parts: [{ kind: 'special', text: 'Переход во вторую фазу: в этот ход не атакует' }, ...info.parts],
+      notes: [],
+      stunned: !!getStatus(e, 'stun'),
+    };
   }
   const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, blockMult: e.blockMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak'), hitMult, enrage });
   const notes = [
@@ -2646,7 +2680,7 @@ export function computeIntent(e: EnemyState, state?: BattleState): IntentInfo {
     enrage > 1 ? `Ярость боя: урон ×${enrage.toFixed(1)}` : '',
   ].filter(Boolean);
   const hidden = state?.trial === 'thicket' && state.turn <= 1;
-  return { ...info, text: notes.length ? `${info.text}\n${notes.join('\n')}` : info.text, stunned: isStunned(e), hidden };
+  return { ...info, text: notes.length ? `${info.text}\n${notes.join('\n')}` : info.text, notes, stunned: isStunned(e), hidden };
 }
 
 export interface AllyIntentInfo extends IntentInfo {
@@ -2662,7 +2696,12 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
   const def = enemyDef(a.defId);
   const order = def.ai.type === 'boss' ? def.actions.map((x) => x.id) : def.ai.order;
   const action = enemyAction(def, order[a.cycleIdx % order.length]);
-  const parts: string[] = [];
+  const rich: ActionPart[] = [];
+  const parts = {
+    push(text: string, kind: IntentKind, status?: StatusId) {
+      rich.push(status ? { kind, text, status } : { kind, text });
+    },
+  };
   const kinds: IntentKind[] = [];
   let label = '';
   let target: string | null = null;
@@ -2675,21 +2714,21 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
         const victim = state.enemies.reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
         target = victim?.name ?? null;
-        parts.push(`Атака ${label}${victim ? ` по ${victim.name}` : ''}`);
+        parts.push(`Атака ${label}${victim ? ` по ${victim.name}` : ''}`, 'attack');
         kinds.push('attack');
         break;
       }
       case 'block':
         if (!label) label = `${eff.amount}`;
-        parts.push(`Блок ${eff.amount}`);
+        parts.push(`Блок ${eff.amount}`, 'defend');
         kinds.push('defend');
         break;
       case 'buffStr':
-        parts.push(`+${eff.amount} к урону (${eff.target === 'self' ? 'себе' : 'союзникам'})`);
+        parts.push(`+${eff.amount} к урону (${eff.target === 'self' ? 'себе' : 'союзникам'})`, 'buff', 'strength');
         kinds.push('buff');
         break;
       case 'heal':
-        parts.push(`Лечит ${eff.amount}`);
+        parts.push(`Лечит ${eff.amount}`, 'heal');
         kinds.push('heal');
         break;
       default:
@@ -2697,13 +2736,16 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     }
   }
   const kind = INTENT_PRIORITY.find((k) => kinds.includes(k)) ?? 'special';
+  const texts = rich.map((p) => p.text);
   return {
     kind,
     icon: INTENT_ICON[kind],
     label: kind === 'attack' || kind === 'defend' ? label : '',
     name: action.name,
-    text: parts.length ? `${action.name}: ${parts.join(', ')}` : action.name,
-    detail: parts.join(', '),
+    text: texts.length ? `${action.name}: ${texts.join(', ')}` : action.name,
+    detail: texts.join(', '),
+    parts: rich,
+    notes: [],
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: [],
     selfStatuses: [],

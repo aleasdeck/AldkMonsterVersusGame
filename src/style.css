@@ -2066,24 +2066,320 @@ p {
 
 /* ─── Подсказки и ключевые слова ────────────────────────────────────── */
 
-/* Один слой на кадр (tooltip.ts): позиция считается в кадровых пикселях, масштаб кадра действует сам. */
+/* Один слой на кадр (tooltip.ts): позиция считается в кадровых пикселях, масштаб кадра действует сам.
+   v0.52 — грамматика карточек (tips.ts): шапка со значком в рамке цвета вещи, параметры чипами, текст абзацами с иконками
+   статусов и числами цветом смысла, секции через пунктир. Рамка — цветом вещи из шапки (--tip-accent), как рамка карточки. */
 .tip-layer {
   position: absolute;
   z-index: 60;
-  max-width: 340px;
-  padding: 6px 10px;
-  background: #0c0c16;
-  border: 3px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: max-content;
+  max-width: 300px;
+  padding: 7px 10px 8px;
+  background: #0d0d18;
+  border: 3px solid var(--tip-accent, var(--border));
   box-shadow: 4px 4px 0 #000;
-  font-size: 19px;
-  line-height: 1.1;
+  font-size: 18px;
+  line-height: 1.12;
   color: var(--text);
-  white-space: pre-line;
   pointer-events: none;
 }
-.tip-title {
+/* display: flex перебил бы атрибут hidden. */
+.tip-layer[hidden] {
+  display: none;
+}
+/* Шапка — полосой во всю ширину: значок в рамке, имя цветом вещи, справа число, под именем строка «что это». */
+.tip-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -7px -10px 0;
+  padding: 6px 10px 6px;
+  background: #151527;
+  border-bottom: 2px solid #23233a;
+}
+.tip-head:last-child {
+  margin-bottom: -8px;
+  border-bottom: 0;
+}
+.tip-icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0b0b14;
+  border: 2px solid var(--border);
+}
+.tip-glyph {
+  font-size: 18px;
+  line-height: 1;
+}
+.tip-head-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.tip-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tip-name {
+  font-size: 20px;
+  line-height: 1.05;
   color: var(--accent);
-  margin-bottom: 2px;
+}
+.tip-aside {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 16px;
+  color: var(--dim);
+}
+/* Крупное число справа в шапке: сила статуса, число намерения. */
+.tip-val {
+  font-size: 22px;
+  line-height: 1;
+  font-weight: inherit;
+}
+.tip-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 1px;
+  font-size: 15px;
+  line-height: 1.1;
+  color: var(--dim);
+}
+.tip-sub .ui-icon {
+  margin-right: 2px;
+}
+/* Абзац: основной текст подсказки. Строки плотные, абзацы разведены зазором слоя. */
+.tip-text {
+  font-size: 17px;
+  line-height: 1.15;
+}
+/* Первая строка строковой подсказки без заголовка — ярче остальных: это её суть. */
+.tip-text.tip-lead {
+  color: #fff;
+}
+.tip-label {
+  color: var(--dim);
+}
+.tip-value {
+  color: #fff;
+}
+/* Строки со значками: эффекты приёма, бонусы набора, строки сравнения. Значок — у первой строки абзаца. */
+.tip-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tip-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 17px;
+  line-height: 1.15;
+}
+.tip-line-icon {
+  flex: none;
+  width: 14px;
+  display: flex;
+  justify-content: center;
+  margin-top: 3px;
+}
+.tip-line-icon .ui-icon,
+.tip-line-icon img {
+  display: block;
+}
+.tip-line-icon .tip-glyph {
+  font-size: 14px;
+  margin-top: -1px;
+}
+/* Строка без значка — маленький квадрат-маркер, чтобы столбик читался списком. */
+.tip-bullet::before {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 4px;
+  margin-top: 5px;
+  background: #55557a;
+}
+.tip-line-body {
+  min-width: 0;
+}
+.tip-good {
+  color: var(--good);
+}
+.tip-bad {
+  color: #ff8787;
+}
+.tip-dim {
+  color: #8a8aa8;
+}
+.tip-accent {
+  color: var(--accent);
+}
+/* Строка «не сработает» или «уже не нужно» и мелкая оговорка — числа и ключевые слова в них не спорят с тоном. */
+.tip-line.tip-dim .num,
+.tip-line.tip-dim .kw,
+.tip-line.tip-dim .tip-value,
+.tip-note.tip-dim .num,
+.tip-note.tip-dim .kw {
+  color: inherit;
+}
+.tip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tip-chips .param {
+  cursor: default;
+}
+/* Секция под пунктиром: следующий тир, «станет», бонусы набора, совет. */
+.tip-sect {
+  border-top: 1px dotted #3a3a5a;
+  padding-top: 5px;
+  font-size: 16px;
+  line-height: 1.15;
+  color: #c9c9d6;
+}
+.tip-sect-label {
+  color: var(--dim);
+}
+.tip-sect > .tip-lines {
+  margin-top: 2px;
+}
+.tip-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 15px;
+  line-height: 1.12;
+}
+/* Сразу под шапкой черта уже есть — своя пунктирная не нужна. */
+.tip-head + .tip-sect,
+.tip-head + .tip-action {
+  border-top: 0;
+  padding-top: 0;
+}
+/* Хвост: что сделает клик. */
+.tip-action {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  border-top: 1px dotted #3a3a5a;
+  padding-top: 4px;
+  font-size: 15px;
+  color: var(--accent);
+}
+.tip-action-mark {
+  font-size: 13px;
+}
+/* Изменившееся число следующего тира и переписанное предложение. */
+.num.chg {
+  color: var(--good);
+  background: #80ed9922;
+  box-shadow: 0 0 0 1px #80ed9944;
+}
+.chg-text {
+  color: var(--good);
+}
+.chg-text .num,
+.chg-text .kw {
+  color: inherit;
+}
+/* Шкала пипками: Холод до Оцепенения, тиры. */
+.tip-pips {
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: middle;
+}
+.tip-pips i {
+  display: block;
+  width: 9px;
+  height: 9px;
+  background: #23233a;
+  box-shadow: 0 0 0 1px #000;
+}
+/* Полоска прогресса: опыт мастерства. */
+.tip-bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 70px;
+  height: 7px;
+  background: #23233a;
+  box-shadow: 0 0 0 1px #000;
+}
+.tip-bar i {
+  display: block;
+  height: 100%;
+}
+/* Клавиша в конце строки: «(C)» → [C]. */
+.tip-key {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid #55557a;
+  border-bottom-width: 2px;
+  background: #1a1a2c;
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 15px;
+  vertical-align: 1px;
+}
+/* Расчёт числа «сейчас»: строка-формула на тёмной подложке с чертой слева — видно, что это вычисление, а не правило. */
+.tip-formula {
+  font-size: 15px;
+  line-height: 1.15;
+  color: #c9c9d6;
+  background: #08080f;
+  border-left: 2px solid #3a3a5a;
+  padding: 2px 6px;
+}
+/* Лестница тиров экипировки: пять ступеней цветами тиров, нынешняя — яркая и в рамке. */
+.tip-ladder {
+  display: flex;
+  gap: 3px;
+}
+.tip-ladder-step {
+  flex: 1;
+  padding: 1px 3px;
+  font-size: 13px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--c);
+  background: #12121e;
+  border-bottom: 3px solid var(--c);
+  opacity: 0.45;
+  white-space: nowrap;
+}
+.tip-ladder-step.on {
+  opacity: 1;
+  color: #0d0d18;
+  background: var(--c);
+}
+/* Число «сейчас» чипом рядом с ценой: ярко, подпись «сейчас» приглушённо. */
+.param.c-live .param-text {
+  color: #fff;
+}
+/* Внутри подсказки ключевые слова не наводятся (слой прозрачен для мыши) — без пунктира «наведи». */
+.tip-layer .kw {
+  border-bottom: 0;
+  cursor: inherit;
+}
+/* Маркер дальности в подсказке: три клетки ряда врагов покрупнее. */
+.tip-layer .reach-dots i {
+  width: 9px;
+  height: 9px;
 }
 /* Ключевое слово в описании: подсвечено, со своей подсказкой при наведении. */
 .kw {
