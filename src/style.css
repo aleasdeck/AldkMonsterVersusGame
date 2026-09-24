@@ -4555,3 +4555,49 @@ p {
   background: #1e0e12;
   cursor: help;
 }
+/* Цвет числа по смыслу (как фишки и множитель в Balatro): урон, блок, HP, ресурсы, Сила; срок в ходах — приглушённо. */
+.num.n-dmg {
+  color: #ffb36b;
+}
+.num.n-block {
+  color: var(--shield);
+}
+.num.n-heal {
+  color: var(--good);
+}
+.num.n-sta {
+  color: var(--sta);
+}
+.num.n-mp {
+  color: var(--mp);
+}
+.num.n-str {
+  color: #f9a825;
+}
+.num.n-turns {
+  color: #c9ccd1;
+}
+/* Живое число приёма: ярче остальных параметров — это то, что будет на плитке в бою. */
+.param.live {
+  border-color: #8a7a4a;
+  background: #221d10;
+}
+.param.live .param-text {
+  color: #fff3c4;
+}
+.avc-param.live span {
+  color: #fff3c4;
+}
+.avb-live {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: help;
+}
+.avb-live b {
+  font-size: 26px;
+  line-height: 1;
+  color: #fff3c4;
+  font-weight: inherit;
+}

@@ -1,7 +1,7 @@
 import { STATUS_HINTS, STATUS_NAMES } from '../engine/combat';
 import type { StatusId } from '../engine/types';
 import { h, type Child } from './dom';
-import { statusIcon } from './icons';
+import { STATUS_COLORS, statusIcon } from './icons';
 
 /**
  * Ключевые слова игры в описаниях: найденные слова оборачиваются в подсвеченный span
@@ -70,27 +70,46 @@ export function markKeywords(text: string, opts: { icons?: boolean; numbers?: bo
 }
 
 /**
+ * Смысл числа по соседям (прототипы v0.50, как в Balatro: цвет числа = что оно значит): сила статуса — цветом статуса,
+ * урон, блок, HP, стамина, мана, Сила — своими цветами ресурсов, срок в ходах — приглушённо. Остальное — общим выделением.
+ */
+function numberKind(prev: Child | undefined, before: string, after: string): { cls: string; color?: string } {
+  const a = after.toLowerCase();
+  if (/^\s*(?:ход|хода|ходов)(?![а-яё])/.test(a)) return { cls: 'n-turns' };
+  // Сразу после статуса («Горение 3», «Яд 2») — это его сила.
+  if (!before.trim() && prev instanceof HTMLElement && prev.dataset.status) return { cls: 'n-status', color: STATUS_COLORS[prev.dataset.status as StatusId] };
+  if (/^[^.,;:]{0,14}урон/.test(a)) return { cls: 'n-dmg' };
+  if (/^\s*(?:к\s+)?(?:блок|блока)/.test(a)) return { cls: 'n-block' };
+  if (/^[^.,;:]{0,16}\bhp/.test(a) || /(?:лечит|лечение|восстанавливает)(?:\s+на)?\s*$/i.test(before)) return { cls: 'n-heal' };
+  if (/^\s*(?:к\s+)?(?:sta|стамин)/.test(a)) return { cls: 'n-sta' };
+  if (/^\s*(?:к\s+)?(?:mp|ман)/.test(a)) return { cls: 'n-mp' };
+  if (/^\s*(?:к\s+)?сил/.test(a)) return { cls: 'n-str' };
+  return { cls: '' };
+}
+
+/**
  * Числа эффекта в тексте — отдельным span'ом: «Горение 3 на 3 хода», «+10 %», «4–6», «×1.5». Строки внутри ключевых слов
- * не трогаются (там чисел нет), подсказки остаются на своих span'ах.
+ * не трогаются (там чисел нет), подсказки остаются на своих span'ах; цвет — по смыслу числа (numberKind).
  */
 export function markNumbers(children: Child[]): Child[] {
   const re = /[+−-]?\d+(?:[.,]\d+)?(?:–\d+)?(?:\s?%)?|×\s?\d+(?:[.,]\d+)?/g;
   const out: Child[] = [];
-  for (const c of children) {
+  children.forEach((c, idx) => {
     if (typeof c !== 'string') {
       out.push(c);
-      continue;
+      return;
     }
     let last = 0;
     for (const m of c.matchAll(re)) {
       const i = m.index ?? 0;
       if (i > last) out.push(c.slice(last, i));
+      const kind = numberKind(i === 0 || !c.slice(0, i).trim() ? children[idx - 1] : undefined, c.slice(0, i), c.slice(i + m[0].length));
       // Неразрывный пробел: «−20 %» не должно рваться между числом и знаком процента.
-      out.push(h('b', { class: 'num' }, m[0].replace(' ', '\u00a0')));
+      out.push(h('b', { class: `num ${kind.cls}`.trim(), style: kind.color ? `color:${kind.color}` : null }, m[0].replace(' ', '\u00a0')));
       last = i + m[0].length;
     }
     if (last < c.length) out.push(c.slice(last));
-  }
+  });
   return out;
 }
 
@@ -110,7 +129,7 @@ function markKeywordsRaw(text: string, icons: boolean): Child[] {
     if (best.index > 0) out.push(rest.slice(0, best.index));
     const icon = icons && best.kw.status ? statusIcon(best.kw.status, 14) : null;
     if (icon) icon.classList.add('kw-icon');
-    out.push(h('span', { class: `kw ${icon ? 'with-icon' : ''}`.trim(), 'data-tip-title': best.kw.title, 'data-tip': best.kw.text }, icon, rest.slice(best.index, best.index + best.len)));
+    out.push(h('span', { class: `kw ${icon ? 'with-icon' : ''}`.trim(), 'data-tip-title': best.kw.title, 'data-tip': best.kw.text, 'data-status': best.kw.status ?? null }, icon, rest.slice(best.index, best.index + best.len)));
     rest = rest.slice(best.index + best.len);
   }
   return out;

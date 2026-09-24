@@ -22,6 +22,7 @@ import {
 import { ARCHETYPES, archetypeCounts, artifactTags } from '../data/archetypes';
 import { findSameArtifact, slotKindAt } from '../engine/equipment';
 import { innateOf, socketedArtifacts } from '../engine/stats';
+import { heroStats } from '../engine/run';
 import { markKeywords } from './keywords';
 import { statusIcon, uiIcon, type UiIconId } from './icons';
 import { archetypeTip, reachDots, slotKindTip, socketChip, tierTip } from './components';
@@ -106,6 +107,21 @@ function buildNotes(run: RunState | undefined, inst: ArtifactInstance): HTMLElem
   return out;
 }
 
+/**
+ * Живое число приёма (как «!D!» в Slay the Spire): урон, блок или лечение с нынешним снаряжением героя — то же, что будет
+ * на плитке в бою. Без забега и у пассивки — нет; у приёмов без числа (призыв, толчок) — тоже нет.
+ */
+function liveParam(inst: ArtifactInstance, run?: RunState): Param | null {
+  if (!run) return null;
+  const def = artifactDef(inst.id);
+  if (def.kind !== 'active') return null;
+  const text = artifactShort(inst, heroStats(run));
+  if (!/^[+\d]/.test(text)) return null;
+  const icon: UiIconId = /блок/.test(text) ? 'block' : /HP/.test(text) ? 'heal' : /STA/.test(text) ? 'sta' : /MP/.test(text) ? 'mp' : 'dmg';
+  const short = text.replace(/ (?:всем|блока|HP|STA|MP)$/, '');
+  return { icon, text: short, tip: `С вашим снаряжением сейчас: ${text}. Это же число будет на плитке в бою`, cls: 'live' };
+}
+
 function descOf(inst: ArtifactInstance): Child[] {
   return markKeywords(effectText(artifactDef(inst.id), inst.tier), { icons: true, numbers: true });
 }
@@ -116,7 +132,8 @@ function artCardA(inst: ArtifactInstance, footer?: Child, note?: Child, run?: Ru
   const color = ART_TIER_COLORS[inst.tier];
   const kind = kindParam(def);
   const slot = slotParam(def);
-  const params = useParams(def, inst.tier);
+  const live = liveParam(inst, run);
+  const params = [...(live ? [live] : []), ...useParams(def, inst.tier)];
   return h(
     'div',
     { class: `card art-card av av-a ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`, style: `border-color:${color}` },
@@ -156,6 +173,7 @@ function artCardB(inst: ArtifactInstance, footer?: Child, note?: Child, run?: Ru
   const cd = useParams(def, inst.tier).find((p) => p.icon === 'cd' || p.icon === 'uses');
   const target = useParams(def, inst.tier).find((p) => p.cls?.startsWith('t-'));
   const tags = artifactTags(inst.id);
+  const live = liveParam(inst, run);
   return h(
     'div',
     { class: `card art-card av av-b ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`, style: `border-color:${color}` },
@@ -163,6 +181,7 @@ function artCardB(inst: ArtifactInstance, footer?: Child, note?: Child, run?: Ru
     cd ? h('div', { class: 'avb-cd', tip: cd.tip }, uiIcon(cd.icon, 14), h('span', null, cd.text)) : null,
     h('div', { class: 'avb-head' }, h('span', { class: 'avb-glyph', style: `color:${color}` }, def.glyph), h('span', { class: 'avb-name', style: `color:${nameColor(inst.tier, color)}` }, def.name)),
     h('div', { class: 'avb-type' }, ...dotted([h('span', { class: kind.cls, tip: kind.tip }, kind.text), target ? h('span', { tip: target.tip }, uiIcon(target.icon, 14), target.text) : null, ...specialLabels(inst.id)])),
+    live ? h('div', { class: 'avb-live', tip: live.tip }, uiIcon(live.icon, 18), h('b', null, live.text)) : null,
     h('div', { class: 'avb-desc' }, ...descOf(inst)),
     ...buildNotes(run, inst),
     note ?? null,
@@ -186,7 +205,8 @@ function artCardC(inst: ArtifactInstance, footer?: Child, note?: Child, run?: Ru
   const color = ART_TIER_COLORS[inst.tier];
   const kind = kindParam(def);
   const slot = slotParam(def);
-  const params = useParams(def, inst.tier);
+  const live = liveParam(inst, run);
+  const params = [...(live ? [live] : []), ...useParams(def, inst.tier)];
   const railParam = (p: Param) => h('div', { class: `avc-param ${p.cls ?? ''}`, tip: p.tip }, uiIcon(p.icon, 14, p.color), p.text ? h('span', null, p.text) : null);
   return h(
     'div',
