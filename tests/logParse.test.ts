@@ -54,7 +54,7 @@ describe('разбор лога боя (v0.51)', () => {
     const hit = lineInfo('Герой бьёт Гоблин: 6 (кубик 3 + заряд 3 = 6) → 4 по HP (блок −2)');
     expect([hit.kind, hit.target, hit.toFoe, hit.toHero]).toEqual(['hit', 'foe', 4, 0]);
     const bite = lineInfo('Гоблин атакует: 5 → 3 по HP (кольчуга −1, блок −1)');
-    expect([bite.kind, bite.target, bite.toHero, bite.guard]).toEqual(['hit', 'hero', 3, 1]);
+    expect([bite.kind, bite.target, bite.toHero]).toEqual(['hit', 'hero', 3]);
     expect(lineInfo('Гоблин атакует: 4').toHero).toBe(4);
     expect(lineInfo('Гоблин атакует Волк: 4 (3 по HP)').target).toBe('ally');
     expect(lineInfo('Шипы Хитиновый жук: 3 урона герою').toHero).toBe(3);
@@ -75,9 +75,9 @@ describe('разбор лога боя (v0.51)', () => {
     expect(lineInfo('Заряд: 2')).toMatchObject({ kind: 'status', status: 'charge' });
     expect(lineInfo('Жаба цепенеет от холода: пропустит ход')).toMatchObject({ kind: 'status', status: 'frozen' });
     expect(lineInfo('Сердце улья оглушён и пропускает ход')).toMatchObject({ kind: 'status', status: 'stun' });
-    expect(lineInfo('Герой защищается: +6 блока')).toMatchObject({ kind: 'block', block: 6 });
-    expect(lineInfo('Гоблин: +6 блока')).toMatchObject({ kind: 'block', block: 0 });
-    expect(lineInfo('Герой: +3 HP (вампиризм)')).toMatchObject({ kind: 'heal', heal: 3 });
+    expect(lineInfo('Герой защищается: +6 блока').kind).toBe('block');
+    expect(lineInfo('Гоблин: +6 блока').kind).toBe('block');
+    expect(lineInfo('Герой: +3 HP (вампиризм)').kind).toBe('heal');
     expect(lineInfo('Тролль: +5 HP').kind).toBe('heal');
     expect(lineInfo('Боевой транс: +1 STA').kind).toBe('res');
     expect(lineInfo('Герой теряет 1 маны').kind).toBe('res');
@@ -112,9 +112,9 @@ describe('разбор лога боя (v0.51)', () => {
     expect(actorOf('Сердце улья оглушён и пропускает ход')).toBe('Сердце улья');
   });
 
-  it('сводка шага: урон по врагам и по герою, блок и лечение героя, павшие', () => {
+  it('сводка хода: урон по врагам и по герою, павшие', () => {
     const lines = LOG.slice(1).map(([, t]) => lineInfo(t));
-    expect(totalsOf(lines)).toEqual({ toFoe: 4 + 13 + 3 + 6, toHero: 1, block: 1, heal: 2, guard: 3, kills: 1 });
+    expect(totalsOf(lines)).toEqual({ toFoe: 4 + 13 + 3 + 6, toHero: 1, kills: 1 });
     expect(hpLost('Заклинание по Гоблин: 4 (3 + сила заклинаний 1) → 0 по HP (блок −4)')).toBe(0);
   });
 });

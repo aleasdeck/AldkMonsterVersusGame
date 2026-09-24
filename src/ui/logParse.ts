@@ -4,7 +4,7 @@ import type { LogMark, StatusId } from '../engine/types';
 // ─── Разбор лога боя (v0.51) ───────────────────────────────────────────────
 // Движок пишет лог строками и размечает шаги (`LogMark`): ход → шаги героя, врагов и союзников → строки шага.
 // Здесь из этого собирается модель для отрисовки (logView.ts), а у каждой строки определяется вид — от него иконка,
-// цвет чисел и сводка шага. Вид угадывается по тексту: промах разбора стоит только цвета, строка всё равно видна целиком.
+// цвет чисел и сводка хода. Вид угадывается по тексту: промах разбора стоит только цвета, строка всё равно видна целиком.
 // Модуль без DOM — его разбор проверяется тестами.
 
 /** Чей шаг: герой, враг, союзник или сам бой (начало хода, расстановка). */
@@ -34,14 +34,9 @@ export interface LogLine {
   status?: StatusId;
   /** Кого бьёт строка удара или раны: героя, его союзника или врага. */
   target?: 'hero' | 'ally' | 'foe';
-  /** Сколько HP потерял в этой строке враг или герой — для сводки шага и хода. */
+  /** Сколько HP потерял в этой строке враг или герой — для сводки хода. */
   toFoe: number;
   toHero: number;
-  /** Блок и лечение герою. */
-  block: number;
-  heal: number;
-  /** Сколько удара по герою принял его блок. */
-  guard: number;
 }
 
 export interface LogStep {
@@ -112,20 +107,16 @@ const MISS_RE = /уворачивается|неуязвим|не видит г�
 
 /** Вид строки, статус и потери HP по её тексту. */
 export function lineInfo(text: string): LogLine {
-  const info: LogLine = { text, kind: kindOf(text), toFoe: 0, toHero: 0, block: 0, heal: 0, guard: 0 };
+  const info: LogLine = { text, kind: kindOf(text), toFoe: 0, toHero: 0 };
   const st = statusOf(text);
   if (st) info.status = st;
   if (info.kind === 'status' && !st) info.kind = 'info';
   if (info.kind === 'hit' || info.kind === 'dot' || info.kind === 'miss') {
     const lost = hpLost(text);
     info.target = hpTarget(text);
-    if (info.target === 'hero') {
-      info.toHero = lost;
-      info.guard = Number(/блок −(\d+)/.exec(text)?.[1] ?? 0);
-    } else if (info.target === 'foe') info.toFoe = lost;
+    if (info.target === 'hero') info.toHero = lost;
+    else if (info.target === 'foe') info.toFoe = lost;
   }
-  if (info.kind === 'block' && text.startsWith('Герой')) info.block = Number(/\+(\d+) блока/.exec(text)?.[1] ?? 0);
-  if (info.kind === 'heal' && text.startsWith('Герой')) info.heal = Number(/\+(\d+) HP/.exec(text)?.[1] ?? 0);
   return info;
 }
 
@@ -221,24 +212,18 @@ export function actorOf(text: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Сводка шага или хода: потери HP сторон, блок и лечение героя, сколько принял его блок, кто пал. */
+/** Сводка хода: урон по врагам, потери героя, кто пал. */
 export interface LogTotals {
   toFoe: number;
   toHero: number;
-  block: number;
-  heal: number;
-  guard: number;
   kills: number;
 }
 
 export function totalsOf(lines: LogLine[]): LogTotals {
-  const t: LogTotals = { toFoe: 0, toHero: 0, block: 0, heal: 0, guard: 0, kills: 0 };
+  const t: LogTotals = { toFoe: 0, toHero: 0, kills: 0 };
   for (const l of lines) {
     t.toFoe += l.toFoe;
     t.toHero += l.toHero;
-    t.block += l.block;
-    t.heal += l.heal;
-    t.guard += l.guard;
     if (l.kind === 'death' && / повержен$/.test(l.text)) t.kills += 1;
   }
   return t;

@@ -1763,43 +1763,8 @@ p {
   box-shadow: none;
 }
 /* ─── Лог боя (v0.51) ─────────────────────────────────────────────────── */
-/* Ход — блок с заголовком и сводкой, в нём шаги сторон: герой зелёный, враги красные, союзники голубые, начало хода —
-   без цвета. У шага заголовок ярко, последствия тише, раскладка удара — отдельной тусклой строкой. Три вида на выбор:
-   .lg-a лента, .lg-b диалог, .lg-c сводка; переключатель — .lg-switch в шапке лога. */
-.log-head,
-.runlog-head {
-  gap: 8px;
-}
-.log-head .lg-switch {
-  margin-left: auto;
-}
-.runlog-head .lg-switch {
-  margin-left: auto;
-}
-.lg-switch {
-  display: inline-flex;
-  gap: 3px;
-}
-.lg-switch-btn {
-  font: inherit;
-  font-size: 16px;
-  width: 26px;
-  height: 24px;
-  padding: 0;
-  color: var(--dim);
-  background: #151524;
-  border: 2px solid #33334d;
-  cursor: pointer;
-}
-.lg-switch-btn:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.lg-switch-btn.on {
-  color: #1a1407;
-  background: var(--accent);
-  border-color: var(--accent);
-}
+/* Лента: ход — блок с заголовком и сводкой, в нём шаги полосой цвета стороны (герой зелёный, враги красные, союзники
+   голубые, начало хода — без полосы). У шага заголовок ярко, последствия с отступом, раскладка удара — тусклой строкой. */
 .lg {
   --hero: #80ed99;
   --foe: #ff6b6b;
@@ -1856,12 +1821,6 @@ p {
 .lg-chip.lg-hurt {
   color: #ff6b6b;
 }
-.lg-chip.lg-blk {
-  color: var(--shield);
-}
-.lg-chip.lg-heal {
-  color: var(--good);
-}
 .lg-sep {
   display: flex;
   align-items: center;
@@ -1878,8 +1837,12 @@ p {
   flex: 1;
   border-top: 1px dashed #5a3036;
 }
+/* Шаг — полоса цвета стороны, последствия с отступом под заголовком; у начала хода полосы нет. */
 .lg-step {
   --side: #3a3a5a;
+  margin: 3px 0;
+  padding: 1px 0 1px 6px;
+  border-left: 3px solid var(--side);
 }
 .lg-step.lg-hero {
   --side: var(--hero);
@@ -1889,6 +1852,13 @@ p {
 }
 .lg-step.lg-ally {
   --side: var(--ally);
+}
+.lg-step.lg-untitled {
+  border-left-color: transparent;
+}
+.lg-step:not(.lg-untitled) .lg-line:not(.lg-head),
+.lg-step:not(.lg-untitled) .lg-formula:not(.lg-head-f) {
+  margin-left: 10px;
 }
 .lg-line {
   display: flex;
@@ -1982,116 +1952,6 @@ p {
 .lg-line.k-end {
   color: var(--dim);
   border-color: #3a3a5a;
-}
-
-/* А — лента: шаг полосой цвета стороны, последствия с отступом под заголовком. */
-.lg-a .lg-step {
-  margin: 3px 0;
-  padding: 1px 0 1px 6px;
-  border-left: 3px solid var(--side);
-}
-.lg-a .lg-step.lg-untitled {
-  border-left-color: transparent;
-}
-.lg-a .lg-step:not(.lg-untitled) .lg-line:not(.lg-head),
-.lg-a .lg-step:not(.lg-untitled) .lg-formula:not(.lg-head-f) {
-  margin-left: 10px;
-}
-
-/* Б — диалог: реплики героя и союзников слева, врагов справа; начало хода — по центру без рамки. */
-.lg-b .lg-step {
-  width: fit-content;
-  max-width: 88%;
-  margin: 4px auto 4px 0;
-  padding: 2px 7px 3px;
-  border: 2px solid #2f5e3f;
-  background: #0f1d14;
-}
-.lg-b .lg-step.lg-enemy {
-  margin: 4px 0 4px auto;
-  border-color: #6a2f35;
-  background: #1f0f12;
-}
-.lg-b .lg-step.lg-ally {
-  border-color: #2e5068;
-  background: #0e1a22;
-}
-.lg-b .lg-step.lg-untitled {
-  width: auto;
-  max-width: none;
-  margin: 2px 0;
-  padding: 0 4px;
-  border: none;
-  background: none;
-}
-.lg-b .lg-step.lg-untitled .lg-line {
-  justify-content: center;
-}
-.lg-b .lg-step.lg-untitled .lg-tx {
-  flex: 0 1 auto;
-  text-align: center;
-}
-.lg-b .lg-caption {
-  color: var(--side);
-  font-size: 14px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin-bottom: 1px;
-}
-.lg-b .lg-sep::before,
-.lg-b .lg-sep::after {
-  border-top-color: #3a2a30;
-}
-
-/* В — сводка: шаг одной строкой с итогом справа; клик раскрывает все его строки. */
-.lg-c .lg-step {
-  margin: 2px 0;
-  padding-left: 6px;
-  border-left: 3px solid var(--side);
-}
-.lg-c .lg-step.lg-untitled {
-  border-left-color: transparent;
-}
-.lg-sum {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text);
-}
-.lg-sum.lg-click {
-  cursor: pointer;
-}
-.lg-sum.lg-click:hover .lg-sum-text {
-  text-decoration: underline dotted #55557a;
-}
-.lg-sum-text {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.lg-sum-chips {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex: none;
-}
-.lg-more {
-  flex: none;
-  width: 10px;
-  color: #55557a;
-}
-.lg-step.lg-open .lg-more {
-  color: var(--accent);
-  transform: rotate(90deg);
-}
-.lg-detail {
-  display: none;
-  padding: 1px 0 2px 10px;
-}
-.lg-step.lg-open .lg-detail {
-  display: block;
 }
 .turn {
   color: var(--accent);
