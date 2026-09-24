@@ -3,7 +3,7 @@ import { HERO_LIST, SIGNATURE_OWNER } from '../src/data/heroes';
 import { runReport } from '../src/engine/report';
 import { GAME_VERSION } from '../src/engine/types';
 import { artifactDef } from '../src/data/artifacts';
-import { ACTS, ACT_DMG_BONUS, ACT_TOUGH_HP, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
+import { ACTS, ACT_DMG_BONUS, ACT_TOUGH_HP, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHT_DMG_MULT, FIGHT_HP_MULT, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
 import { createRng } from '../src/engine/rng';
 import { canUseAction, performAction } from '../src/engine/combat';
@@ -888,21 +888,24 @@ describe('забег', () => {
   });
 
   it('враги масштабируются под акт, а не под родную локацию', () => {
-    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +65 % надбавки акта
-    expect(enemyScale(1, 2).hp).toBeCloseTo(2.7);
-    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * ACT_DMG_BONUS[2]);
-    // враг пещер (tier 3) в первом акте — наоборот, тоньше, надбавка первого акта +40 %; боссы растут мягче рядовых
-    expect(enemyScale(3, 0).hp).toBeCloseTo(1 / 2.7);
-    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * ACT_DMG_BONUS[0]);
-    expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4);
-    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * ACT_DMG_BONUS[2]);
-    expect(enemyScale(2, 1).dmg).toBeCloseTo(ACT_DMG_BONUS[1]);
+    // Длина боя (v0.46): поверх акта HP ×FIGHT_HP_MULT и урон ×FIGHT_DMG_MULT — всем рангам одинаково.
+    const H = FIGHT_HP_MULT;
+    const D = FIGHT_DMG_MULT;
+    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё надбавка акта
+    expect(enemyScale(1, 2).hp).toBeCloseTo(2.7 * H);
+    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * ACT_DMG_BONUS[2] * D);
+    // враг пещер (tier 3) в первом акте — наоборот, тоньше; боссы растут мягче рядовых
+    expect(enemyScale(3, 0).hp).toBeCloseTo((1 / 2.7) * H);
+    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * ACT_DMG_BONUS[0] * D);
+    expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4 * H);
+    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * ACT_DMG_BONUS[2] * D);
+    expect(enemyScale(2, 1).dmg).toBeCloseTo(ACT_DMG_BONUS[1] * D);
     // v0.37.1: элита и босс первого акта толще на ACT_TOUGH_HP[0]; рядовых и поздних актов это не касается.
-    expect(enemyScale(1, 0, 'elite').hp).toBeCloseTo(ACT_TOUGH_HP[0]);
-    expect(enemyScale(1, 0, 'boss').hp).toBeCloseTo(ACT_TOUGH_HP[0]);
-    expect(enemyScale(1, 0).hp).toBeCloseTo(1);
-    expect(enemyScale(1, 1, 'elite').hp).toBeCloseTo(1.5);
-    expect(enemyScale(1, 0, 'elite').dmg).toBeCloseTo(ACT_DMG_BONUS[0]);
+    expect(enemyScale(1, 0, 'elite').hp).toBeCloseTo(ACT_TOUGH_HP[0] * H);
+    expect(enemyScale(1, 0, 'boss').hp).toBeCloseTo(ACT_TOUGH_HP[0] * H);
+    expect(enemyScale(1, 0).hp).toBeCloseTo(H);
+    expect(enemyScale(1, 1, 'elite').hp).toBeCloseTo(1.5 * H);
+    expect(enemyScale(1, 0, 'elite').dmg).toBeCloseTo(ACT_DMG_BONUS[0] * D);
     const run = newRun('warrior', 3);
     run.locations = ['ship', 'forest', 'swamp'];
     enterRoom(run);

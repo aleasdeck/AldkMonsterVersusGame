@@ -170,16 +170,20 @@ describe('намерения', () => {
   it('вой усиливает всех волков, но не кабана', () => {
     const { state, rng } = mkBattle('warrior', ['wolf', 'wolf', 'boar']);
     pass(state, rng, 3);
-    expect(getStatus(state.enemies[0], 'strength')?.value).toBe(4);
-    expect(getStatus(state.enemies[1], 'strength')?.value).toBe(4);
-    expect(getStatus(state.enemies[2], 'strength')).toBeUndefined();
+    const wolves = state.enemies.filter((e) => e.defId === 'wolf');
+    expect(wolves.map((w) => getStatus(w, 'strength')?.value)).toEqual([4, 4]);
+    // Кабан — громила и стоит первым (v0.46): Сила 2 у него от места в ряду, а не от воя.
+    const boar = state.enemies.find((e) => e.defId === 'boar')!;
+    expect(state.enemies[0]).toBe(boar);
+    expect(getStatus(boar, 'strength')?.value).toBe(2);
   });
 
   it('множественный удар подписан как N×M, замах — без чисел', () => {
     const { state } = mkBattle('warrior', ['cutthroat', 'egg_cluster']);
     const e = first(state);
     e.intent = 'double';
-    expect(computeIntent(e).label).toBe('3×2');
+    // 3 + Сила громилы впереди ряда 2 (v0.46).
+    expect(computeIntent(e).label).toBe('5×2');
     // Замах Минотавра с v0.38 даёт блок — чистый ход без эффекта остался у Пульсации кладки.
     const m = state.enemies[1];
     m.intent = 'pulse';
@@ -258,7 +262,7 @@ describe('статусы', () => {
     expect(getStatus(boar, 'stun')).toBeUndefined();
     expect(boar.intent).toBe('ram');
     pass(state, rng);
-    expect(state.hero.hp).toBe(hp0 - 6); // таран 7, Кольца кольчуги гасят 1
+    expect(state.hero.hp).toBe(hp0 - 8); // таран 7 + Сила громилы 2, Кольца кольчуги гасят 1
   });
 
   it('слабость режет урон героя на 25 %', () => {
@@ -272,8 +276,8 @@ describe('статусы', () => {
   });
 
   it('изнурение отнимает стамину на следующем ходу', () => {
-    const { state, rng } = mkBattle('warrior', ['bear']);
-    first(state).intent = 'hug';
+    const { state, rng } = mkBattle('warrior', ['troll']);
+    first(state).intent = 'stomp';
     pass(state, rng);
     expect(state.hero.sta).toBe(2);
     pass(state, rng);
@@ -286,7 +290,7 @@ describe('статусы', () => {
     performAction(state, { type: 'artifact', artifactId: 'dodge' }, rng);
     const hp0 = state.hero.hp;
     pass(state, rng);
-    expect(state.hero.hp).toBe(hp0 - 3);
+    expect(state.hero.hp).toBe(hp0 - 5); // второй удар: 3 + Сила громилы 2
     expect(getStatus(state.hero, 'dodge')).toBeUndefined();
   });
 
@@ -349,7 +353,7 @@ describe('новые механики врагов', () => {
     v.hp = 10;
     v.intent = 'bite';
     pass(state, rng);
-    expect(v.hp).toBe(18); // укус 9 − 1 Кольца кольчуги = 8 лечения
+    expect(v.hp).toBe(20); // укус 9 + Сила громилы 2 − 1 Кольца кольчуги = 10 лечения
   });
 
   it('слизень делится при смерти', () => {
@@ -491,9 +495,11 @@ describe('новые механики врагов', () => {
   });
 
   it('споровик при гибели оставляет облако спор', () => {
-    const { state, rng } = mkBattle('warrior', ['sporeling', 'larva']);
+    const { state, rng } = mkBattle('warrior', ['larva', 'sporeling']);
     state.hero.stats.dmgMin = 99;
     state.hero.stats.dmgMax = 99;
+    // Споровик — заклинатель и стоит сзади (v0.46): вытаскиваем его вперёд, под ближний удар.
+    state.enemies.reverse();
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(state.phase).toBe('player');
     expect(getStatus(state.hero, 'vulnerable')?.turns).toBe(2);
@@ -541,7 +547,8 @@ describe('новые механики врагов', () => {
 
   it('метка «Предсмертие» висит только на врагах с эффектом при смерти и расписывает его', () => {
     const { state } = mkBattle('warrior', ['sporeling', 'larva']);
-    const [spore, larva] = state.enemies;
+    const spore = state.enemies.find((e) => e.defId === 'sporeling')!;
+    const larva = state.enemies.find((e) => e.defId === 'larva')!;
     expect(getStatus(spore, 'doom')).toBeTruthy();
     expect(getStatus(larva, 'doom')).toBeUndefined();
     const info = onDeathInfo(spore)!;
@@ -560,20 +567,21 @@ describe('новые механики врагов', () => {
     expect(state.phase).toBe('won');
   });
 
-  it('тролль регенерирует только раненым', () => {
+  it('тролль регенерирует, только когда ранен вполовину: реакция вклинивается в круг, не сдвигая его (v0.46)', () => {
     const { state, rng } = mkBattle('warrior', ['troll']);
     const t = first(state);
     expect(t.intent).toBe('club');
     pass(state, rng);
-    // здоров — регенерация пропущена, цикл идёт дальше
+    // здоров — круг идёт дальше
     expect(t.intent).toBe('club');
     t.hp = 20;
     pass(state, rng);
-    expect(t.intent).toBe('stomp');
-    pass(state, rng);
-    expect(t.intent).toBe('club');
-    pass(state, rng);
     expect(t.intent).toBe('regen');
+    expect(computeIntent(t).text).toContain('Реакция: сам ниже половины HP');
+    pass(state, rng);
+    // 20 + 7 — уже выше половины: круг продолжается с того же места
+    expect(t.hp).toBe(27);
+    expect(t.intent).toBe('stomp');
   });
 
   it('все враги из таблиц встреч существуют', () => {
@@ -1248,7 +1256,7 @@ describe('v0.33: вторые персональные артефакты', () =
     expect(getStatus(state.hero, 'regen')).toEqual({ id: 'regen', value: 2, turns: 3 });
     pass(state, rng);
     expect(bear.hp).toBe(35 - 2); // медведь бьёт Лапой — и ранится о шипы
-    expect(state.hero.hp).toBe(20 - 9 + 2); // Лапа 9, регенерация 2 в начале хода
+    expect(state.hero.hp).toBe(20 - 11 + 2); // Лапа 9 + Сила громилы 2, регенерация 2 в начале хода
   });
 
   it('Боевой транс: Сила, лишняя стамина и гашение удара приходят только ниже половины HP', () => {
@@ -1301,12 +1309,12 @@ describe('v0.18: блок от урона и удар блоком', () => {
   });
 
   it('щитовой удар отбрасывает цель на клетку назад, последнего в ряду толкать некуда', () => {
-    const { state, rng } = mkBattle('warrior', ['wolf', 'bear', 'rat'], { extra: [{ id: 'shield_bash', tier: 1 }] });
-    const wolf = first(state);
-    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: wolf.uid }, rng);
-    // Волк ушёл на вторую клетку, медведь встал первым — до него теперь достаёт ближний бой.
-    expect(state.enemies.map((e) => e.name)).toEqual(['Медведь', 'Волк', 'Крыса']);
-    expect(state.log.some((l) => /Волк отброшен назад/.test(l))).toBe(true);
+    const { state, rng } = mkBattle('warrior', ['boar', 'bear', 'rat'], { extra: [{ id: 'shield_bash', tier: 1 }] });
+    const boar = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'shield_bash', target: boar.uid }, rng);
+    // Кабан ушёл на вторую клетку, медведь встал первым — до него теперь достаёт ближний бой.
+    expect(state.enemies.map((e) => e.name)).toEqual(['Медведь', 'Кабан', 'Крыса']);
+    expect(state.log.some((l) => /Кабан отброшен назад/.test(l))).toBe(true);
     // Последнего толкать некуда: строй тот же, приём всё равно доступен ради блока.
     const last = state.enemies[2];
     state.hero.cooldowns.shield_bash = 0;

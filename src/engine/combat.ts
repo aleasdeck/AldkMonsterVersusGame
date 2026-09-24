@@ -8,6 +8,7 @@ import type {
   Effect,
   EnemyDef,
   EnemyEffect,
+  EnemyRole,
   DerivedStats,
   EnemyState,
   HeroBattle,
@@ -147,6 +148,83 @@ export const REACH_ERR = 'Только первый в ряду';
  * прятали свиту за спиной, и бот терял на ближних героях 8–11 пунктов; с призывом вперёд — 2–5 (GDD §13, v0.26).
  */
 export const SUMMON_FRONT = true;
+
+// ─── Роли и ряд (v0.46) ─────────────────────────────────────────────────────
+// План §5.3: место в ряду задаёт роль, а не порядок в списке встречи. Впереди страж, громила и рой; сзади стрелок,
+// заклинатель и поддержка. Отсюда смысл у Крюка (вытащить заднего вперёд, где он слаб), толчка Щитового удара
+// (отодвинуть стража и открыть того, кого он прикрывал), площади (рой) и черты Лучника (задние).
+
+/** Порядок ролей в ряду: меньше — ближе к герою. Враг без роли (босс, вор) стоит среди роя. */
+export const ROLE_RANK: Record<EnemyRole, number> = { guard: 0, brute: 1, swarm: 2, shooter: 3, caster: 4, support: 5 };
+
+/** Громила, оказавшийся первым в ряду, раз за бой получает столько Силы (домножается под акт, как урон). */
+export const BRUTE_FRONT_STR = 2;
+
+/** Стрелок первым в ряду бьёт «в упор» — вполсилы — и после своего хода отходит на клетку назад. */
+export const POINT_BLANK_MULT = 0.5;
+
+/**
+ * Ярость врагов (v0.46, план §5.1): бой, затянувшийся дальше своей длины, становится опаснее — урон врагов растёт на
+ * ENRAGE_STEP за каждый ход, начиная с хода ENRAGE_TURN по самому сильному рангу боя. Страховка от патов у бота и у живого игрока,
+ * а не часть обычного боя: рядовой бой должен укладываться в 3–5 ходов, элита в 5–7, босс в 8–12.
+ */
+export const ENRAGE_TURN: Record<EnemyDef['rank'], number> = { normal: 10, elite: 12, boss: 16 };
+export const ENRAGE_STEP = 0.1;
+
+/** Расставить стартовый состав по ролям: стабильная сортировка — внутри одной роли порядок встречи сохраняется. */
+export function orderByRole(enemyIds: string[]): string[] {
+  const rank = (id: string) => {
+    const role = enemyDef(id).role;
+    return role ? ROLE_RANK[role] : ROLE_RANK.swarm;
+  };
+  return enemyIds.map((id, i) => ({ id, i })).sort((a, b) => rank(a.id) - rank(b.id) || a.i - b.i).map((x) => x.id);
+}
+
+/** Стрелок стоит первым, а за ним есть кому встать: бьёт в упор вполсилы. Один на поле — отходить некуда, бьёт как обычно. */
+export function pointBlank(state: BattleState, e: EnemyState): boolean {
+  return enemyDef(e.defId).role === 'shooter' && state.enemies[0] === e && state.enemies.length > 1;
+}
+
+/** Множитель ярости врагов на нынешнем ходу боя: 1 — бой ещё в своей длине. */
+export function enrageMult(state: BattleState): number {
+  const over = state.turn - (state.enrageAt ?? ENRAGE_TURN.normal) + 1;
+  return over > 0 ? 1 + ENRAGE_STEP * over : 1;
+}
+
+/** Урон удара врага с учётом места в ряду и ярости: одна формула для боя, пилюли намерения и бота. */
+export function enemyHitMult(state: BattleState, e: EnemyState): number {
+  return (pointBlank(state, e) ? POINT_BLANK_MULT : 1) * enrageMult(state);
+}
+
+/** Соседи врага по ряду — кого лечит и усиливает поддержка. */
+export function neighborsOf(state: BattleState, e: EnemyState): EnemyState[] {
+  const i = state.enemies.indexOf(e);
+  if (i < 0) return [];
+  return [state.enemies[i - 1], state.enemies[i + 1]].filter((x): x is EnemyState => !!x);
+}
+
+/**
+ * Страж прямо перед целью (v0.46): первый удар героя за ход по тому, кто стоит за ним, он принимает на себя.
+ * Оглушённый не прикрывает; прикрыл в этом ходу — второй удар проходит.
+ */
+export function coveringGuard(state: BattleState, target: EnemyState): EnemyState | null {
+  const i = state.enemies.indexOf(target);
+  if (i < 1) return null;
+  const g = state.enemies[i - 1];
+  if (enemyDef(g.defId).role !== 'guard' || g.covered || g.hp <= 0 || getStatus(g, 'stun')) return null;
+  return g;
+}
+
+/** Бьёт ли действие одну выбранную цель (а не тянет, толкает или проклинает её): только такой удар страж перехватывает. */
+function strikesTarget(state: BattleState, action: PlayerAction): boolean {
+  if (action.type === 'attack') return state.hero.stats.sweep <= 0;
+  if (action.type !== 'artifact') return false;
+  const inst = state.hero.artifacts.find((a) => a.id === action.artifactId);
+  if (!inst) return false;
+  const effects = artifactDef(inst.id).effects?.(inst.tier) ?? [];
+  if (effects.some((e) => e.type === 'pull' || e.type === 'push')) return false;
+  return effects.some((e) => 'target' in e && e.target === 'enemy' && ['attack', 'spell', 'detonate', 'scorch', 'breakBlock', 'finisher', 'chain', 'blockStrike'].includes(e.type));
+}
 
 /** Кого достаёт удар такой дальности: ближний — первого в ряду, любой и удар по ряду — всех. */
 export function reachableEnemies(state: BattleState, reach: WeaponReach): EnemyState[] {
@@ -351,7 +429,7 @@ export function findEnemy(state: BattleState, uid: number): EnemyState | undefin
 }
 
 function aiCtx(state: BattleState, e: EnemyState): AiCtx {
-  return { self: e, enemies: state.enemies, hero: state.hero, turn: state.turn };
+  return { self: e, enemies: state.enemies, hero: state.hero, turn: state.turn, lineup: state.roster.length };
 }
 
 // ─── Урон и лечение ────────────────────────────────────────────────────────
@@ -576,7 +654,7 @@ function damageAlly(state: BattleState, a: AllyState, amount: number, pierce = f
 function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
   const def = enemyDef(a.defId);
   a.block = 0;
-  const order = def.ai.type === 'cycle' ? def.ai.order : def.actions.map((x) => x.id);
+  const order = def.ai.type === 'boss' ? def.actions.map((x) => x.id) : def.ai.order;
   const action = enemyAction(def, order[a.cycleIdx % order.length]);
   a.cycleIdx = (a.cycleIdx + 1) % order.length;
   state.events.push({ type: 'enemyAction', target: a.uid, name: action.name });
@@ -1212,6 +1290,16 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
 export function performAction(state: BattleState, action: PlayerAction, rng: Rng): void {
   const err = canUseAction(state, action);
   if (err) throw new Error(err);
+  // Страж (v0.46): первый удар за ход по тому, кто стоит за ним, достаётся ему самому.
+  if ((action.type === 'attack' || action.type === 'artifact') && action.target !== undefined && strikesTarget(state, action)) {
+    const target = findEnemy(state, action.target);
+    const guard = target && coveringGuard(state, target);
+    if (target && guard) {
+      guard.covered = true;
+      log(state, `${guard.name} заслоняет ${target.name}`);
+      action = { ...action, target: guard.uid };
+    }
+  }
   // Весь урон этого действия — его: удар, приём со взрывом ран, зелье (dealtBy, v0.42).
   state.source = action.type === 'artifact' ? action.artifactId : action.type;
   try {
@@ -1427,6 +1515,15 @@ function startPlayerTurn(state: BattleState): void {
   }
   for (const k of Object.keys(h.cooldowns)) if (h.cooldowns[k] > 0) h.cooldowns[k] -= 1;
   log(state, `— Ход ${state.turn} —`);
+  if (state.turn === state.enrageAt) log(state, `Бой затянулся: враги в ярости, урон +${Math.round(ENRAGE_STEP * 100)} % за ход`);
+  // Страж снова готов заслонить; громила, вставший первым, раз за бой наливается Силой (v0.46).
+  for (const e of state.enemies) e.covered = false;
+  const front = state.enemies[0];
+  if (front && !front.fronted && enemyDef(front.defId).role === 'brute') {
+    front.fronted = true;
+    log(state, `${front.name} впереди ряда — наливается силой`);
+    addStatus(state, front, front.uid, 'strength', scaled(front.dmgMult, BRUTE_FRONT_STR), -1);
+  }
   // «Плащ странника»: свежий блок каждый ход — после того, как старый сгорел.
   if (h.stats.blockTurn > 0) gainBlock(state, h, 'hero', h.stats.blockTurn, 'плащ');
   // «Жаропрочность»: чем больше вокруг огня, тем толще жаропрочная корка.
@@ -1457,7 +1554,31 @@ export function endTurn(state: BattleState): void {
 function chooseIntent(state: BattleState, e: EnemyState, rng: Rng): void {
   const def = enemyDef(e.defId);
   const ctx = aiCtx(state, e);
-  if (def.ai.type === 'cycle') {
+  e.reason = undefined;
+  // Замах (`EnemyAction.next`) и связка босса (`followUp`) — следующий приём уже объявлен, правила его не перебивают.
+  if (e.forcedNext && def.ai.type !== 'boss') {
+    e.intent = e.forcedNext;
+    e.forcedNext = null;
+    return;
+  }
+  if (def.ai.type === 'priority') {
+    // Реакции по порядку: первая выполнимая берёт ход. Без броска — игрок читает узор, а не кубик.
+    const nextTurn = state.turn + 1;
+    for (const r of def.ai.rules) {
+      if (r.when && !r.when(ctx)) continue;
+      const a = enemyAction(def, r.action);
+      if (a.condition && !a.condition(ctx)) continue;
+      if (r.cooldown) {
+        const last = e.lastUsedTurn[r.action];
+        if (last !== undefined && nextTurn - last < r.cooldown) continue;
+      }
+      if (r.maxUses && (e.uses[r.action] ?? 0) >= r.maxUses) continue;
+      e.intent = r.action;
+      e.reason = r.hint;
+      return;
+    }
+  }
+  if (def.ai.type === 'cycle' || def.ai.type === 'priority') {
     const order = def.ai.order;
     for (let i = 0; i < order.length; i++) {
       const idx = (e.cycleIdx + i) % order.length;
@@ -1532,7 +1653,8 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
   placeEnemy(state, e, announce);
   // Процентный уворот вора: висит статусом, чтобы игрок видел текущий шанс промаха прямо на плитке врага.
   if (def.evade) addStatus(state, e, e.uid, 'evade', def.evade, -1);
-  chooseIntent(state, e, rng);
+  // Стартовый состав выбирает намерения, когда встал весь ряд (createBattle): правила смотрят на соседей и «остался один».
+  if (announce) chooseIntent(state, e, rng);
   if (announce) {
     state.events.push({ type: 'summon', target: e.uid });
     log(state, `Появляется ${e.name}`);
@@ -1560,6 +1682,9 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
     case 'attack': {
       let dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
       if (getStatus(e, 'weak')) dmg = Math.floor(dmg * 0.75);
+      // Стрелок в упор и ярость затянувшегося боя (v0.46).
+      const mult = enemyHitMult(state, e);
+      if (mult !== 1) dmg = Math.max(1, Math.round(dmg * mult));
       const hits = eff.hits ?? 1;
       if (ctx) ctx.attacked = true;
       for (let i = 0; i < hits; i++) {
@@ -1583,22 +1708,41 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       break;
     }
     case 'block': {
-      const targets = eff.target === 'allies' ? state.enemies : [e];
+      const targets = eff.target === 'allies' ? state.enemies : eff.target === 'neighbors' ? neighborsOf(state, e) : [e];
       const amt = scaled(e.hpMult, eff.amount);
       for (const t of targets) gainBlock(state, t, t.uid, amt);
       break;
     }
     case 'buffStr': {
       const targets =
-        eff.target === 'self' ? [e] : eff.target === 'allies' ? state.enemies : state.enemies.filter((x) => x.defId === e.defId);
+        eff.target === 'self'
+          ? [e]
+          : eff.target === 'allies'
+            ? state.enemies
+            : eff.target === 'neighbors'
+              ? neighborsOf(state, e)
+              : state.enemies.filter((x) => x.defId === e.defId);
       for (const t of targets) addStatus(state, t, t.uid, 'strength', scaled(e.dmgMult, eff.amount), -1);
       break;
     }
     case 'heal': {
-      const targets = eff.target === 'self' ? [e] : state.enemies;
+      const targets = eff.target === 'self' ? [e] : eff.target === 'neighbors' ? neighborsOf(state, e) : state.enemies;
       for (const t of targets) healEnemy(state, t, scaled(e.hpMult, eff.amount));
       break;
     }
+    case 'cleanse': {
+      const had = e.statuses.filter((st) => isDot(st.id));
+      if (had.length === 0) break;
+      e.statuses = e.statuses.filter((st) => !isDot(st.id));
+      log(state, `${e.name} очищается: ${had.map((st) => STATUS_NAMES[st.id]).join(', ')} сняты`);
+      break;
+    }
+    case 'reveal':
+      if (getStatus(h, 'stealth')) {
+        removeStatus(h, 'stealth');
+        log(state, `${e.name} слышит героя: Скрытность снята`);
+      }
+      break;
     case 'debuff':
       if (getStatus(h, 'stealth')) {
         log(state, `${e.name} не видит героя`);
@@ -1637,7 +1781,8 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       addStatus(state, e, e.uid, 'dodge', eff.value, -1);
       break;
     case 'selfDestruct': {
-      const blast = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
+      // Подрыв в упор не слабее: вполсилы бьёт только выстрел, ярость боя — всё.
+      const blast = Math.max(1, Math.round((scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength')) * enrageMult(state)));
       const detail = newDetail();
       const dealt = damageHero(state, blast, 'hit', e, false, detail);
       log(state, `${e.name} взрывается: ${blast}${hitTail(blast, dealt, detail)}`);
@@ -1772,9 +1917,17 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
   e.lastAction = action.id;
   if (def.ai.type === 'boss') {
     const rule = def.ai.rules.find((r) => r.action === action.id);
-    e.forcedNext = rule?.followUp ?? null;
+    e.forcedNext = rule?.followUp ?? action.next ?? null;
   } else {
-    e.cycleIdx = (e.cycleIdx + 1) % def.ai.order.length;
+    // Круг двигается только своим приёмом: реакция и удар после замаха вставляются между, не съедая шаг цикла.
+    if (def.ai.order[e.cycleIdx % def.ai.order.length] === action.id) e.cycleIdx = (e.cycleIdx + 1) % def.ai.order.length;
+    e.forcedNext = action.next ?? null;
+  }
+  // Стрелок в упор (v0.46): выстрелил вполсилы — отходит на клетку назад, вперёд встаёт следующий.
+  if (pointBlank(state, e) && e.hp > 0) {
+    const i = state.enemies.indexOf(e);
+    [state.enemies[i], state.enemies[i + 1]] = [state.enemies[i + 1], state.enemies[i]];
+    log(state, `${e.name} отходит назад`);
   }
   tickDurations(e, 'end');
   if (state.phase === 'lost' || e.hp <= 0) return;
@@ -1830,8 +1983,12 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
   const stats = computeStats(heroDef, hero.weapon, hero.armor, statCtxOf(hero));
   // Врождённый навык (v0.44) — в руках героя, как вставленный артефакт: своя плитка, перезарядка и пассивка.
   const innate = innateOf(hero);
+  // Ряд по ролям (v0.46): страж и громила впереди, стрелок и поддержка сзади — какой бы ни была запись встречи.
+  const lineup = orderByRole(enemyIds);
+  const rankOrder: EnemyDef['rank'][] = ['normal', 'elite', 'boss'];
+  const top = lineup.reduce((m, id) => Math.max(m, rankOrder.indexOf(enemyDef(id).rank)), 0);
   const state: BattleState = {
-    roster: enemyIds.map((id) => enemyDef(id).name),
+    roster: lineup.map((id) => enemyDef(id).name),
     hero: {
       hp: Math.min(hero.hp, stats.maxHp),
       maxHp: stats.maxHp,
@@ -1855,6 +2012,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     },
     enemies: [],
     act,
+    enrageAt: ENRAGE_TURN[rankOrder[top]],
     allies: [],
     turn: 0,
     phase: 'enemy',
@@ -1870,7 +2028,8 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     source: '',
     dealtBy: {},
   };
-  for (const id of enemyIds) spawnEnemy(state, id, rng, false);
+  for (const id of lineup) spawnEnemy(state, id, rng, false);
+  for (const e of state.enemies) chooseIntent(state, e, rng);
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
   if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
   startPlayerTurn(state);
@@ -1924,6 +2083,10 @@ export interface ActionScale {
   dmgMult: number;
   strength: number;
   weak: boolean;
+  /** Множитель удара от места в ряду и ярости боя (v0.46, `enemyHitMult`); нет — 1. */
+  hitMult?: number;
+  /** Ярость боя для самоподрыва: в упор он не слабеет. */
+  enrage?: number;
 }
 
 export const BASE_SCALE: ActionScale = { hpMult: 1, dmgMult: 1, strength: 0, weak: false };
@@ -1953,6 +2116,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
       case 'attack': {
         let dmg = scaled(s.dmgMult, eff.amount) + s.strength;
         if (s.weak) dmg = Math.floor(dmg * 0.75);
+        if (s.hitMult && s.hitMult !== 1) dmg = Math.max(1, Math.round(dmg * s.hitMult));
         const hits = eff.hits ?? 1;
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
         if (eff.pierce) marks.push('pierce');
@@ -1965,7 +2129,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
       case 'block': {
         const blk = scaled(s.hpMult, eff.amount);
         if (!label) label = `${blk}`;
-        parts.push(`Блок ${blk}${eff.target === 'allies' ? ' всем' : ''}`);
+        parts.push(`Блок ${blk}${eff.target === 'allies' ? ' всем' : eff.target === 'neighbors' ? ' соседям' : ''}`);
         kinds.push('defend');
         break;
       }
@@ -1975,7 +2139,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         selfStatuses.push('dodge');
         break;
       case 'selfDestruct': {
-        const dmg = scaled(s.dmgMult, eff.amount) + s.strength;
+        const dmg = Math.max(1, Math.round((scaled(s.dmgMult, eff.amount) + s.strength) * (s.enrage ?? 1)));
         label = `${dmg}`;
         parts.push(`Самоподрыв ${dmg}${eff.burn ? ` + Горение ${scaled(s.dmgMult, eff.burn)}` : ''}`);
         kinds.push('attack');
@@ -2006,13 +2170,21 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         break;
       case 'buffStr':
         parts.push(
-          `+${scaled(s.dmgMult, eff.amount)} к урону (${eff.target === 'self' ? 'себе' : eff.target === 'allies' ? 'всем союзникам' : 'всем: ' + def.name})`,
+          `+${scaled(s.dmgMult, eff.amount)} к урону (${eff.target === 'self' ? 'себе' : eff.target === 'allies' ? 'всем союзникам' : eff.target === 'neighbors' ? 'соседям' : 'всем: ' + def.name})`,
         );
         kinds.push('buff');
         break;
       case 'heal':
-        parts.push(`Лечит ${scaled(s.hpMult, eff.amount)} (${eff.target === 'self' ? 'себя' : 'всех союзников'})`);
+        parts.push(`Лечит ${scaled(s.hpMult, eff.amount)} (${eff.target === 'self' ? 'себя' : eff.target === 'neighbors' ? 'соседей' : 'всех союзников'})`);
         kinds.push('heal');
+        break;
+      case 'cleanse':
+        parts.push('Снимает с себя раны');
+        kinds.push('heal');
+        break;
+      case 'reveal':
+        parts.push('Снимает с героя Скрытность');
+        kinds.push('debuff');
         break;
       case 'debuff': {
         const dur = eff.turns > 0 ? ` на ${eff.turns} ход(а)` : '';
@@ -2041,6 +2213,9 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         break;
     }
   }
+  // Замах: сам ход пустой, но игроку важно, что прилетит следом — это и есть предупреждение.
+  const next = 'next' in a && typeof a.next === 'string' ? def.actions.find((x) => x.id === a.next) : undefined;
+  if (next) parts.push(`следующим ходом — ${describeAction(def, next, s).text}`);
   const kind = INTENT_PRIORITY.find((k) => kinds.includes(k)) ?? 'special';
   return {
     kind,
@@ -2072,6 +2247,7 @@ export function onDeathInfo(e: EnemyState): ActionInfo | null {
  */
 export function turnsToFlee(e: EnemyState): number | null {
   const def = enemyDef(e.defId);
+  // Правила-реакции могут вклиниться в круг, поэтому считаем только чистый цикл (у воров он такой).
   if (def.ai.type !== 'cycle') return null;
   const order = def.ai.order;
   const fleeIds = new Set(def.actions.filter((a) => a.effects.some((eff) => eff.type === 'flee')).map((a) => a.id));
@@ -2085,17 +2261,25 @@ export function turnsToFlee(e: EnemyState): number | null {
   return null;
 }
 
-export function computeIntent(e: EnemyState): IntentInfo {
+export function computeIntent(e: EnemyState, state?: BattleState): IntentInfo {
   const def = enemyDef(e.defId);
   const a = enemyAction(def, e.intent);
+  // Место в ряду и ярость боя меняют число удара (v0.46): без состояния боя — как есть.
+  const hitMult = state ? enemyHitMult(state, e) : 1;
+  const enrage = state ? enrageMult(state) : 1;
   if (e.intent === PHASE_SHIFT && def.phase2) {
     // Ход перехода: босс не атакует, только ставит стражу — игроку окно на удар, лечение или блок, но не бесплатное.
     const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: 0, weak: false });
     const guard = info.detail ? ` — ${info.detail}` : '';
     return { ...info, text: `${a.name}: босс собирается с силами и в этот ход не атакует${guard}`, detail: `переход во вторую фазу, без атаки${guard}`, stunned: !!getStatus(e, 'stun') };
   }
-  const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak') });
-  return { ...info, stunned: !!getStatus(e, 'stun') };
+  const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak'), hitMult, enrage });
+  const notes = [
+    e.reason ? `Реакция: ${e.reason}` : '',
+    state && pointBlank(state, e) && info.kinds.includes('attack') ? `В упор: удар ×${POINT_BLANK_MULT}, потом отойдёт назад` : '',
+    enrage > 1 ? `Ярость боя: урон ×${enrage.toFixed(1)}` : '',
+  ].filter(Boolean);
+  return { ...info, text: notes.length ? `${info.text}\n${notes.join('\n')}` : info.text, stunned: !!getStatus(e, 'stun') };
 }
 
 export interface AllyIntentInfo extends IntentInfo {
@@ -2109,7 +2293,7 @@ export interface AllyIntentInfo extends IntentInfo {
  */
 export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentInfo {
   const def = enemyDef(a.defId);
-  const order = def.ai.type === 'cycle' ? def.ai.order : def.actions.map((x) => x.id);
+  const order = def.ai.type === 'boss' ? def.actions.map((x) => x.id) : def.ai.order;
   const action = enemyAction(def, order[a.cycleIdx % order.length]);
   const parts: string[] = [];
   const kinds: IntentKind[] = [];

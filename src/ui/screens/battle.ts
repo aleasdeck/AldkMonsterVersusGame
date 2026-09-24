@@ -1,11 +1,11 @@
 import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
-import { enemyDef } from '../../data/enemies';
+import { ROLE_INFO, enemyDef } from '../../data/enemies';
 import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
@@ -81,7 +81,7 @@ function intentExtras(intent: IntentInfo): Child[] {
 
 /** Пилюля намерения: иконка и число, цвет по главному эффекту, остальные эффекты хвостом; название, расшифровка и цель — в подсказке. */
 function intentPill(b: BattleState, e: EnemyState): HTMLElement {
-  const intent = computeIntent(e);
+  const intent = computeIntent(e, b);
   if (intent.stunned) return h('div', { class: 'pill intent-stunned', tip: 'Пропустит следующий ход', tipTitle: 'Оглушён' }, statusIcon('stun', 18), 'оглушён');
   // Враги бьют первого союзника раньше героя.
   const victim = intent.kind === 'attack' ? `\nЦель: ${b.allies[0]?.name ?? 'герой'}` : '';
@@ -131,9 +131,25 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     e.statuses.length ? badges(e, false, e) : null,
     bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
     h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, px, '', e)),
-    h('div', { class: 'name' }, e.name),
+    h('div', { class: 'name' }, roleMark(app.run!.battle!, e), e.name),
   );
   return bindPreview(app, el, () => enemyPreview(app, e.uid));
+}
+
+/**
+ * Значок роли перед именем (v0.46): страж, громила, рой, стрелок, заклинатель, поддержка — с правилом позиции в подсказке.
+ * Прикрытый стражем помечается щитом: первый удар за ход по нему достанется стражу.
+ */
+function roleMark(b: BattleState, e: EnemyState): Child {
+  const role = enemyDef(e.defId).role;
+  const guard = coveringGuard(b, e);
+  const marks: Child[] = [];
+  if (guard) marks.push(h('span', { class: 'role-mark covered', tip: `Первый удар за ход по нему примет ${guard.name}. Второй пройдёт; Крюк и толчок страж не перехватывает`, tipTitle: 'Под прикрытием' }, '⛉'));
+  if (role) {
+    const info = ROLE_INFO[role];
+    marks.push(h('span', { class: `role-mark role-${role}`, tip: info.rule, tipTitle: info.name }, info.icon));
+  }
+  return marks.length ? h('span', { class: 'role-marks' }, ...marks) : null;
 }
 
 /**
@@ -499,7 +515,7 @@ export function battleScreen(app: App): HTMLElement {
   );
 
   const canSummon = b.hero.artifacts.some((inst) => artifactDef(inst.id).effects?.(inst.tier).some((e) => e.type === 'summon'));
-  const enemiesAttack = b.enemies.some((e) => computeIntent(e).kind === 'attack');
+  const enemiesAttack = b.enemies.some((e) => computeIntent(e, b).kind === 'attack');
   const ghosts = canSummon && b.phase !== 'won' && b.phase !== 'lost' ? Array.from({ length: MAX_ALLIES - b.allies.length }, summonGhost) : [];
   const allyZone = h('div', { class: 'ally-zone' }, ...b.allies.map((a, i) => allyView(b, a, i === 0 && enemiesAttack)), ...ghosts);
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));

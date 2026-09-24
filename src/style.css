@@ -1239,6 +1239,41 @@ p {
 .field.crowded .enemy .name {
   max-width: 120px;
 }
+/* Роль врага (v0.46): значок перед именем, щит — «под прикрытием стража». */
+.role-marks {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 4px;
+  vertical-align: baseline;
+}
+.role-mark {
+  display: inline-block;
+  min-width: 14px;
+  font-size: 15px;
+  color: var(--dim);
+  cursor: help;
+}
+.role-mark.role-guard,
+.role-mark.covered {
+  color: #8fb8ff;
+}
+.role-mark.role-brute {
+  color: #ff9f6b;
+}
+.role-mark.role-shooter,
+.role-mark.role-caster {
+  color: #c9a0ff;
+}
+.role-mark.role-support {
+  color: var(--good);
+}
+.beast-role {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 4px 0 2px;
+  font-size: 17px;
+}
 .rank-boss .name {
   color: var(--bad);
 }

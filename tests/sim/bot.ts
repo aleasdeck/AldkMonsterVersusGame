@@ -8,7 +8,7 @@
  */
 import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RewardFocus, RunState, StatMods, StatusId } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
+import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { archetypeCounts, setMods } from '../../src/data/archetypes';
 import { innateOf } from '../../src/engine/stats';
@@ -190,7 +190,8 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
   const h = b.hero;
   // Враги бьют союзника первым, пока он жив.
   if (b.allies.length > 0) return { hit: 0, dot: 0 };
-  const hidden = holdsThroughEnemyTurn(getStatus(h, 'stealth'));
+  // «Прислушаться» (v0.46) снимает тень до удара — с этого врага и для всех, кто ходит после него.
+  let hidden = holdsThroughEnemyTurn(getStatus(h, 'stealth'));
   const invuln = holdsThroughEnemyTurn(getStatus(h, 'invuln'));
   // Уязвимость на герое: удары сильнее на VULNERABLE_MULT.
   const vulMult = holdsThroughEnemyTurn(getStatus(h, 'vulnerable')) ? VULNERABLE_MULT : 1;
@@ -204,9 +205,13 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
     if (!getStatus(e, 'invuln') && e.hp <= statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison')) continue;
     const a = enemyAction(enemyDef(e.defId), e.intent);
     for (const eff of a.effects) {
+      if (eff.type === 'reveal') hidden = false;
       if (eff.type === 'attack' || eff.type === 'selfDestruct') {
         let dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
         if (getStatus(e, 'weak')) dmg = Math.floor(dmg * 0.75);
+        // Стрелок в упор и ярость затянувшегося боя — та же формула, что в бою.
+        const mult = eff.type === 'attack' ? enemyHitMult(b, e) : enrageMult(b);
+        if (mult !== 1) dmg = Math.max(1, Math.round(dmg * mult));
         const hits = eff.type === 'attack' ? (eff.hits ?? 1) : 1;
         const pierce = eff.type === 'attack' && !!eff.pierce;
         for (let i = 0; i < hits; i++) {

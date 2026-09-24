@@ -3,6 +3,8 @@ import { createRng, next } from './engine/rng';
 import type { RunsFeed } from './engine/globalStats';
 import { EVENT_WEIGHTS, LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locations';
 import { startEvent } from './engine/run';
+import { createBattle } from './engine/combat';
+import { heroDef } from './data/heroes';
 import type { EventKind, LocationId } from './engine/types';
 import { ART_TIERS, COLLECTIBLES, findKey } from './data/collection';
 import { ENEMY_LIST, enemyDef } from './data/enemies';
@@ -142,6 +144,12 @@ if (heroParam) {
     app.render();
   } else if (params.get('enter')) {
     app.enterRoom();
+    // &foes=goblin_shaman,goblin — заменить врагов боя заданными (ряд всё равно строится по ролям, v0.46)
+    const foes = (params.get('foes') ?? '').split(',').filter((id) => ENEMY_LIST.some((e) => e.id === id));
+    if (foes.length && run.battle) {
+      run.battle = createBattle(heroDef(run.hero.defId), run.hero, foes, run.rng, run.locationIndex);
+      app.render();
+    }
     // &use=id1,id2 — сразу применить артефакты по первому врагу
     for (const id of (params.get('use') ?? '').split(',').filter(Boolean)) {
       app.battleAction({ type: 'artifact', artifactId: id, target: run.battle?.enemies[0]?.uid }, false);

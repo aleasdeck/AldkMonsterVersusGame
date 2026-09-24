@@ -431,9 +431,10 @@ export interface HeroDef {
 export type EnemyEffect =
   /** pierce — игнорирует блок героя, drain — лечит атакующего на нанесённый урон. */
   | { type: 'attack'; amount: number; hits?: number; pierce?: boolean; drain?: boolean }
-  | { type: 'block'; amount: number; target?: 'self' | 'allies' }
-  | { type: 'buffStr'; amount: number; target: 'self' | 'allies' | 'kind' }
-  | { type: 'heal'; amount: number; target: 'self' | 'allies' }
+  /** neighbors (v0.46) — только соседи по ряду (поддержка лечит и усиливает того, кто рядом), без себя. */
+  | { type: 'block'; amount: number; target?: 'self' | 'allies' | 'neighbors' }
+  | { type: 'buffStr'; amount: number; target: 'self' | 'allies' | 'kind' | 'neighbors' }
+  | { type: 'heal'; amount: number; target: 'self' | 'allies' | 'neighbors' }
   | { type: 'debuff'; status: StatusId; value: number; turns: number }
   | { type: 'drainMp'; amount: number }
   | { type: 'summon'; enemyId: string; count: number }
@@ -451,13 +452,19 @@ export type EnemyEffect =
   /** Удрать с добычей: враг покидает бой, не считаясь убитым. Пустое поле боя — победа с пометкой `fled`. */
   | { type: 'flee' }
   /** Замах: ход без эффекта, готовит следующий приём. */
-  | { type: 'none' };
+  | { type: 'none' }
+  /** Очищение (v0.46): снять с себя Кровотечение, Горение и Яд — ответ врага на сборку через раны. */
+  | { type: 'cleanse' }
+  /** «Прислушаться» (v0.46): снять с героя Скрытность до остальных эффектов приёма — ответ на игру из тени. */
+  | { type: 'reveal' };
 
 export interface AiCtx {
   self: EnemyState;
   enemies: EnemyState[];
   hero: HeroBattle;
   turn: number;
+  /** Сколько врагов было на старте боя (v0.46): «остался один» — только тот, кто начинал не один. */
+  lineup: number;
 }
 
 export interface EnemyAction {
@@ -468,7 +475,31 @@ export interface EnemyAction {
   condition?: (ctx: AiCtx) => boolean;
   /** Анимация приёма — только у элиты и боссов; рядовые враги просто наскакивают. */
   fx?: FxSpec;
+  /** Замах (v0.46): следующим ходом враг обязательно делает этот приём — намерение видно заранее, есть ход на блок или оглушение. */
+  next?: string;
 }
+
+/**
+ * Правило ИИ «по приоритету» (v0.46): первое выполнимое правило задаёт намерение, иначе — цикл `order`.
+ * Детерминированно, как цикл: игрок видит узор врага, а не бросок кубика.
+ */
+export interface PriorityRule {
+  action: string;
+  /** Условие реакции; вычисляется, когда враг выбирает следующее намерение (сразу после своего хода). */
+  when?: (ctx: AiCtx) => boolean;
+  /** Что за условие — для подсказки намерения и бестиария: «у героя Блок ≥ 6». */
+  hint?: string;
+  /** Не чаще, чем раз в N ходов. */
+  cooldown?: number;
+  /** Максимум раз за бой. */
+  maxUses?: number;
+}
+
+/**
+ * Роль врага (v0.46, план §5.3): задаёт место в ряду и правило позиции.
+ * Впереди — страж, громила, рой; сзади — стрелок, заклинатель, поддержка.
+ */
+export type EnemyRole = 'guard' | 'brute' | 'swarm' | 'shooter' | 'caster' | 'support';
 
 export interface BossRule {
   action: string;
@@ -490,7 +521,9 @@ export interface EnemyDef {
   location: LocationId;
   rank: 'normal' | 'elite' | 'boss';
   actions: EnemyAction[];
-  ai: { type: 'cycle'; order: string[] } | { type: 'boss'; rules: BossRule[] };
+  ai: { type: 'cycle'; order: string[] } | { type: 'priority'; rules: PriorityRule[]; order: string[] } | { type: 'boss'; rules: BossRule[] };
+  /** Роль в ряду (v0.46): у рядовых и элит; у боссов нет — они стоят, где стоят. */
+  role?: EnemyRole;
   /** Процентный уворот при появлении (статус `evade`, 0..100): столько процентов ударов и заклинаний проходит мимо. */
   evade?: number;
   /** Срабатывает при смерти: деление, взрыв. */
@@ -567,6 +600,12 @@ export interface EnemyState extends Combatant {
   riposted: boolean;
   /** Герой уже бил по нему в этом бою — для «Метки жертвы» (v0.45). */
   struck?: boolean;
+  /** Почему выбрано нынешнее намерение, если его выбрало правило-реакция (v0.46): «у героя Блок ≥ 6». */
+  reason?: string;
+  /** Страж уже заслонил соседа в этом ходу героя (v0.46): сбрасывается в начале хода героя. */
+  covered?: boolean;
+  /** Громила уже получил Силу за место впереди (v0.46): раз за бой. */
+  fronted?: boolean;
 }
 
 /** Союзник героя: ходит по правилам своего врага-прототипа, бьёт сам, враги атакуют его первым. */
@@ -599,6 +638,8 @@ export interface BattleState {
   roster: string[];
   /** Акт забега (0..2) для масштабирования врагов; null — без масштабирования. */
   act: number | null;
+  /** С какого хода враги впадают в ярость (v0.46, ENRAGE_TURN по самому сильному рангу боя); нет — как у рядового боя. */
+  enrageAt?: number;
   allies: AllyState[];
   turn: number;
   phase: 'player' | 'enemy' | 'won' | 'lost';
@@ -774,9 +815,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.45.0';
+export const GAME_VERSION = '0.46.0';
 
-export const SAVE_VERSION = 35;
+export const SAVE_VERSION = 36;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
