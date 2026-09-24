@@ -3,6 +3,15 @@ import { enemyDef } from './enemies';
 
 const t = (a: number, b: number, c: number) => (tier: ArtTier) => [a, b, c][tier - 1];
 
+/** Срок словами: «1 ход», «2 хода», «5 ходов». */
+const turns = (n: number) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'ход' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'хода' : 'ходов'}`;
+
+// Описания (v0.50): что делает вещь, от главного к оговоркам, одним словарём на все карточки. «Удар» — удар оружием в руках
+// (кубик, Сила, усталость, крит): «Удар +2», «Удар 50 %», «Два удара по 85 %», «Удар 80 % по всем врагам». «N урона» —
+// заклинание или фиксированный урон, без оружия. Статус — «Кровотечение 3 на 2 хода»: складывается ли он и что делает, пишет
+// подсказка ключевого слова, в описании это не повторяется. Цена, перезарядка и лимит за ход в описание не пишутся — это
+// ячейки карточки и плитки; тексту без ячеек (подсказки, коллекция) их добавляет artifactFullText.
+
 // slot — тип сокета (v0.31): оружейные — всё, что бьёт, вешает на врага усиливающие урон статусы или растит урон и крит;
 // бронные — HP, ресурсы (мана, стамина), блок, лечение, защита. Ловчая сеть и Сглаз — бронные (дебафы всем врагам, решение
 // пользователя), Волчий свисток — бронный (волк принимает удары первым).
@@ -44,7 +53,7 @@ const list: ArtifactDef[] = [
     kind: 'passive',
     slot: 'armor',
     mods: (tier) => ({ firstTurnSta: t(1, 2, 3)(tier) }),
-    describe: (tier) => `+${t(1, 2, 3)(tier)} стамины в первый ход боя`,
+    describe: (tier) => `+${t(1, 2, 3)(tier)} STA в первый ход боя`,
   },
   {
     id: 'thorns',
@@ -96,7 +105,7 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     tags: ['shadow'],
     mods: (tier) => ({ critRamp: t(0.05, 0.1, 0.15)(tier) }),
-    describe: (tier) => `Каждый удар без крита повышает шанс крита на ${t(5, 10, 15)(tier)} % до конца боя; крит сбрасывает накопленное`,
+    describe: (tier) => `Каждый удар без крита: +${t(5, 10, 15)(tier)} % к шансу крита; крит сбрасывает прибавку`,
   },
   {
     id: 'executioner_mark',
@@ -106,7 +115,7 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     tags: ['shadow'],
     mods: (tier) => ({ executeCrit: t(0.3, 0.4, 0.5)(tier) }),
-    describe: (tier) => `+${t(30, 40, 50)(tier)} % к шансу крита по врагу, у которого осталось меньше 20 % HP`,
+    describe: (tier) => `+${t(30, 40, 50)(tier)} % к шансу крита по врагу ниже 20 % HP`,
   },
   {
     id: 'blood_thirst',
@@ -147,7 +156,7 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     tags: ['shadow'],
     mods: (tier) => ({ markOnHit: t(1, 2, 2)(tier) }),
-    describe: (tier) => `Первый удар героя в ходу вешает Уязвимость на ${t(1, 2, 2)(tier)} ход(а)`,
+    describe: (tier) => `Первый удар в ходу вешает Уязвимость на ${turns(t(1, 2, 2)(tier))}`,
   },
   // Четыре бронные пассивки v0.31.1 — на статах перков брони (Кольца, Стойкость, Панцирь, Тень), чтобы выровнять 28/19 после типов сокетов.
   {
@@ -168,7 +177,7 @@ const list: ArtifactDef[] = [
     // v0.40.2 (запрос пользователя): брони против ран в пуле не было — кровь, огонь и яд шли мимо блока и мимо кольчуги,
     // и единственным ответом был «Травяной отвар» с перезарядкой. Мазь гасит общий тик ран за ход, как Кольца — удар.
     mods: (tier) => ({ dotReduce: t(1, 2, 3)(tier) }),
-    describe: (tier) => `Кровотечение, Горение и Яд на герое слабее на ${t(1, 2, 3)(tier)} за ход (считается со всех ран разом)`,
+    describe: (tier) => `Кровотечение, Горение и Яд на герое вместе наносят на ${t(1, 2, 3)(tier)} меньше за ход`,
   },
   {
     id: 'battle_trance',
@@ -182,7 +191,7 @@ const list: ArtifactDef[] = [
     slot: 'armor',
     tags: ['series'],
     mods: (tier) => ({ lowHpStr: t(3, 4, 5)(tier), lowHpSta: 1, lowHpReduce: t(1, 1, 2)(tier) }),
-    describe: (tier) => `Пока HP ниже половины: +${t(3, 4, 5)(tier)} к Силе, +1 STA в начале хода, каждый удар врага слабее на ${t(1, 1, 2)(tier)}`,
+    describe: (tier) => `Пока HP ниже половины: +${t(3, 4, 5)(tier)} к Силе, +1 STA в начале хода, удары врагов слабее на ${t(1, 1, 2)(tier)}`,
   },
   // ── Связки (v0.38): пассивки, которые читают состояние цели или свои же приёмы ──
   {
@@ -205,7 +214,7 @@ const list: ArtifactDef[] = [
     tags: ['blood', 'poison'],
     mods: (tier) => ({ dotLeech: t(1, 2, 3)(tier) }),
     // v0.40.2: считается по каждой ране, а не по факту «есть хоть одна» — с кровью и ядом на одном враге пьётся вдвое.
-    describe: (tier) => `Каждый тик кровотечения и яда на враге лечит героя на ${t(1, 2, 3)(tier)}: обе раны на одной цели — вдвое`,
+    describe: (tier) => `Тик Кровотечения или Яда на враге лечит героя на ${t(1, 2, 3)(tier)}; обе раны на одной цели — вдвое`,
   },
   {
     id: 'rot',
@@ -234,7 +243,7 @@ const list: ArtifactDef[] = [
     kind: 'passive',
     slot: 'weapon',
     mods: (tier) => ({ perDebuff: t(1, 2, 3)(tier) }),
-    describe: (tier) => `Удары +${t(1, 2, 3)(tier)} урона за каждое проклятие на цели (Слабость, Кровотечение, Горение, Яд, Оглушение, Уязвимость)`,
+    describe: (tier) => `Удар +${t(1, 2, 3)(tier)} за каждое проклятие на цели`,
   },
   {
     id: 'cross_current',
@@ -259,7 +268,7 @@ const list: ArtifactDef[] = [
     target: 'self',
     // Лечит мало — ценность в том, что снимает всё разом: кровь, огонь, яд, слабость, изнурение, уязвимость.
     effects: (tier) => [{ type: 'heal', amount: t(3, 4, 5)(tier) }, { type: 'cleanse' }],
-    describe: (tier) => `Восстанавливает ${t(3, 4, 5)(tier)} HP и снимает все отрицательные эффекты. КД 3`,
+    describe: (tier) => `Лечит ${t(3, 4, 5)(tier)} HP и снимает все отрицательные эффекты`,
   },
   {
     id: 'whirlwind',
@@ -274,7 +283,7 @@ const list: ArtifactDef[] = [
     target: 'allEnemies',
     // 50 % вместо 60 %: у Берсерка с Яростью вихрь два-три раза за ход сносил всю встречу.
     effects: (tier) => [{ type: 'attack', bonus: t(0, 2, 4)(tier), target: 'allEnemies', mult: 0.5 }],
-    describe: (tier) => `50 % урона атаки +${t(0, 2, 4)(tier)} по всем врагам`,
+    describe: (tier) => `Удар 50 % по всем врагам${t(0, 2, 4)(tier) ? `, +${t(0, 2, 4)(tier)} к удару` : ''}`,
   },
   {
     id: 'stun_strike',
@@ -294,7 +303,7 @@ const list: ArtifactDef[] = [
       { type: 'attack', bonus: t(0, 1, 2)(tier), target: 'enemy' },
       { type: 'status', target: 'enemy', status: 'stun', value: 1, turns: -1 },
     ],
-    describe: (tier) => `Атака${t(0, 1, 2)(tier) ? ` +${t(0, 1, 2)(tier)}` : ''}, цель пропускает следующее действие; пока приём вставлен, удары по оглушённому всегда крит. КД 3`,
+    describe: (tier) => `Удар${t(0, 1, 2)(tier) ? ` +${t(0, 1, 2)(tier)}` : ''} и Оглушение; пока приём вставлен, удары по оглушённому — всегда крит`,
   },
   {
     id: 'bleed_cut',
@@ -317,8 +326,7 @@ const list: ArtifactDef[] = [
       { type: 'attack', bonus: 0, target: 'enemy', mult: 0.5 },
       { type: 'status', target: 'enemy', status: 'bleed', value: t(3, 4, 5)(tier), turns: 3 },
     ],
-    describe: (tier) =>
-      `Удар на 50 % и Кровотечение ${t(3, 4, 5)(tier)} на 3 хода (стакается). ${t(1, 2, 2)(tier) === 1 ? 'Раз в ход' : `До ${t(1, 2, 2)(tier)} раз за ход`}`,
+    describe: (tier) => `Удар 50 % и Кровотечение ${t(3, 4, 5)(tier)} на 3 хода`,
   },
   {
     id: 'war_cry',
@@ -332,7 +340,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 3,
     target: 'self',
     effects: (tier) => [{ type: 'status', target: 'self', status: 'strength', value: t(2, 3, 4)(tier), turns: 2 }],
-    describe: (tier) => `+${t(2, 3, 4)(tier)} к Силе на этот и следующий ход. КД 3`,
+    describe: (tier) => `+${t(2, 3, 4)(tier)} к Силе на этот и следующий ход`,
   },
   {
     id: 'riposte',
@@ -348,7 +356,7 @@ const list: ArtifactDef[] = [
     // без кубика, усталости и крита, не больше одного ответа каждому врагу за его ход, шипы врага об ответ не ранят. Щитовой удар
     // даёт блок, блок бьёт в ответ — «Защититься» перестаёт быть пасом.
     mods: (tier) => ({ riposte: t(45, 60, 75)(tier) }),
-    describe: (tier) => `Когда блок гасит удар врага, ударивший получает ${t(45, 60, 75)(tier)} % урона оружия (раз за его ход)`,
+    describe: (tier) => `Блок гасит удар врага — ударивший получает ${t(45, 60, 75)(tier)} % урона оружия (раз за его ход)`,
   },
   {
     id: 'rage',
@@ -369,7 +377,7 @@ const list: ArtifactDef[] = [
       // v0.38: +2/3/4 вместо +1/2/3 — компенсация Берсерку за ушедшие Камень силы и Мощный удар (он лёг на 21 % у бота).
       { type: 'status', target: 'self', status: 'strength', value: t(3, 4, 5)(tier), turns: 1 },
     ],
-    describe: (tier) => `Ранит себя на ${t(1, 1, 1)(tier)} HP, даёт +${t(2, 2, 3)(tier)} стамины и +${t(3, 4, 5)(tier)} к Силе на этот ход. КД 2`,
+    describe: (tier) => `Ранит себя на ${t(1, 1, 1)(tier)} HP: +${t(2, 2, 3)(tier)} STA и +${t(3, 4, 5)(tier)} к Силе на этот ход`,
   },
   {
     id: 'second_wind',
@@ -383,7 +391,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 4,
     target: 'self',
     effects: (tier) => [{ type: 'gainSta', amount: t(1, 2, 3)(tier) }],
-    describe: (tier) => `+${t(1, 2, 3)(tier)} стамины. КД 4`,
+    describe: (tier) => `+${t(1, 2, 3)(tier)} STA`,
   },
   {
     id: 'aimed_shot',
@@ -400,7 +408,7 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     // v0.38: +1/3/5 вместо +2/4/6 — базовый стиль Лучника оставлен, но чуть дороже относительно связок.
     effects: (tier) => [{ type: 'attack', bonus: t(1, 3, 5)(tier), target: 'enemy', sureCrit: true }],
-    describe: (tier) => `Атака +${t(1, 3, 5)(tier)}, всегда крит (урон ×2). КД 4`,
+    describe: (tier) => `Удар +${t(1, 3, 5)(tier)}, всегда крит`,
   },
   {
     id: 'crippling_shot',
@@ -419,7 +427,7 @@ const list: ArtifactDef[] = [
       { type: 'status', target: 'enemy', status: 'weak', value: 1, turns: t(1, 2, 3)(tier) },
       { type: 'status', target: 'enemy', status: 'cold', value: 1, turns: -1 },
     ],
-    describe: (tier) => `Атака +${t(0, 1, 2)(tier)}, Слабость на ${t(1, 2, 3)(tier)} ход(а) и Холод 1. КД 2`,
+    describe: (tier) => `Удар${t(0, 1, 2)(tier) ? ` +${t(0, 1, 2)(tier)}` : ''}, Слабость на ${turns(t(1, 2, 3)(tier))} и Холод 1`,
   },
   {
     id: 'arrow_rain',
@@ -439,7 +447,7 @@ const list: ArtifactDef[] = [
       { type: 'attack', bonus: 0, target: 'allEnemies', mult: t(0.6, 0.7, 0.8)(tier) },
       { type: 'status', target: 'allEnemies', status: 'cold', value: 1, turns: -1 },
     ],
-    describe: (tier) => `${t(60, 70, 80)(tier)} % урона атаки и Холод 1 всем врагам. КД 2`,
+    describe: (tier) => `Удар ${t(60, 70, 80)(tier)} % и Холод 1 по всем врагам`,
   },
   {
     id: 'smoke_bomb',
@@ -455,7 +463,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 4,
     target: 'self',
     effects: (tier) => [{ type: 'status', target: 'self', status: 'stealth', value: 1, turns: t(1, 2, 2)(tier) }],
-    describe: (tier) => `Скрытность на ${t(1, 2, 2)(tier)} хода врага (складывается): враги не видят героя, следующая атака — удар в спину. КД 4`,
+    describe: (tier) => `Скрытность на ${turns(t(1, 2, 2)(tier))} врага; срок складывается`,
   },
   {
     id: 'poison_vial',
@@ -473,7 +481,7 @@ const list: ArtifactDef[] = [
     // Склянка летит через ряд: достаёт любого, даже в руках ближнего бойца.
     reach: 'any',
     effects: (tier) => [{ type: 'status', target: 'enemy', status: 'poison', value: t(2, 3, 4)(tier), turns: 4 }],
-    describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода (стакается). До ${t(1, 2, 2)(tier)} раз за ход. Бросок не снимает скрытность`,
+    describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода; бросок не снимает скрытность`,
   },
   {
     id: 'double_lunge',
@@ -494,7 +502,7 @@ const list: ArtifactDef[] = [
       { type: 'attack', bonus: 0, target: 'enemy', mult: t(0.75, 0.85, 1)(tier) },
       { type: 'attack', bonus: 0, target: 'enemy', mult: t(0.75, 0.85, 1)(tier) },
     ],
-    describe: (tier) => `Два удара по ${t(75, 85, 100)(tier)} % урона; из тени в спину бьёт только первый. КД 2`,
+    describe: (tier) => `Два удара по ${t(75, 85, 100)(tier)} %; из тени в спину бьёт только первый`,
   },
 
   {
@@ -517,7 +525,7 @@ const list: ArtifactDef[] = [
       { type: 'attack', bonus: 0, target: 'enemy', blockPct: t(0.5, 0.6, 0.7)(tier) },
       { type: 'push', target: 'enemy' },
     ],
-    describe: (tier) => `Удар оружием; ${t(50, 60, 70)(tier)} % нанесённого урона становится Блоком, цель отброшена на клетку назад. КД 2`,
+    describe: (tier) => `Удар; ${t(50, 60, 70)(tier)} % его урона становится Блоком, цель отлетает на клетку назад`,
   },
   {
     id: 'shield_ram',
@@ -533,7 +541,7 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     reach: 'melee',
     effects: (tier) => [{ type: 'blockStrike', mult: t(1, 1.5, 2)(tier), target: 'enemy' }],
-    describe: (tier) => `Удар щитом: ${t(100, 150, 200)(tier)} % текущего Блока героя уроном по цели. Оружие и усталость не участвуют, блок не тратится. КД 2`,
+    describe: (tier) => `Урон = ${t(100, 150, 200)(tier)} % вашего Блока; блок не тратится, оружие и усталость не участвуют`,
   },
   {
     id: 'light_hammer',
@@ -554,7 +562,7 @@ const list: ArtifactDef[] = [
       { type: 'attack', bonus: t(1, 2, 3)(tier), target: 'enemy' },
       { type: 'heal', amount: t(1, 2, 3)(tier) },
     ],
-    describe: (tier) => `Атака +${t(1, 2, 3)(tier)} и лечение ${t(1, 2, 3)(tier)} HP. 1 STA + 1 MP, КД 3`,
+    describe: (tier) => `Удар +${t(1, 2, 3)(tier)} и лечит ${t(1, 2, 3)(tier)} HP`,
   },
   {
     id: 'grapple_hook',
@@ -580,7 +588,7 @@ const list: ArtifactDef[] = [
       { type: 'status', target: 'enemy', status: 'bleed', value: t(2, 3, 4)(tier), turns: 2 },
       { type: 'pull', target: 'enemy' },
     ],
-    describe: (tier) => `Кровотечение ${t(2, 3, 4)(tier)} на 2 хода и притягивание в первый ряд — под удар ближнего боя, остальные сдвигаются назад. КД ${t(3, 2, 1)(tier)}`,
+    describe: (tier) => `Кровотечение ${t(2, 3, 4)(tier)} на 2 хода; цель притянута в первый ряд, остальные сдвигаются назад`,
   },
   {
     id: 'net',
@@ -597,7 +605,7 @@ const list: ArtifactDef[] = [
       { type: 'status', target: 'allEnemies', status: 'weak', value: 1, turns: t(1, 2, 2)(tier) },
       { type: 'status', target: 'allEnemies', status: 'cold', value: 1, turns: -1 },
     ],
-    describe: (tier) => `Слабость на ${t(1, 2, 2)(tier)} ход(а) и Холод 1 всем врагам. КД 2`,
+    describe: (tier) => `Слабость на ${turns(t(1, 2, 2)(tier))} и Холод 1 всем врагам`,
   },
   {
     id: 'adrenaline',
@@ -615,7 +623,7 @@ const list: ArtifactDef[] = [
       // Два хода, а не один: статус вешается в свой ход и тик конца хода снял бы его до начала следующего.
       { type: 'status', target: 'self', status: 'exhaust', value: 1, turns: 2 },
     ],
-    describe: (tier) => `+${t(1, 1, 2)(tier)} STA сейчас, Изнурение 1 на следующем ходу. КД 3`,
+    describe: (tier) => `+${t(1, 1, 2)(tier)} STA сейчас, Изнурение 1 на следующем ходу`,
   },
   {
     id: 'deaf_defense',
@@ -633,7 +641,7 @@ const list: ArtifactDef[] = [
       { type: 'block', amount: t(4, 6, 8)(tier) },
       { type: 'cleanse', statuses: ['weak', 'exhaust'] },
     ],
-    describe: (tier) => `+${t(4, 6, 8)(tier)} Блока и снимает Слабость и Изнурение. КД 2`,
+    describe: (tier) => `+${t(4, 6, 8)(tier)} Блока и снимает Слабость и Изнурение`,
   },
   // ── Связки (v0.38): выплаты по статусам и по своим же ударам ──
   {
@@ -653,7 +661,7 @@ const list: ArtifactDef[] = [
       { type: 'attack', bonus: 0, target: 'enemy' },
       { type: 'detonate', statuses: ['bleed'], target: 'enemy', mult: t(1, 1.25, 1.5)(tier) },
     ],
-    describe: (tier) => `Удар; всё оставшееся Кровотечение на цели срабатывает сразу${t(1, 1.25, 1.5)(tier) > 1 ? ` ×${t(1, 1.25, 1.5)(tier)}` : ''} (мимо блока) и снимается. КД 2`,
+    describe: (tier) => `Удар; оставшееся Кровотечение цели срабатывает сразу${t(1, 1.25, 1.5)(tier) > 1 ? ` ×${t(1, 1.25, 1.5)(tier)}` : ''} и снимается`,
   },
   {
     id: 'contagion',
@@ -669,7 +677,7 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     reach: 'any',
     effects: () => [{ type: 'spread', statuses: ['poison'], target: 'enemy' }],
-    describe: (tier) => `Яд с цели копируется на всех остальных врагов (сила и срок те же). КД ${t(3, 2, 2)(tier)}`,
+    describe: () => `Яд с цели копируется на всех остальных врагов (сила и срок те же)`,
   },
   {
     id: 'shield_break',
@@ -684,7 +692,7 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     reach: 'melee',
     effects: (tier) => [{ type: 'breakBlock', mult: t(1, 1.5, 2)(tier), target: 'enemy' }],
-    describe: (tier) => `Снимает весь блок цели и наносит его уроном${t(1, 1.5, 2)(tier) > 1 ? ` ×${t(1, 1.5, 2)(tier)}` : ''}. Без блока у цели недоступен. КД 2`,
+    describe: (tier) => `Снимает весь блок цели и бьёт им${t(1, 1.5, 2)(tier) > 1 ? ` ×${t(1, 1.5, 2)(tier)}` : ''}; только по цели с блоком`,
   },
   {
     id: 'finisher',
@@ -701,7 +709,7 @@ const list: ArtifactDef[] = [
     // v0.38.8: доля среднего удара вместо плоских 3/4/5 (решение пользователя) — растёт с оружием и Силой.
     // v0.40.2: множитель — число ударов хода (`hero.strikes`), а не действий: Двойной выпад даёт Финишеру два.
     effects: (tier) => [{ type: 'finisher', pct: t(50, 65, 80)(tier), target: 'enemy' }],
-    describe: (tier) => `${t(50, 65, 80)(tier)} % среднего урона оружия за каждый удар, сделанный в этом ходу (приём из двух ударов даёт два); сам атакой не считается, усталости нет. КД 2`,
+    describe: (tier) => `${t(50, 65, 80)(tier)} % среднего урона оружия за каждый удар этого хода; без усталости, сам атакой не считается`,
   },
   {
     id: 'echo_strike',
@@ -719,7 +727,7 @@ const list: ArtifactDef[] = [
     // Пролом щита и Цепная атака. До этого эхо на них не срабатывало и даже не тратилось: игрок вешал его и не понимал, куда оно делось.
     // v0.41.3: перечисление приёмов из описания убрано (решение пользователя) — оно росло с каждым новым приёмом в ECHO_EFFECTS
     // и не влезало в карточку награды. «Приём» в словаре карточек и так не «магия», так что заклинания отсекаются самим словом.
-    describe: (tier) => `Следующий атакующий приём дублируется. КД ${t(4, 3, 2)(tier)}`,
+    describe: () => `Следующий атакующий приём дублируется`,
   },
   {
     id: 'chain_strike',
@@ -735,7 +743,7 @@ const list: ArtifactDef[] = [
     reach: 'any',
     // Активный приём, а не пассивка (решение пользователя): игрок сам выбирает, кого добить вдогонку. Заряд — каждый другой приём в ходу.
     effects: (tier) => [{ type: 'chain', amount: t(2, 3, 4)(tier), target: 'enemy' }],
-    describe: (tier) => `Удар ${t(2, 3, 4)(tier)} по любой цели, бесплатно; доступен один раз после приёма или заклинания (заряд не копится)`,
+    describe: (tier) => `${t(2, 3, 4)(tier)} урона любой цели — раз после каждого другого приёма или заклинания`,
   },
   {
     id: 'execute_strike',
@@ -751,7 +759,7 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     // v0.38.3: +3/5/7 по цели ниже 30 % HP (решение пользователя) — приём для добивания, а не просто удар с возвратом.
     effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', refundOnKill: t(1, 1, 2)(tier), lowHp: { pct: 0.3, bonus: t(3, 5, 7)(tier) } }],
-    describe: (tier) => `Удар, +${t(3, 5, 7)(tier)} по цели ниже 30 % HP; если цель погибает, возвращает ${t(1, 1, 2)(tier)} STA. Раз в ход`,
+    describe: (tier) => `Удар, по цели ниже 30 % HP +${t(3, 5, 7)(tier)}; если цель погибла — +${t(1, 1, 2)(tier)} STA`,
   },
   // ─── Активные магические (MP) ────────────────────────────────────────────
   {
@@ -772,7 +780,7 @@ const list: ArtifactDef[] = [
       { type: 'spell', amount: t(3, 4, 5)(tier), target: 'enemy' },
       { type: 'status', target: 'enemy', status: 'burn', value: t(3, 4, 5)(tier), turns: 3 },
     ],
-    describe: (tier) => `${t(3, 4, 5)(tier)} урона заклинанием и Горение ${t(3, 4, 5)(tier)} на 3 хода. Раз в ход`,
+    describe: (tier) => `${t(3, 4, 5)(tier)} урона и Горение ${t(3, 4, 5)(tier)} на 3 хода`,
   },
   {
     id: 'ice_shard',
@@ -791,7 +799,7 @@ const list: ArtifactDef[] = [
       { type: 'spell', amount: t(3, 4, 5)(tier), target: 'enemy' },
       { type: 'status', target: 'enemy', status: 'cold', value: t(1, 1, 2)(tier), turns: -1 },
     ],
-    describe: (tier) => `${t(3, 4, 5)(tier)} урона и Холод ${t(1, 1, 2)(tier)}. Раз в ход`,
+    describe: (tier) => `${t(3, 4, 5)(tier)} урона и Холод ${t(1, 1, 2)(tier)}`,
   },
   {
     id: 'heal',
@@ -805,7 +813,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 3,
     target: 'self',
     effects: (tier) => [{ type: 'heal', amount: t(5, 7, 9)(tier) }],
-    describe: (tier) => `Восстанавливает ${t(5, 7, 9)(tier)} HP. КД 3`,
+    describe: (tier) => `Лечит ${t(5, 7, 9)(tier)} HP`,
   },
   {
     id: 'mana_shield',
@@ -819,7 +827,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 1,
     target: 'self',
     effects: (tier) => [{ type: 'block', amount: t(5, 8, 11)(tier) }],
-    describe: (tier) => `+${t(5, 8, 11)(tier)} Блока. Раз в ход`,
+    describe: (tier) => `+${t(5, 8, 11)(tier)} Блока`,
   },
   {
     id: 'chain_lightning',
@@ -833,7 +841,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 2,
     target: 'allEnemies',
     effects: (tier) => [{ type: 'spell', amount: t(4, 6, 8)(tier), target: 'allEnemies' }],
-    describe: (tier) => `${t(4, 6, 8)(tier)} урона всем врагам. КД 2`,
+    describe: (tier) => `${t(4, 6, 8)(tier)} урона всем врагам`,
   },
   {
     id: 'drain',
@@ -848,7 +856,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 2,
     target: 'enemy',
     effects: (tier) => [{ type: 'spell', amount: t(4, 6, 8)(tier), target: 'enemy', drain: true }],
-    describe: (tier) => `${t(4, 6, 8)(tier)} урона, лечит на столько же. КД 2`,
+    describe: (tier) => `${t(4, 6, 8)(tier)} урона и лечит на столько же`,
   },
   {
     id: 'dodge',
@@ -861,7 +869,7 @@ const list: ArtifactDef[] = [
     cooldown: (tier) => t(4, 3, 2)(tier),
     target: 'self',
     effects: () => [{ type: 'status', target: 'self', status: 'dodge', value: 1, turns: -1 }],
-    describe: (tier) => `Следующая атака по герою не наносит урона. КД ${t(4, 3, 2)(tier)}`,
+    describe: () => `Следующая атака по герою не наносит урона`,
   },
   {
     id: 'wolf_whistle',
@@ -875,8 +883,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 3,
     target: 'self',
     effects: (tier) => [{ type: 'summon', enemyId: 'wolf', hpBonus: t(0, 4, 8)(tier) }],
-    describe: (tier) =>
-      `Призывает волка (${enemyDef('wolf').hp + t(0, 4, 8)(tier)} HP) рядом с героем. Кусает сам после вашего хода, враги бьют его первым. КД 3`,
+    describe: (tier) => `Призывает волка (${enemyDef('wolf').hp + t(0, 4, 8)(tier)} HP): кусает после вашего хода, враги бьют его первым`,
   },
   {
     id: 'magic_missile',
@@ -892,7 +899,7 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     // v0.38: 2/3/4 вместо 3/4/5 — Маг с первой сигнатурой один остался над коридором бота (42 %).
     effects: (tier) => [{ type: 'spell', amount: t(2, 3, 4)(tier), target: 'enemy' }],
-    describe: (tier) => `${t(2, 3, 4)(tier)} урона заклинанием. До ${t(2, 3, 4)(tier)} раз за ход`,
+    describe: (tier) => `${t(2, 3, 4)(tier)} урона`,
   },
   {
     id: 'fire_wave',
@@ -911,7 +918,7 @@ const list: ArtifactDef[] = [
       { type: 'spell', amount: t(2, 3, 4)(tier), target: 'allEnemies' },
       { type: 'status', target: 'allEnemies', status: 'burn', value: t(1, 1, 2)(tier), turns: 2 },
     ],
-    describe: (tier) => `${t(2, 3, 4)(tier)} урона заклинанием всем врагам и Горение ${t(1, 1, 2)(tier)} на 2 хода всем. Раз в ход`,
+    describe: (tier) => `${t(2, 3, 4)(tier)} урона и Горение ${t(1, 1, 2)(tier)} на 2 хода всем врагам`,
   },
   {
     id: 'hex',
@@ -930,7 +937,7 @@ const list: ArtifactDef[] = [
       { type: 'status', target: 'allEnemies', status: 'vulnerable', value: 1, turns: t(2, 3, 3)(tier) },
       { type: 'status', target: 'allEnemies', status: 'cold', value: 1, turns: -1 },
     ],
-    describe: (tier) => `Уязвимость на ${t(2, 3, 3)(tier)} ход(а) и Холод 1 всем врагам. КД 3`,
+    describe: (tier) => `Уязвимость на ${turns(t(2, 3, 3)(tier))} и Холод 1 всем врагам`,
   },
   {
     id: 'vengeance_halo',
@@ -951,7 +958,7 @@ const list: ArtifactDef[] = [
       // v0.49: 1/1/2, Шипы 1/2/3, 2 MP и КД 4 — Ореол заводит сразу Возмездие и Свет, и Паладин ② держался на 64–68 %; стало 40 %.
       { type: 'status', target: 'self', status: 'regen', value: t(1, 1, 2)(tier), turns: 3 },
     ],
-    describe: (tier) => `Шипы ${t(1, 2, 3)(tier)} и Регенерация ${t(1, 1, 2)(tier)} на 3 хода. КД 4`,
+    describe: (tier) => `Шипы ${t(1, 2, 3)(tier)} и Регенерация ${t(1, 1, 2)(tier)} на 3 хода`,
   },
   // ── Связки (v0.38) ──
   {
@@ -967,7 +974,7 @@ const list: ArtifactDef[] = [
     target: 'self',
     // Заводка для всех трёх семейств ран сразу (решение пользователя): стихия случайная, оружие держит одну.
     effects: (tier) => [{ type: 'enchant', value: t(1, 2, 3)(tier), turns: 2 }],
-    describe: (tier) => `Оружие на 2 хода получает случайную стихию: каждый удар вешает Горение, Яд или Кровотечение ${t(1, 2, 3)(tier)} на 2 хода. КД 3`,
+    describe: (tier) => `Заточка ${t(1, 2, 3)(tier)} на 2 хода со случайной стихией: Горение, Яд или Кровотечение`,
   },
   {
     id: 'flame_burst',
@@ -985,7 +992,7 @@ const list: ArtifactDef[] = [
     // горящих — пул собирается со всех и бьёт каждого, — так что верхний тир выносил встречу целиком. Лесенка взята у Вскрытия:
     // два взрыва ран в пуле должны стоить одинаково, а у огненного ещё и пул со всех целей, и удар по всем.
     effects: (tier) => [{ type: 'detonate', statuses: ['burn'], target: 'allEnemies', mult: t(1, 1.25, 1.5)(tier), pooled: true }],
-    describe: (tier) => `Снимает Горение со всех врагов; всё, что оно ещё нанесло бы, складывается и бьёт каждого${t(1, 1.25, 1.5)(tier) > 1 ? ` ×${t(1, 1.25, 1.5)(tier)}` : ''} мимо блока. КД 2`,
+    describe: (tier) => `Снимает всё Горение: сумма его оставшегося урона${t(1, 1.25, 1.5)(tier) > 1 ? ` ×${t(1, 1.25, 1.5)(tier)}` : ''} бьёт каждого врага мимо блока`,
   },
   // ─── Архетипы (v0.43, пилот) ─────────────────────────────────────────────
   // docs/plan-reworka.md §2 и ADR 0003: заводка срабатывает на ударе, выплата растёт от накопленного, ключевая вещь ломает правило за цену.
@@ -999,7 +1006,7 @@ const list: ArtifactDef[] = [
     tags: ['blood'],
     // Заводка на ударе: удар — носитель связки, а не её конкурент. Чем больше ударов за ход, тем больше крови.
     mods: (tier) => ({ onHitBleed: t(1, 1, 2)(tier) }),
-    describe: (tier) => `Каждый удар оружием вешает Кровотечение ${t(1, 1, 2)(tier)} на 2 хода (стакается)`,
+    describe: (tier) => `Каждый удар оружием вешает Кровотечение ${t(1, 1, 2)(tier)} на 2 хода`,
   },
   {
     id: 'blood_bath',
@@ -1016,7 +1023,7 @@ const list: ArtifactDef[] = [
     reach: 'any',
     // Заражение для крови: кровь копится на одном, баня разносит её по всем — выплата по площади.
     effects: (tier) => [{ type: 'spread', statuses: ['bleed'], target: 'enemy', pct: t(0.5, 0.75, 1)(tier) }],
-    describe: (tier) => `Кровотечение с цели расходится на всех остальных врагов: ${t(50, 75, 100)(tier)} % силы, срок тот же. КД ${t(3, 2, 2)(tier)}`,
+    describe: (tier) => `Кровотечение цели копируется на остальных врагов: ${t(50, 75, 100)(tier)} % силы, срок тот же`,
   },
   {
     id: 'blood_oath',
@@ -1028,7 +1035,7 @@ const list: ArtifactDef[] = [
     keystone: true,
     // Ключевая вещь: удар слабеет, кровь — в полтора раза. В бронном сокете — стоит места защиты.
     mods: (tier) => ({ strikeMult: -t(0.3, 0.25, 0.2)(tier), bleedMult: 0.5 }),
-    describe: (tier) => `Удары оружием слабее на ${t(30, 25, 20)(tier)} %; всё Кровотечение, которое вы вешаете, в полтора раза сильнее`,
+    describe: (tier) => `Ваше Кровотечение в полтора раза сильнее; удары оружием слабее на ${t(30, 25, 20)(tier)} %`,
   },
   // ── Огонь ──
   {
@@ -1040,7 +1047,7 @@ const list: ArtifactDef[] = [
     tags: ['fire'],
     // Огонь для тех, кто бьёт оружием: удар поджигает, выплаты — Испепеление и Взрыв — берут с этого.
     mods: (tier) => ({ onHitBurn: t(1, 1, 2)(tier) }),
-    describe: (tier) => `Каждый удар оружием вешает Горение ${t(1, 1, 2)(tier)} на 2 хода (стакается)`,
+    describe: (tier) => `Каждый удар оружием вешает Горение ${t(1, 1, 2)(tier)} на 2 хода`,
   },
   {
     id: 'incinerate',
@@ -1056,7 +1063,7 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     // Выплата по одной цели: Горение разом, но огонь не гаснет — в отличие от Взрыва, копить можно дальше.
     effects: (tier) => [{ type: 'scorch', mult: t(2, 2.5, 3)(tier), target: 'enemy' }],
-    describe: (tier) => `Урон = Горение цели × ${t(2, 2.5, 3)(tier)} мимо блока; Горение остаётся. Только по горящей цели. КД 2`,
+    describe: (tier) => `Урон = Горение цели × ${t(2, 2.5, 3)(tier)} мимо блока; Горение остаётся. Только по горящей цели`,
   },
   {
     id: 'heat_ward',
@@ -1078,7 +1085,7 @@ const list: ArtifactDef[] = [
     keystone: true,
     // Ключевая вещь Огня: удар оружием вдвое слабее, зато каждое заклинание — пожар по всем.
     mods: (tier) => ({ strikeMult: -0.5, spellIgniteAll: t(1, 1, 2)(tier) }),
-    describe: (tier) => `Удары оружием слабее вдвое; каждое заклинание поджигает всех врагов: Горение ${t(1, 1, 2)(tier)} на 2 хода`,
+    describe: (tier) => `Каждое заклинание: Горение ${t(1, 1, 2)(tier)} на 2 хода всем врагам; удары оружием слабее вдвое`,
   },
   // ─── Архетипы (v0.47): Яд, Щит, Возмездие, Свет, Серия, Тень, Холод ─────
   // docs/plan-reworka.md §2.2. Числа — первый проход; ключевые вещи бронные, с минусом, тиром 1 и вдвое реже.
@@ -1090,7 +1097,7 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     tags: ['poison'],
     mods: (tier) => ({ onHitPoison: t(1, 2, 2)(tier) }),
-    describe: (tier) => `Каждый удар оружием вешает Яд ${t(1, 2, 2)(tier)} на 3 хода (стакается)`,
+    describe: (tier) => `Каждый удар оружием вешает Яд ${t(1, 2, 2)(tier)} на 3 хода`,
   },
   {
     id: 'poison_cloud',
@@ -1106,7 +1113,7 @@ const list: ArtifactDef[] = [
     target: 'allEnemies',
     // Бронная заводка яда: набор собирается и в 2 + 2 сокета.
     effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'poison', value: t(3, 4, 5)(tier), turns: 4 }],
-    describe: (tier) => `Яд ${t(3, 4, 5)(tier)} на 4 хода всем врагам. КД 3`,
+    describe: (tier) => `Яд ${t(3, 4, 5)(tier)} на 4 хода всем врагам`,
   },
   {
     id: 'catalyst',
@@ -1123,7 +1130,7 @@ const list: ArtifactDef[] = [
     reach: 'any',
     // Выплата яда: его не взрывают, а растят — выгоднее всего по уже густому яду.
     effects: (tier) => [{ type: 'amplify', status: 'poison', mult: t(2, 2, 2.5)(tier), target: 'enemy' }],
-    describe: (tier) => `Яд цели ×${t(2, 2, 2.5)(tier)}. Только по отравленной. КД 3`,
+    describe: (tier) => `Яд цели ×${t(2, 2, 2.5)(tier)}. Только по отравленной`,
   },
   {
     id: 'toxicologist',
@@ -1150,7 +1157,7 @@ const list: ArtifactDef[] = [
     target: 'allEnemies',
     // Выплата блока по площади: Таран бьёт одного и блок оставляет, Обвал тратит всё и бьёт каждого.
     effects: (tier) => [{ type: 'blockBurst', pct: t(0.6, 0.8, 1)(tier) }],
-    describe: (tier) => `Тратит весь Блок: каждый враг получает ${t(60, 80, 100)(tier)} % потраченного. Без блока недоступен. КД 3`,
+    describe: (tier) => `Тратит весь Блок: каждый враг получает ${t(60, 80, 100)(tier)} % потраченного`,
   },
   {
     id: 'bastion',
@@ -1179,7 +1186,7 @@ const list: ArtifactDef[] = [
       { type: 'status', target: 'self', status: 'thorns', value: t(3, 5, 7)(tier), turns: 3 },
       { type: 'block', amount: t(3, 4, 5)(tier) },
     ],
-    describe: (tier) => `Шипы ${t(3, 5, 7)(tier)} на 3 хода и +${t(3, 4, 5)(tier)} Блока. КД 2`,
+    describe: (tier) => `Шипы ${t(3, 5, 7)(tier)} на 3 хода и +${t(3, 4, 5)(tier)} Блока`,
   },
   {
     id: 'taunt',
@@ -1196,7 +1203,7 @@ const list: ArtifactDef[] = [
       { type: 'status', target: 'self', status: 'taunt', value: 1, turns: 1 },
       { type: 'block', amount: t(2, 3, 4)(tier) },
     ],
-    describe: (tier) => `До конца хода врагов ваши Шипы и Ответный удар в полтора раза сильнее, враги бьют вас, а не союзника; +${t(2, 3, 4)(tier)} Блока. Бесплатно, КД 3`,
+    describe: (tier) => `+${t(2, 3, 4)(tier)} Блока и Насмешка на ход врагов`,
   },
   {
     id: 'eye_for_eye',
@@ -1211,7 +1218,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 2,
     target: 'enemy',
     effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', revenge: t(0.5, 0.75, 1)(tier) }],
-    describe: (tier) => `Удар; + ${t(50, 75, 100)(tier)} % урона, полученного вами за прошлый ход врагов. КД 2`,
+    describe: (tier) => `Удар + ${t(50, 75, 100)(tier)} % урона, полученного вами за прошлый ход врагов`,
   },
   {
     id: 'martyr',
@@ -1222,7 +1229,7 @@ const list: ArtifactDef[] = [
     tags: ['retribution'],
     keystone: true,
     mods: () => ({ noHeal: 1, hitStr: 1 }),
-    describe: () => 'Лечение на вас не действует; каждый удар врага, дошедший до HP, даёт +1 к Силе до конца боя',
+    describe: () => 'Удар врага, дошедший до HP, даёт +1 к Силе до конца боя; лечение на вас не действует',
   },
   {
     id: 'grace',
@@ -1247,7 +1254,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 2,
     target: 'enemy',
     effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', smite: t(1, 1.5, 2)(tier) }],
-    describe: (tier) => `Удар; + лечение, полученное вами в этом ходу, ×${t(1, 1.5, 2)(tier)}. КД 2`,
+    describe: (tier) => `Удар + лечение этого хода${t(1, 1.5, 2)(tier) > 1 ? ` ×${t(1, 1.5, 2)(tier)}` : ''}`,
   },
   {
     id: 'vow',
@@ -1269,7 +1276,7 @@ const list: ArtifactDef[] = [
     tags: ['series'],
     // Заводка серии на ударе: каждый удар хода подкидывает следующему — усталость гасится ростом.
     mods: (tier) => ({ momentum: t(1, 1, 2)(tier) }),
-    describe: (tier) => `Каждый удар оружием сильнее на ${t(1, 1, 2)(tier)} за каждый удар, уже сделанный в этом ходу`,
+    describe: (tier) => `Удар оружием +${t(1, 1, 2)(tier)} за каждый удар, уже сделанный в этом ходу`,
   },
   {
     id: 'recklessness',
@@ -1295,7 +1302,7 @@ const list: ArtifactDef[] = [
     cooldown: (tier) => t(3, 2, 2)(tier),
     target: 'self',
     effects: () => [{ type: 'status', target: 'self', status: 'focus', value: 1, turns: -1 }],
-    describe: (tier) => `Следующий удар оружием — крит наверняка. Бесплатно, КД ${t(3, 2, 2)(tier)}`,
+    describe: () => `Следующий удар оружием — крит наверняка`,
   },
   {
     id: 'cold_blood',
@@ -1306,7 +1313,7 @@ const list: ArtifactDef[] = [
     tags: ['shadow'],
     keystone: true,
     mods: () => ({ critDmg: 100, critOnlySure: 1 }),
-    describe: () => 'Крит. урон +100 %; случайного крита нет — критуют только удары из тени, по оглушённым и наверняка',
+    describe: () => 'Крит. урон +100 %; случайного крита нет, только верный',
   },
   {
     id: 'frost_blade',
@@ -1316,7 +1323,7 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     tags: ['cold'],
     mods: (tier) => ({ onHitCold: t(1, 2, 3)(tier) }),
-    describe: (tier) => `Первые ${t(1, 2, 3)(tier)} удара оружием за ход вешают Холод 1`,
+    describe: (tier) => (t(1, 2, 3)(tier) === 1 ? 'Первый удар оружием за ход вешает Холод 1' : `Первые ${t(1, 2, 3)(tier)} удара оружием за ход вешают Холод 1`),
   },
   {
     id: 'shatter',
@@ -1331,7 +1338,7 @@ const list: ArtifactDef[] = [
     cooldown: () => 2,
     target: 'enemy',
     effects: (tier) => [{ type: 'attack', bonus: 0, target: 'enemy', vsFrozen: t(2, 2.5, 3)(tier) }],
-    describe: (tier) => `Удар; по оцепеневшей цели ×${t(2, 2.5, 3)(tier)} и Оцепенение снимается. КД 2`,
+    describe: (tier) => `Удар; по оцепеневшей цели ×${t(2, 2.5, 3)(tier)}, Оцепенение снимается`,
   },
   {
     id: 'permafrost',
@@ -1358,6 +1365,25 @@ export function artifactDef(id: string): ArtifactDef {
 /** Цена приёма на тире: у большинства артефактов одна на все тиры. */
 export function artifactCost(def: ArtifactDef, tier: ArtTier): ArtifactCost {
   return (typeof def.cost === 'function' ? def.cost(tier) : def.cost) ?? {};
+}
+
+/** Перезарядка или лимит за ход словами: «КД 3», «раз в ход», «до 2 раз за ход»; нет ни того ни другого — пусто. КД 1 — тот же раз в ход. */
+export function artifactLimitText(def: ArtifactDef, tier: ArtTier): string {
+  const uses = def.usesPerTurn?.(tier) ?? 0;
+  const cd = def.cooldown?.(tier) ?? 0;
+  if (uses > 1) return `до ${uses} раз за ход`;
+  if (uses === 1 || cd === 1) return 'раз в ход';
+  if (cd > 1) return `КД ${cd}`;
+  return '';
+}
+
+/**
+ * Описание с лимитом хвостом — для текста без отдельных ячеек (подсказки, коллекция, события): «Лечит 9 HP. КД 3».
+ * Карточки, лист и плитки боя показывают лимит своей ячейкой и берут describe.
+ */
+export function artifactFullText(def: ArtifactDef, tier: ArtTier): string {
+  const limit = artifactLimitText(def, tier);
+  return limit ? `${def.describe(tier)}. ${limit.charAt(0).toUpperCase()}${limit.slice(1)}` : def.describe(tier);
 }
 
 export function artifactCostText(def: ArtifactDef, tier: ArtTier = 1): string {

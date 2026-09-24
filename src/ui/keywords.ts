@@ -1,4 +1,4 @@
-import { STATUS_HINTS, STATUS_NAMES } from '../engine/combat';
+import { DEBUFFS, STATUS_HINTS, STATUS_NAMES } from '../engine/combat';
 import type { StatusId } from '../engine/types';
 import { h, type Child } from './dom';
 import { STATUS_COLORS, statusIcon } from './icons';
@@ -52,7 +52,9 @@ const KEYWORDS: Keyword[] = [
   ...(Object.keys(STATUS_STEMS) as StatusId[]).map((id) => ({ re: word(STATUS_STEMS[id]), title: STATUS_NAMES[id], text: STATUS_HINTS[id], status: id })),
   { re: word('блок[а-яё]*'), title: 'Блок', text: 'Гасит урон ударов и заклинаний, но не ран. Сгорает в начале вашего хода, если броня не держит его.' },
   { re: word('усталост[а-яё]*'), title: 'Усталость', text: 'Каждая следующая атака в ходу слабее предыдущей: у большинства героев на 25 %.' },
-  { re: word('крит[а-яё]*'), title: 'Крит', text: 'Критический удар: урон ×2, с перками оружия больше.' },
+  { re: word('крит[а-яё]*'), title: 'Крит', text: 'Критический удар: урон × крит. урон героя (от 150 %). Верный крит выпадает наверняка: удар в спину, Верный глаз, «Оглушающий удар» по оглушённому.' },
+  // Проклятие (v0.50) — вредный статус на враге; список тот же, что считает «Резонанс» (DEBUFFS в движке).
+  { re: word('проклят[а-яё]*'), title: 'Проклятие', text: `Вредный статус на враге: ${DEBUFFS.map((id) => STATUS_NAMES[id]).join(', ')}.` },
   { re: word('перезарядк[а-яё]*|кд'), title: 'Перезарядка', text: 'Столько ходов приём недоступен после применения.' },
   { re: word('стамин[а-яё]*|sta'), title: 'Стамина', text: 'Очки действий. Полностью восстанавливаются в начале каждого хода.' },
   { re: word('ман(?:а|ы|е|у|ой)|mp'), title: 'Мана', text: 'Восстанавливается только регеном в начале хода и целиком после комнаты.' },

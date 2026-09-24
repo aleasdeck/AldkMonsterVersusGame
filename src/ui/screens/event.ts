@@ -1,5 +1,5 @@
 import { button, h } from '../dom';
-import { artifactDef } from '../../data/artifacts';
+import { artifactDef, artifactFullText } from '../../data/artifacts';
 import { GEAR_TIERS, upgradePreview } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { forgePrice } from '../../engine/loot';
@@ -57,7 +57,7 @@ function altarCards(app: App, ev: EventState & { kind: 'altar' }): HTMLElement[]
       { class: 'event-loot' },
       h('div', { class: 'slots' }, artifactChip(ev.artifact)),
       h('div', { class: 'card-sub' }, def.name),
-      h('div', { class: 'note' }, ...markKeywords(def.describe(ev.artifact.tier))),
+      h('div', { class: 'note' }, ...markKeywords(artifactFullText(def, ev.artifact.tier))),
     );
   } else loot = h('div', { class: 'note' }, 'Алтарю нечего предложить: все артефакты уже на максимуме.');
   const sacrifice = h(
@@ -125,7 +125,7 @@ function gnomeCards(app: App, ev: EventState & { kind: 'gnome' }): HTMLElement[]
           { class: 'event-loot' },
           h('div', { class: 'slots' }, artifactChip(art)),
           h('div', { class: 'card-sub' }, def.name),
-          h('div', { class: 'note' }, ...markKeywords(def.describe(art.tier))),
+          h('div', { class: 'note' }, ...markKeywords(artifactFullText(def, art.tier))),
         )
       : h('div', { class: 'note' }, 'Кроме монет в мешке ничего не нашлось.');
   const card = h(
@@ -153,7 +153,7 @@ function snatcherCards(app: App, ev: EventState & { kind: 'gnome_art' }): HTMLEl
           { class: 'event-loot' },
           h('div', { class: 'slots' }, artifactChip(art)),
           h('div', { class: 'card-sub' }, def.name),
-          h('div', { class: 'note' }, ...markKeywords(def.describe(art.tier))),
+          h('div', { class: 'note' }, ...markKeywords(artifactFullText(def, art.tier))),
         )
       : h('div', { class: 'note' }, lost ? 'Красть было нечего: сокеты пусты.' : 'Вор ушёл ни с чем — брать у героя было нечего.');
   const found = ev.loot;
@@ -171,7 +171,7 @@ function snatcherCards(app: App, ev: EventState & { kind: 'gnome_art' }): HTMLEl
             { class: 'event-loot' },
             h('div', { class: 'slots' }, artifactChip(found)),
             h('div', { class: 'card-sub' }, foundDef.name),
-            h('div', { class: 'note' }, ...markKeywords(foundDef.describe(found.tier))),
+            h('div', { class: 'note' }, ...markKeywords(artifactFullText(foundDef, found.tier))),
           ),
           h('div', { class: 'card-foot' }, button('Забрать артефакт', () => app.gnomeTakeLoot(), { class: 'primary', disabled: !!run.pending })),
         )

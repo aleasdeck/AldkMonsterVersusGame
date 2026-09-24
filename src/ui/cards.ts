@@ -11,8 +11,8 @@ import { heroStats } from '../engine/run';
 import { rangeText, restAttackRange, skillBlock, skillHeal } from '../engine/combat';
 import { markKeywords } from './keywords';
 import { statusIcon, uiIcon, type UiIconId } from './icons';
-import { POTION_COLOR, archetypeTip, reachDots, slotKindTip, socketChip, tierTip } from './components';
-import { dotted, effectText, kindParam, slotParam } from './cardParts';
+import { POTION_COLOR, archetypeTip, artifactTitle, reachDots, slotKindTip, socketChip, tierTip } from './components';
+import { dotted, kindParam, slotParam } from './cardParts';
 import { gearCompare, type CompareRow } from './diff';
 
 // ─── Карточки предметов, артефактов и зелий (v0.50) ─────────────────────────
@@ -352,7 +352,7 @@ export function artifactCard(inst: ArtifactInstance, footer?: Child, note?: Chil
     { class: `card art-card ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`.replace(/\s+/g, ' ').trim(), style: `border-color:${color}` },
     itemHead(h('span', { class: 'item-glyph', style: `color:${color}` }, def.glyph), color, def.name, `color:${nameColor(inst.tier, color)}`, tierTipText, artTypeLine(inst), tierTipText),
     artTable(artRows(inst, run)),
-    h('div', { class: 'art-desc' }, ...markKeywords(effectText(def, inst.tier), { icons: true, numbers: true })),
+    h('div', { class: 'art-desc' }, ...markKeywords(def.describe(inst.tier), { icons: true, numbers: true })),
     note ?? null,
     footer ? h('div', { class: 'card-foot' }, footer) : null,
   );
@@ -578,7 +578,7 @@ function tileSocket(inst: ArtifactInstance | null, gear: GearInstance, i: number
   const color = ART_TIER_COLORS[inst.tier];
   return h(
     'div',
-    { class: `sock k-${kind}`, tip: `${def.name}, тир ${inst.tier}\n${def.describe(inst.tier)}` },
+    { class: `sock k-${kind}`, tip: artifactTitle(inst) },
     h('span', { class: 'sock-glyph', style: `color:${color}` }, def.glyph),
     h('span', { class: 'sock-name' }, def.name),
     h('span', { class: 'sock-val' }, artifactShort(inst, s)),
@@ -659,7 +659,7 @@ function sheetArtifact(inst: ArtifactInstance, s: DerivedStats, run: RunState): 
       { class: 'sheet-art-body' },
       h('div', { class: 'sheet-art-head' }, h('span', { class: 'sheet-art-name', style: `color:${nameColor(inst.tier, color)}`, tip: tierTipText }, def.name), h('span', { class: 'item-type' }, ...artTypeLine(inst))),
       inlineParams(useRows(inst, s, run)),
-      h('div', { class: 'art-desc' }, ...markKeywords(effectText(def, inst.tier), { icons: true, numbers: true })),
+      h('div', { class: 'art-desc' }, ...markKeywords(def.describe(inst.tier), { icons: true, numbers: true })),
     ),
   );
 }

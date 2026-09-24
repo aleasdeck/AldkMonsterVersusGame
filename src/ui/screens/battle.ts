@@ -20,7 +20,6 @@ import { runFrame } from '../frame';
 import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
 import { runLogBody } from './runLog';
-import { effectText } from '../cardParts';
 
 /**
  * Блок и статусы — над головой бойца. У врагов блок живёт на полоске HP, здесь только статусы.
@@ -523,8 +522,7 @@ export function actionSpecs(app: App): TileSpec[] {
       targets,
       preview: (t) => ({
         title: `${ad.name} · тир ${inst.tier}`,
-        // Описание — тем же текстом, что на карточке (без хвостов «КД 3» и «Раз в ход»: они здесь отдельными частями).
-        parts: [artifactCostText(ad, inst.tier), range && base ? `${hits > 1 ? `${hits}×` : ''}${rangeText(range)} урона${usual(range, base)}` : '', effectText(ad, inst.tier), targeted ? reachWord(actionReach(b, action(first))) : '', total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
+        parts: [artifactCostText(ad, inst.tier), range && base ? `${hits > 1 ? `${hits}×` : ''}${rangeText(range)} урона${usual(range, base)}` : '', ad.describe(inst.tier), targeted ? reachWord(actionReach(b, action(first))) : '', total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
         targets,
         ...(targeted ? onTarget(action, t, rangeOn(t) ?? undefined, kindOn(t)) : {}),
       }),

@@ -11,7 +11,7 @@ import { heroAvatar, heroSprite } from '../heroSprite';
 import { heroLevelOf, heroXpOf, pickedSignature, pickedStart, pickedTrait, signatureUnlocked, startUnlocked, traitUnlocked } from '../save';
 import { uiIcon, type UiIconId } from '../icons';
 import { markKeywords } from '../keywords';
-import { effectText, paramChip, useParams } from '../cardParts';
+import { paramChip, useParams } from '../cardParts';
 import type { DerivedStats, GearTier, HeroDef } from '../../engine/types';
 import type { App } from '../app';
 
@@ -146,7 +146,7 @@ function skillOptions(app: App, def: HeroDef): Option[] {
       glyph: h('span', { class: 'hs-glyph' }, a.glyph),
       title: a.name,
       params: useParams(a, 1).map(paramChip),
-      text: effectText(a, 1),
+      text: a.describe(1),
       open: signatureUnlocked(app.profile, def, id),
       lock: `Мастерство ${UNLOCK_LEVEL.signature}`,
       lockFull: `мастерство ${UNLOCK_LEVEL.signature} или победа героем`,

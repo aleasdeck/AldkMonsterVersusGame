@@ -1,7 +1,7 @@
 import { button, h } from './dom';
 import type { ArtTier, ArtifactInstance, Combatant, EnemyState, GearInstance, GearKind, GearTier, RunState, SlotKind, StatusId } from '../engine/types';
 import { statusIcon } from './icons';
-import { artifactCostText, artifactDef } from '../data/artifacts';
+import { artifactCostText, artifactDef, artifactFullText } from '../data/artifacts';
 import { potionDef } from '../data/potions';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { ART_TIER_COLORS, GEAR_TIERS, weaponReach, weaponReachTitle } from '../data/gear';
@@ -126,13 +126,13 @@ export function setCounters(arts: ArtifactInstance[]): HTMLElement | null {
 
 export function artifactTitle(inst: ArtifactInstance): string {
   const def = artifactDef(inst.id);
-  const lines = [`${def.name} (тир ${inst.tier})`, def.describe(inst.tier)];
+  const lines = [`${def.name} (тир ${inst.tier})`, artifactFullText(def, inst.tier)];
   const tags = artifactTags(inst.id);
   if (tags.length) lines.push(`Архетип: ${tags.map((t) => ARCHETYPES[t].name).join(', ')}${def.keystone ? ' · ключевая вещь' : ''}`);
   if (def.kind === 'active') lines.push(`Цена: ${artifactCostText(def, inst.tier)}`);
   else lines.push('Пассивный');
   lines.push(`${cap(ARTIFACT_SLOT_NAME[def.slot])} артефакт: встаёт в ${ARTIFACT_SLOT_NAME[def.slot]} или универсальный сокет`);
-  if (inst.tier < 3) lines.push(`Следующий тир: ${def.describe((inst.tier + 1) as ArtTier)}`);
+  if (inst.tier < 3) lines.push(`Следующий тир: ${artifactFullText(def, (inst.tier + 1) as ArtTier)}`);
   return lines.join('\n');
 }
 

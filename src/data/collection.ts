@@ -1,5 +1,5 @@
 import type { ArtTier, GearKind, HeroPersistent } from '../engine/types';
-import { ARTIFACT_IDS, artifactCostText, artifactDef } from './artifacts';
+import { ARTIFACT_IDS, artifactCostText, artifactDef, artifactFullText } from './artifacts';
 import { POTION_IDS, potionDef } from './potions';
 import { ARMOR_TYPE_GLYPHS, ARMOR_TYPE_NAMES, HEFT_NAMES, WEAPON_TYPE_GLYPHS, WEAPON_TYPE_NAMES, baseArmorStats, baseDamage, baseTitle, dropBases, gearBases, weaponTypeText } from './gear';
 import { HERO_LIST, SIGNATURE_OWNER, heroDef } from './heroes';
@@ -69,7 +69,7 @@ function artifactEntry(id: string): Collectible {
     color: KIND_COLORS.artifact,
     sub: `Артефакт · ${school}${cost}${SIGNATURE_OWNER[id] ? ` · персональный: ${heroDef(SIGNATURE_OWNER[id]).name}` : ''}`,
     desc: '',
-    tiers: ART_TIERS.map((t) => def.describe(t)),
+    tiers: ART_TIERS.map((t) => artifactFullText(def, t)),
   };
 }
 
