@@ -17,8 +17,14 @@ describe('бестиарий: описание приёмов по родным 
 
   it('множители акта и Сила врага меняют числа так же, как в бою', () => {
     const wolf = enemyDef('wolf');
-    const bite = describeAction(wolf, wolf.actions[0], { hpMult: 2, dmgMult: 1.5, strength: 2, weak: false });
+    const bite = describeAction(wolf, wolf.actions[0], { hpMult: 2, dmgMult: 1.5, blockMult: 1, strength: 2, weak: false });
     expect(bite.text).toBe('Укус: Атака 10');
+  });
+
+  it('блок описывается своим множителем, а не множителем HP (v0.51.1)', () => {
+    const boar = enemyDef('boar');
+    const bristle = describeAction(boar, boar.actions.find((a) => a.id === 'bristle')!, { hpMult: 2, dmgMult: 1, blockMult: 1, strength: 0, weak: false });
+    expect(bristle.text).toBe('Щетина: Блок 5');
   });
 
   it('приём с ударом и дебафом: главный вид — атака, хвост — дебаф с именем статуса', () => {

@@ -49,6 +49,9 @@ export const ACTS_PER_RUN = ACTS.length;
  */
 export type EnemyScale = { hp: number; dmg: number };
 
+/** Множители врага в бою (enemyScale): HP и лечение, урон и DoT, блок — у него свой, без удвоения длины боя (v0.51.1). */
+export type EnemyMults = EnemyScale & { block: number };
+
 export const ACT_SCALE: Record<'normal' | 'elite', EnemyScale[]> = {
   normal: [
     { hp: 1, dmg: 1 },
@@ -257,10 +260,6 @@ export function pickRunLocations(rng: Rng): LocationId[] {
 export const ACT_DMG_BONUS: [number, number, number] = [1.2, 1.4, 1.54];
 
 /**
- * Множители для врага с «родной» локации tier, попавшего в акт act (0..2):
- * числа врага заданы под его tier, нужно привести их к акту и добавить надбавку акта к урону.
- */
-/**
  * Надбавка к HP (а с ней к блоку и лечению) элит и боссов по акту: +15 % в первом, дальше ничего (v0.37.1).
  * Первый акт — единственный, где «родной» множитель равен 1, поэтому элита и босс там были самыми хлипкими
  * за забег. На бота рычаг слабый (3–5 пунктов на +40 %), зато гибели на боссе первого акта он двигает вдвое —
@@ -273,17 +272,25 @@ export const ACT_TOUGH_HP: [number, number, number] = [1.15, 1, 1];
  * Длина боя (v0.46, план §5.1): HP врагов ×FIGHT_HP_MULT и урон ×FIGHT_DMG_MULT поверх масштаба акта. Цель — рядовой бой
  * в 3–5 ходов, элита 5–7, босс 8–12 (было 2–3 / 3–4 / 5–6): связке нужно время окупиться, врагу — показать свои приёмы.
  * Произведение около 1: урон по герою за бой почти тот же, растёт только число ходов.
+ * Блок врага этот множитель не берёт (v0.51.1): HP удлиняет бой, а щит меряется ударом героя за ход, который не вырос.
+ * С ×2 щит рядового первого акта (Кабан 10, Жаба и Мумия 12) съедал весь ход стартового бойца ближнего боя; лечению
+ * удвоение положено — оно доля HP самого врага.
  */
 export const FIGHT_HP_MULT = 2;
 export const FIGHT_DMG_MULT = 0.7;
 
-export function enemyScale(homeTier: LocationTier, act: number, rank: 'normal' | 'elite' | 'boss' = 'normal'): EnemyScale {
+/**
+ * Множители для врага с «родной» локации tier, попавшего в акт act (0..2):
+ * числа врага заданы под его tier, нужно привести их к акту и добавить надбавку акта к урону и длину боя.
+ */
+export function enemyScale(homeTier: LocationTier, act: number, rank: 'normal' | 'elite' | 'boss' = 'normal'): EnemyMults {
   const table = ACT_SCALE[rank === 'normal' ? 'normal' : 'elite'];
   const idx = Math.max(0, Math.min(ACTS_PER_RUN - 1, act));
   const from = table[homeTier - 1];
   const to = table[idx];
   const tough = rank === 'normal' ? 1 : ACT_TOUGH_HP[idx];
-  return { hp: (to.hp / from.hp) * tough * FIGHT_HP_MULT, dmg: (to.dmg / from.dmg) * ACT_DMG_BONUS[idx] * FIGHT_DMG_MULT };
+  const hp = (to.hp / from.hp) * tough;
+  return { hp: hp * FIGHT_HP_MULT, dmg: (to.dmg / from.dmg) * ACT_DMG_BONUS[idx] * FIGHT_DMG_MULT, block: hp };
 }
 
 /**

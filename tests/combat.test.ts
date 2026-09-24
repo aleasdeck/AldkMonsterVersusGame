@@ -215,6 +215,30 @@ describe('намерения', () => {
     wolf.statuses.push({ id: 'invuln', value: 1, turns: 1 });
     expect(previewOnTarget(state, wolf, { min: 4, max: 6 })).toEqual({ min: 12, max: 12 });
   });
+
+  it('v0.51.1: предпросмотр удара оружием из тени — мимо блока; Таран и прочие удары без кубика и заклинания — нет', () => {
+    const { state } = mkBattle('assassin', ['wolf']);
+    const wolf = first(state);
+    wolf.block = 3;
+    expect(getStatus(state.hero, 'stealth')).toBeDefined();
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'strike')).toEqual({ min: 6, max: 8 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'hit')).toEqual({ min: 9, max: 11 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'spell')).toEqual({ min: 9, max: 11 });
+    state.hero.statuses = state.hero.statuses.filter((st) => st.id !== 'stealth');
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'strike')).toEqual({ min: 9, max: 11 });
+  });
+
+  it('v0.51.1: блок врага растёт с актом, но не удваивается длиной боя — в отличие от HP', () => {
+    const rng = createRng(1);
+    const state = createBattle(heroDef('warrior'), mkHero('warrior'), ['boar'], rng, 0);
+    const boar = first(state);
+    // Лес — родной первый акт: HP 18 × 2 (длина боя), а Щетина — те же 5, что до v0.46 (с ×2 было 10 — ход стартового героя целиком).
+    expect(boar.maxHp).toBe(36);
+    boar.intent = 'bristle';
+    expect(computeIntent(boar, state).text).toBe('Щетина: Блок 5');
+    pass(state, rng);
+    expect(boar.block).toBe(5);
+  });
 });
 
 describe('статусы', () => {
@@ -973,6 +997,20 @@ describe('ассасин: скрытность', () => {
     // стилет 3–5 на среднем — 4, Удар в спину +3, крит Ассасина 190 % от 7
     expect(bear.hp).toBe(35 - 13);
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
+  });
+
+  it('v0.51.1: удар в спину идёт мимо блока и не тратит его, следующий удар на виду щит держит', () => {
+    const { state, rng } = mkBattle('assassin', ['bear']);
+    const bear = first(state);
+    bear.block = 10;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 13);
+    expect(bear.block).toBe(10);
+    expect(state.log.some((l) => l.includes('сквозь блок'))).toBe(true);
+    // Тень спала: floor(4 × 0.7) = 2 целиком уходит в щит.
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 13);
+    expect(bear.block).toBe(8);
   });
 
   it('сроки скрытности складываются: шашка поверх Тени покрова — два хода врага мимо, третий в цель', () => {

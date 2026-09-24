@@ -25,7 +25,7 @@ import type {
 import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, pick, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef, PHASE_SHIFT } from '../data/enemies';
-import { enemyScale, locationDef } from '../data/locations';
+import { enemyScale, locationDef, type EnemyMults } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
 import { SWEEP_MULT } from '../data/gear';
 import { potionDef } from '../data/potions';
@@ -71,7 +71,7 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   regen: '+N HP в начале хода',
   invuln: 'Не получает урона',
   poison: 'N урона в начале хода, игнорирует блок. Складывается: новое наложение добавляет силу',
-  stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит, снимает скрытность',
+  stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит мимо блока врага, снимает скрытность',
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
@@ -298,7 +298,7 @@ export const EVADE_DROP = 12;
 
 // ─── Статусы ───────────────────────────────────────────────────────────────
 
-/** Число врага, домноженное под акт: HP, блок и лечение — на hpMult, урон и DoT — на dmgMult. */
+/** Число врага, домноженное под акт: HP и лечение — на hpMult, блок — на blockMult, урон и DoT — на dmgMult. */
 function scaled(mult: number, amount: number): number {
   return Math.max(1, Math.round(amount * mult));
 }
@@ -307,8 +307,8 @@ function isDot(id: StatusId): boolean {
   return id === 'bleed' || id === 'burn' || id === 'poison';
 }
 
-function scaleFor(state: BattleState, def: EnemyDef): { hp: number; dmg: number } {
-  return state.act === null ? { hp: 1, dmg: 1 } : enemyScale(locationDef(def.location).tier, state.act, def.rank);
+function scaleFor(state: BattleState, def: EnemyDef): EnemyMults {
+  return state.act === null ? { hp: 1, dmg: 1, block: 1 } : enemyScale(locationDef(def.location).tier, state.act, def.rank);
 }
 
 export function getStatus(c: Combatant, id: StatusId): Status | undefined {
@@ -899,7 +899,7 @@ function cleanupDead(state: BattleState, rng: Rng): void {
 
 // ─── Герой ─────────────────────────────────────────────────────────────────
 
-/** Герой не виден врагам: скрытность даёт удар в спину и спадает после атаки. */
+/** Герой не виден врагам: скрытность даёт удар в спину (крит мимо блока) и спадает после атаки. */
 export function isHidden(h: HeroBattle): boolean {
   return !!getStatus(h, 'stealth');
 }
@@ -1100,7 +1100,8 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
   const fromShadow = isHidden(h);
   const { dmg, crit, why } = heroAttackDamage(state, rng, e, opts);
   const detail = newDetail();
-  const pierce = h.stats.pierceBlock > 0;
+  // Удар в спину щит не держит (v0.51.1): враг, поднявший блок, не видит, откуда бьют, — у тени есть ответ на стену.
+  const pierce = h.stats.pierceBlock > 0 || fromShadow;
   const row = state.enemies.indexOf(e);
   const firstOfBattle = !h.struckAny;
   h.struckAny = true;
@@ -1210,16 +1211,18 @@ export function skillHeal(s: DerivedStats, amount: number): number {
 
 /**
  * Сколько HP останется у цели после урона из диапазона — для предпросмотра на полоске врага.
- * Удар гасится блоком, если оружие не пробивает его (pierceBlock); заклинание — всегда. Неуязвимость и уклонение
- * (для удара) съедают урон целиком. min — после максимального урона, max — после минимального.
+ * `strike` — удар оружием (атака и приём-удар), `hit` — прочие удары без кубика (Таран, Финишер, Цепная атака).
+ * Удар гасится блоком, если оружие не пробивает его (pierceBlock), а удар оружием — ещё и если он не из тени;
+ * заклинание — всегда. Неуязвимость и уклонение (для удара) съедают урон целиком. min — после максимального урона, max — после минимального.
  */
-export function previewOnTarget(state: BattleState, e: EnemyState, range: DamageRange, kind: 'hit' | 'spell' | 'dot' = 'hit'): DamageRange {
+export function previewOnTarget(state: BattleState, e: EnemyState, range: DamageRange, kind: 'strike' | 'hit' | 'spell' | 'dot' = 'hit'): DamageRange {
   const untouched = { min: e.hp, max: e.hp };
   if (getStatus(e, 'invuln')) return untouched;
   // Рана (взрыв ран, пролом щита): мимо блока, уклонения и уязвимости.
   if (kind === 'dot') return { min: Math.max(0, e.hp - range.max), max: Math.max(0, e.hp - range.min) };
-  if (kind === 'hit' && getStatus(e, 'dodge')) return untouched;
-  const block = kind === 'spell' || state.hero.stats.pierceBlock <= 0 ? e.block : 0;
+  if ((kind === 'hit' || kind === 'strike') && getStatus(e, 'dodge')) return untouched;
+  const pierce = kind !== 'spell' && (state.hero.stats.pierceBlock > 0 || (kind === 'strike' && isHidden(state.hero)));
+  const block = pierce ? 0 : e.block;
   const vuln = getStatus(e, 'vulnerable') ? VULNERABLE_MULT : 1;
   const rot = state.hero.stats.poisonVuln > 0 && getStatus(e, 'poison') ? 1 + state.hero.stats.poisonVuln : 1;
   const after = (dmg: number) => Math.max(0, e.hp - Math.max(0, Math.round(Math.round(dmg * vuln) * rot) - block));
@@ -1943,6 +1946,7 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
     forcedNext: null,
     hpMult: sc.hp,
     dmgMult: sc.dmg,
+    blockMult: sc.block,
     phase: 1,
     riposted: false,
   };
@@ -2010,7 +2014,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
     }
     case 'block': {
       const targets = eff.target === 'allies' ? state.enemies : eff.target === 'neighbors' ? neighborsOf(state, e) : [e];
-      const amt = scaled(e.hpMult, eff.amount);
+      const amt = scaled(e.blockMult, eff.amount);
       for (const t of targets) gainBlock(state, t, t.uid, amt);
       break;
     }
@@ -2436,6 +2440,8 @@ export interface IntentInfo extends ActionInfo {
 export interface ActionScale {
   hpMult: number;
   dmgMult: number;
+  /** Множитель блока — свой, без удвоения длины боя (v0.51.1, `EnemyState.blockMult`). */
+  blockMult: number;
   strength: number;
   weak: boolean;
   /** Множитель удара от места в ряду и ярости боя (v0.46, `enemyHitMult`); нет — 1. */
@@ -2444,7 +2450,7 @@ export interface ActionScale {
   enrage?: number;
 }
 
-export const BASE_SCALE: ActionScale = { hpMult: 1, dmgMult: 1, strength: 0, weak: false };
+export const BASE_SCALE: ActionScale = { hpMult: 1, dmgMult: 1, blockMult: 1, strength: 0, weak: false };
 
 export const INTENT_ICON: Record<IntentKind, string> = {
   attack: '⚔',
@@ -2482,7 +2488,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         break;
       }
       case 'block': {
-        const blk = scaled(s.hpMult, eff.amount);
+        const blk = scaled(s.blockMult, eff.amount);
         if (!label) label = `${blk}`;
         parts.push(`Блок ${blk}${eff.target === 'allies' ? ' всем' : eff.target === 'neighbors' ? ' соседям' : ''}`);
         kinds.push('defend');
@@ -2593,7 +2599,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
 export function onDeathInfo(e: EnemyState): ActionInfo | null {
   const def = enemyDef(e.defId);
   if (!def.onDeath) return null;
-  return describeAction(def, def.onDeath, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak') });
+  return describeAction(def, def.onDeath, { hpMult: e.hpMult, dmgMult: e.dmgMult, blockMult: e.blockMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak') });
 }
 
 /**
@@ -2624,11 +2630,11 @@ export function computeIntent(e: EnemyState, state?: BattleState): IntentInfo {
   const enrage = state ? enrageMult(state) : 1;
   if (e.intent === PHASE_SHIFT && def.phase2) {
     // Ход перехода: босс не атакует, только ставит стражу — игроку окно на удар, лечение или блок, но не бесплатное.
-    const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: 0, weak: false });
+    const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, blockMult: e.blockMult, strength: 0, weak: false });
     const guard = info.detail ? ` — ${info.detail}` : '';
     return { ...info, text: `${a.name}: босс собирается с силами и в этот ход не атакует${guard}`, detail: `переход во вторую фазу, без атаки${guard}`, stunned: !!getStatus(e, 'stun') };
   }
-  const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak'), hitMult, enrage });
+  const info = describeAction(def, a, { hpMult: e.hpMult, dmgMult: e.dmgMult, blockMult: e.blockMult, strength: statusValue(e, 'strength'), weak: !!getStatus(e, 'weak'), hitMult, enrage });
   const notes = [
     e.reason ? `Реакция: ${e.reason}` : '',
     state && pointBlank(state, e) && info.kinds.includes('attack') ? `В упор: удар ×${POINT_BLANK_MULT}, потом отойдёт назад` : '',

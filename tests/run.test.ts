@@ -906,6 +906,11 @@ describe('забег', () => {
     expect(enemyScale(1, 0).hp).toBeCloseTo(H);
     expect(enemyScale(1, 1, 'elite').hp).toBeCloseTo(1.5 * H);
     expect(enemyScale(1, 0, 'elite').dmg).toBeCloseTo(ACT_DMG_BONUS[0] * D);
+    // v0.51.1: блок растёт с актом (и с надбавкой элит), но без удвоения длины боя — щит меряется ударом героя, а не толщиной врага.
+    expect(enemyScale(1, 0).block).toBeCloseTo(1);
+    expect(enemyScale(3, 0).block).toBeCloseTo(1 / 2.7);
+    expect(enemyScale(1, 0, 'elite').block).toBeCloseTo(ACT_TOUGH_HP[0]);
+    expect(enemyScale(1, 2).block).toBeCloseTo(enemyScale(1, 2).hp / H);
     const run = newRun('warrior', 3);
     run.locations = ['ship', 'forest', 'swamp'];
     enterRoom(run);
@@ -914,6 +919,7 @@ describe('забег', () => {
     const sc = enemyScale(LOCATIONS.find((l) => l.id === def.location)!.tier, 0, def.rank);
     expect(e.maxHp).toBe(Math.max(1, Math.round(def.hp * sc.hp)));
     expect(e.dmgMult).toBeCloseTo(sc.dmg);
+    expect(e.blockMult).toBeCloseTo(sc.block);
   });
 
   it('лут привязан к акту: босс второго акта даёт 4 тир в любой локации', () => {
