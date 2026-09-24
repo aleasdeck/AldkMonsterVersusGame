@@ -3662,13 +3662,11 @@ p {
   flex-direction: column;
   gap: 2px;
 }
+/* Имя целиком: тир показывает цвет, точек тира нет (решение пользователя) — длинное имя в узкой колонке переносится, а не режется. */
 .gv-name {
   min-width: 0;
   font-size: 20px;
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.05;
 }
 .gv-head .tier-pips {
   align-self: flex-start;
@@ -3958,6 +3956,33 @@ p {
   flex: none;
   text-align: center;
   font-size: 17px;
+}
+
+/* Пустой сокет плитки — прямоугольник на полстроки, как занятый: пунктир и подпись цветом типа сокета (просьба пользователя). */
+.gtv .sock {
+  min-height: 34px;
+}
+.gtv .sock.empty:not(.pm-sock) {
+  border: 2px dashed var(--border);
+  background: transparent;
+  padding: 2px 8px;
+  gap: 7px;
+  opacity: 0.8;
+}
+.gtv .sock.empty.k-weapon {
+  border-color: var(--slot-weapon);
+  color: var(--slot-weapon);
+}
+.gtv .sock.empty.k-armor {
+  border-color: var(--slot-armor);
+  color: var(--slot-armor);
+}
+.gtv .sock.empty.k-any {
+  border-color: var(--slot-any);
+  color: var(--slot-any);
+}
+.gtv .sock.empty .sock-name {
+  color: inherit;
 }
 
 /* ─── Узкие карточки торговца в вариантах ───────────────────────────── */

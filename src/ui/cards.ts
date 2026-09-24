@@ -1,5 +1,5 @@
 import { h, type Child } from './dom';
-import type { ArtTier, ArtifactInstance, DerivedStats, GearInstance, HeroDef, RunState, StatusId } from '../engine/types';
+import type { ArtTier, ArtifactInstance, DerivedStats, GearInstance, HeroDef, RunState, SlotKind, StatusId } from '../engine/types';
 import { artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
@@ -20,7 +20,7 @@ import {
   weaponTypeText,
 } from '../data/gear';
 import { ARCHETYPES, archetypeCounts, artifactTags } from '../data/archetypes';
-import { findSameArtifact, slotKindAt } from '../engine/equipment';
+import { SLOT_KIND_NAME, findSameArtifact, slotKindAt } from '../engine/equipment';
 import { innateOf, socketedArtifacts } from '../engine/stats';
 import { heroStats } from '../engine/run';
 import { markKeywords } from './keywords';
@@ -312,13 +312,13 @@ function works(gear: GearInstance, def?: HeroDef): boolean {
   return gear.kind === 'weapon' ? canWieldWeapon(def, gear) : canWearArmor(def, gear);
 }
 
-/** Владение словом с галочкой или крестом; у брони без перка (шкура Берсерка) — ничего. */
-function skillLabel(gear: GearInstance, def?: HeroDef): HTMLElement | null {
-  if (!def || (gear.kind === 'armor' && !hasPerk(gear))) return null;
+/**
+ * Владение цветом типа (решение пользователя): слово типа зелёное, если герой владеет оружием или умеет носить броню, красное — если нет.
+ * Что теряется без владения — в подсказке; текста «не владеет» на карточке нет. Броня без перка (шкура Берсерка) — без цвета.
+ */
+function typeSkill(gear: GearInstance, def?: HeroDef): { cls: string; tip: string } {
+  if (!def || (gear.kind === 'armor' && !hasPerk(gear))) return { cls: '', tip: '' };
   const ok = works(gear, def);
-  // Норму не пишем — только исключение: «не владеет» красным. Своё оружие у героя — обычный случай, его видно по отсутствию пометки.
-  if (ok) return null;
-  const text = gear.kind === 'weapon' ? (ok ? 'владеет' : 'не владеет') : ok ? 'умеет носить' : 'не умеет носить';
   const tip =
     gear.kind === 'weapon'
       ? ok
@@ -327,7 +327,7 @@ function skillLabel(gear: GearInstance, def?: HeroDef): HTMLElement | null {
       : ok
         ? `${def.name} умеет носить этот тип: перк работает`
         : `${def.name} не умеет носить этот тип: перк не работает, DEF и HP остаются`;
-  return h('span', { class: `skill-label ${ok ? 'yes' : 'no'}`, tip }, uiIcon(ok ? 'check' : 'cross', 12), text);
+  return { cls: ok ? 'skill-yes' : 'skill-no', tip };
 }
 
 /** Подсказка к иконке типа: тип и свойство типа («любая цель, не боится шипов»). */
@@ -366,14 +366,6 @@ function perkRow(gear: GearInstance, def: HeroDef | undefined, short = false): H
   const tip = `Перк базы «${perk.name}»: ${text}${ok ? '' : '\nНе работает: герой не владеет этим типом'}`;
   if (short) return h('span', { class: `prop-chip perk ${ok ? '' : 'off'}`, tip }, uiIcon('perk', 14), perk.name);
   return h('div', { class: `prop-row perk ${ok ? '' : 'off'}`, tip }, uiIcon('perk', 14), h('span', { class: 'prop-name' }, perk.name), h('span', { class: 'prop-text' }, ...markKeywords(text, { numbers: true })));
-}
-
-/** Исключение отдельной красной строкой над перком: герой не владеет типом — что именно он теряет. Норма не пишется. */
-function skillWarnRow(gear: GearInstance, def?: HeroDef): HTMLElement | null {
-  const label = skillLabel(gear, def);
-  if (!label) return null;
-  const what = gear.kind === 'weapon' ? 'кубик ½, перк не работает' : 'перк не работает';
-  return h('div', { class: 'prop-row warn', tip: label.getAttribute('data-tip') ?? '' }, uiIcon('cross', 14), h('span', null, `${label.textContent}: ${what}`));
 }
 
 /** Строка аффикса — случайной прибавки предмета. */
@@ -432,11 +424,16 @@ function compareIcon(key: string): HTMLElement {
 
 const arrow = (dir: number) => h('span', { class: `dir ${dir > 0 ? 'up' : dir < 0 ? 'dn' : 'eq'}` }, dir > 0 ? '▲' : dir < 0 ? '▼' : '=');
 
-/** Шапка карточки экипировки: иконка типа цветом тира, имя цветом тира, тир точками; вторая строка — тип, владение, дальность. */
+/**
+ * Шапка карточки экипировки: иконка типа и имя цветом тира (тир только цветом — решение пользователя, так имя помещается целиком);
+ * вторая строка — тип цветом владения и дальность.
+ */
 function gearHead(gear: GearInstance, def?: HeroDef, withType = true): HTMLElement[] {
   const color = GEAR_TIERS[gear.tier].color;
   const reach = reachDots(gear, def);
   const reachText = gear.kind === 'weapon' ? { melee: 'первый', any: 'любой', row: 'весь ряд' }[weaponReach(gear, def)] : null;
+  const skill = typeSkill(gear, def);
+  const typeTip = [gearTypeTip(gear), skill.tip].filter(Boolean).join('\n');
   return [
     h(
       'div',
@@ -447,15 +444,14 @@ function gearHead(gear: GearInstance, def?: HeroDef, withType = true): HTMLEleme
         { class: 'gv-title' },
         h('span', { class: 'gv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
         withType
-          ? h('div', { class: 'gv-type' }, ...dotted([h('span', { tip: gearTypeTip(gear) }, gearTypeShort(gear)), reach ? h('span', { class: 'gv-reach', tip: 'Дальность удара: кого достаёт базовая атака' }, reach, h('span', { class: 'gv-reach-text' }, reachText)) : null]))
+          ? h('div', { class: 'gv-type' }, ...dotted([h('span', { class: skill.cls, tip: typeTip }, gearTypeShort(gear)), reach ? h('span', { class: 'gv-reach', tip: 'Дальность удара: кого достаёт базовая атака' }, reach, h('span', { class: 'gv-reach-text' }, reachText)) : null]))
           : null,
       ),
-      tierPips(gear.tier, 5, color, tierTip(gear.tier)),
     ),
   ];
 }
 
-/** Шапка предмета для модалки выбора сокета (v0.50): иконка типа, имя цветом тира, тир точками. null — вариант «как сейчас». */
+/** Шапка предмета для модалки выбора сокета (v0.50): иконка типа и имя цветом тира. null — вариант «как сейчас». */
 export function gearMiniHead(gear: GearInstance): HTMLElement | null {
   if (UI.gc === 'old') return null;
   const color = GEAR_TIERS[gear.tier].color;
@@ -464,7 +460,6 @@ export function gearMiniHead(gear: GearInstance): HTMLElement | null {
     { class: 'gtv-head' },
     h('span', { class: 'gv-icon', style: `border-color:${color}`, tip: gearTypeTip(gear) }, uiIcon(gearIconId(gear), 18, color)),
     h('span', { class: 'gtv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
-    tierPips(gear.tier, 5, color, tierTip(gear.tier)),
   );
 }
 
@@ -502,22 +497,19 @@ function gearCardA(gear: GearInstance, o: GearCardOpts): HTMLElement {
           )
         : null,
     ),
-    h('div', { class: 'gv-props' }, skillWarnRow(gear, o.def), perkRow(gear, o.def), affixRow(gear)),
+    h('div', { class: 'gv-props' }, perkRow(gear, o.def), affixRow(gear)),
     overflowNote(cmp?.overflow ?? []),
     h('div', { class: 'card-foot' }, socketIcons(gear), o.footer),
   );
 }
 
-/** B — «Сравнение»: таблица «надето → эта» по всем меняющимся статам, перк строкой, сокеты «было → станет». */
+/** B — «Сравнение» (выбран пользователем): таблица «надето → эта» по всем меняющимся статам, перк строкой, сокеты чипами в подвале. */
 function gearCardB(gear: GearInstance, o: GearCardOpts): HTMLElement {
   const cmp = o.run ? gearCompare(o.run, gear) : null;
   const row = (r: CompareRow) =>
     h('div', { class: `cmp-row ${r.dir > 0 ? 'up' : r.dir < 0 ? 'dn' : ''}` }, compareIcon(r.key), h('span', { class: 'cmp-name' }, r.name), h('span', { class: 'cmp-before' }, r.before), h('span', { class: 'cmp-arrow' }, '→'), h('span', { class: 'cmp-after' }, r.after), arrow(r.dir));
-  const rows = [...(cmp?.rows ?? [])];
-  if (cmp && cmp.slotsAfter !== cmp.slotsBefore) {
-    const d = cmp.slotsAfter - cmp.slotsBefore;
-    rows.push({ key: 'slots', name: 'сокеты', before: `${cmp.slotsBefore}`, after: `${cmp.slotsAfter}`, dir: Math.sign(d), delta: '' });
-  }
+  // Сокеты в таблицу не идут: их видно чипами в подвале карточки (решение пользователя).
+  const rows = cmp?.rows ?? [];
   return h(
     'div',
     { class: 'card gear-card gv gv-b', style: `border-color:${GEAR_TIERS[gear.tier].color}` },
@@ -529,7 +521,7 @@ function gearCardB(gear: GearInstance, o: GearCardOpts): HTMLElement {
           ...rows.slice(0, 4).map(row),
         )
       : h('div', { class: 'gv-stats' }, ...mainStats(gear, o.def)),
-    h('div', { class: 'gv-props one-line' }, skillWarnRow(gear, o.def), perkRow(gear, o.def)),
+    h('div', { class: 'gv-props one-line' }, perkRow(gear, o.def)),
     overflowNote(cmp?.overflow ?? []),
     h('div', { class: 'card-foot' }, socketIcons(gear), o.footer),
   );
@@ -558,7 +550,6 @@ function gearCardC(gear: GearInstance, o: GearCardOpts): HTMLElement {
       perkRow(gear, o.def, true),
       affixRow(gear, true),
       reach ? h('span', { class: 'prop-chip', tip: 'Дальность удара' }, reach) : null,
-      skillLabel(gear, o.def),
     ),
     others.length ? h('div', { class: 'gv-more', tip: others.map((r) => `${r.name}: ${r.before} → ${r.after}`).join('\n') }, ...dotted(others.slice(0, 3).map((r) => h('span', { class: r.dir > 0 ? 'up' : 'dn' }, `${r.dir > 0 ? '▲' : '▼'} ${r.delta}`)))) : null,
     overflowNote(cmp?.overflow ?? []),
@@ -582,10 +573,15 @@ export function gearCardVariant(gear: GearInstance, o: GearCardOpts): HTMLElemen
 
 // ─── Плитка экипировки в консоли ───────────────────────────────────────────
 
-/** Ячейка сокета плитки: глиф, имя, число — как сейчас, но число выделено. */
+const SLOT_ICON: Record<SlotKind, UiIconId> = { weapon: 'slotWeapon', armor: 'slotArmor', any: 'slotAny' };
+
+/**
+ * Ячейка сокета плитки: глиф, имя, число. Пустой сокет — такой же прямоугольник на полстроки, пунктиром цвета своего типа,
+ * со значком и типом словами (просьба пользователя): четыре сокета — четыре одинаковые плашки 2×2, а не квадратики.
+ */
 function tileSocket(inst: ArtifactInstance | null, gear: GearInstance, i: number, s: DerivedStats): HTMLElement {
   const kind = slotKindAt(gear, i);
-  if (!inst) return h('div', { class: `sock empty k-${kind}` }, socketChip(kind));
+  if (!inst) return h('div', { class: `sock empty k-${kind}`, tip: `${slotKindTip(kind)}\nСвободен` }, uiIcon(SLOT_ICON[kind], 16), h('span', { class: 'sock-name' }, SLOT_KIND_NAME[kind]));
   const def = artifactDef(inst.id);
   const color = ART_TIER_COLORS[inst.tier];
   return h(
@@ -598,7 +594,7 @@ function tileSocket(inst: ArtifactInstance | null, gear: GearInstance, i: number
 }
 
 /**
- * Плитка экипировки консоли в вариантах: та же шапка, что у карточки (иконка типа, имя цветом тира, тир точками),
+ * Плитка экипировки консоли в вариантах: та же шапка, что у карточки (иконка типа и имя цветом тира),
  * главное число справа, перк и аффикс строкой с иконками, сокеты 2×2. В C перк и аффикс — чипами.
  */
 export function gearTileVariant(gear: GearInstance, def: HeroDef, s: DerivedStats): HTMLElement | null {
@@ -615,7 +611,6 @@ export function gearTileVariant(gear: GearInstance, def: HeroDef, s: DerivedStat
       { class: 'gtv-head' },
       h('span', { class: 'gv-icon', style: `border-color:${color}`, tip: gearTypeTip(gear) }, uiIcon(gearIconId(gear), 18, color)),
       h('span', { class: 'gtv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
-      tierPips(gear.tier, 5, color, tierTip(gear.tier)),
       h('span', { class: 'gtv-stat', tip: gear.kind === 'weapon' ? 'Урон базовой атаки в руках героя, без Силы' : 'Защита и прибавка HP' }, uiIcon(gear.kind === 'weapon' ? 'dmg' : 'def', 16), stat),
     ),
     compact
