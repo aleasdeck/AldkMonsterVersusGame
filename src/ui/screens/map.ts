@@ -1,6 +1,8 @@
 import { button, h } from '../dom';
 import { ROOM_NAMES } from '../../data/locations';
-import { currentLocation, currentRoomKind } from '../../engine/run';
+import { awaitsTrial, currentLocation, currentRoomKind } from '../../engine/run';
+import { trialDef } from '../../data/trials';
+import { markKeywords } from '../keywords';
 import type { RoomKind } from '../../engine/types';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
@@ -16,9 +18,38 @@ const ROOM_DESC: Record<RoomKind, string> = {
   boss: 'Босс локации. За победу — экипировка и артефакт.',
 };
 
+/**
+ * Порог локации (v0.48): перед первой клеткой — два испытания на выбор, одно обязательно. Карточка — значок, правило
+ * числами этого акта и подсказка, кого оно бьёт; выбор — по сборке, «что меньше мешает мне».
+ */
+function thresholdCenter(app: App): HTMLElement {
+  const run = app.run!;
+  const loc = currentLocation(run);
+  const card = (id: string, i: number) => {
+    const t = trialDef(id);
+    return h(
+      'div',
+      { class: 'trial-card' },
+      h('div', { class: 'trial-glyph' }, t.glyph),
+      h('div', { class: 'trial-name' }, t.name),
+      h('div', { class: 'trial-desc' }, ...markKeywords(t.desc(run.locationIndex))),
+      h('div', { class: 'trial-hint dim' }, t.hint),
+      button(`Выбрать (${i + 1})`, () => app.chooseTrial(id), { class: 'primary' }),
+    );
+  };
+  return h(
+    'div',
+    { class: 'main map-main threshold', style: backgroundStyle(loc.id, 0.6) },
+    h('h2', null, `${loc.name}: испытание`),
+    h('p', { class: 'dim' }, 'Одно из двух — до конца локации: что меньше мешает сборке.'),
+    h('div', { class: 'trial-cards' }, ...run.trialOffer.map(card)),
+  );
+}
+
 /** Предбанник комнаты: лента этажа живёт в топбаре, здесь — локация, описание комнаты и «Войти». */
 export function mapScreen(app: App): HTMLElement {
   const run = app.run!;
+  if (awaitsTrial(run)) return runFrame(app, { cls: 'map', center: thresholdCenter(app), mid: hubGear(app) });
   const loc = currentLocation(run);
   const kind = currentRoomKind(run);
   const center = h(

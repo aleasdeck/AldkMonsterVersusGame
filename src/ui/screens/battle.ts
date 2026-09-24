@@ -83,6 +83,8 @@ function intentExtras(intent: IntentInfo): Child[] {
 function intentPill(b: BattleState, e: EnemyState): HTMLElement {
   const intent = computeIntent(e, b);
   if (intent.stunned) return h('div', { class: 'pill intent-stunned', tip: 'Пропустит следующий ход', tipTitle: 'Оглушён' }, statusIcon('stun', 18), 'оглушён');
+  // «Чаща» (v0.48): в первый ход намерения не видно.
+  if (intent.hidden) return h('div', { class: 'pill intent-special', tip: 'Испытание «Чаща»: в первый ход боя намерения врагов скрыты', tipTitle: 'Не разглядеть' }, h('span', { class: 'pill-icon' }, '?'));
   // Враги бьют первого союзника раньше героя.
   const victim = intent.kind === 'attack' ? `\nЦель: ${b.allies[0]?.name ?? 'герой'}` : '';
   return h(

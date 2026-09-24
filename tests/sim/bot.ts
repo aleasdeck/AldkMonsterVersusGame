@@ -32,6 +32,8 @@ import {
   altarSacrifice,
   altarSacrificeCost,
   awaitsFocus,
+  awaitsTrial,
+  chooseTrial,
   chooseRewardFocus,
   currentAct,
   battleAction,
@@ -1081,6 +1083,67 @@ function shopVisit(run: RunState): void {
 export type RunOutcome = 'victory' | 'defeat' | 'stall';
 
 /** Забег до конца. `onBoss` зовётся перед входом к боссу — для статистики. Пат — бой, который бот не смог ни выиграть, ни проиграть. */
+/**
+ * Цена испытания для сборки героя (v0.48) в «HP за локацию»: бот берёт то, что меньше бьёт по нему. Грубые оценки по статам —
+ * заметить, что Жаропрочность гасит Зной, а лечащемуся Паладину Проклятие склепа дороже, чем Воину. «Чаща» прячет намерения
+ * только в интерфейсе — бот их всё равно видит, поэтому её цена постоянная, как для живого игрока.
+ */
+export function trialCost(run: RunState, id: string): number {
+  const s = heroStats(run);
+  const arts = heldArts(run);
+  const has = (pred: (d: ReturnType<typeof artifactDef>) => boolean) => arts.some((a) => pred(artifactDef(a.id)));
+  const aoe = s.sweep > 0 || has((d) => (d.effects?.(3) ?? []).some((e) => 'target' in e && e.target === 'allEnemies'));
+  const magic = hasMagicActive(run.hero);
+  const heals = s.regen * 4 + s.lifesteal * s.sta * 3 + (has((d) => (d.effects?.(3) ?? []).some((e) => e.type === 'heal' || (e.type === 'spell' && !!e.drain))) ? 10 : 0);
+  const act = run.locationIndex;
+  switch (id) {
+    case 'pack':
+      return 10 - (aoe ? 4 : 0);
+    case 'ambush':
+      return 8 - (s.dodgeStart > 0 ? 4 : 0) - Math.min(4, s.blockTurn);
+    case 'thicket':
+      return 5;
+    case 'mire':
+      return 6 * (1 + act * 0.5) - s.dotReduce * 3;
+    case 'bog':
+      return 5 + (s.sta >= 4 ? 1 : 0);
+    case 'wisps':
+      return 6 - (aoe ? 2 : 0) - (magic ? 1 : 0);
+    case 'restless':
+      return 9 - (aoe ? 2 : 0);
+    case 'grave_chill':
+      return 7 - (magic ? 3 : 0);
+    case 'crypt_curse':
+      return 2 + heals * 0.5;
+    case 'hive_thorns':
+      return 3 + s.sta * 1.5 * (1 + act * 0.5) - (magic ? 2 : 0);
+    case 'acid':
+      return 2 + (defendBlock(s) + s.blockTurn) * 0.6;
+    case 'clutch':
+      return 9 - (aoe ? 3 : 0);
+    case 'heat':
+      return s.burnImmune > 0 ? 1 : 8 - s.dotReduce * 2;
+    case 'fire_blood':
+      return s.burnImmune > 0 ? 0 : 7 * (1 + act * 0.5);
+    case 'hot_armor':
+      return 1 + defendBlock(s) * 0.5;
+    case 'rolling':
+      return 5 + (magic ? 1 : 0);
+    case 'boarding':
+      return 7 - (aoe ? 2 : 0);
+    case 'cannonade':
+      return 6;
+    default:
+      return 5;
+  }
+}
+
+/** Испытание с наименьшей ценой для этой сборки. */
+function chooseTrialFor(run: RunState): void {
+  const best = run.trialOffer.reduce((m, id) => (trialCost(run, id) < trialCost(run, m) ? id : m), run.trialOffer[0]);
+  chooseTrial(run, best);
+}
+
 export function playRun(run: RunState, onBoss?: (run: RunState) => void): RunOutcome {
   let guard = 0;
   while (!isRunOver(run) && guard++ < 800) {
@@ -1090,6 +1153,10 @@ export function playRun(run: RunState, onBoss?: (run: RunState) => void): RunOut
     }
     switch (run.phase) {
       case 'map':
+        if (awaitsTrial(run)) {
+          chooseTrialFor(run);
+          break;
+        }
         if (currentRoomKind(run) === 'boss') onBoss?.(run);
         enterRoom(run);
         break;

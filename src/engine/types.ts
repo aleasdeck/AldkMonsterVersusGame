@@ -704,6 +704,10 @@ export interface BattleState {
   act: number | null;
   /** С какого хода враги впадают в ярость (v0.46, ENRAGE_TURN по самому сильному рангу боя); нет — как у рядового боя. */
   enrageAt?: number;
+  /** Испытание локации, под которым идёт бой (v0.48); нет — без испытания. */
+  trial?: string | null;
+  /** «Неупокоенные» уже подняли своего мертвеца в этом бою. */
+  risen?: boolean;
   allies: AllyState[];
   turn: number;
   phase: 'player' | 'enemy' | 'won' | 'lost';
@@ -879,9 +883,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.47.0';
+export const GAME_VERSION = '0.48.0';
 
-export const SAVE_VERSION = 37;
+export const SAVE_VERSION = 38;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
@@ -917,4 +921,15 @@ export interface RunState {
   setsReached: ArchetypeId[];
   /** Архетипы, с набором 3/3 которых побеждён босс (v0.45). */
   bossSets: ArchetypeId[];
+  /**
+   * Испытания локаций включены (v0.48): игра и бот — да, тесты движка по умолчанию — нет (`RunOpts.trials`).
+   * Пока предложение не выбрано (`awaitsTrial`), в клетку не войти.
+   */
+  trials: boolean;
+  /** Испытание текущей локации (data/trials.ts); null — не выбрано или испытания выключены. */
+  trial: string | null;
+  /** Два предложенных испытания перед локацией; пусто — выбор сделан. */
+  trialOffer: string[];
+  /** Испытания, выбранные за забег по порядку локаций, — для статистики. */
+  trialLog: string[];
 }

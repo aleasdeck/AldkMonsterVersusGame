@@ -29,6 +29,7 @@ import { artifactCost, artifactDef } from '../data/artifacts';
 import { SWEEP_MULT } from '../data/gear';
 import { potionDef } from '../data/potions';
 import { computeStats, innateOf, socketedArtifacts, statCtxOf } from './stats';
+import { ACID_BLOCK_MULT, CANNONADE_PCT, CRYPT_CURSE_MULT, HOT_ARMOR_MULT, trialValue } from '../data/trials';
 
 export const STATUS_NAMES: Record<StatusId, string> = {
   strength: 'Сила',
@@ -439,6 +440,8 @@ function turnsText(turns: number): string {
 
 /** Прибавка блока любому бойцу: событие для интерфейса и строка лога с источником. */
 function gainBlock(state: BattleState, c: Combatant, ref: EventTarget, amount: number, why?: string): void {
+  // «Кислота» (v0.48): любой блок героя слабее.
+  if (ref === 'hero' && state.trial === 'acid') amount = Math.floor(amount * ACID_BLOCK_MULT);
   if (amount <= 0) return;
   c.block += amount;
   state.events.push({ type: 'block', target: ref, amount });
@@ -671,8 +674,9 @@ function healHero(state: BattleState, amount: number, why?: string): void {
   const h = state.hero;
   // «Мученик» (v0.47): лечение не действует вовсе.
   if (h.stats.noHeal > 0 || amount <= 0) return;
-  // Набор «Свет» 2 и «Обет» (v0.47): каждое лечение сильнее.
-  amount = Math.round((amount + h.stats.healAdd) * (1 + h.stats.healMult));
+  // Набор «Свет» 2 и «Обет» (v0.47): каждое лечение сильнее; «Проклятие склепа» (v0.48) — вдвое слабее.
+  amount = Math.round((amount + h.stats.healAdd) * (1 + h.stats.healMult) * (state.trial === 'crypt_curse' ? CRYPT_CURSE_MULT : 1));
+  if (amount <= 0) return;
   // «Искупление» Паладина (v0.45): в первый ход боя лечение сильнее.
   if (state.turn === 1 && h.stats.firstTurnHeal > 0) amount = Math.round(amount * (1 + h.stats.firstTurnHeal));
   h.healedTurn += amount;
@@ -803,6 +807,17 @@ function checkPhases(state: BattleState, rng: Rng): void {
 
 function cleanupDead(state: BattleState, rng: Rng): void {
   checkPhases(state, rng);
+  // «Неупокоенные» (v0.48): первый павший в бою (не босс) встаёт с половиной HP — один раз за бой.
+  if (state.trial === 'restless' && !state.risen) {
+    const riser = state.enemies.find((e) => e.hp <= 0 && enemyDef(e.defId).rank !== 'boss' && !getStatus(e, 'doom'));
+    if (riser) {
+      state.risen = true;
+      riser.hp = Math.ceil(riser.maxHp / 2);
+      riser.statuses = riser.statuses.filter((st) => st.id === 'strength');
+      state.events.push({ type: 'heal', target: riser.uid, amount: riser.hp });
+      log(state, `${riser.name} встаёт снова (Неупокоенные): ${riser.hp} HP`);
+    }
+  }
   const dead = state.enemies.filter((e) => e.hp <= 0);
   if (dead.length === 0) return;
   for (const e of dead) {
@@ -817,6 +832,12 @@ function cleanupDead(state: BattleState, rng: Rng): void {
       healHero(state, state.hero.stats.killThirst, 'жажда');
       addStatus(state, state.hero, 'hero', 'strength', 1, -1);
     }
+    // «Огненная кровь» (v0.48): павший поджигает героя.
+    if (state.trial === 'fire_blood' && state.hero.hp > 0) addStatus(state, state.hero, 'hero', 'burn', trialValue(2, state.act ?? 0), 2);
+  }
+  // «Абордаж» (v0.48): каждая смерть злит живых.
+  if (state.trial === 'boarding') {
+    for (const x of state.enemies) if (x.hp > 0) for (let i = 0; i < dead.length; i++) addStatus(state, x, x.uid, 'strength', 1, -1);
   }
   state.enemies = state.enemies.filter((e) => e.hp > 0);
   state.enemyQueue = state.enemyQueue.filter((uid) => state.enemies.some((e) => e.uid === uid));
@@ -865,6 +886,14 @@ export const DEFEND_MULT = 0.8;
 
 export function defendBlock(stats: { def: number; defendBonus: number }): number {
   return Math.ceil((stats.def + stats.defendBonus) * DEFEND_MULT);
+}
+
+/** Сколько блока даст «Защититься» в этом бою: с набором «Щит» и испытаниями локации. */
+export function heroDefendGain(state: BattleState): number {
+  let gain = defendBlock(state.hero.stats) + state.hero.stats.blockSkillAdd;
+  if (state.trial === 'hot_armor') gain = Math.floor(gain * HOT_ARMOR_MULT);
+  if (state.trial === 'acid') gain = Math.floor(gain * ACID_BLOCK_MULT);
+  return gain;
 }
 
 /** Каждая следующая атака в ходу слабее: герой выдыхается. Сила штрафа — стат героя. */
@@ -1501,8 +1530,8 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
   } else if (action.type === 'defend') {
     h.sta -= 1;
     h.defended = true;
-    // Набор «Щит» 2 (v0.47): каждый приём с блоком даёт больше.
-    const gain = defendBlock(h.stats) + h.stats.blockSkillAdd;
+    // Набор «Щит» 2 (v0.47): каждый приём с блоком даёт больше; «Раскалённый доспех» и «Кислота» (v0.48) — меньше.
+    const gain = heroDefendGain(state);
     h.block += gain;
     state.events.push({ type: 'block', target: 'hero', amount: gain });
     log(state, `Герой защищается: +${gain} блока`);
@@ -1674,6 +1703,16 @@ function startPlayerTurn(state: BattleState): void {
   for (const k of Object.keys(h.cooldowns)) if (h.cooldowns[k] > 0) h.cooldowns[k] -= 1;
   log(state, `— Ход ${state.turn} —`);
   if (state.turn === state.enrageAt) log(state, `Бой затянулся: враги в ярости, урон +${Math.round(ENRAGE_STEP * 100)} % за ход`);
+  // «Канонада» (v0.48): каждый третий ход ядра бьют по всем — не добивая: разбора мёртвых в начале хода нет.
+  if (state.trial === 'cannonade' && state.turn % 3 === 0) {
+    log(state, 'Канонада!');
+    for (const e of state.enemies) {
+      const dmg = Math.min(e.hp - 1, Math.ceil(e.maxHp * CANNONADE_PCT));
+      if (dmg > 0) damageEnemy(state, e, dmg, 'dot', { src: 'trial' });
+    }
+    const self = Math.min(h.hp - 1, Math.ceil(h.maxHp * CANNONADE_PCT));
+    if (self > 0) damageHero(state, self, 'dot', undefined, true);
+  }
   // Страж снова готов заслонить; громила, вставший первым, раз за бой наливается Силой (v0.46).
   for (const e of state.enemies) e.covered = false;
   const front = state.enemies[0];
@@ -1689,7 +1728,9 @@ function startPlayerTurn(state: BattleState): void {
   if (h.stats.blockPerBurning > 0 && burning > 0) gainBlock(state, h, 'hero', h.stats.blockPerBurning * burning, `жаропрочность, горят ${burning}`);
   const regen = h.stats.regen + statusValue(h, 'regen');
   if (regen > 0) healHero(state, regen, 'регенерация');
-  const dot = statusValue(h, 'bleed') + statusValue(h, 'burn') + statusValue(h, 'poison');
+  // «Зной» (v0.48): Горение на герое тикает сильнее.
+  const heat = state.trial === 'heat' && getStatus(h, 'burn') ? 1 : 0;
+  const dot = statusValue(h, 'bleed') + statusValue(h, 'burn') + statusValue(h, 'poison') + heat;
   if (dot > 0) {
     // «Мазь знахаря» гасит общий тик ран, как кольчуга — удар: бьёт то, что осталось, но раны с героя не снимает.
     const soothed = Math.min(dot, h.stats.dotReduce);
@@ -2148,7 +2189,7 @@ export function resolveEnemyTurn(state: BattleState, rng: Rng): void {
 
 // ─── Создание боя ──────────────────────────────────────────────────────────
 
-export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: string[], rng: Rng, act: number | null = null): BattleState {
+export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: string[], rng: Rng, act: number | null = null, trial: string | null = null): BattleState {
   const stats = computeStats(heroDef, hero.weapon, hero.armor, statCtxOf(hero));
   // Врождённый навык (v0.44) — в руках героя, как вставленный артефакт: своя плитка, перезарядка и пассивка.
   const innate = innateOf(hero);
@@ -2185,6 +2226,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     enemies: [],
     act,
     enrageAt: ENRAGE_TURN[rankOrder[top]],
+    trial,
     allies: [],
     turn: 0,
     phase: 'enemy',
@@ -2201,10 +2243,36 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     dealtBy: {},
   };
   for (const id of lineup) spawnEnemy(state, id, rng, false);
+  // Испытания на врагах (v0.48): «Болотные огни» — уклонение каждому, «Рой» — шипы каждому.
+  const tAct = act ?? 0;
+  for (const e of state.enemies) {
+    if (trial === 'wisps') addStatus(state, e, e.uid, 'dodge', 1, -1);
+    if (trial === 'hive_thorns') addStatus(state, e, e.uid, 'thorns', trialValue(1, tAct), -1);
+  }
   for (const e of state.enemies) chooseIntent(state, e, rng);
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
   if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
+  // «Засада»: враги успевают сходить до первого хода героя — их ход нулевой, намерения выбираются заново.
+  if (trial === 'ambush') {
+    log(state, 'Засада! Враги нападают первыми');
+    for (const e of state.enemies.slice()) {
+      if (state.phase === 'lost') break;
+      if (e.hp > 0) actEnemy(state, e, rng);
+    }
+    cleanupDead(state, rng);
+    if (state.phase === 'lost' || state.phase === 'won') return state;
+  }
   startPlayerTurn(state);
+  // Испытания на герое — после старта хода: иначе тик начала хода съел бы их первый ход.
+  const h = state.hero;
+  if (trial === 'mire') addStatus(state, h, 'hero', 'poison', trialValue(1, tAct), 3);
+  if (trial === 'heat') addStatus(state, h, 'hero', 'burn', 1, 3);
+  if (trial === 'grave_chill') addStatus(state, h, 'hero', 'weak', 1, 2);
+  if (trial === 'bog' || trial === 'rolling') {
+    h.sta = Math.max(0, h.sta - 1);
+    if (trial === 'rolling') h.mp = Math.max(0, h.mp - 1);
+    log(state, trial === 'bog' ? 'Топь: −1 STA в первый ход' : 'Качка: −1 STA и −1 MP в первый ход');
+  }
   // Тень покрова — после старта первого хода: иначе тик начала хода съел бы ход скрытности. Блок «Плаща странника»
   // первый ход получает уже в startPlayerTurn, вместе со всеми остальными.
   if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
@@ -2244,6 +2312,8 @@ export interface ActionInfo {
 
 export interface IntentInfo extends ActionInfo {
   stunned: boolean;
+  /** Намерение скрыто испытанием «Чаща» (v0.48): первый ход боя игрок играет вслепую. */
+  hidden?: boolean;
 }
 
 /**
@@ -2451,7 +2521,8 @@ export function computeIntent(e: EnemyState, state?: BattleState): IntentInfo {
     state && pointBlank(state, e) && info.kinds.includes('attack') ? `В упор: удар ×${POINT_BLANK_MULT}, потом отойдёт назад` : '',
     enrage > 1 ? `Ярость боя: урон ×${enrage.toFixed(1)}` : '',
   ].filter(Boolean);
-  return { ...info, text: notes.length ? `${info.text}\n${notes.join('\n')}` : info.text, stunned: !!getStatus(e, 'stun') };
+  const hidden = state?.trial === 'thicket' && state.turn <= 1;
+  return { ...info, text: notes.length ? `${info.text}\n${notes.join('\n')}` : info.text, stunned: isStunned(e), hidden };
 }
 
 export interface AllyIntentInfo extends IntentInfo {

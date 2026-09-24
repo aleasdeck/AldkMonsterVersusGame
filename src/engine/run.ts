@@ -1,6 +1,6 @@
 import type { ArchetypeId, ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
-import { SAVE_VERSION } from './types';
-import { chance, createRng, pick } from './rng';
+import { MAX_ENEMIES, SAVE_VERSION } from './types';
+import { chance, createRng, pick, shuffle } from './rng';
 import { defaultSignature, heroDef } from '../data/heroes';
 import { makeStartingGear, upgradeGearTier } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, ROOM_NAMES, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
@@ -8,6 +8,7 @@ import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats, heroStatsOf, innateOf } from './stats';
 import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs, type SocketRef } from './equipment';
 import { activeSets, archetypeCounts, artifactTags } from '../data/archetypes';
+import { trialsOf } from '../data/trials';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
@@ -50,6 +51,8 @@ export function randomSeed(): number {
 export interface RunOpts {
   locked?: string[];
   start?: string;
+  /** Испытания локаций (v0.48): игра и бот включают, тесты движка по умолчанию играют без них. */
+  trials?: boolean;
 }
 
 export function newRun(
@@ -66,7 +69,7 @@ export function newRun(
   const gear = makeStartingGear(def, opts.start);
   const stats = computeStats(def, gear.weapon, gear.armor, { innate: { id: signature, tier: 1 }, trait });
   const rng = createRng(seed);
-  return {
+  const run: RunState = {
     version: SAVE_VERSION,
     seed,
     debug: false,
@@ -87,7 +90,41 @@ export function newRun(
     logs: [],
     setsReached: [],
     bossSets: [],
+    trials: !!opts.trials,
+    trial: null,
+    trialOffer: [],
+    trialLog: [],
   };
+  if (run.trials) offerTrials(run);
+  return run;
+}
+
+// ─── Испытания локаций (v0.48) ─────────────────────────────────────────────
+
+/** Два случайных испытания из трёх испытаний локации: выбор обязателен до первой клетки. */
+export function offerTrials(run: RunState): void {
+  const pool = trialsOf(currentLocation(run).id).map((t) => t.id);
+  run.trial = null;
+  run.trialOffer = shuffle(run.rng, pool).slice(0, 2);
+}
+
+/** Ждёт ли забег выбора испытания: пока не выбрано, в клетку не войти. */
+export function awaitsTrial(run: RunState): boolean {
+  return run.trials && run.trial === null && run.trialOffer.length > 0;
+}
+
+export function canChooseTrial(run: RunState, id: string): string | null {
+  if (!awaitsTrial(run)) return 'Испытание уже выбрано';
+  if (!run.trialOffer.includes(id)) return 'Этого испытания нет в предложении';
+  return null;
+}
+
+export function chooseTrial(run: RunState, id: string): boolean {
+  if (canChooseTrial(run, id)) return false;
+  run.trial = id;
+  run.trialOffer = [];
+  run.trialLog.push(id);
+  return true;
 }
 
 /** Локация по номеру акта в этом забеге. */
@@ -131,7 +168,7 @@ function syncMaxHp(run: RunState, before: number): void {
 // ─── Комнаты ───────────────────────────────────────────────────────────────
 
 export function enterRoom(run: RunState): void {
-  if (run.phase !== 'map') return;
+  if (run.phase !== 'map' || awaitsTrial(run)) return;
   const kind = currentRoomKind(run);
   if (kind === 'event') {
     startEvent(run, rollEventKind(run.rng));
@@ -154,8 +191,11 @@ function startBattle(run: RunState, kind: 'fight' | 'elite' | 'boss'): void {
       : kind === 'elite'
         ? loc.encounters.elite
         : loc.encounters.boss;
-  const ids = pick(run.rng, table);
-  run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng, run.locationIndex);
+  let ids = pick(run.rng, table);
+  // «Стая» и «Кладка» (v0.48): лишний противник в каждом бою, кроме босса.
+  const extra = run.trial === 'pack' ? 'wolf' : run.trial === 'clutch' ? 'egg_cluster' : null;
+  if (extra && kind !== 'boss' && ids.length < MAX_ENEMIES) ids = [...ids, extra];
+  run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng, run.locationIndex, run.trial);
   run.phase = 'battle';
   noteSets(run);
 }
@@ -239,6 +279,8 @@ export function advanceRoom(run: RunState): void {
     const before = heroStats(run).maxHp;
     run.hero.innateTier = Math.min(3, run.locationIndex + 1) as ArtifactInstance['tier'];
     syncMaxHp(run, before);
+    // Новая локация — новые испытания.
+    if (run.trials) offerTrials(run);
   }
   run.phase = 'map';
 }

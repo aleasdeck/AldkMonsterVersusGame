@@ -453,6 +453,54 @@ p {
 .room-preview .room-boss {
   color: var(--bad);
 }
+/* Порог локации (v0.48): две карточки испытаний. */
+.threshold h2 {
+  margin: 0 0 2px;
+}
+.threshold > p {
+  margin: 0 0 8px;
+}
+.trial-cards {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+}
+.trial-card {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #0d0d18e6;
+  border: 2px solid #55557a;
+  min-width: 0;
+}
+.trial-card .trial-glyph {
+  font-size: 28px;
+  color: var(--accent);
+  line-height: 1;
+}
+.trial-card .trial-name {
+  font-size: 22px;
+  color: var(--accent);
+}
+.trial-card .trial-desc {
+  font-size: 18px;
+}
+.trial-card .trial-hint {
+  font-size: 16px;
+  flex: 1;
+}
+.trial-card button {
+  align-self: flex-start;
+}
+.trial-chip {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid #55557a;
+  color: var(--accent);
+  cursor: help;
+}
 
 /* ─── Панель героя ───────────────────────────────────────────────────── */
 

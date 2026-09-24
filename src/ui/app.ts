@@ -165,7 +165,7 @@ export class App {
     this.settleArmed();
     this.aim = null;
     // Выбор пула награды (v0.39) — тоже смена экрана: «Выбрать» стоит там же, где потом «Надеть», второй клик двойного не должен брать предмет.
-    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0])].join('|');
+    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0]), r ? R.awaitsTrial(r) : false].join('|');
     if (key !== this.screenKey) {
       this.screenKey = key;
       this.screenChangedAt = performance.now();
@@ -510,7 +510,7 @@ export class App {
     // Чужой или опечатанный id из URL — молча первый из пары, а не сломанная страница.
     const sig = signature && def.signatures.includes(signature) ? signature : pickedSignature(this.profile, def);
     // Мастерство (v0.45): черта, стартовое оружие и закрытые артефакты — из профиля. Отладочный забег открыт весь.
-    this.run = R.newRun(heroId, seed, Date.now(), sig, pickedTrait(this.profile, def), { start: pickedStart(this.profile, def), locked: debug ? [] : lockedForRun(this.profile) });
+    this.run = R.newRun(heroId, seed, Date.now(), sig, pickedTrait(this.profile, def), { start: pickedStart(this.profile, def), locked: debug ? [] : lockedForRun(this.profile), trials: true });
     this.run.debug = debug;
     this.armed = null;
     this.resultRecorded = false;
@@ -772,6 +772,12 @@ export class App {
   }
 
   /** Пул награды за бой: «Нападение» или «Защита» (v0.39), после выбора катятся три карточки. */
+  /** Испытание локации (v0.48): выбор из двух предложенных перед первой клеткой. */
+  chooseTrial(id: string): void {
+    if (!this.run) return;
+    if (R.chooseTrial(this.run, id)) this.commit();
+  }
+
   chooseRewardFocus(focus: RewardFocus): void {
     if (!this.run) return;
     if (R.chooseRewardFocus(this.run, focus)) this.commit();

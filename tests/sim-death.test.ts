@@ -23,7 +23,7 @@ it.skipIf(!env.SIM_DEATH)('гибели бота', () => {
   const out: string[] = [];
   let shown = 0;
   for (let seed = 1; seed <= 300 && shown < show; seed++) {
-    const run = newRun(hero, seed * 7919);
+    const run = newRun(hero, seed * 7919, undefined, undefined, undefined, { trials: true });
     playRun(run);
     if (run.phase !== 'defeat') continue;
     const key = `L${run.locationIndex + 1}R${run.roomIndex + 1}`;

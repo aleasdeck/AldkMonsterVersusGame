@@ -2,7 +2,8 @@ import { App } from './ui/app';
 import { createRng, next } from './engine/rng';
 import type { RunsFeed } from './engine/globalStats';
 import { EVENT_WEIGHTS, LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locations';
-import { startEvent } from './engine/run';
+import { offerTrials, startEvent } from './engine/run';
+import { TRIALS } from './data/trials';
 import { createBattle } from './engine/combat';
 import { heroDef } from './data/heroes';
 import type { EventKind, LocationId } from './engine/types';
@@ -107,6 +108,15 @@ if (heroParam) {
   // &loc=1 — начать с указанного акта (0..2)
   const locParam = params.get('loc');
   if (locParam) run.locationIndex = Math.max(0, Math.min(2, Number(locParam) || 0));
+  // Испытания (v0.48): предложение — под локацию после &locs/&loc; &trial=pack — сразу выбрать заданное; отладочный вход
+  // в клетку (&enter/&phase/&room/&gauntlet) без &trial= идёт без испытания, чтобы старые адреса скриншотов не менялись.
+  if (locs.length || locParam) offerTrials(run);
+  const trialParam = params.get('trial');
+  if (trialParam && trialParam in TRIALS) {
+    run.trial = trialParam;
+    run.trialOffer = [];
+    run.trialLog.push(trialParam);
+  } else if (params.get('enter') || params.get('phase') || params.get('room') || params.get('gauntlet')) run.trialOffer = [];
   // &room=9 — начать с указанной клетки этажа (0..9): &room=9&phase=reward — трофей босса с подписью о лечении
   const roomParam = params.get('room');
   if (roomParam) run.roomIndex = Math.max(0, Math.min(ROOMS_PER_LOCATION - 1, Number(roomParam) || 0));

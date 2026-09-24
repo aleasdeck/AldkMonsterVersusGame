@@ -46,6 +46,8 @@ export interface RunReport {
   locked: number;
   /** База стартового оружия (v0.45): родная или вариант мастерства. */
   start: string;
+  /** Испытания локаций по порядку (v0.48), через запятую: «pack,acid,cannonade»; пусто — без испытаний. */
+  trials: string;
   seed: number;
   /** Фаза в момент записи: у победы и гибели — они же, у брошенного — где бросили (map, battle, shop…). */
   phase: RunPhase;
@@ -145,6 +147,7 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     heroLevel: ctx.heroLevel ?? 0,
     locked: run.hero.locked?.length ?? 0,
     start: run.hero.start ?? '',
+    trials: (run.trialLog ?? []).join(','),
     seed: run.seed,
     phase: run.phase,
     act: run.locationIndex + 1,
