@@ -354,7 +354,9 @@ function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: Statu
   state.events.push({ type: 'status', target: ref, status: id, value });
   const amount = STACKING.includes(id) || id === 'exhaust' || id === 'enchant' ? ` ${value}` : '';
   const flavor = element ? ` (${STATUS_NAMES[element]})` : '';
-  log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount}${flavor} ${turnsText(turns)}`);
+  // Бессрочное оглушение держится не до конца боя, а до своего хода: враг пропускает одно действие (v0.51.1).
+  const until = id === 'stun' && turns === -1 ? '— пропустит ход' : turnsText(turns);
+  log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount}${flavor} ${until}`);
   if (id === 'cold' && ref !== 'hero') checkFreeze(state, c, ref);
 }
 
