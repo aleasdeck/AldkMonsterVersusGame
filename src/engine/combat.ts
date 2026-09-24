@@ -355,7 +355,9 @@ function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: Statu
   const amount = STACKING.includes(id) || id === 'exhaust' || id === 'enchant' ? ` ${value}` : '';
   const flavor = element ? ` (${STATUS_NAMES[element]})` : '';
   // Бессрочное оглушение держится не до конца боя, а до своего хода: враг пропускает одно действие (v0.51.1).
-  const until = id === 'stun' && turns === -1 ? '— пропустит ход' : turnsText(turns);
+  // Холод на враге (v0.51.1) пишет, сколько накоплено до Оцепенения, — тот же счётчик, что на значке.
+  const cold = id === 'cold' && ref !== 'hero' ? getStatus(c, 'cold') : undefined;
+  const until = id === 'stun' && turns === -1 ? '— пропустит ход' : cold ? `— ${cold.value}/${freezeAt(c as EnemyState)} до Оцепенения` : turnsText(turns);
   log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount}${flavor} ${until}`);
   if (id === 'cold' && ref !== 'hero') checkFreeze(state, c, ref);
 }

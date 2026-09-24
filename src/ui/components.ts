@@ -8,7 +8,7 @@ import { ART_TIER_COLORS, GEAR_TIERS, weaponReach, weaponReachTitle } from '../d
 import { collectibleLines, type Collectible, type FoundState } from '../data/collection';
 import type { HeroDef } from '../engine/types';
 import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, canPlaceArtifact, findSameArtifact, gearOf, slotAccepts, slotKindAt, socketRefs } from '../engine/equipment';
-import { STATUS_HINTS, STATUS_NAMES, onDeathInfo } from '../engine/combat';
+import { STATUS_HINTS, STATUS_NAMES, freezeAt, onDeathInfo } from '../engine/combat';
 import type { App } from './app';
 import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
 import type { ArchetypeId } from '../engine/types';
@@ -230,14 +230,20 @@ export function statusIcons(c: Combatant, enemy?: EnemyState): HTMLElement {
     { class: 'statuses' },
     ...c.statuses.map((s) => {
       const showValue = VALUE_STATUSES.includes(s.id) && (s.id !== 'dodge' || s.value > 1);
+      // Холод на враге (v0.51.1): «накоплено/порог» — сколько осталось до Оцепенения; порог у каждого врага свой (лёд крепчает).
+      const coldCap = s.id === 'cold' && enemy ? freezeAt(enemy) : 0;
+      const valueText = coldCap ? `${s.value}/${coldCap}` : showValue ? `${s.value}` : '';
       const doom = s.id === 'doom' && enemy ? onDeathInfo(enemy) : null;
       const hint = doom ? `${doom.name} — ${doom.detail}.\nСработает, когда враг погибнет` : s.element ? `Стихия: ${STATUS_NAMES[s.element]}. ${STATUS_HINTS[s.id]}` : STATUS_HINTS[s.id];
-      const title = `${STATUS_NAMES[s.id]}${showValue ? ` ${s.value}` : ''}${s.turns > 0 ? `, ходов: ${s.turns}` : ''}\n${hint}`;
+      const head = coldCap
+        ? `${STATUS_NAMES[s.id]} ${s.value} из ${coldCap}: ещё ${Math.max(0, coldCap - s.value)} — и враг оцепенеет`
+        : `${STATUS_NAMES[s.id]}${showValue ? ` ${s.value}` : ''}${s.turns > 0 ? `, ходов: ${s.turns}` : ''}`;
+      const title = `${head}\n${hint}`;
       return h(
         'span',
         { class: `status status-${s.id}`, tip: title },
         statusIcon(s.id, 18),
-        showValue ? h('span', { class: 'status-val' }, `${s.value}`) : null,
+        valueText ? h('span', { class: 'status-val' }, valueText) : null,
         s.turns > 0 ? h('span', { class: 'status-turns' }, `${s.turns}`) : null,
       );
     }),

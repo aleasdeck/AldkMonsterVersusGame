@@ -461,6 +461,8 @@ describe('архетипы фазы 6 (v0.47)', () => {
     performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: bear.uid }, rng);
     expect(getStatus(bear, 'frozen')).toBeDefined();
     expect(bear.freezes).toBe(1);
+    // Лог пишет счётчик до Оцепенения (v0.51.1) — тот же, что на значке Холода.
+    expect(state.log).toContain('Медведь: Холод 2 — 4/4 до Оцепенения');
     state.hero.cooldowns.ice_shard = 0;
     state.hero.uses = {};
     performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: bear.uid }, rng);
@@ -472,9 +474,10 @@ describe('архетипы фазы 6 (v0.47)', () => {
     // 4 + 2 = 6 — ровно новый порог.
     expect(getStatus(bear, 'frozen')).toBeDefined();
     expect(bear.freezes).toBe(2);
+    expect(state.log).toContain('Медведь: Холод 2 — 6/6 до Оцепенения');
   });
 
-  it('Раскол: по оцепеневшему ×mult и снимает лёд; Вечная мерзлота — два хода; Оглушающий удар критует по оцепеневшему', () => {
+  it('Раскол: по оцепеневшему ×mult и снимает лёд; Вечная мерзлота — два хода; удар по оцепеневшему — крит', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], [a('shatter'), a('permafrost'), a('stun_strike')]);
     const bear = state.enemies[0];
     bear.hp = 999;

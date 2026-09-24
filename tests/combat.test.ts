@@ -1405,7 +1405,7 @@ describe('лог боя', () => {
     bear.block = 2;
     performAction(state, { type: 'artifact', artifactId: 'hex' }, rng);
     // v0.47: Сглаз — ещё и заводка Холода; с Подсечным выстрелом из пары тестового Воина набор «Холод» 2 даёт +1.
-    expect(state.log.slice(-2)).toEqual(['Медведь: Уязвимость на 2 хода', 'Медведь: Холод 2 до конца боя']);
+    expect(state.log.slice(-2)).toEqual(['Медведь: Уязвимость на 2 хода', 'Медведь: Холод 2 — 2/4 до Оцепенения']);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     // меч 5 → уязвимость 6.25 → 6, блок 2 → 4 по HP
     expect(state.log.at(-1)).toBe('Герой бьёт Медведь: 5 (кубик 5) → 4 по HP (уязвимость ×1.25 = 6, блок −2)');
