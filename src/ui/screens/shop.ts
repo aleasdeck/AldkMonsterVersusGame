@@ -8,6 +8,7 @@ import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import type { App } from '../app';
 import { gearDiffLines } from '../diff';
+import { UI } from '../variants';
 
 /** Кнопка покупки: «Купить 5 ◉» без «за» — в четырёх узких колонках каждое слово на счету; причина недоступности — в подсказке. */
 function buyButton(cost: number, err: string | null, onclick: () => void): HTMLElement {
@@ -74,5 +75,7 @@ export function shopScreen(app: App): HTMLElement {
       }),
     ),
   );
-  return runFrame(app, { cls: 'shop', center, mid: hubGear(app), overlays: [pendingModal(app)] });
+  // Новые карточки (прототипы v0.50): у предмета и артефакта таблица и описание, у лекаря и зелья текста мало — колонки неравные.
+  const wide = UI.gc !== 'old' || UI.ac !== 'old';
+  return runFrame(app, { cls: `shop ${wide ? 'shop-wide' : ''}`.trim(), center, mid: hubGear(app), overlays: [pendingModal(app)] });
 }

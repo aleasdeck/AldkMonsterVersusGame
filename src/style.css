@@ -3637,7 +3637,7 @@ p {
 
 /* Шапка — те же .gv-head / .gv-icon / .gv-name / .gv-type, что у карточки предмета; в рамке глиф артефакта. */
 .card.avd {
-  gap: 4px;
+  gap: 3px;
 }
 .avd-glyph {
   font-size: 22px;
@@ -3648,8 +3648,8 @@ p {
 .cmp.art-tbl {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 1px 14px;
-  padding: 2px 0 3px;
+  gap: 0 14px;
+  padding: 1px 0 3px;
 }
 /* Узкая колонка торговца: тоже две колонки, но без названий строк — значок и значение с единицами («1 STA», «2 хода»);
    что это за строка, пишет подсказка. Иначе таблица в три строки выталкивает кнопку покупки за рамку. */
@@ -3679,6 +3679,11 @@ p {
 .art-tbl-row.wide {
   grid-column: 1 / -1;
 }
+.art-tbl-glyph {
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+}
 .art-tbl-val {
   color: #fff;
 }
@@ -3688,24 +3693,18 @@ p {
 .art-tbl-row.bad .art-tbl-val {
   color: var(--bad);
 }
-/* Описание — абзацем, как перк у предмета, тем же кеглем. */
+/* Описание — абзацем, как перк у предмета, тем же кеглем; строки плотнее, чтобы таблица в три строки и описание в четыре
+   помещались в карточку награды (Оглушающий удар и Финишер с дубликатом). */
 .avd-desc {
   font-size: 15px;
-  line-height: 1.12;
+  line-height: 1.06;
 }
-/* Тип сокета внизу — тем же пунктирным чипом, что сокеты предмета. */
-.avd-slot {
-  display: inline-flex;
-  cursor: help;
-}
-.avd-slot .chip {
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-}
-.self-mark {
+/* Тип сокета словом в строке под именем: значок и слово цветом типа, как подписи пустых сокетов в консоли. */
+.slot-label {
   display: inline-flex;
   align-items: center;
+  gap: 3px;
+  white-space: nowrap;
   cursor: help;
 }
 .potion-kind {
@@ -4799,4 +4798,14 @@ p {
 .avd .gv-head + .avd-desc {
   border-top: 1px dotted #33334d;
   padding-top: 4px;
+}
+/* Торговец в новых карточках: лекарь (1) и зелье (4) уже, предмет (2) и артефакт (3) шире — по порядку прилавка, чтобы ряд
+   не прыгал, когда товар куплен и на его месте карточка «Куплено». */
+.shop-wide .cards > .card:nth-child(1),
+.shop-wide .cards > .card:nth-child(4) {
+  flex: 0.8 1 0;
+}
+.shop-wide .cards > .card:nth-child(2),
+.shop-wide .cards > .card:nth-child(3) {
+  flex: 1.2 1 0;
 }
