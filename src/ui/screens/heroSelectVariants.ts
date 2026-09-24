@@ -51,10 +51,12 @@ function statTiles(s: DerivedStats, compact = false): HTMLElement {
   );
 }
 
-/** Владение оружием и бронёй чипами: своё — ярко с галочкой, чужое — тускло и зачёркнуто. */
+/**
+ * Владение оружием и умение носить броню: все три типа словами, своё — ярко с зелёной рамкой, чужое — тускло, зачёркнуто и с крестом.
+ * Что даёт владение и свойство типа — в подсказке к чипу.
+ */
 function proficiency(def: HeroDef): HTMLElement {
-  // Своё — значком и словом, чужое — только тусклым значком: слово в подсказке. Так ряд короче и глаз цепляется за то, чем герой владеет.
-  const chip = (icon: UiIconId, name: string, ok: boolean, tip: string) => h('span', { class: `prof-chip ${ok ? 'yes' : 'no'}`, tip }, uiIcon(icon, 14), ok ? name : null);
+  const chip = (icon: UiIconId, name: string, ok: boolean, tip: string) => h('span', { class: `prof-chip ${ok ? 'yes' : 'no'}`, tip }, uiIcon(ok ? icon : 'cross', 14), name);
   return h(
     'div',
     { class: 'hsv-prof' },
@@ -327,7 +329,7 @@ function startButton(app: App, def: HeroDef, parseSeed: (raw: string) => number 
   return button(h('span', null, `В забег: ${def.name} `, '▶'), () => app.newRun(def.id, parseSeed(app.seedText)), { class: 'primary big hsv-start' });
 }
 
-/** Сводка выбранного на старт одной строкой (подвал C): навык, черта, оружие. */
+/** Сводка выбранного на старт одной строкой (вкладка «Герой» варианта A): навык, черта, оружие. */
 function loadoutLine(app: App, def: HeroDef): HTMLElement {
   const skill = artifactDef(pickedSignature(app.profile, def));
   const trait = traitDef(pickedTrait(app.profile, def));
@@ -368,18 +370,22 @@ export function heroPreviewVariant(app: App, def: HeroDef, parseSeed: (raw: stri
       ? choiceRows(app, def)
       : tab === 'mastery'
         ? masteryTab(app, def)
-        : h(
-            'div',
-            { class: 'hsv-hero-tab' },
-            statTiles(s),
-            h('div', { class: 'hsv-cols' }, proficiency(def), h('div', { class: 'hsv-col' }, startGear(app, def), UI.hs === 'a' ? h('div', { class: 'hsv-gear' }, h('div', { class: 'hsv-label' }, 'Выбрано на старт'), loadoutLine(app, def)) : null)),
-          );
+        : UI.hs === 'c'
+          ? // C (решение пользователя): на первой вкладке только статы и владение — стартовое снаряжение и выбранное живут на «Старте».
+            h('div', { class: 'hsv-hero-tab' }, statTiles(s), proficiency(def))
+          : h(
+              'div',
+              { class: 'hsv-hero-tab' },
+              statTiles(s),
+              h('div', { class: 'hsv-cols' }, proficiency(def), h('div', { class: 'hsv-col' }, startGear(app, def), h('div', { class: 'hsv-gear' }, h('div', { class: 'hsv-label' }, 'Выбрано на старт'), loadoutLine(app, def)))),
+            );
   return h(
     'div',
     { class: `hero-preview hsv hsv-${UI.hs}` },
     header(def, 80),
     tabBar(app, tabs),
     h('div', { class: 'hsv-body' }, body),
-    h('div', { class: 'hsv-foot' }, UI.hs === 'c' ? loadoutLine(app, def) : masteryStrip(app, def), startButton(app, def, parseSeed)),
+    // В C подвал — только кнопка старта: что выбрано, видно по карточкам «Старта», мастерство — своей вкладкой (решение пользователя).
+    h('div', { class: 'hsv-foot' }, UI.hs === 'c' ? null : masteryStrip(app, def), startButton(app, def, parseSeed)),
   );
 }
