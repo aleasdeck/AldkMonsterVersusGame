@@ -1,10 +1,10 @@
 // ─── Прототипы интерфейса: переключатель вариантов (v0.50) ─────────────────
 // Три задачи разгрузки интерфейса — экран выбора героя, карточки экипировки, карточки артефактов — сделаны в нескольких
-// вариантах, чтобы выбрать вживую, а не по описанию. `old` — нынешний вид (по умолчанию), a/b/c — варианты.
+// вариантах, чтобы выбрать вживую, а не по описанию. `old` — нынешний вид (по умолчанию), a/b/c — варианты; у артефактов ещё d.
 // Выбор задаётся адресом (&hs=a&gc=b&ac=c, &ui=a — все три сразу), живёт в localStorage и листается Shift+1/2/3
 // на любом экране. Когда вариант выбран, остальные удаляются вместе с этим файлом.
 
-export type Variant = 'old' | 'a' | 'b' | 'c';
+export type Variant = 'old' | 'a' | 'b' | 'c' | 'd';
 
 export interface UiVariants {
   /** Экран выбора героя. */
@@ -18,7 +18,13 @@ export interface UiVariants {
 export type UiArea = keyof UiVariants;
 
 const KEY = 'mv_ui_variants';
-const ORDER: Variant[] = ['old', 'a', 'b', 'c'];
+const ORDER: Variant[] = ['old', 'a', 'b', 'c', 'd'];
+/** Какие варианты есть у области: D — только у артефактов («как экипировка», после выбора B у предметов). */
+const AREA_ORDER: Record<'hs' | 'gc' | 'ac', Variant[]> = {
+  hs: ['old', 'a', 'b', 'c'],
+  gc: ['old', 'a', 'b', 'c'],
+  ac: ['old', 'a', 'b', 'c', 'd'],
+};
 
 export const AREA_NAMES: Record<UiArea, string> = {
   hs: 'Выбор героя',
@@ -28,9 +34,9 @@ export const AREA_NAMES: Record<UiArea, string> = {
 
 /** Короткие имена вариантов — для всплывающей строки при переключении. */
 export const VARIANT_NAMES: Record<UiArea, Record<Variant, string>> = {
-  hs: { old: 'как сейчас', a: 'A — две вкладки: Герой / Старт', b: 'B — одна страница, выбор переключателями', c: 'C — три вкладки: Герой / Старт / Мастерство' },
-  gc: { old: 'как сейчас', a: 'A — паспорт предмета', b: 'B — сравнение с надетым', c: 'C — компакт, детали в подсказке' },
-  ac: { old: 'как сейчас', a: 'A — полоса параметров', b: 'B — карта с углами', c: 'C — рейка слева' },
+  hs: { old: 'как сейчас', a: 'A — две вкладки: Герой / Старт', b: 'B — одна страница, выбор переключателями', c: 'C — три вкладки: Герой / Старт / Мастерство', d: 'как сейчас' },
+  gc: { old: 'как сейчас', a: 'A — паспорт предмета', b: 'B — сравнение с надетым', c: 'C — компакт, детали в подсказке', d: 'как сейчас' },
+  ac: { old: 'как сейчас', a: 'A — полоса параметров', b: 'B — карта с углами', c: 'C — рейка слева', d: 'D — как экипировка' },
 };
 
 function isVariant(v: unknown): v is Variant {
@@ -72,7 +78,8 @@ export function applyUiParams(params: URLSearchParams): void {
 
 /** Следующий вариант области по кругу: old → a → b → c → old. Возвращает подпись для всплывающей строки. */
 export function cycleVariant(area: UiArea): string {
-  UI[area] = ORDER[(ORDER.indexOf(UI[area]) + 1) % ORDER.length];
+  const order = AREA_ORDER[area];
+  UI[area] = order[(order.indexOf(UI[area]) + 1) % order.length];
   save();
   return `${AREA_NAMES[area]}: ${VARIANT_NAMES[area][UI[area]]}`;
 }

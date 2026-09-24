@@ -1,6 +1,6 @@
 import { h, type Child } from './dom';
 import type { ArtTier, ArtifactInstance, DerivedStats, GearInstance, HeroDef, RunState, SlotKind, StatusId } from '../engine/types';
-import { artifactDef } from '../data/artifacts';
+import { artifactCost, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import {
@@ -15,6 +15,7 @@ import {
   canWieldWeapon,
   hasPerk,
   weaponDice,
+  weaponReach,
   weaponType,
   weaponTypeText,
 } from '../data/gear';
@@ -57,12 +58,12 @@ function archLabels(id: string): Child[] {
 }
 
 /** Особые пометки: ключевая вещь (ломает правило за цену) и навык героя (персональный). */
-function specialLabels(id: string): Child[] {
+function specialLabels(id: string, compactSig = false): Child[] {
   const def = artifactDef(id);
   const out: Child[] = [];
   if (def.keystone) out.push(h('span', { class: 'special-label key', tip: 'Ключевая вещь архетипа: ломает правило за цену, выпадает только тиром 1' }, uiIcon('key', 14), 'ключевая'));
   const owner = SIGNATURE_OWNER[id];
-  if (owner) out.push(h('span', { class: 'special-label sig', tip: `Врождённый навык героя «${heroDef(owner).name}»: не занимает сокет, уровень растёт с локацией` }, uiIcon('crown', 14), 'навык героя'));
+  if (owner) out.push(h('span', { class: 'special-label sig', tip: `Врождённый навык героя «${heroDef(owner).name}»: не занимает сокет, уровень растёт с локацией` }, uiIcon('crown', 14), compactSig ? null : 'навык героя'));
   return out;
 }
 
@@ -232,6 +233,149 @@ function artCardC(inst: ArtifactInstance, footer?: Child, note?: Child, run?: Ru
   );
 }
 
+// ─── Артефакт D — «как экипировка» ─────────────────────────────────────────
+// Та же грамматика, что у выбранной карточки предметов (B): рамка и имя цветом тира без точек, под именем род, архетип и точки
+// дальности; таблица параметров со значками вместо таблицы сравнения; описание абзацем, как перк; внизу тип сокета чипом и кнопка.
+
+/** Точки дальности приёма тем же маркером, что у оружия: в упор — первая, любая цель — все три, по всем врагам — все три оранжевым. */
+function artReachDots(inst: ArtifactInstance, run?: RunState): HTMLElement | null {
+  const def = artifactDef(inst.id);
+  if (def.kind !== 'active' || !def.target || def.target === 'self') return null;
+  let reach: 'melee' | 'any' | 'row';
+  let tip: string;
+  if (def.target === 'allEnemies') {
+    reach = 'row';
+    tip = 'Дальность: все враги разом';
+  } else {
+    const own = def.reach ?? (def.school === 'magic' ? 'any' : null);
+    // Физический приём без своей дальности бьёт как оружие в руках; плеть приёмом бьёт первого, как ближнее.
+    const byWeapon = run ? (weaponReach(run.hero.weapon, heroDef(run.hero.defId)) === 'any' ? 'any' : 'melee') : 'melee';
+    reach = own ?? byWeapon;
+    tip = `Дальность: ${reach === 'melee' ? 'только первый в ряду' : 'любая цель в ряду'}${own ? '' : ' — как оружие в руках героя'}`;
+  }
+  const lit = reach === 'melee' ? 1 : 3;
+  return h('span', { class: `reach-dots reach-${reach}`, tip }, ...[0, 1, 2].map((i) => h('i', { class: i < lit ? 'on' : '' })));
+}
+
+interface ArtRow {
+  icon: UiIconId;
+  name: string;
+  value: string;
+  /** good — выгодно (бесплатно, тир растёт), bad — не сработает (не хватит запаса, тир уже максимальный). */
+  cls?: 'good' | 'bad';
+  tip?: string;
+  /** Строка во всю ширину таблицы: дубликат и двойная цена не помещаются в полколонки. */
+  wide?: boolean;
+}
+
+const LIVE_NAMES: Partial<Record<UiIconId, string>> = { dmg: 'урон', block: 'блок', heal: 'лечение', sta: 'стамина', mp: 'мана' };
+
+const plural = (n: number, one: string, few: string, many: string) => {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  return m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
+};
+
+/**
+ * Строки таблицы артефакта: цена, перезарядка или лимит за ход, живое число с нынешним снаряжением и — у дубликата — тир в сокете
+ * «было → станет», как строки сравнения у предметов. Пассивка без дубликата таблицы не имеет.
+ */
+function artRows(inst: ArtifactInstance, run?: RunState): ArtRow[] {
+  const def = artifactDef(inst.id);
+  const rows: ArtRow[] = [];
+  if (def.kind === 'active') {
+    const c = artifactCost(def, inst.tier);
+    const parts: string[] = [];
+    if (c.sta === 'all') parts.push('вся STA');
+    else if (c.sta) parts.push(`${c.sta} STA`);
+    if (c.mp) parts.push(`${c.mp} MP`);
+    // Цена, которую герою не заплатить никогда (максимум меньше цены), — красным: как урон оружия чужого типа.
+    const s = run ? heroStats(run) : null;
+    const short = !!s && ((c.mp ?? 0) > s.maxMp || (typeof c.sta === 'number' && c.sta > s.sta));
+    rows.push({
+      icon: c.mp && !c.sta ? 'mp' : 'sta',
+      name: 'цена',
+      value: parts.length ? parts.join(' + ') : 'бесплатно',
+      cls: short ? 'bad' : parts.length ? undefined : 'good',
+      tip: short ? 'Герою не хватает запаса: максимум меньше цены приёма' : 'Сколько стоит применить приём',
+      wide: parts.length > 1,
+    });
+    const uses = def.usesPerTurn?.(inst.tier) ?? 0;
+    const cd = def.cooldown?.(inst.tier) ?? 0;
+    // «КД» — то же слово, что на плитках боя и в подсказке ключевого слова «Перезарядка»; полностью — в подсказке строки.
+    if (uses > 1) rows.push({ icon: 'uses', name: 'лимит', value: `${uses} за ход`, tip: `До ${uses} раз за ход, без перезарядки` });
+    else if (uses === 1 || cd === 1) rows.push({ icon: 'uses', name: 'лимит', value: 'раз в ход', tip: 'Не чаще раза в ход' });
+    else if (cd > 1) rows.push({ icon: 'cd', name: 'КД', value: `${cd} ${plural(cd, 'ход', 'хода', 'ходов')}`, tip: `Перезарядка: после применения приём недоступен ${cd} ${plural(cd, 'ход', 'хода', 'ходов')}` });
+    const live = liveParam(inst, run);
+    if (live) rows.push({ icon: live.icon, name: LIVE_NAMES[live.icon] ?? 'число', value: live.text, tip: live.tip });
+  }
+  const same = run ? findSameArtifact(run.hero, inst.id) : null;
+  if (same?.art) {
+    const next = Math.min(3, Math.max(same.art.tier + 1, inst.tier));
+    rows.push(
+      same.art.tier >= 3
+        ? { icon: 'star', name: 'дубликат', value: 'уже максимум', cls: 'bad', tip: 'Такой артефакт уже стоит на максимальном тире', wide: true }
+        : { icon: 'star', name: 'дубликат', value: `тир ${same.art.tier} → ${next}`, cls: 'good', tip: 'Сольётся со стоящим в сокете и поднимет его тир', wide: true },
+    );
+  }
+  return rows;
+}
+
+/** Порог набора архетипа, который вещь включит (дубликат — в таблице). Шаг без бонуса не пишется. */
+function setNotes(run: RunState | undefined, inst: ArtifactInstance): HTMLElement[] {
+  if (!run || findSameArtifact(run.hero, inst.id)?.art) return [];
+  const innate = innateOf(run.hero);
+  const counts = archetypeCounts([...socketedArtifacts(run.hero.weapon, run.hero.armor), ...(innate ? [innate] : [])]);
+  const out: HTMLElement[] = [];
+  for (const tag of artifactTags(inst.id)) {
+    const arch = ARCHETYPES[tag];
+    const n = (counts[tag] ?? 0) + 1;
+    const bonus = n >= 2 && n <= 3 ? arch.sets[n as 2 | 3] : undefined;
+    if (bonus) out.push(h('div', { class: 'build-note set', style: `color:${arch.color}`, tip: archetypeTip(arch, n) }, h('span', { class: 'arch-glyph' }, '▲'), `${arch.name} ${n}/3: ${bonus.text}`));
+  }
+  return out;
+}
+
+/** Таблица параметров тем же видом, что сравнение у предметов: значок, имя, значение справа; в широкой карточке — в две колонки. */
+function artTable(rows: ArtRow[]): HTMLElement | null {
+  if (!rows.length) return null;
+  return h(
+    'div',
+    { class: 'cmp art-tbl' },
+    ...rows.map((r) => h('div', { class: `art-tbl-row ${r.cls ?? ''} ${r.wide ? 'wide' : ''}`.replace(/\s+/g, ' ').trim(), tip: r.tip ?? null }, uiIcon(r.icon, 14), h('span', { class: 'cmp-name' }, r.name), h('span', { class: 'art-tbl-val' }, r.value))),
+  );
+}
+
+/** D — «как экипировка»: шапка, таблица параметров, описание, строка набора, внизу тип сокета и кнопка. */
+function artCardD(inst: ArtifactInstance, footer?: Child, note?: Child, run?: RunState): HTMLElement {
+  const def = artifactDef(inst.id);
+  const color = ART_TIER_COLORS[inst.tier];
+  const kind = kindParam(def);
+  const slot = slotParam(def);
+  const tags = artifactTags(inst.id);
+  const typeLine = dotted([
+    h('span', { class: kind.cls, tip: kind.tip }, kind.text),
+    ...tags.map((t) => h('span', { class: 'arch-label', style: `color:${ARCHETYPES[t].color}`, tip: archetypeTip(ARCHETYPES[t]) }, `${ARCHETYPES[t].glyph} ${ARCHETYPES[t].name}`)),
+    ...specialLabels(inst.id, true),
+    def.kind === 'active' && def.target === 'self' ? h('span', { class: 'self-mark', tip: 'На себя: применяется сразу, цель не нужна' }, uiIcon('self', 14)) : artReachDots(inst, run),
+  ]);
+  return h(
+    'div',
+    { class: `card art-card av avd ${SIGNATURE_OWNER[inst.id] ? 'signature' : ''} ${def.keystone ? 'keystone' : ''}`, style: `border-color:${color}` },
+    h(
+      'div',
+      { class: 'gv-head' },
+      h('span', { class: 'gv-icon', style: `border-color:${color}`, tip: `Тир ${inst.tier} из 3` }, h('span', { class: 'avd-glyph', style: `color:${color}` }, def.glyph)),
+      h('div', { class: 'gv-title' }, h('span', { class: 'gv-name', style: `color:${nameColor(inst.tier, color)}`, tip: `Тир ${inst.tier} из 3` }, def.name), h('div', { class: 'gv-type' }, ...typeLine)),
+    ),
+    artTable(artRows(inst, run)),
+    h('div', { class: 'avd-desc' }, ...descOf(inst)),
+    ...setNotes(run, inst),
+    note ?? null,
+    h('div', { class: 'card-foot' }, h('span', { class: 'avd-slot', tip: slot.tip }, socketChip(def.slot)), footer),
+  );
+}
+
 /**
  * Зелье в варианте карточек артефактов: та же раскладка, что у артефакта, — чтобы ряд награды и прилавок читались одинаково.
  * Цена всегда нулевая (пьётся бесплатно), тира и сокета нет.
@@ -255,6 +399,21 @@ export function potionCardVariant(id: string, footer?: Child, note?: string | nu
       noteEl,
       foot,
       h('div', { class: 'avb-bottom' }, h('span', { class: 'avb-ribbon', style: `background:${color}` }, 'зелье'), h('span', { class: 'avb-spacer' })),
+    );
+  if (UI.ac === 'd')
+    return h(
+      'div',
+      { class: 'card art-card av avd potion-card', style: `border-color:${color}` },
+      h(
+        'div',
+        { class: 'gv-head' },
+        h('span', { class: 'gv-icon', style: `border-color:${color}` }, h('span', { class: 'avd-glyph', style: `color:${color}` }, def.glyph)),
+        h('div', { class: 'gv-title' }, h('span', { class: 'gv-name', style: `color:${color}` }, def.name), h('div', { class: 'gv-type' }, h('span', { class: 'potion-kind' }, 'Зелье'))),
+      ),
+      artTable([{ icon: 'sta', name: 'цена', value: 'бесплатно', cls: 'good', tip: 'Пьётся в бою бесплатно; слот зелья один' }]),
+      h('div', { class: 'avd-desc' }, ...markKeywords(def.describe, { icons: true, numbers: true })),
+      noteEl,
+      foot,
     );
   if (UI.ac === 'c')
     return h(
@@ -282,6 +441,8 @@ export function artifactCardVariant(inst: ArtifactInstance, footer?: Child, note
       return artCardB(inst, footer, note, run);
     case 'c':
       return artCardC(inst, footer, note, run);
+    case 'd':
+      return artCardD(inst, footer, note, run);
     default:
       return null;
   }

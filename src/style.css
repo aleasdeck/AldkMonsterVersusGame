@@ -3633,6 +3633,86 @@ p {
   line-height: 1.12;
 }
 
+/* ─── Артефакт D — «как экипировка» ─────────────────────────────────── */
+
+/* Шапка — те же .gv-head / .gv-icon / .gv-name / .gv-type, что у карточки предмета; в рамке глиф артефакта. */
+.card.avd {
+  gap: 4px;
+}
+.avd-glyph {
+  font-size: 22px;
+  line-height: 1;
+}
+/* Таблица параметров тем же видом, что сравнение у предметов (.cmp): значок, имя, значение справа. В широкой карточке награды —
+   две колонки (цена | КД, урон | …), в узкой колонке торговца — одна; дубликат и двойная цена — во всю ширину. */
+.cmp.art-tbl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 1px 14px;
+  padding: 2px 0 3px;
+}
+/* Узкая колонка торговца: тоже две колонки, но без названий строк — значок и значение с единицами («1 STA», «2 хода»);
+   что это за строка, пишет подсказка. Иначе таблица в три строки выталкивает кнопку покупки за рамку. */
+.shop .cmp.art-tbl {
+  grid-template-columns: 1fr 1fr;
+  gap: 1px 10px;
+}
+.shop .art-tbl-row {
+  grid-template-columns: 16px auto;
+  justify-content: start;
+}
+.shop .art-tbl-row .cmp-name {
+  display: none;
+}
+.shop .avd-desc {
+  line-height: 1.06;
+}
+.art-tbl-row {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 5px;
+  align-items: center;
+  white-space: nowrap;
+  min-width: 0;
+  cursor: help;
+}
+.art-tbl-row.wide {
+  grid-column: 1 / -1;
+}
+.art-tbl-val {
+  color: #fff;
+}
+.art-tbl-row.good .art-tbl-val {
+  color: var(--good);
+}
+.art-tbl-row.bad .art-tbl-val {
+  color: var(--bad);
+}
+/* Описание — абзацем, как перк у предмета, тем же кеглем. */
+.avd-desc {
+  font-size: 15px;
+  line-height: 1.12;
+}
+/* Тип сокета внизу — тем же пунктирным чипом, что сокеты предмета. */
+.avd-slot {
+  display: inline-flex;
+  cursor: help;
+}
+.avd-slot .chip {
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+}
+.self-mark {
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+}
+.potion-kind {
+  color: #6fd97a;
+}
+
+
 /* ─── Экипировка: общие части вариантов ─────────────────────────────── */
 
 .gv {
