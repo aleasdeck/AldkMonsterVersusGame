@@ -163,10 +163,6 @@ function artifactStatuses(id: string): ArtifactStatuses {
   }
   if (m.poisonVuln) pays.add('poison');
   if (m.spellVsBurn) pays.add('burn');
-  if (m.stunCrit) {
-    pays.add('stun');
-    pays.add('cold');
-  }
   if (m.perDebuff) for (const st of ALL_DEBUFFS) pays.add(st);
   // Архетипы v0.47: заводки на ударе и выплаты по статусам.
   if (m.onHitCold) applies.add('cold');
@@ -200,7 +196,7 @@ function heroApplies(hero: HeroPersistent, s: DerivedStats): Set<StatusId> {
   return out;
 }
 
-/** На каких статусах у героя уже есть выплата: взрыв ран, заражение, «Гниль», «Раздуть», крит по оглушённым. */
+/** На каких статусах у героя уже есть выплата: взрыв ран, заражение, «Гниль», «Раздуть». */
 function heroPaysFor(hero: HeroPersistent): Set<StatusId> {
   const out = new Set<StatusId>();
   for (const id of heroArts(hero)) for (const st of artifactStatuses(id).pays) out.add(st);

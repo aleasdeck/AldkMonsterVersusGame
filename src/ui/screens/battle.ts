@@ -358,7 +358,7 @@ export function actionSpecs(app: App): TileSpec[] {
     return last;
   };
   /** Хвост предпросмотра по цели: по ней можно — штриховка и остаток HP, нельзя — причина. */
-  const onTarget = (action: (t: number) => PlayerAction, target: number | undefined, range: DamageRange | undefined, kind: 'hit' | 'spell' | 'dot'): Partial<PreviewSpec> => {
+  const onTarget = (action: (t: number) => PlayerAction, target: number | undefined, range: DamageRange | undefined, kind: NonNullable<PreviewSpec['kind']>): Partial<PreviewSpec> => {
     if (target === undefined) return {};
     const err = canUseAction(b, action(target));
     if (err) return { err };
@@ -401,13 +401,13 @@ export function actionSpecs(app: App): TileSpec[] {
       title: atkName,
       parts: [
         '1 STA',
-        `${rangeText(atkRange)} урона${stealthed ? ' (крит)' : ''}${usual(atkRange, atkBase)}`,
+        `${rangeText(atkRange)} урона${stealthed ? ' (крит мимо блока)' : ''}${usual(atkRange, atkBase)}`,
         charge > 0 ? `заряды: +${charge}, удар тратит все` : null,
         reachWord(actionReach(b, atkAction(first))),
         `каждая следующая атака в ходу на ${fatigue} % слабее (сделано: ${b.hero.attacks})`,
       ],
       targets: atkTargets,
-      ...onTarget(atkAction, t, atkRangeOn(charge, sweep ? SWEEP_MULT : 1, false, t), 'hit'),
+      ...onTarget(atkAction, t, atkRangeOn(charge, sweep ? SWEEP_MULT : 1, false, t), 'strike'),
     }),
   });
 
@@ -441,7 +441,8 @@ export function actionSpecs(app: App): TileSpec[] {
     const finEff = effects.find((e) => e.type === 'finisher');
     const chainEff = effects.find((e) => e.type === 'chain');
     const scorchEff = effects.find((e) => e.type === 'scorch');
-    let kind: 'hit' | 'spell' | 'dot' = 'hit';
+    // Приём-удар бьёт оружием: из тени — мимо блока, как атака (v0.51.1); Таран, Финишер и прочие удары без кубика — нет.
+    let kind: NonNullable<PreviewSpec['kind']> = atkEff ? 'strike' : 'hit';
     /** Разброс приёма: без цели — общий (плитка), с целью — по ней (ридаут): взрыв ран, пролом и прибавки по цели зависят от врага. */
     const rangeOn = (t?: number): DamageRange | null => {
       const e = t === undefined ? undefined : findEnemy(b, t);
@@ -505,7 +506,7 @@ export function actionSpecs(app: App): TileSpec[] {
     const base = atkEff && atkEff.type === 'attack' ? restAttackRange(b.hero.stats, atkEff.bonus, atkEff.mult ?? 1) : spellEff && spellEff.type === 'spell' ? { min: spellEff.amount + b.hero.stats.spellPower, max: spellEff.amount + b.hero.stats.spellPower } : null;
     // Взрыв ран бьёт мимо блока, как рана; пролом — по уже снятому блоку: штриховка без вычета блока.
     if ((detEff && !atkEff) || breakEff || scorchEff) kind = 'dot';
-    const kindOn = (t?: number): 'hit' | 'spell' | 'dot' => {
+    const kindOn = (t?: number): NonNullable<PreviewSpec['kind']> => {
       rangeOn(t);
       return kind;
     };

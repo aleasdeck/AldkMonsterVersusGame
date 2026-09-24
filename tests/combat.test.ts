@@ -20,6 +20,7 @@ import {
   previewOnTarget,
   resolveEnemyTurn,
   riposteDamage,
+  sureCritOn,
 } from '../src/engine/combat';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
 
@@ -214,6 +215,30 @@ describe('намерения', () => {
     expect(previewOnTarget(state, wolf, { min: 20, max: 30 })).toEqual({ min: 0, max: 0 });
     wolf.statuses.push({ id: 'invuln', value: 1, turns: 1 });
     expect(previewOnTarget(state, wolf, { min: 4, max: 6 })).toEqual({ min: 12, max: 12 });
+  });
+
+  it('v0.51.1: предпросмотр удара оружием из тени — мимо блока; Таран и прочие удары без кубика и заклинания — нет', () => {
+    const { state } = mkBattle('assassin', ['wolf']);
+    const wolf = first(state);
+    wolf.block = 3;
+    expect(getStatus(state.hero, 'stealth')).toBeDefined();
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'strike')).toEqual({ min: 6, max: 8 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'hit')).toEqual({ min: 9, max: 11 });
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'spell')).toEqual({ min: 9, max: 11 });
+    state.hero.statuses = state.hero.statuses.filter((st) => st.id !== 'stealth');
+    expect(previewOnTarget(state, wolf, { min: 4, max: 6 }, 'strike')).toEqual({ min: 9, max: 11 });
+  });
+
+  it('v0.51.1: блок врага растёт с актом, но не удваивается длиной боя — в отличие от HP', () => {
+    const rng = createRng(1);
+    const state = createBattle(heroDef('warrior'), mkHero('warrior'), ['boar'], rng, 0);
+    const boar = first(state);
+    // Лес — родной первый акт: HP 18 × 2 (длина боя), а Щетина — те же 5, что до v0.46 (с ×2 было 10 — ход стартового героя целиком).
+    expect(boar.maxHp).toBe(36);
+    boar.intent = 'bristle';
+    expect(computeIntent(boar, state).text).toBe('Щетина: Блок 5');
+    pass(state, rng);
+    expect(boar.block).toBe(5);
   });
 });
 
@@ -975,6 +1000,20 @@ describe('ассасин: скрытность', () => {
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
   });
 
+  it('v0.51.1: удар в спину идёт мимо блока и не тратит его, следующий удар на виду щит держит', () => {
+    const { state, rng } = mkBattle('assassin', ['bear']);
+    const bear = first(state);
+    bear.block = 10;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 13);
+    expect(bear.block).toBe(10);
+    expect(state.log.some((l) => l.includes('сквозь блок'))).toBe(true);
+    // Тень спала: floor(4 × 0.7) = 2 целиком уходит в щит.
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(bear.hp).toBe(35 - 13);
+    expect(bear.block).toBe(8);
+  });
+
   it('сроки скрытности складываются: шашка поверх Тени покрова — два хода врага мимо, третий в цель', () => {
     const { state, rng } = mkBattle('assassin', ['rat']);
     expect(getStatus(state.hero, 'stealth')?.turns).toBe(1);
@@ -1366,7 +1405,7 @@ describe('лог боя', () => {
     bear.block = 2;
     performAction(state, { type: 'artifact', artifactId: 'hex' }, rng);
     // v0.47: Сглаз — ещё и заводка Холода; с Подсечным выстрелом из пары тестового Воина набор «Холод» 2 даёт +1.
-    expect(state.log.slice(-2)).toEqual(['Медведь: Уязвимость на 2 хода', 'Медведь: Холод 2 до конца боя']);
+    expect(state.log.slice(-2)).toEqual(['Медведь: Уязвимость на 2 хода', 'Медведь: Холод 2 — 2/4 до Оцепенения']);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     // меч 5 → уязвимость 6.25 → 6, блок 2 → 4 по HP
     expect(state.log.at(-1)).toBe('Герой бьёт Медведь: 5 (кубик 5) → 4 по HP (уязвимость ×1.25 = 6, блок −2)');
@@ -1773,10 +1812,9 @@ describe('v0.38: связки', () => {
     expect(getStatus(boar, 'poison')?.value).toBe(2);
   });
 
-  it('Оглушающий удар: пока вставлен, удар по оглушённому — крит', () => {
+  it('Оглушающий удар: оглушает, и удар по оглушённому — крит', () => {
     const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'stun_strike', tier: 1 }] });
     const boar = first(state);
-    expect(state.hero.stats.stunCrit).toBe(1);
     performAction(state, { type: 'artifact', artifactId: 'stun_strike', target: boar.uid }, rng);
     expect(boar.hp).toBe(18 - 5);
     expect(getStatus(boar, 'stun')).toBeDefined();
@@ -1785,6 +1823,27 @@ describe('v0.38: связки', () => {
     // 5 × 0.7 = 3, крит 150 % = 4
     expect(boar.hp).toBe(18 - 5 - 4);
     expect(state.log.some((l) => l.includes('крит 150 %'))).toBe(true);
+    // v0.51.1: бессрочное оглушение держится до хода врага, а не до конца боя — лог так и пишет.
+    expect(state.log).toContain('Кабан: Оглушение — пропустит ход');
+  });
+
+  it('v0.51.1: крит по оглушённому и скованному льдом — правило самого оглушения, без «Оглушающего удара»', () => {
+    const { state, rng } = mkBattle('warrior', ['bear']);
+    const bear = first(state);
+    bear.hp = 999;
+    expect(state.hero.artifacts.some((a) => a.id === 'stun_strike')).toBe(false);
+    const crits = () => state.log.filter((l) => l.startsWith('Герой бьёт') && l.includes('крит 150 %')).length;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(0);
+    // Оглушение из любого источника (праща, «Засада», приём) — верный крит, и предпросмотр это видит.
+    bear.statuses.push({ id: 'stun', value: 1, turns: -1 });
+    expect(sureCritOn(state.hero, bear)).toBe(true);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(1);
+    bear.statuses = bear.statuses.filter((st) => st.id !== 'stun');
+    bear.statuses.push({ id: 'frozen', value: 1, turns: -1 });
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(2);
   });
 });
 

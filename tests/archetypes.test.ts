@@ -418,6 +418,25 @@ describe('архетипы фазы 6 (v0.47)', () => {
     expect(cold.state.log.some((l) => l.startsWith('Герой бьёт') && l.includes('крит'))).toBe(false);
   });
 
+  it('v0.51.1: Хладнокровие — случайного крита нет, но оглушённый и скованный льдом критуют (правило оглушения)', () => {
+    const { state, rng } = mkBattle('archer', ['bear'], [a('cold_blood')]);
+    const bear = state.enemies[0];
+    bear.hp = 999;
+    // Случайного крита нет даже при шансе 100 %; крит. урон Лучника 170 + 100.
+    state.hero.stats.crit = 1;
+    const crits = () => state.log.filter((l) => l.startsWith('Герой бьёт') && l.includes('крит 270 %')).length;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(0);
+    // Оглушил «Засадой» или пращой — верный крит.
+    bear.statuses.push({ id: 'stun', value: 1, turns: -1 });
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(1);
+    bear.statuses = bear.statuses.filter((st) => st.id !== 'stun');
+    bear.statuses.push({ id: 'frozen', value: 1, turns: -1 });
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(crits()).toBe(2);
+  });
+
   it('Холод: клинок морозит первые удары хода, набор 2 +1, три — Оцепенение, набор 3 — Уязвимость', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], [a('frost_blade'), a('crippling_shot'), a('net')]);
     const bear = state.enemies[0];
@@ -442,6 +461,8 @@ describe('архетипы фазы 6 (v0.47)', () => {
     performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: bear.uid }, rng);
     expect(getStatus(bear, 'frozen')).toBeDefined();
     expect(bear.freezes).toBe(1);
+    // Лог пишет счётчик до Оцепенения (v0.51.1) — тот же, что на значке Холода.
+    expect(state.log).toContain('Медведь: Холод 2 — 4/4 до Оцепенения');
     state.hero.cooldowns.ice_shard = 0;
     state.hero.uses = {};
     performAction(state, { type: 'artifact', artifactId: 'ice_shard', target: bear.uid }, rng);
@@ -453,9 +474,10 @@ describe('архетипы фазы 6 (v0.47)', () => {
     // 4 + 2 = 6 — ровно новый порог.
     expect(getStatus(bear, 'frozen')).toBeDefined();
     expect(bear.freezes).toBe(2);
+    expect(state.log).toContain('Медведь: Холод 2 — 6/6 до Оцепенения');
   });
 
-  it('Раскол: по оцепеневшему ×mult и снимает лёд; Вечная мерзлота — два хода; Оглушающий удар критует по оцепеневшему', () => {
+  it('Раскол: по оцепеневшему ×mult и снимает лёд; Вечная мерзлота — два хода; удар по оцепеневшему — крит', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], [a('shatter'), a('permafrost'), a('stun_strike')]);
     const bear = state.enemies[0];
     bear.hp = 999;

@@ -43,7 +43,7 @@ function enemyTile(app: App, def: EnemyDef, open: boolean, selected: boolean): H
  */
 function firstActScale(def: EnemyDef): ActionScale {
   const sc = enemyScale(locationDef(def.location).tier, 0, def.rank);
-  return { hpMult: sc.hp, dmgMult: sc.dmg, strength: 0, weak: false };
+  return { hpMult: sc.hp, dmgMult: sc.dmg, blockMult: sc.block, strength: 0, weak: false };
 }
 
 /** Строка приёма: иконка вида, название и текст эффектов — те же, что в подсказке намерения в бою, числами первого акта. */
