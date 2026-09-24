@@ -4050,6 +4050,8 @@ p {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+  /* Чуть выше строка: иначе обрезка съедает пунктир под ключевыми словами. */
+  line-height: 1.2;
 }
 /* Перк абзацем: значок у первой строки, имя и текст текут вместе. */
 .prop-row .prop-body {
