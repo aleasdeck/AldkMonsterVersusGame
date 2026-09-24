@@ -7,7 +7,7 @@ import type { PlayerAction } from '../engine/types';
 import { artifactChip, bar, potionChip, potionTitle, segBar } from './components';
 import { innateOf } from '../engine/stats';
 import { traitDef } from '../data/traits';
-import { gearTile } from './gearTile';
+import { hubGearTile } from './cards';
 import { heroAvatar } from './heroSprite';
 import { bindPreview } from './preview';
 import type { App } from './app';
@@ -90,7 +90,7 @@ export function hubGear(app: App): HTMLElement {
   const run = app.run!;
   const def = heroDef(run.hero.defId);
   const s = heroStats(run);
-  return h('div', { class: 'c-gear' }, gearTile(run.hero.weapon, def, s), gearTile(run.hero.armor, def, s));
+  return h('div', { class: 'c-gear' }, hubGearTile(run.hero.weapon, def, s), hubGearTile(run.hero.armor, def, s));
 }
 
 export interface ConsoleParts {

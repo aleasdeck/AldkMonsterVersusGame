@@ -1,31 +1,48 @@
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { potionDef } from '../../data/potions';
-import { defendBlock } from '../../engine/combat';
+import { defendBlock, rangeText, restAttackRange } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
-import type { DerivedStats } from '../../engine/types';
-import { artifactChip, artifactTitle, bar, potionChip, setCounters, skillLine } from '../components';
+import type { DerivedStats, HeroDef, HeroPersistent } from '../../engine/types';
+import { artifactTitle, bar, potionChip, setCounters } from '../components';
 import { innateOf, socketedArtifacts } from '../../engine/stats';
 import { artifactDef } from '../../data/artifacts';
 import { traitDef } from '../../data/traits';
-import { gearTile } from '../gearTile';
+import { ARMOR_TYPE_NAMES, ART_TIER_COLORS, WEAPON_TYPE_NAMES, armorSkillTitle, weaponSkillTitle } from '../../data/gear';
+import { sheetGearTile } from '../cards';
+import { uiIcon, type UiIconId } from '../icons';
 import { heroAvatar } from '../heroSprite';
 import type { App } from '../app';
 
-/** Статы полными словами; строки с нулевым значением не показываются. */
-function statRows(s: DerivedStats, hp: number): HTMLElement[] {
+// ─── Оверлей «Персонаж» (v0.50) ────────────────────────────────────────────
+// Слева — кто это: портрет, HP, главные статы плитками (как на выборе героя), навык и черта, наборы, особые свойства строками,
+// владение значками и зелье. Справа — экипировка в грамматике карточек (cards.ts: sheetGearTile).
+
+/**
+ * Главные статы плитками в две колонки: значок, число, подпись; как считается — в подсказке. Урон — тем же расчётом, что число
+ * карточки и плитки боя (restAttackRange: с ключевой вещью «удар оружием»); дальности здесь нет — её показывают точки у оружия.
+ */
+function statTiles(s: DerivedStats): HTMLElement {
+  const tile = (icon: UiIconId, value: string, label: string, tip: string) => h('div', { class: 'sheet-stat', tip }, uiIcon(icon, 16), h('b', null, value), h('small', null, label));
+  return h(
+    'div',
+    { class: 'sheet-stat-grid' },
+    tile('dmg', rangeText(restAttackRange(s)), 'урон', 'Урон базовой атаки: кубик оружия в руках героя + Сила'),
+    tile('def', s.defendBonus ? `${s.def}+${s.defendBonus}` : `${s.def}`, 'защита', `Защита${s.defendBonus ? ' и бонус брони к «Защититься»' : ''}: «Защититься» даёт 80 % от неё блоком, округление вверх`),
+    tile('sta', s.firstTurnSta ? `${s.sta}+${s.firstTurnSta}` : `${s.sta}`, 'стамина', `Очки действий за ход, полностью восстанавливаются в начале хода${s.firstTurnSta ? `; в первый ход боя ещё +${s.firstTurnSta}` : ''}`),
+    tile('mp', s.mpRegen ? `${s.maxMp}+${s.mpRegen}` : `${s.maxMp}`, 'мана', 'Мана и реген за ход; полностью — после комнаты'),
+    tile('block', `+${defendBlock(s)}`, 'блок', '«Защититься»: столько блока до начала следующего хода'),
+    tile('fatigue', `−${Math.round((1 - s.fatigue) * 100)}%`, 'усталость', 'На столько слабее каждая следующая атака в этом ходу'),
+    tile('crit', `${Math.round(s.crit * 100)}%`, 'крит', 'Шанс критического удара'),
+    tile('critDmg', `${s.critDmg}%`, 'крит. урон', 'Сколько процентов обычного урона наносит критический удар'),
+  );
+}
+
+/** Особые свойства полными словами — всё, чего нет в плитках; строки с нулевым значением не показываются. */
+function statRows(s: DerivedStats): HTMLElement[] {
   const row = (k: string, v: string, tip: string) => h('div', { class: 'stat', tip }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
   const pct = (v: number) => `${Math.round(v * 100)} %`;
   const rows: (HTMLElement | null)[] = [
-    row('Здоровье', `${hp}/${s.maxHp}`, 'Текущее и максимальное HP. Максимум растёт от брони и артефактов'),
-    row('Урон', `${s.dmgMin + s.str}–${s.dmgMax + s.str}`, 'Урон базовой атаки: кубик оружия в руках героя + Сила'),
-    row('Защита', `${s.def}${s.defendBonus ? ` (+${s.defendBonus})` : ''}`, `«Защититься» даёт 80 % от Защиты и бонуса брони, округление вверх: +${defendBlock(s)} блока`),
-    row('Стамина', `${s.sta}${s.firstTurnSta ? ` (+${s.firstTurnSta} в первый ход)` : ''}`, 'Очки действий за ход, полностью восстанавливаются в начале хода'),
-    s.maxMp ? row('Мана', `${s.maxMp}${s.mpRegen ? ` (+${s.mpRegen} за ход)` : ''}`, 'Мана и реген за ход; полностью — после комнаты') : null,
-    row('Усталость', `−${Math.round((1 - s.fatigue) * 100)} %`, 'На столько слабее каждая следующая атака в этом ходу'),
-    row('Дальность', s.sweep ? 'весь ряд' : s.reachAny ? 'любая цель' : 'первый в ряду', 'Кого достают удар и физические приёмы: ближнее оружие бьёт только первого в ряду, дальнее, магическое и копьё — любого врага, плеть хлещет весь ряд. Заклинания и склянки достают любого всегда. Три точки на карточке оружия — тот же маркер'),
-    row('Крит', `${pct(s.crit)}`, 'Шанс критического удара'),
-    row('Крит. урон', `${s.critDmg} %`, 'Сколько процентов обычного урона наносит критический удар'),
     s.critRamp ? row('Азарт', `+${pct(s.critRamp)}`, 'Столько шанса крита копится с каждого удара без крита; крит сбрасывает') : null,
     s.executeCrit ? row('Добивание', `+${pct(s.executeCrit)}`, 'Прибавка к шансу крита по врагу ниже 20 % HP') : null,
     s.critHeal ? row('Крит лечит', `${s.critHeal}`, 'HP за каждый критический удар') : null,
@@ -78,28 +95,48 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
   return rows.filter((r): r is HTMLElement => !!r);
 }
 
-/** Врождённый навык и черта (v0.44): одна строка — чип навыка с уровнем и имя черты, описания в подсказках. */
-function innateLine(hero: import('../../engine/types').HeroPersistent): HTMLElement | null {
+/**
+ * Врождённый навык и черта (v0.44): навык — глиф в рамке цвета уровня (та же шкала, что тиры), имя и уровень; черта — звезда и имя.
+ * Описания — в подсказках.
+ */
+function innateBlock(hero: HeroPersistent): HTMLElement | null {
   const innate = innateOf(hero);
   if (!innate) return null;
+  const def = artifactDef(innate.id);
+  const color = ART_TIER_COLORS[innate.tier];
   const trait = hero.trait ? traitDef(hero.trait) : null;
   return h(
     'div',
     { class: 'sheet-innate' },
-    artifactChip(innate),
     h(
       'div',
-      null,
-      h('div', { tip: `${artifactTitle(innate)}\nВрождённый навык: не занимает сокет, уровень = номер локации` }, `Навык: ${artifactDef(innate.id).name}, ур. ${innate.tier}`),
-      trait ? h('div', { class: 'trait-name', tip: trait.describe(innate.tier) }, `Черта: ${trait.name}`) : null,
+      { class: 'sheet-innate-row', tip: `${artifactTitle(innate)}\nВрождённый навык: не занимает сокет, уровень = номер локации` },
+      h('span', { class: 'item-icon', style: `border-color:${color}` }, h('span', { class: 'item-glyph', style: `color:${color}` }, def.glyph)),
+      h('span', null, h('span', { class: 'dim' }, 'Навык '), def.name, h('span', { class: 'dim' }, ` · ур. ${innate.tier}`)),
     ),
+    trait
+      ? h('div', { class: 'sheet-innate-row', tip: trait.describe(innate.tier) }, h('span', { class: 'item-icon' }, uiIcon('star', 16)), h('span', null, h('span', { class: 'dim' }, 'Черта '), h('span', { class: 'trait-name' }, trait.name)))
+      : null,
   );
 }
 
 /**
- * Оверлей «Персонаж»: слева портрет, роль, HP и статы полными словами, умения; справа экипировка с сокетами
- * и описаниями артефактов. Открывается с любого экрана забега, включая бой; в бою статы — боевые.
+ * Владение оружием и умение носить броню значками в одну строку — те же типы, что на выборе героя: своё в зелёной рамке,
+ * чужое тускло в красной. Названия и что даёт владение — в подсказке значка.
  */
+function proficiency(def: HeroDef): HTMLElement {
+  const chip = (icon: UiIconId, name: string, ok: boolean, tip: string) => h('span', { class: `prof-mini ${ok ? 'yes' : 'no'}`, tip: `${name}: ${tip}` }, uiIcon(icon, 16));
+  return h(
+    'div',
+    { class: 'sheet-prof' },
+    h('span', { class: 'dim' }, 'Оружие'),
+    ...(['melee', 'ranged', 'magic'] as const).map((t) => chip(t, WEAPON_TYPE_NAMES[t], def.weaponSkill[t], weaponSkillTitle(t, def.weaponSkill[t]))),
+    h('span', { class: 'dim sheet-prof-gap' }, 'Броня'),
+    ...(['heavy', 'medium', 'light'] as const).map((t) => chip(t, ARMOR_TYPE_NAMES[t], def.armorSkill[t], armorSkillTitle(t, def.armorSkill[t]))),
+  );
+}
+
+/** Оверлей «Персонаж»: открывается с любого экрана забега, включая бой; в бою статы — боевые. */
 export function heroSheet(app: App): HTMLElement {
   const run = app.run!;
   const def = heroDef(run.hero.defId);
@@ -119,10 +156,11 @@ export function heroSheet(app: App): HTMLElement {
         { class: 'sheet-left' },
         h('div', { class: 'sheet-head' }, heroAvatar(def.id, 80), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
         bar('hp', hp, s.maxHp, 'HP'),
-        innateLine(run.hero),
+        statTiles(s),
+        innateBlock(run.hero),
         setCounters([...socketedArtifacts(run.hero.weapon, run.hero.armor), ...(innateOf(run.hero) ? [innateOf(run.hero)!] : [])]),
-        h('div', { class: 'sheet-stats' }, ...statRows(s, hp)),
-        skillLine(def),
+        h('div', { class: 'sheet-stats' }, ...statRows(s)),
+        proficiency(def),
         h(
           'div',
           { class: 'sheet-potion' },
@@ -130,7 +168,7 @@ export function heroSheet(app: App): HTMLElement {
           potion ? h('span', null, h('span', { class: 'potion-name' }, potionDef(potion).name), h('span', { class: 'dim' }, ` · ${potionDef(potion).describe}`)) : h('span', { class: 'dim' }, 'слот зелья пуст'),
         ),
       ),
-      h('div', { class: 'sheet-right' }, gearTile(run.hero.weapon, def, s, { expanded: true }), gearTile(run.hero.armor, def, s, { expanded: true })),
+      h('div', { class: 'sheet-right' }, sheetGearTile(run.hero.weapon, def, s, run), sheetGearTile(run.hero.armor, def, s, run)),
     ),
   );
 }

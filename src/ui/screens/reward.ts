@@ -3,12 +3,12 @@ import { heroDef } from '../../data/heroes';
 import { slotAccepts, socketRefs } from '../../engine/equipment';
 import { REROLL_COST, focusGearKind } from '../../engine/loot';
 import { awaitsFocus, canReroll, currentLocation } from '../../engine/run';
-import { artifactCard, artifactMergeNote, coin, gearCard, pendingModal, pickable, potionCard, potionReplaceNote } from '../components';
+import { coin, pendingModal, pickable, potionReplaceNote } from '../components';
+import { artifactCard, gearCard, potionCard } from '../cards';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import type { RewardFocus } from '../../engine/types';
-import { gearDiffLines } from '../diff';
 import type { App } from '../app';
 
 /** Подписи пулов награды: имя, значок, что внутри. Клавиши 1 и 2 — по порядку карточек. */
@@ -56,17 +56,13 @@ export function rewardScreen(app: App): HTMLElement {
   }
   const cards = (screen?.options ?? []).map((item, i) => {
     if (item.kind === 'artifact') {
-      // Заметка только про слияние с уже стоящим артефактом; дельт у артефакта нет — они повторяли бы описание.
-      const note = artifactMergeNote(run, item.artifact);
-      return pickable(
-        artifactCard(item.artifact, button('Взять', () => app.takeReward(i), { class: 'primary' }), note ? h('div', { class: 'note' }, note) : null),
-        () => app.takeReward(i),
-      );
+      // Дубликат и порог набора карточка считает сама по герою — ячейками своей таблицы.
+      return pickable(artifactCard(item.artifact, button('Взять', () => app.takeReward(i), { class: 'primary' }), undefined, run), () => app.takeReward(i));
     }
     if (item.kind === 'potion') {
       return pickable(potionCard(item.potion, button('Взять', () => app.takeReward(i), { class: 'primary' }), potionReplaceNote(run)), () => app.takeReward(i));
     }
-    return pickable(gearCard(item.gear, { def, deltas: gearDiffLines(run, item.gear), footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i));
+    return pickable(gearCard(item.gear, { def, run, footer: button('Надеть', () => app.takeReward(i), { class: 'primary' }) }), () => app.takeReward(i));
   });
 
   const rerollErr = canReroll(run);

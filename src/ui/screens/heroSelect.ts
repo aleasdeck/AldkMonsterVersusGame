@@ -1,16 +1,26 @@
-import { button, h } from '../dom';
+import { button, h, type Child } from '../dom';
 import { HERO_LIST, heroDef } from '../../data/heroes';
-import { makeStartingGear } from '../../data/gear';
+import { artifactDef } from '../../data/artifacts';
+import { ARMOR_TYPE_NAMES, GEAR_TIERS, WEAPON_TYPE_NAMES, armorSkillTitle, baseOf, gearPerkText, makeStartingGear, weaponSkillTitle } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
-import { artifactCard, skillLine, statsGrid } from '../components';
+import { defendBlock } from '../../engine/combat';
 import { traitDef } from '../../data/traits';
+import { HERO_MASTERY, MASTERY_LEVELS, UNLOCK_LEVEL, nextLevelXp } from '../../data/mastery';
 import { heroAvatar, heroSprite } from '../heroSprite';
 import { heroLevelOf, heroXpOf, pickedSignature, pickedStart, pickedTrait, signatureUnlocked, startUnlocked, traitUnlocked } from '../save';
-import { HERO_MASTERY, MASTERY_LEVELS, UNLOCK_LEVEL, nextLevelXp, nextUnlockText } from '../../data/mastery';
-import { baseOf } from '../../data/gear';
-import type { HeroDef } from '../../engine/types';
+import { uiIcon, type UiIconId } from '../icons';
+import { markKeywords } from '../keywords';
+import { paramChip, useParams } from '../cardParts';
+import type { DerivedStats, GearTier, HeroDef } from '../../engine/types';
 import type { App } from '../app';
+
+// ─── Выбор героя (v0.50) ───────────────────────────────────────────────────
+// Слева сетка героев, справа превью с тремя вкладками (решение пользователя): «Герой» — статы и владение оружием и бронёй,
+// «Старт» — врождённый навык, черта и стартовое оружие карточками по два, «Мастерство» — лестница уровней с тем, что каждый
+// открывает. Что выбрано, видно по карточкам «Старта» — отдельной строки выбора нет; подвал — только кнопка старта.
+
+type Tab = App['heroTab'];
 
 /** Число — как есть, любая другая строка — хэш; пусто — случайный сид. */
 function parseSeed(raw: string): number | undefined {
@@ -19,153 +29,297 @@ function parseSeed(raw: string): number | undefined {
   return /^\d+$/.test(s) ? Number(s) >>> 0 : hashString(s);
 }
 
-/** Плитка в сетке слева: аватарка во всю ширину и имя. Клик — превью, двойной клик — сразу в забег. */
+/**
+ * Метки на плитке героя (v0.50), как наклейки ставок на джокерах в Balatro: слева сверху — уровень мастерства, со второго, цветом
+ * той же шкалы, что тиры предметов (зелёный, синий, фиолетовый, оранжевый); справа сверху — корона, если герой хоть раз прошёл
+ * забег, с числом побед от двух. Первый уровень и ноль побед меток не дают: у новичка сетка чистая, наклейку надо заработать.
+ */
+function tileMarks(app: App, def: HeroDef): HTMLElement[] {
+  const level = heroLevelOf(app.profile, def.id);
+  const wins = app.profile.heroWins[def.id] ?? 0;
+  const out: HTMLElement[] = [];
+  if (level >= 2) {
+    const color = GEAR_TIERS[level as GearTier].color;
+    out.push(h('span', { class: 'hero-mark mastery', style: `--mark:${color}` }, uiIcon('star', 12, color), `${level}`));
+  }
+  if (wins > 0) out.push(h('span', { class: 'hero-mark wins' }, uiIcon('crown', 12), wins > 1 ? `${wins}` : null));
+  return out;
+}
+
+/** Подсказка плитки: роль, мастерство с опытом до следующего уровня, забеги и победы. */
+function tileTip(app: App, def: HeroDef): string {
+  const level = heroLevelOf(app.profile, def.id);
+  const xp = heroXpOf(app.profile, def.id);
+  const next = nextLevelXp(level);
+  const runs = app.profile.heroRuns[def.id] ?? 0;
+  const wins = app.profile.heroWins[def.id] ?? 0;
+  return `${def.role}\nМастерство ${level}${next ? ` · ${xp}/${next} опыта` : ' · максимум'}\nЗабегов: ${runs}, побед: ${wins}`;
+}
+
+/** Плитка в сетке слева: аватарка во всю ширину, имя и метки. Клик — превью, двойной клик — сразу в забег. */
 function heroTile(app: App, def: HeroDef): HTMLElement {
   const selected = app.heroPick === def.id;
   return h(
     'div',
     {
       class: `hero-tile ${selected ? 'selected' : ''}`,
-      tip: def.role,
+      tip: tileTip(app, def),
       onclick: () => app.selectHero(def.id),
       ondblclick: () => app.newRun(def.id, parseSeed(app.seedText)),
     },
     heroAvatar(def.id, 112),
     h('div', { class: 'hero-tile-name' }, def.name),
+    ...tileMarks(app, def),
+  );
+}
+
+/** Статы героя со стартовым снаряжением, выбранным навыком и чертой — с ними он выйдет в забег. */
+function startStats(app: App, def: HeroDef): DerivedStats {
+  const gear = makeStartingGear(def, pickedStart(app.profile, def));
+  return computeStats(def, gear.weapon, gear.armor, { innate: { id: pickedSignature(app.profile, def), tier: 1 }, trait: pickedTrait(app.profile, def) });
+}
+
+/** Шапка превью: спрайт, имя, роль одной-двумя строками. */
+function header(def: HeroDef): HTMLElement {
+  return h('div', { class: 'hs-header' }, heroSprite(def.id, 80), h('div', { class: 'hs-title' }, h('div', { class: 'hs-name' }, def.name), h('div', { class: 'hs-role' }, def.role)));
+}
+
+// ─── Вкладка «Герой» ───────────────────────────────────────────────────────
+
+/** Статы плитками: иконка, крупное число, подпись. Как считается — в подсказке. */
+function statTiles(s: DerivedStats): HTMLElement {
+  const tile = (icon: UiIconId, value: string, label: string, tip: string) => h('div', { class: 'hs-stat', tip }, uiIcon(icon, 20), h('div', { class: 'hs-stat-body' }, h('b', null, value), h('small', null, label)));
+  return h(
+    'div',
+    { class: 'hs-stats' },
+    tile('hp', `${s.maxHp}`, 'здоровье', 'Максимум HP на старте забега'),
+    tile('def', `${s.def}`, 'защита', `«Защититься» даёт 80 % Защиты блоком: +${defendBlock(s)} блока`),
+    tile('sta', `${s.sta}`, 'стамина', 'Очки действий за ход: удар — 1, приёмы — по цене'),
+    tile('mp', s.mpRegen ? `${s.maxMp}+${s.mpRegen}` : `${s.maxMp}`, 'мана', 'Мана и реген за ход: заклинания стоят маны'),
+    tile('dmg', `${s.dmgMin + s.str}–${s.dmgMax + s.str}`, 'урон', 'Урон базовой атаки: кубик оружия + Сила'),
+    tile('crit', `${Math.round(s.crit * 100)}%`, 'крит', 'Шанс критического удара'),
+    tile('critDmg', `${s.critDmg}%`, 'крит. урон', 'Сколько процентов обычного урона наносит крит'),
+    tile('fatigue', `−${Math.round((1 - s.fatigue) * 100)}%`, 'усталость', 'На столько слабее каждая следующая атака в этом ходу'),
   );
 }
 
 /**
- * Карточка персонального артефакта из пары (v0.33): выбранный — с рамкой и меткой, закрытый — затемнён с подписью,
- * как открыть. Клик по открытому делает его стартовым (выбор живёт в профиле), по закрытому — ничего.
+ * Владение оружием и умение носить броню: все три типа словами, своё — ярко с зелёной рамкой, чужое — тускло, зачёркнуто и с крестом.
+ * Чипы одной ширины сеткой (просьба пользователя: без «лесенки»); что даёт владение и свойство типа — в подсказке к чипу.
  */
-function signatureCard(app: App, def: HeroDef, id: string, chosen: string): HTMLElement {
-  const open = signatureUnlocked(app.profile, def, id);
-  const selected = id === chosen;
-  const note = h(
-    'div',
-    { class: 'sig-note' },
-    !open ? `Откроется: мастерство ${UNLOCK_LEVEL.signature} или победа` : selected ? '✓ в забег с этим' : 'нажмите, чтобы выбрать',
-  );
-  // Врождённый навык (v0.44): уровень растёт с локацией, сокет не занимает.
-
-  const card = artifactCard({ id, tier: 1 }, undefined, note);
-  card.classList.add('sig-card');
-  if (selected) card.classList.add('selected');
-  if (!open) card.classList.add('locked');
-  card.setAttribute(
-    'tip',
-    open
-      ? selected
-        ? 'С этим навыком герой начнёт забег: он не занимает сокет, уровень растёт с каждой локацией (1 → 2 → 3)'
-        : 'Нажмите, чтобы начать забег с этим навыком'
-      : `Второй врождённый навык: откроется на мастерстве ${UNLOCK_LEVEL.signature} или когда ${def.name} пройдёт все три акта`,
-  );
-  card.addEventListener('click', () => app.selectSignature(def.id, id));
-  return card;
-}
-
-/** Выбор из двух-трёх вариантов чипами: выбранный подсвечен, закрытый затемнён с подписью, как открыть (черта, стартовое оружие). */
-function pickChips(label: string, items: { id: string; text: string; tip: string; open: boolean; selected: boolean; onclick: () => void }[]): HTMLElement {
+function proficiency(def: HeroDef): HTMLElement {
+  const chip = (icon: UiIconId, name: string, ok: boolean, tip: string) => h('span', { class: `prof-chip ${ok ? 'yes' : 'no'}`, tip }, uiIcon(ok ? icon : 'cross', 14), name);
   return h(
     'div',
-    { class: 'pick-row' },
-    h('span', { class: 'dim' }, label),
-    ...items.map((it) =>
+    { class: 'hs-prof' },
+    h('span', { class: 'hs-label' }, 'Оружие'),
+    ...(['melee', 'ranged', 'magic'] as const).map((t) => chip(t, WEAPON_TYPE_NAMES[t], def.weaponSkill[t], weaponSkillTitle(t, def.weaponSkill[t]))),
+    h('span', { class: 'hs-label' }, 'Броня'),
+    ...(['heavy', 'medium', 'light'] as const).map((t) => chip(t, ARMOR_TYPE_NAMES[t], def.armorSkill[t], armorSkillTitle(t, def.armorSkill[t]))),
+  );
+}
+
+// ─── Вкладка «Старт» ───────────────────────────────────────────────────────
+
+interface Option {
+  key: string;
+  glyph: Child;
+  title: string;
+  params: HTMLElement[];
+  text: string;
+  open: boolean;
+  /** Коротко в шапке карточки: «Мастерство 4». */
+  lock: string;
+  /** Полностью в подсказке, если условие длиннее. */
+  lockFull?: string;
+  selected: boolean;
+  pick: () => void;
+}
+
+/** Врождённый навык: пара персональных артефактов, второй открывается мастерством или победой героем. */
+function skillOptions(app: App, def: HeroDef): Option[] {
+  const chosen = pickedSignature(app.profile, def);
+  return def.signatures.map((id) => {
+    const a = artifactDef(id);
+    return {
+      key: id,
+      glyph: h('span', { class: 'hs-glyph' }, a.glyph),
+      title: a.name,
+      params: useParams(a, 1).map(paramChip),
+      text: a.describe(1),
+      open: signatureUnlocked(app.profile, def, id),
+      lock: `Мастерство ${UNLOCK_LEVEL.signature}`,
+      lockFull: `мастерство ${UNLOCK_LEVEL.signature} или победа героем`,
+      selected: id === chosen,
+      pick: () => app.selectSignature(def.id, id),
+    };
+  });
+}
+
+function traitOptions(app: App, def: HeroDef): Option[] {
+  const chosen = pickedTrait(app.profile, def);
+  return def.traits.map((id) => {
+    const t = traitDef(id);
+    return { key: id, glyph: uiIcon('star', 18), title: t.name, params: [], text: t.describe(1), open: traitUnlocked(app.profile, def, id), lock: `Мастерство ${UNLOCK_LEVEL.trait}`, selected: id === chosen, pick: () => app.selectTrait(def.id, id) };
+  });
+}
+
+function weaponOptions(app: App, def: HeroDef): Option[] {
+  const chosen = pickedStart(app.profile, def);
+  return [def.weapon.base, HERO_MASTERY[def.id].start].map((base) => {
+    const b = baseOf('weapon', base);
+    const g = makeStartingGear(def, base).weapon;
+    const name = b.name.charAt(0).toUpperCase() + b.name.slice(1);
+    return {
+      key: base,
+      glyph: uiIcon(b.type ?? 'melee', 18),
+      title: `${name} ${g.dmgMin}–${g.dmgMax}`,
+      params: [],
+      text: gearPerkText(g),
+      open: startUnlocked(app.profile, def, base),
+      lock: `Мастерство ${UNLOCK_LEVEL.start}`,
+      selected: base === chosen,
+      pick: () => app.selectStart(def.id, base),
+    };
+  });
+}
+
+/** Карточка варианта: глиф, имя, параметры, описание; выбранная — с рамкой и галочкой, закрытая — с замком и условием. */
+function optionCard(o: Option): HTMLElement {
+  return h(
+    'div',
+    {
+      class: `hs-option ${o.selected ? 'selected' : ''} ${o.open ? '' : 'locked'}`,
+      tip: o.open ? (o.selected ? 'Выбрано: с этим герой начнёт забег' : 'Нажмите, чтобы выбрать') : `Закрыто. Откроется: ${o.lockFull ?? o.lock.toLowerCase()}`,
+      onclick: () => {
+        if (o.open) o.pick();
+      },
+    },
+    h(
+      'div',
+      { class: 'hs-option-head' },
+      o.open ? o.glyph : uiIcon('lock', 16),
+      h('span', { class: 'hs-option-title' }, o.title),
+      o.selected ? h('span', { class: 'hs-option-mark' }, uiIcon('check', 14), 'выбрано') : null,
+      !o.open ? h('span', { class: 'hs-option-lock' }, o.lock) : null,
+    ),
+    o.params.length && o.open ? h('div', { class: 'hs-option-params' }, ...o.params) : null,
+    o.text ? h('div', { class: 'hs-option-text' }, ...markKeywords(o.text, { icons: true, numbers: true })) : null,
+  );
+}
+
+const GROUPS: { key: 'skill' | 'trait' | 'weapon'; icon: UiIconId; name: string; hint: string }[] = [
+  { key: 'skill', icon: 'crown', name: 'Навык', hint: 'врождённый, растёт с локацией' },
+  { key: 'trait', icon: 'star', name: 'Черта', hint: 'своя механика героя' },
+  { key: 'weapon', icon: 'dmg', name: 'Оружие', hint: 'с чем выйти в забег' },
+];
+
+function groupOptions(app: App, def: HeroDef, key: 'skill' | 'trait' | 'weapon'): Option[] {
+  return key === 'skill' ? skillOptions(app, def) : key === 'trait' ? traitOptions(app, def) : weaponOptions(app, def);
+}
+
+/** Выбор на старт карточками: строка на группу — подпись слева, два варианта рядом. */
+function choiceRows(app: App, def: HeroDef): HTMLElement {
+  return h(
+    'div',
+    { class: 'hs-choices' },
+    ...GROUPS.map((g) =>
       h(
-        'button',
-        {
-          class: `pick-chip ${it.selected ? 'selected' : ''} ${it.open ? '' : 'off'}`,
-          tip: it.tip,
-          onclick: () => {
-            if (it.open) it.onclick();
-          },
-        },
-        it.open ? it.text : `🔒 ${it.text}`,
+        'div',
+        { class: `hs-choice-row g-${g.key}` },
+        h('div', { class: 'hs-choice-label' }, h('div', null, uiIcon(g.icon, 16), ` ${g.name}`), h('small', null, g.hint)),
+        ...groupOptions(app, def, g.key).map(optionCard),
       ),
     ),
   );
 }
 
-/** Мастерство героя (v0.45): уровень, полоса опыта и что откроет следующий уровень. */
-function masteryLine(app: App, def: HeroDef): HTMLElement {
+// ─── Вкладка «Мастерство» ──────────────────────────────────────────────────
+
+interface Rung {
+  level: number;
+  icon: UiIconId;
+  title: string;
+  what: string;
+}
+
+/** Что даёт каждый уровень мастерства этому герою: первый — старт, дальше по UNLOCK_LEVEL. */
+function rungs(def: HeroDef): Rung[] {
+  const m = HERO_MASTERY[def.id];
+  const start = baseOf('weapon', m.start);
+  return [
+    { level: 1, icon: 'check', title: 'Старт', what: 'первый навык, первая черта, родное оружие' },
+    { level: UNLOCK_LEVEL.signature, icon: 'crown', title: 'Второй навык', what: artifactDef(def.signatures[1]).name },
+    { level: UNLOCK_LEVEL.keystone, icon: 'key', title: 'Ключевая вещь в общий пул', what: artifactDef(m.keystone).name },
+    { level: UNLOCK_LEVEL.trait, icon: 'star', title: 'Вторая черта', what: traitDef(m.trait).name },
+    { level: UNLOCK_LEVEL.start, icon: 'dmg', title: 'Стартовое оружие', what: start.name.charAt(0).toUpperCase() + start.name.slice(1) },
+  ];
+}
+
+/** Уровни столбцом с тем, что открывают, полоса опыта и откуда он берётся. */
+function masteryTab(app: App, def: HeroDef): HTMLElement {
   const level = heroLevelOf(app.profile, def.id);
   const xp = heroXpOf(app.profile, def.id);
   const next = nextLevelXp(level);
   const from = MASTERY_LEVELS[level - 1];
   const pct = next ? Math.max(0, Math.min(1, (xp - from) / (next - from))) : 1;
-  const unlock = nextUnlockText(def.id, level);
   return h(
     'div',
-    { class: 'mastery-line', tip: 'Мастерство растёт с каждым забегом героя: клетки, боссы и победа. Открывает разнообразие, а не силу' },
-    h('div', { class: 'mastery-head' }, `Мастерство ${level}`, h('span', { class: 'dim' }, next ? ` · ${xp}/${next}` : ' · максимум')),
-    h('div', { class: 'mastery-bar' }, h('div', { class: 'mastery-fill', style: `width:${Math.round(pct * 100)}%` })),
-    unlock ? h('div', { class: 'mastery-next dim' }, `Дальше: ${unlock}`) : null,
+    { class: 'hs-mastery' },
+    h(
+      'div',
+      { class: 'hs-mastery-top' },
+      h('span', { class: 'hs-mastery-level' }, uiIcon('star', 18), ` Мастерство ${level}`),
+      h('div', { class: 'mastery-bar' }, h('div', { class: 'mastery-fill', style: `width:${Math.round(pct * 100)}%` })),
+      h('span', { class: 'dim' }, next ? `${xp} / ${next} опыта` : 'максимум'),
+    ),
+    h('div', { class: 'hs-mastery-how' }, 'Опыт за забег: клетка +1, босс +10, победа +20. Открывает разнообразие, а не силу.'),
+    h(
+      'div',
+      { class: 'hs-ladder' },
+      ...rungs(def).map((r) =>
+        h(
+          'div',
+          { class: `hs-ladder-row ${r.level <= level ? 'on' : ''} ${r.level === level + 1 ? 'next' : ''}` },
+          h('span', { class: 'hs-ladder-lvl' }, `${r.level}`),
+          uiIcon(r.level <= level ? r.icon : 'lock', 16),
+          h('span', { class: 'hs-ladder-title' }, r.title),
+          h('span', { class: `hs-ladder-what ${r.level > 1 ? '' : 'dim'}`.trim() }, r.what),
+          h('span', { class: 'hs-ladder-need' }, r.level <= level ? 'открыто' : `${MASTERY_LEVELS[r.level - 1]} опыта`),
+        ),
+      ),
+    ),
   );
 }
 
-/**
- * Превью справа: роль, владение оружием и бронёй, статы и пара персональных артефактов. Всё умещается в кадр без прокрутки,
- * поэтому стартовое снаряжение — одной строкой, а не карточками.
- */
+// ─── Превью ────────────────────────────────────────────────────────────────
+
+const TABS: { key: Tab; label: string; icon: UiIconId }[] = [
+  { key: 'hero', label: 'Герой', icon: 'self' },
+  { key: 'start', label: 'Старт', icon: 'crown' },
+  { key: 'mastery', label: 'Мастерство', icon: 'star' },
+];
+
+function tabBar(app: App): HTMLElement {
+  return h('div', { class: 'hs-tabs' }, ...TABS.map((t) => h('button', { class: `hs-tab ${t.key === app.heroTab ? 'active' : ''}`, onclick: () => app.setHeroTab(t.key) }, uiIcon(t.icon, 14), t.label)));
+}
+
+/** Превью справа: шапка, вкладки, тело вкладки и кнопка старта в подвале. */
 function heroPreview(app: App, def: HeroDef): HTMLElement {
-  const chosen = pickedSignature(app.profile, def);
-  const start = pickedStart(app.profile, def);
-  const gear = makeStartingGear(def, start);
-  const trait = traitDef(pickedTrait(app.profile, def));
-  const s = computeStats(def, gear.weapon, gear.armor, { innate: { id: chosen, tier: 1 }, trait: trait.id });
+  const body =
+    app.heroTab === 'start'
+      ? choiceRows(app, def)
+      : app.heroTab === 'mastery'
+        ? masteryTab(app, def)
+        : // На первой вкладке только статы и владение (решение пользователя): стартовое снаряжение и выбранное живут на «Старте».
+          h('div', { class: 'hs-hero-tab' }, statTiles(startStats(app, def)), proficiency(def));
   return h(
     'div',
     { class: 'hero-preview' },
-    h(
-      'div',
-      { class: 'preview-head' },
-      heroSprite(def.id, 112),
-      h(
-        'div',
-        { class: 'preview-title' },
-        h('div', { class: 'preview-name' }, def.name),
-        h('div', { class: 'preview-role' }, def.role),
-        skillLine(def),
-        h('div', { class: 'preview-trait', tip: 'Черта героя: своя механика, работает всегда' }, h('span', { class: 'trait-name' }, `${trait.name}: `), trait.describe(1)),
-        pickChips(
-          'Черта:',
-          def.traits.map((id) => {
-            const t = traitDef(id);
-            const open = traitUnlocked(app.profile, def, id);
-            return { id, text: t.name, tip: `${t.name}: ${t.describe(1)}${open ? '' : `\nОткроется на мастерстве ${UNLOCK_LEVEL.trait}`}`, open, selected: id === trait.id, onclick: () => app.selectTrait(def.id, id) };
-          }),
-        ),
-        pickChips(
-          'Старт:',
-          [def.weapon.base, HERO_MASTERY[def.id].start].map((base) => {
-            const b = baseOf('weapon', base);
-            const g = makeStartingGear(def, base).weapon;
-            const open = startUnlocked(app.profile, def, base);
-            const name = b.name.charAt(0).toUpperCase() + b.name.slice(1);
-            return { id: base, text: `${name} ${g.dmgMin}–${g.dmgMax}`, tip: `${name}: урон ${g.dmgMin}–${g.dmgMax}, тир 1${open ? '' : `\nОткроется на мастерстве ${UNLOCK_LEVEL.start}`}`, open, selected: base === start, onclick: () => app.selectStart(def.id, base) };
-          }),
-        ),
-      ),
-    ),
-    h(
-      'div',
-      { class: 'preview-body' },
-      h(
-        'div',
-        { class: 'preview-col' },
-        h('h3', null, 'Характеристики'),
-        h('div', { class: 'stat hp-line' }, h('span', { class: 'stat-k' }, 'HP'), h('span', { class: 'stat-v' }, `${s.maxHp}`)),
-        statsGrid(s),
-      ),
-      h(
-        'div',
-        { class: 'preview-col' },
-        h('h3', null, 'Врождённый навык: один из двух'),
-        h('div', { class: 'preview-arts' }, ...def.signatures.map((id) => signatureCard(app, def, id, chosen))),
-      ),
-    ),
-    h('div', { class: 'row preview-foot' }, button(`Выбрать: ${def.name}`, () => app.newRun(def.id, parseSeed(app.seedText)), { class: 'primary big' }), masteryLine(app, def)),
+    header(def),
+    tabBar(app),
+    h('div', { class: 'hs-body' }, body),
+    h('div', { class: 'hs-foot' }, button(h('span', null, `В забег: ${def.name} `, '▶'), () => app.newRun(def.id, parseSeed(app.seedText)), { class: 'primary big hs-start' })),
   );
 }
 

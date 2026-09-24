@@ -20,10 +20,14 @@ export const GEAR_TIERS: Record<GearTier, TierInfo> = {
   5: { name: 'Легендарный', color: '#ff9800', slots: 4, dmgMin: 9, dmgMax: 14 },
 };
 
+/**
+ * Цвет тира артефакта — та же шкала, что у экипировки (v0.50, решение пользователя): серый, зелёный, синий. Раньше тир 2 был
+ * синим, а тир 3 оранжевым — цветом легендарного предмета, и артефакт третьего тира читался «выше» мифического оружия.
+ */
 export const ART_TIER_COLORS: Record<1 | 2 | 3, string> = {
-  1: '#9a9a9a',
-  2: '#42a5f5',
-  3: '#ff9800',
+  1: GEAR_TIERS[1].color,
+  2: GEAR_TIERS[2].color,
+  3: GEAR_TIERS[3].color,
 };
 
 // ─── Типы оружия и владение ────────────────────────────────────────────────
@@ -515,21 +519,6 @@ export function gearPerkText(gear: GearInstance): string {
   return base.perk ? `${base.perk.name}: ${base.perk.text(gear.tier)}` : '';
 }
 
-/** Подсказка к иконке типа: «Магическое оружие · Не владеет: кубик вдвое, перк не работает». */
-export function weaponTypeTitle(gear: GearInstance, def?: HeroDef): string {
-  const type = weaponType(gear);
-  if (!def) return `${WEAPON_TYPE_NAMES[type]} оружие`;
-  return `${WEAPON_TYPE_NAMES[type]} оружие · ${canWieldWeapon(def, gear) ? 'Владеет' : `Не владеет: кубик ${pct(UNSKILLED_DICE_MULT)}, перк не работает`}`;
-}
-
-/** Подсказка к иконке типа брони: «Тяжёлая броня · Умеет носить» или «… · Не умеет: перк не работает». */
-export function armorTypeTitle(gear: GearInstance, def?: HeroDef): string {
-  const type = armorType(gear);
-  if (!hasPerk(gear)) return `${ARMOR_TYPE_NAMES[type]} броня · без перка`;
-  if (!def) return `${ARMOR_TYPE_NAMES[type]} броня`;
-  return `${ARMOR_TYPE_NAMES[type]} броня · ${canWearArmor(def, gear) ? 'Умеет носить' : 'Не умеет: перк не работает'}`;
-}
-
 /** Подсказка пункта строки владения оружием. */
 export function weaponSkillTitle(type: WeaponType, skilled: boolean): string {
   const head = `${WEAPON_TYPE_NAMES[type]} оружие · ${skilled ? 'Владеет: полный кубик и перк базы' : `Не владеет: кубик ${pct(UNSKILLED_DICE_MULT)}, перк базы не работает, аффикс и артефакты остаются`}`;
@@ -842,25 +831,3 @@ export function makeStartingGear(def: HeroDef, start?: string): { weapon: GearIn
   };
 }
 
-/**
- * Характеристики предмета. Для оружия с героем — ещё и кубик в его руках:
- * «Урон 5–9 → 3–6», если владение или тип его меняют. Само владение показывает цвет иконки типа.
- */
-export function gearStatText(g: GearInstance, def?: HeroDef): string {
-  const parts: string[] = [];
-  if (g.kind === 'weapon') {
-    let text = `Урон ${g.dmgMin}–${g.dmgMax}`;
-    if (def) {
-      const d = weaponDice(def, g);
-      if (d.min !== g.dmgMin || d.max !== g.dmgMax) text += ` → ${d.min}–${d.max}`;
-    }
-    parts.push(text);
-    // Ближнее оружие, которое достаёт через ряд, — редкость: копьё пишет это прямо в характеристиках (у плети то же говорит перк).
-    if (weaponType(g) === 'melee' && weaponReach(g) === 'any') parts.push('достаёт любого в ряду');
-  } else {
-    if (g.def) parts.push(`+${g.def} DEF`);
-    if (g.hp) parts.push(`+${g.hp} HP`);
-  }
-  if (g.affix) parts.push(`✦ ${affixText(g.affix)}`);
-  return parts.length ? parts.join(', ') : 'без бонусов';
-}

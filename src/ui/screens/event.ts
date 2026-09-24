@@ -1,14 +1,14 @@
 import { button, h } from '../dom';
-import { artifactDef } from '../../data/artifacts';
+import { artifactDef, artifactFullText } from '../../data/artifacts';
 import { GEAR_TIERS, upgradePreview } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { forgePrice } from '../../engine/loot';
 import { altarHealAmount, altarSacrificeCost, canAltarSacrifice, canForge, currentLocation, heroStats } from '../../engine/run';
-import { artifactChip, coin, gearCard, pendingModal, pickable, tierTip } from '../components';
+import { artifactChip, coin, pendingModal, pickable, tierTip } from '../components';
+import { gearCard } from '../cards';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
-import { gearDiffLines } from '../diff';
 import { markKeywords } from '../keywords';
 import type { EventState, GearKind, GearTier } from '../../engine/types';
 import type { App } from '../app';
@@ -26,7 +26,7 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
   const def = heroDef(run.hero.defId);
   return [
     pickable(
-      gearCard(ev.gear, { def, deltas: gearDiffLines(run, ev.gear), footer: button('Надеть', () => app.takeChest(), { class: 'primary', disabled: !!run.pending }) }),
+      gearCard(ev.gear, { def, run, footer: button('Надеть', () => app.takeChest(), { class: 'primary', disabled: !!run.pending }) }),
       run.pending ? undefined : () => app.takeChest(),
     ),
   ];
@@ -57,7 +57,7 @@ function altarCards(app: App, ev: EventState & { kind: 'altar' }): HTMLElement[]
       { class: 'event-loot' },
       h('div', { class: 'slots' }, artifactChip(ev.artifact)),
       h('div', { class: 'card-sub' }, def.name),
-      h('div', { class: 'note' }, ...markKeywords(def.describe(ev.artifact.tier))),
+      h('div', { class: 'note' }, ...markKeywords(artifactFullText(def, ev.artifact.tier))),
     );
   } else loot = h('div', { class: 'note' }, 'Алтарю нечего предложить: все артефакты уже на максимуме.');
   const sacrifice = h(
@@ -125,7 +125,7 @@ function gnomeCards(app: App, ev: EventState & { kind: 'gnome' }): HTMLElement[]
           { class: 'event-loot' },
           h('div', { class: 'slots' }, artifactChip(art)),
           h('div', { class: 'card-sub' }, def.name),
-          h('div', { class: 'note' }, ...markKeywords(def.describe(art.tier))),
+          h('div', { class: 'note' }, ...markKeywords(artifactFullText(def, art.tier))),
         )
       : h('div', { class: 'note' }, 'Кроме монет в мешке ничего не нашлось.');
   const card = h(
@@ -153,7 +153,7 @@ function snatcherCards(app: App, ev: EventState & { kind: 'gnome_art' }): HTMLEl
           { class: 'event-loot' },
           h('div', { class: 'slots' }, artifactChip(art)),
           h('div', { class: 'card-sub' }, def.name),
-          h('div', { class: 'note' }, ...markKeywords(def.describe(art.tier))),
+          h('div', { class: 'note' }, ...markKeywords(artifactFullText(def, art.tier))),
         )
       : h('div', { class: 'note' }, lost ? 'Красть было нечего: сокеты пусты.' : 'Вор ушёл ни с чем — брать у героя было нечего.');
   const found = ev.loot;
@@ -171,7 +171,7 @@ function snatcherCards(app: App, ev: EventState & { kind: 'gnome_art' }): HTMLEl
             { class: 'event-loot' },
             h('div', { class: 'slots' }, artifactChip(found)),
             h('div', { class: 'card-sub' }, foundDef.name),
-            h('div', { class: 'note' }, ...markKeywords(foundDef.describe(found.tier))),
+            h('div', { class: 'note' }, ...markKeywords(artifactFullText(foundDef, found.tier))),
           ),
           h('div', { class: 'card-foot' }, button('Забрать артефакт', () => app.gnomeTakeLoot(), { class: 'primary', disabled: !!run.pending })),
         )
