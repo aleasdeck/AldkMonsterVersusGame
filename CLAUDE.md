@@ -37,6 +37,8 @@ SIM=1 SIM_N=200 npx vitest run tests/gnome-odds.test.ts                         
 
 Дополнение v0.41.7: `src/ui/enemySprite.ts` — рисованный скелет-воин (canvas/WebP, покой, атака, блок, урон). Используется в `battle.ts` и `bestiary.ts`; `App.step()` синхронизирует контакт, `playEvents()` — реакцию на урон. Клип переживает render благодаря WeakMap экземпляра врага. Мастер/промпты — `art/skeleton-warrior-*`, сборка — `sh tools/enemy-sheet.sh`, подробности — `docs/art.md` → «Скелет-воин». Остальные враги процедурные.
 
+Дополнение v0.50 (прототипы разгрузки интерфейса, выбор за пользователем): `src/ui/variants.ts` — переключатель вариантов (`UI.hs`/`UI.gc`/`UI.ac`, `&hs=`/`&gc=`/`&ac=`/`&ui=`, Shift+1/2/3, localStorage `mv_ui_variants`; `old` — нынешний вид и значение по умолчанию). Варианты карточек — `src/ui/cards.ts` (`artifactCardVariant`, `gearCardVariant`, `gearTileVariant`, `potionCardVariant`; `components.ts`/`gearTile.ts` сначала спрашивают их и рисуют старое, если вернулся null), общие кирпичи — `src/ui/cardParts.ts` (тир точками, чипы цены/КД/цели, `effectText` снимает с описания хвосты «КД N»/«Раз в ход»), экран героя — `src/ui/screens/heroSelectVariants.ts` (`App.heroTab`). Пиксельные иконки параметров — `UiIconId`/`uiIcon()` в icons.ts, `markKeywords(text, { icons, numbers })` ставит иконку статуса и выделяет числа. Сравнение «надето → станет» — `gearCompare` в diff.ts. После выбора варианта остальные удалить вместе с переключателем.
+
 ```
 src/engine/   чистая логика, без DOM, покрыта тестами
   types.ts      ВСЕ типы + SAVE_VERSION, GAME_VERSION (версия в углу меню), MAX_ENEMIES, MAX_ALLIES. Начинать чтение отсюда.

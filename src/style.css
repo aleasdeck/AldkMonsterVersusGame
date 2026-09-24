@@ -4517,3 +4517,41 @@ p {
 .hsv-loadout .ui-icon {
   margin-right: 4px;
 }
+/* Перк в одну строку (B): полный текст — в подсказке строки. */
+.gv-props.one-line .prop-row {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+.gv-props.one-line .prop-row .ui-icon {
+  margin-right: 5px;
+}
+.gv-props.one-line .prop-name {
+  margin-right: 5px;
+}
+.prop-row.warn {
+  color: var(--bad);
+}
+/* Узкая колонка торговца: у дальности только точки, слово — в подсказке. */
+.shop .gv-reach-text {
+  display: none;
+}
+.shop .prop-row.warn {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+.shop .prop-row.warn .ui-icon {
+  margin-right: 4px;
+}
+/* Пометка «не владеет» среди чипов (C): тем же чипом, красным. */
+.gv-chips .skill-label {
+  height: 24px;
+  padding: 0 6px 0 4px;
+  font-size: 16px;
+  border: 1px solid #6b2a2a;
+  background: #1e0e12;
+  cursor: help;
+}

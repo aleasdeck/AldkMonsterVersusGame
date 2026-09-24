@@ -229,7 +229,7 @@ export function potionCardVariant(id: string, footer?: Child, note?: string | nu
     return h(
       'div',
       { class: 'card av av-b potion-card', style: `border-color:${color}` },
-      h('div', { class: 'avb-gem c-free', tip: 'Пьётся в бою бесплатно' }, uiIcon('sta', 14), h('span', null, '0')),
+      h('div', { class: 'avb-gems' }, h('div', { class: 'avb-gem c-free', tip: 'Пьётся в бою бесплатно' }, uiIcon('sta', 14), h('span', null, '0'))),
       h('div', { class: 'avb-head' }, h('span', { class: 'avb-glyph', style: `color:${color}` }, def.glyph), h('span', { class: 'avb-name', style: `color:${color}` }, def.name)),
       h('div', { class: 'avb-type' }, ...dotted(tags.slice(0, 2))),
       desc,
@@ -348,6 +348,14 @@ function perkRow(gear: GearInstance, def: HeroDef | undefined, short = false): H
   return h('div', { class: `prop-row perk ${ok ? '' : 'off'}`, tip }, uiIcon('perk', 14), h('span', { class: 'prop-name' }, perk.name), h('span', { class: 'prop-text' }, ...markKeywords(text, { numbers: true })));
 }
 
+/** Исключение отдельной красной строкой над перком: герой не владеет типом — что именно он теряет. Норма не пишется. */
+function skillWarnRow(gear: GearInstance, def?: HeroDef): HTMLElement | null {
+  const label = skillLabel(gear, def);
+  if (!label) return null;
+  const what = gear.kind === 'weapon' ? 'кубик ½, перк не работает' : 'перк не работает';
+  return h('div', { class: 'prop-row warn', tip: label.getAttribute('data-tip') ?? '' }, uiIcon('cross', 14), h('span', null, `${label.textContent}: ${what}`));
+}
+
 /** Строка аффикса — случайной прибавки предмета. */
 function affixRow(gear: GearInstance, short = false): HTMLElement | null {
   if (!gear.affix) return null;
@@ -419,12 +427,25 @@ function gearHead(gear: GearInstance, def?: HeroDef, withType = true): HTMLEleme
         { class: 'gv-title' },
         h('span', { class: 'gv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
         withType
-          ? h('div', { class: 'gv-type' }, ...dotted([h('span', { tip: gearTypeTip(gear) }, gearTypeShort(gear)), reach ? h('span', { class: 'gv-reach', tip: 'Дальность удара: кого достаёт базовая атака' }, reach, reachText) : null, skillLabel(gear, def)]))
+          ? h('div', { class: 'gv-type' }, ...dotted([h('span', { tip: gearTypeTip(gear) }, gearTypeShort(gear)), reach ? h('span', { class: 'gv-reach', tip: 'Дальность удара: кого достаёт базовая атака' }, reach, h('span', { class: 'gv-reach-text' }, reachText)) : null]))
           : null,
       ),
       tierPips(gear.tier, 5, color, tierTip(gear.tier)),
     ),
   ];
+}
+
+/** Шапка предмета для модалки выбора сокета (v0.50): иконка типа, имя цветом тира, тир точками. null — вариант «как сейчас». */
+export function gearMiniHead(gear: GearInstance): HTMLElement | null {
+  if (UI.gc === 'old') return null;
+  const color = GEAR_TIERS[gear.tier].color;
+  return h(
+    'div',
+    { class: 'gtv-head' },
+    h('span', { class: 'gv-icon', style: `border-color:${color}`, tip: gearTypeTip(gear) }, uiIcon(gearIconId(gear), 18, color)),
+    h('span', { class: 'gtv-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
+    tierPips(gear.tier, 5, color, tierTip(gear.tier)),
+  );
 }
 
 /** Потерянные артефакты: не хватит сокета. */
@@ -452,9 +473,16 @@ function gearCardA(gear: GearInstance, o: GearCardOpts): HTMLElement {
       'div',
       { class: 'gv-main' },
       h('div', { class: 'gv-stats' }, ...mainStats(gear, o.def)),
-      deltas.length ? h('div', { class: 'gv-deltas', tip: deltas.map((r) => `${r.name}: ${r.before} → ${r.after}`).join('\n') }, ...deltas.slice(0, 4).map((r) => h('span', { class: r.dir > 0 ? 'up' : 'dn' }, `${r.dir > 0 ? '▲' : '▼'} ${r.delta}`))) : null,
+      // Урон крупно — уже новый, поэтому в дельте рядом — что было: «▲ было 4–6». Остальное — знаком и величиной.
+      deltas.length
+        ? h(
+            'div',
+            { class: 'gv-deltas', tip: deltas.map((r) => `${r.name}: ${r.before} → ${r.after}`).join('\n') },
+            ...deltas.slice(0, 4).map((r) => h('span', { class: r.dir > 0 ? 'up' : 'dn' }, `${r.dir > 0 ? '▲' : '▼'} ${r.key === 'dmg' ? `было ${r.before}` : r.delta}`)),
+          )
+        : null,
     ),
-    h('div', { class: 'gv-props' }, perkRow(gear, o.def), affixRow(gear)),
+    h('div', { class: 'gv-props' }, skillWarnRow(gear, o.def), perkRow(gear, o.def), affixRow(gear)),
     overflowNote(cmp?.overflow ?? []),
     h('div', { class: 'card-foot' }, socketIcons(gear), o.footer),
   );
@@ -475,9 +503,13 @@ function gearCardB(gear: GearInstance, o: GearCardOpts): HTMLElement {
     { class: 'card gear-card gv gv-b', style: `border-color:${GEAR_TIERS[gear.tier].color}` },
     ...gearHead(gear, o.def),
     cmp
-      ? h('div', { class: 'cmp' }, h('div', { class: 'cmp-row cmp-caption' }, h('span'), h('span', { class: 'cmp-name' }), h('span', { class: 'cmp-before' }, 'надето'), h('span', { class: 'cmp-arrow' }), h('span', { class: 'cmp-after' }, 'эта'), h('span', { class: 'dir' })), ...rows.slice(0, 5).map(row))
+      ? h(
+          'div',
+          { class: 'cmp', tip: `Слева — что надето сейчас, справа — с этим предметом${rows.length > 4 ? `\n${rows.slice(4).map((r) => `${r.name}: ${r.before} → ${r.after}`).join('\n')}` : ''}` },
+          ...rows.slice(0, 4).map(row),
+        )
       : h('div', { class: 'gv-stats' }, ...mainStats(gear, o.def)),
-    h('div', { class: 'gv-props' }, perkRow(gear, o.def)),
+    h('div', { class: 'gv-props one-line' }, skillWarnRow(gear, o.def), perkRow(gear, o.def)),
     overflowNote(cmp?.overflow ?? []),
     h('div', { class: 'card-foot' }, socketIcons(gear), o.footer),
   );

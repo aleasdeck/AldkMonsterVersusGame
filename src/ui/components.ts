@@ -35,7 +35,7 @@ import type { App } from './app';
 import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
 import type { ArchetypeId } from '../engine/types';
 import { canPendingSmelt, smeltTargets } from '../engine/run';
-import { artifactCardVariant, gearCardVariant, potionCardVariant } from './cards';
+import { artifactCardVariant, gearCardVariant, gearMiniHead, potionCardVariant } from './cards';
 
 /** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
 /**
@@ -479,7 +479,7 @@ export function pendingModal(app: App): HTMLElement | null {
     return h(
       'div',
       { class: 'pm-gear', style: `border-color:${info.color}` },
-      h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, kind === 'weapon' ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name)),
+      gearMiniHead(gear) ?? h('div', { class: 'gt-head' }, h('span', { class: 'glyph' }, kind === 'weapon' ? '⚔' : '⛨'), h('span', { class: 'gt-name', tip: tierTip(gear.tier) }, gear.name)),
       h(
         'div',
         { class: 'gt-sockets' },
