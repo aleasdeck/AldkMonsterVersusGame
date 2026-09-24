@@ -14,6 +14,7 @@ import { GEAR_TIERS, baseArmorStats, baseDamage, baseOf, baseTitle, rollAffix, r
 import type { ArtTier, DerivedStats, GearAffix, GearKind, GearTier, LootItem, SlotKind } from './engine/types';
 import type { Rng } from './engine/rng';
 import { setTint } from './ui/tint';
+import { setLogVariant } from './ui/logView';
 
 const HERO_LIST_IDS = HERO_LIST.map((d) => d.id);
 const WIDTH = 960;
@@ -49,6 +50,9 @@ else if (tintParam || tintColor) {
     ...(tintColor ? { light: `#${tintColor}` } : {}),
   });
 }
+
+// &logv=a|b|c — вид лога боя (v0.51, прототипы на выбор): лента, диалог, сводка; выбор запоминается в браузере
+if (params.get('logv')) setLogVariant(params.get('logv'));
 
 // &mock=1 — демо-профиль: статистика, часть коллекции (у артефактов — часть тиров) и половина бестиария (для отладки экранов);
 // экрану «Статистика» — демо-ответ таблицы вместо сети (mockRuns)
