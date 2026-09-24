@@ -965,6 +965,33 @@ p {
   font-size: 20px;
   color: var(--accent);
 }
+/* Метки на плитке (v0.50), как наклейки ставок в Balatro: мастерство слева сверху цветом шкалы тиров, корона побед справа. */
+.hero-tile {
+  position: relative;
+}
+.hero-mark {
+  position: absolute;
+  top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 4px 0 3px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--mark);
+  background: #0e0e18;
+  border: 2px solid var(--mark);
+  box-shadow: 0 0 0 1px #000;
+  pointer-events: none;
+}
+.hero-mark.mastery {
+  left: 4px;
+}
+.hero-mark.wins {
+  --mark: var(--accent);
+  right: 4px;
+}
 .hero-preview {
   flex: 1;
   min-width: 0;

@@ -1,7 +1,7 @@
 import { button, h, type Child } from '../dom';
 import { HERO_LIST, heroDef } from '../../data/heroes';
 import { artifactDef } from '../../data/artifacts';
-import { ARMOR_TYPE_NAMES, WEAPON_TYPE_NAMES, armorSkillTitle, baseOf, gearPerkText, makeStartingGear, weaponSkillTitle } from '../../data/gear';
+import { ARMOR_TYPE_NAMES, GEAR_TIERS, WEAPON_TYPE_NAMES, armorSkillTitle, baseOf, gearPerkText, makeStartingGear, weaponSkillTitle } from '../../data/gear';
 import { computeStats } from '../../engine/stats';
 import { hashString } from '../../engine/rng';
 import { defendBlock } from '../../engine/combat';
@@ -12,7 +12,7 @@ import { heroLevelOf, heroXpOf, pickedSignature, pickedStart, pickedTrait, signa
 import { uiIcon, type UiIconId } from '../icons';
 import { markKeywords } from '../keywords';
 import { effectText, paramChip, useParams } from '../cardParts';
-import type { DerivedStats, HeroDef } from '../../engine/types';
+import type { DerivedStats, GearTier, HeroDef } from '../../engine/types';
 import type { App } from '../app';
 
 // ─── Выбор героя (v0.50) ───────────────────────────────────────────────────
@@ -29,19 +29,47 @@ function parseSeed(raw: string): number | undefined {
   return /^\d+$/.test(s) ? Number(s) >>> 0 : hashString(s);
 }
 
-/** Плитка в сетке слева: аватарка во всю ширину и имя. Клик — превью, двойной клик — сразу в забег. */
+/**
+ * Метки на плитке героя (v0.50), как наклейки ставок на джокерах в Balatro: слева сверху — уровень мастерства, со второго, цветом
+ * той же шкалы, что тиры предметов (зелёный, синий, фиолетовый, оранжевый); справа сверху — корона, если герой хоть раз прошёл
+ * забег, с числом побед от двух. Первый уровень и ноль побед меток не дают: у новичка сетка чистая, наклейку надо заработать.
+ */
+function tileMarks(app: App, def: HeroDef): HTMLElement[] {
+  const level = heroLevelOf(app.profile, def.id);
+  const wins = app.profile.heroWins[def.id] ?? 0;
+  const out: HTMLElement[] = [];
+  if (level >= 2) {
+    const color = GEAR_TIERS[level as GearTier].color;
+    out.push(h('span', { class: 'hero-mark mastery', style: `--mark:${color}` }, uiIcon('star', 12, color), `${level}`));
+  }
+  if (wins > 0) out.push(h('span', { class: 'hero-mark wins' }, uiIcon('crown', 12), wins > 1 ? `${wins}` : null));
+  return out;
+}
+
+/** Подсказка плитки: роль, мастерство с опытом до следующего уровня, забеги и победы. */
+function tileTip(app: App, def: HeroDef): string {
+  const level = heroLevelOf(app.profile, def.id);
+  const xp = heroXpOf(app.profile, def.id);
+  const next = nextLevelXp(level);
+  const runs = app.profile.heroRuns[def.id] ?? 0;
+  const wins = app.profile.heroWins[def.id] ?? 0;
+  return `${def.role}\nМастерство ${level}${next ? ` · ${xp}/${next} опыта` : ' · максимум'}\nЗабегов: ${runs}, побед: ${wins}`;
+}
+
+/** Плитка в сетке слева: аватарка во всю ширину, имя и метки. Клик — превью, двойной клик — сразу в забег. */
 function heroTile(app: App, def: HeroDef): HTMLElement {
   const selected = app.heroPick === def.id;
   return h(
     'div',
     {
       class: `hero-tile ${selected ? 'selected' : ''}`,
-      tip: def.role,
+      tip: tileTip(app, def),
       onclick: () => app.selectHero(def.id),
       ondblclick: () => app.newRun(def.id, parseSeed(app.seedText)),
     },
     heroAvatar(def.id, 112),
     h('div', { class: 'hero-tile-name' }, def.name),
+    ...tileMarks(app, def),
   );
 }
 
