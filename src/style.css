@@ -1279,6 +1279,7 @@ p {
    `--tint` ставит поле боя, вне боя переменной нет и спрайты остаются в своей палитре. */
 .field .sprite-wrap img.sprite,
 .field .sprite-wrap canvas.enemy-sheet,
+.field .sprite-wrap .mob-sheet,
 .field .hero-sprite::before {
   filter: var(--tint, none);
 }
@@ -1290,6 +1291,31 @@ p {
 }
 .bob {
   animation: bob 1.6s ease-in-out infinite;
+}
+/* Пиксельная лепка (mobs/index.ts, прототип v0.52, &mobs=a|b|c): полоса кадров покоя фоном, листает steps.
+   --delay отрицательный от общих часов, поэтому перерисовка экрана не сбрасывает цикл. */
+.mob-sheet {
+  flex: none;
+  width: var(--w);
+  height: var(--h);
+  background: var(--sheet) 0 0 / calc(var(--w) * var(--n)) var(--h) no-repeat;
+  image-rendering: pixelated;
+  animation: mob-idle var(--dur) steps(var(--n)) var(--delay, 0ms) infinite;
+}
+@keyframes mob-idle {
+  to {
+    background-position-x: calc(var(--w) * -1 * var(--n));
+  }
+}
+/* Аура второй фазы тоже анимирует спрайт: у лепки обе анимации идут вместе. */
+.enemy.aura .sprite-wrap .mob-sheet {
+  animation: mob-idle var(--dur) steps(var(--n)) var(--delay, 0ms) infinite, aura-glow 2.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mob-sheet,
+  .enemy.aura .sprite-wrap .mob-sheet {
+    animation: none;
+  }
 }
 .enemy-sheet {
   image-rendering: auto;

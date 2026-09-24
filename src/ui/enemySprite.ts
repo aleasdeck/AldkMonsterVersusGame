@@ -4,6 +4,7 @@ import necromancerSheet from '../assets/enemies/necromancer.webp';
 import { NECROMANCER_FRAMES } from './necromancerFrames';
 import type { BattleEvent, EventTarget, SpriteSpec } from '../engine/types';
 import { spriteImg } from './sprites';
+import { hasMobArt, mobSprite } from './mobs';
 
 type WarriorClip = 'attack' | 'block' | 'hurt';
 type EnemyClip = WarriorClip | 'shoot' | 'volley' | 'bolt' | 'summon' | 'curse' | 'death';
@@ -159,8 +160,9 @@ function drawNecromancer(ctx: CanvasRenderingContext2D, now: number, state: Pose
   ctx.restore();
 }
 
-/** Рисованные враги получают атласы; остальные сохраняют процедурный спрайт. */
+/** Рисованные враги получают атласы; лесные при `&mobs=` — пиксельную лепку с покоем; остальные — процедурный спрайт. */
 export function enemySprite(spec: SpriteSpec, id: string, px: number, cls = '', instance?: object): HTMLElement {
+  if (hasMobArt(id)) return mobSprite(id, px, cls, instance);
   if (!hasEnemySheet(id)) return spriteImg(spec, id, px, cls);
   const canvas = document.createElement('canvas');
   canvas.width = 576;
