@@ -45,7 +45,9 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
       case 'detonate':
         return e.target === 'allEnemies' ? 'взрыв ран всем' : 'взрыв ран';
       case 'spread':
-        return 'заражение';
+        return e.statuses.includes('bleed') ? 'кровь на всех' : 'заражение';
+      case 'scorch':
+        return `огонь цели ×${e.mult}`;
       case 'breakBlock':
         return `блок цели ×${e.mult}`;
       case 'finisher':
@@ -56,6 +58,10 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return `стихия ${e.value}`;
       case 'push':
         return 'толчок назад';
+      case 'amplify':
+        return `яд ×${e.mult}`;
+      case 'blockBurst':
+        return `блок ×${e.pct} всем`;
       default:
         continue;
     }

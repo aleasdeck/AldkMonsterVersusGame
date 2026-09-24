@@ -4,7 +4,10 @@ import { potionDef } from '../../data/potions';
 import { defendBlock } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
 import type { DerivedStats } from '../../engine/types';
-import { bar, potionChip, skillLine } from '../components';
+import { artifactChip, artifactTitle, bar, potionChip, setCounters, skillLine } from '../components';
+import { innateOf, socketedArtifacts } from '../../engine/stats';
+import { artifactDef } from '../../data/artifacts';
+import { traitDef } from '../../data/traits';
 import { gearTile } from '../gearTile';
 import { heroAvatar } from '../heroSprite';
 import type { App } from '../app';
@@ -41,8 +44,56 @@ function statRows(s: DerivedStats, hp: number): HTMLElement[] {
       ? row('Боевой транс', [s.lowHpStr ? `+${s.lowHpStr} Сила` : '', s.lowHpSta ? `+${s.lowHpSta} STA` : '', s.lowHpReduce ? `−${s.lowHpReduce} удар` : ''].filter(Boolean).join(', '), 'Пока HP ниже половины: Сила, стамина в начале хода и гашение каждого удара врага')
       : null,
     s.blockKeep ? row('Стойкий блок', `${s.blockKeep}`, 'Столько блока переживает начало хода') : null,
+    // Архетипы и ключевые вещи (v0.43).
+    s.strikeMult ? row('Удар оружием', `${Math.round(s.strikeMult * 100)} %`, 'Ключевая вещь: на столько слабее каждый удар оружием') : null,
+    s.vsBleed ? row('По крови', `+${pct(s.vsBleed)}`, 'На столько сильнее удар оружием по кровоточащей цели') : null,
+    s.bleedAdd || s.bleedMult ? row('Сила крови', [s.bleedAdd ? `+${s.bleedAdd}` : '', s.bleedMult ? `×${1 + s.bleedMult}` : ''].filter(Boolean).join(' '), 'Каждое Кровотечение, которое вешает герой: прибавка набора «Кровь» и множитель «Клятвы крови» (вверх)') : null,
+    s.bleedTwice ? row('Кровь тикает', 'дважды', 'Набор «Кровь» 3/3: Кровотечение на врагах тикает в их ход и ещё раз перед вашим') : null,
+    s.burnAdd ? row('Сила огня', `+${s.burnAdd}`, 'Каждое Горение, которое вешает герой, сильнее: набор «Огонь»') : null,
+    s.burnSpread ? row('Пожар', 'да', 'Набор «Огонь» 3/3: погибший горящий враг поджигает остальных своим Горением') : null,
+    s.spellIgniteAll ? row('Заклинания жгут', `${s.spellIgniteAll}`, '«Пироман»: каждое заклинание вешает Горение всем врагам на 2 хода') : null,
+    s.burnImmune || s.blockPerBurning ? row('Жаропрочность', s.blockPerBurning ? `+${s.blockPerBurning} блока` : 'да', 'Горение на вас не держится; блок в начале хода за каждого горящего врага') : null,
+    // Архетипы v0.47: бонусы наборов и ключевые вещи.
+    s.poisonAdd ? row('Сила яда', `+${s.poisonAdd}`, 'Каждый Яд, который вешает герой, сильнее: набор «Яд»') : null,
+    s.poisonNoDecay ? row('Яд бессрочный', 'да', '«Токсиколог»: ваш Яд не спадает по сроку') : null,
+    s.poisonWeaken ? row('Яд ослабляет', `−${pct(s.poisonWeaken)}`, 'Набор «Яд» 3/3: отравленный враг бьёт настолько слабее') : null,
+    s.blockSkillAdd ? row('Блок приёмов', `+${s.blockSkillAdd}`, 'Набор «Щит»: «Защититься» и каждый приём с блоком дают больше') : null,
+    s.blockToDmg ? row('Удар щитом', `+${pct(s.blockToDmg)} блока`, 'Набор «Щит» 3/3: удар оружием сильнее на долю текущего Блока') : null,
+    s.maxHpPct ? row('Здоровье ключевой', `${Math.round(s.maxHpPct * 100)} %`, 'Ключевая вещь: максимум HP меньше на эту долю') : null,
+    s.thornsAll ? row('Шипы по всем', 'да', 'Набор «Возмездие» 3/3: Шипы колют всех врагов, а не только ударившего') : null,
+    s.hitStr ? row('Мученик', `+${s.hitStr} Сила за удар`, 'Лечение не действует; каждый удар врага, дошедший до HP, даёт Силу до конца боя') : null,
+    s.healAdd || s.healMult ? row('Сила лечения', [s.healAdd ? `+${s.healAdd}` : '', s.healMult ? `×${1 + s.healMult}` : ''].filter(Boolean).join(' '), 'Каждое лечение героя: прибавка набора «Свет» и множитель «Обета»') : null,
+    s.healSmite ? row('Свет жжёт', 'да', 'Набор «Свет» 3/3: каждое лечение наносит столько же урона первому врагу, мимо блока (не добивает)') : null,
+    s.overhealBlock ? row('Избыток в блок', pct(s.overhealBlock), 'Такая доля лечения сверх максимума HP становится Блоком') : null,
+    s.momentum ? row('Разгон', `+${s.momentum} за удар`, 'Каждый удар оружием сильнее на столько за каждый уже сделанный в этом ходу удар') : null,
+    s.noDefend ? row('Безрассудство', 'без защиты', '«Защититься» недоступно; усталости нет') : null,
+    s.thirdFree ? row('Третий удар', 'без STA', 'Набор «Серия» 3/3: каждый третий удар в ходу возвращает стамину') : null,
+    s.critOnlySure ? row('Хладнокровие', 'крит наверняка', 'Случайного крита нет: критуют только удары из тени, по оглушённым и с Верным глазом') : null,
+    s.critSta ? row('Крит даёт STA', `+${s.critSta}`, 'Набор «Тень» 3/3: крит возвращает стамину, раз в ход') : null,
+    s.onHitCold ? row('Холод с удара', `${s.onHitCold} за ход`, 'Столько первых ударов оружием за ход вешают Холод 1') : null,
+    s.coldAdd ? row('Сила холода', `+${s.coldAdd}`, 'Каждый Холод, который вешает герой, сильнее: набор «Холод»') : null,
+    s.frozenLong ? row('Вечная мерзлота', '2 хода', 'Оцепенение держит два хода; удары по оцепеневшему слабее на 30 %') : null,
+    s.freezeVuln ? row('Лёд открывает', 'Уязвимость', 'Набор «Холод» 3/3: оцепеневший враг получает Уязвимость на 2 хода') : null,
   ];
   return rows.filter((r): r is HTMLElement => !!r);
+}
+
+/** Врождённый навык и черта (v0.44): одна строка — чип навыка с уровнем и имя черты, описания в подсказках. */
+function innateLine(hero: import('../../engine/types').HeroPersistent): HTMLElement | null {
+  const innate = innateOf(hero);
+  if (!innate) return null;
+  const trait = hero.trait ? traitDef(hero.trait) : null;
+  return h(
+    'div',
+    { class: 'sheet-innate' },
+    artifactChip(innate),
+    h(
+      'div',
+      null,
+      h('div', { tip: `${artifactTitle(innate)}\nВрождённый навык: не занимает сокет, уровень = номер локации` }, `Навык: ${artifactDef(innate.id).name}, ур. ${innate.tier}`),
+      trait ? h('div', { class: 'trait-name', tip: trait.describe(innate.tier) }, `Черта: ${trait.name}`) : null,
+    ),
+  );
 }
 
 /**
@@ -68,6 +119,8 @@ export function heroSheet(app: App): HTMLElement {
         { class: 'sheet-left' },
         h('div', { class: 'sheet-head' }, heroAvatar(def.id, 80), h('div', null, h('div', { class: 'sheet-name' }, def.name), h('div', { class: 'sheet-role' }, def.role))),
         bar('hp', hp, s.maxHp, 'HP'),
+        innateLine(run.hero),
+        setCounters([...socketedArtifacts(run.hero.weapon, run.hero.armor), ...(innateOf(run.hero) ? [innateOf(run.hero)!] : [])]),
         h('div', { class: 'sheet-stats' }, ...statRows(s, hp)),
         skillLine(def),
         h(

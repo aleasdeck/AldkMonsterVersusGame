@@ -8,8 +8,18 @@
  */
 import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RewardFocus, RunState, StatMods, StatusId } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
+import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
+import { archetypeCounts, setMods } from '../../src/data/archetypes';
+import { innateOf } from '../../src/engine/stats';
+
+/** Что у героя в руках: вставленные артефакты и врождённый навык (v0.44) — для связок и наборов. `except` — без этого id. */
+function heldArts(run: RunState, except?: string): ArtifactInstance[] {
+  const out = socketRefs(run.hero).flatMap((r) => (r.art && r.art.id !== except ? [r.art] : []));
+  const innate = innateOf(run.hero);
+  if (innate && innate.id !== except) out.push(innate);
+  return out;
+}
 import { enemyAction, enemyDef } from '../../src/data/enemies';
 import { heroDef } from '../../src/data/heroes';
 import { SWEEP_MULT, canWearArmor, canWieldWeapon, upgradeGearTier, weaponDice, weaponReach } from '../../src/data/gear';
@@ -22,6 +32,8 @@ import {
   altarSacrifice,
   altarSacrificeCost,
   awaitsFocus,
+  awaitsTrial,
+  chooseTrial,
   chooseRewardFocus,
   currentAct,
   battleAction,
@@ -49,6 +61,8 @@ import {
   leaveShop,
   pendingDiscard,
   pendingPlace,
+  pendingSmelt,
+  smeltTargets,
   rerollReward,
   shopBuyArtifact,
   shopBuyGear,
@@ -125,6 +139,7 @@ function cloneBattle(b: BattleState): BattleState {
     events: [],
     log: [],
     stats: { ...b.stats },
+    dealtBy: { ...b.dealtBy },
   };
 }
 
@@ -177,7 +192,8 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
   const h = b.hero;
   // Враги бьют союзника первым, пока он жив.
   if (b.allies.length > 0) return { hit: 0, dot: 0 };
-  const hidden = holdsThroughEnemyTurn(getStatus(h, 'stealth'));
+  // «Прислушаться» (v0.46) снимает тень до удара — с этого врага и для всех, кто ходит после него.
+  let hidden = holdsThroughEnemyTurn(getStatus(h, 'stealth'));
   const invuln = holdsThroughEnemyTurn(getStatus(h, 'invuln'));
   // Уязвимость на герое: удары сильнее на VULNERABLE_MULT.
   const vulMult = holdsThroughEnemyTurn(getStatus(h, 'vulnerable')) ? VULNERABLE_MULT : 1;
@@ -191,9 +207,13 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
     if (!getStatus(e, 'invuln') && e.hp <= statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison')) continue;
     const a = enemyAction(enemyDef(e.defId), e.intent);
     for (const eff of a.effects) {
+      if (eff.type === 'reveal') hidden = false;
       if (eff.type === 'attack' || eff.type === 'selfDestruct') {
         let dmg = scaled(e.dmgMult, eff.amount) + statusValue(e, 'strength');
         if (getStatus(e, 'weak')) dmg = Math.floor(dmg * 0.75);
+        // Стрелок в упор и ярость затянувшегося боя — та же формула, что в бою.
+        const mult = eff.type === 'attack' ? enemyHitMult(b, e) : enrageMult(b);
+        if (mult !== 1) dmg = Math.max(1, Math.round(dmg * mult));
         const hits = eff.type === 'attack' ? (eff.hits ?? 1) : 1;
         const pierce = eff.type === 'attack' && !!eff.pierce;
         for (let i = 0; i < hits; i++) {
@@ -425,13 +445,39 @@ export function playBattle(run: RunState): boolean {
 // ─── Ценность предметов ────────────────────────────────────────────────────
 
 function hasMagicActive(hero: HeroPersistent, except?: string): boolean {
-  return socketRefs(hero).some((s) => s.art && s.art.id !== except && artifactDef(s.art.id).kind === 'active' && artifactDef(s.art.id).school === 'magic');
+  return heroHeld(hero, except).some((a) => artifactDef(a.id).kind === 'active' && artifactDef(a.id).school === 'magic');
 }
 
-/** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. */
+/** То же, что heldArts, но по герою (навык — из его уровня). */
+function heroHeld(hero: HeroPersistent, except?: string): ArtifactInstance[] {
+  const out = socketRefs(hero).flatMap((r) => (r.art && r.art.id !== except ? [r.art] : []));
+  const innate = innateOf(hero);
+  if (innate && innate.id !== except) out.push(innate);
+  return out;
+}
+
+/** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. Сверху — бонус набора, который он замыкает. */
 export function artifactValue(run: RunState, inst: ArtifactInstance): number {
-  if (inst.id === run.hero.signature) return artifactValueRaw(run, inst) * 2;
-  return artifactValueRaw(run, inst);
+  const raw = artifactValueRaw(run, inst);
+  return (inst.id === run.hero.signature ? raw * 2 : raw) + setGain(run, inst);
+}
+
+/**
+ * Сколько стоит бонус набора, который этот артефакт включает (v0.43): разница статов наборов с ним и без него — по весам пассивок.
+ * У вставленного это то, что пропадёт при замене; у нового — то, что он принесёт.
+ */
+function setGain(run: RunState, inst: ArtifactInstance): number {
+  const others = heldArts(run, inst.id);
+  const without = setMods(archetypeCounts(others));
+  const withIt = setMods(archetypeCounts([...others, inst]));
+  if (withIt.length === without.length) return 0;
+  const diff: StatMods = {};
+  const add = (list: StatMods[], sign: number) => {
+    for (const m of list) for (const [k, v] of Object.entries(m)) diff[k as keyof StatMods] = (diff[k as keyof StatMods] ?? 0) + sign * (v ?? 0);
+  };
+  add(withIt, 1);
+  add(without, -1);
+  return Math.max(0, modsValue(run, diff, inst));
 }
 /** Все статусы, которые герой вешает на врагов своими вещами (кроме `except`): приёмы, заклинания, перки оружия — заводки для связок. */
 function heroApplies(run: RunState, except?: string): Set<StatusId> {
@@ -442,10 +488,12 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
   if (s.onHitPoison > 0) out.add('poison');
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
-  for (const ref of socketRefs(run.hero)) {
-    if (!ref.art || ref.art.id === except) continue;
-    const def = artifactDef(ref.art.id);
-    for (const e of def.effects?.(ref.art.tier) ?? []) {
+  if (s.spellIgniteAll > 0) out.add('burn');
+  if (s.backstabPoison > 0) out.add('poison');
+  if (s.onHitCold > 0) out.add('cold');
+  for (const art of heldArts(run, except)) {
+    const def = artifactDef(art.id);
+    for (const e of def.effects?.(art.tier) ?? []) {
       if (e.type === 'status' && e.target !== 'self') out.add(e.status);
       if (e.type === 'enchant') for (const id of ['burn', 'poison', 'bleed'] as StatusId[]) out.add(id);
     }
@@ -456,19 +504,24 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
 /** Статусы, на которых у героя есть выплата (кроме `except`): взрыв ран, заражение, «по крови», «Гниль», «Раздуть», крит по оглушённым. */
 function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
   const out = new Set<StatusId>();
-  for (const ref of socketRefs(run.hero)) {
-    if (!ref.art || ref.art.id === except) continue;
-    const def = artifactDef(ref.art.id);
-    const m = def.mods?.(ref.art.tier) ?? {};
-    if (m.vsBleed) out.add('bleed');
+  for (const art of heldArts(run, except)) {
+    const def = artifactDef(art.id);
+    const m = def.mods?.(art.tier) ?? {};
+    if (m.vsBleed || m.bleedMult) out.add('bleed');
+    if (m.blockPerBurning) out.add('burn');
     if (m.dotLeech) out.add('bleed').add('poison');
     if (m.poisonVuln) out.add('poison');
     if (m.spellVsBurn) out.add('burn');
-    if (m.stunCrit) out.add('stun');
-    if (m.perDebuff) for (const id of ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable'] as StatusId[]) out.add(id);
-    for (const e of def.effects?.(ref.art.tier) ?? []) {
+    if (m.stunCrit) out.add('stun').add('cold');
+    if (m.perDebuff) for (const id of ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold'] as StatusId[]) out.add(id);
+    if (m.poisonAdd || m.poisonNoDecay || m.poisonWeaken) out.add('poison');
+    if (m.coldAdd || m.frozenLong || m.freezeVuln) out.add('cold');
+    for (const e of def.effects?.(art.tier) ?? []) {
       if (e.type === 'detonate' || e.type === 'spread') for (const id of e.statuses) out.add(id);
       if (e.type === 'spell' && e.vsWeak) out.add('weak');
+      if (e.type === 'scorch') out.add('burn');
+      if (e.type === 'amplify') out.add(e.status);
+      if (e.type === 'attack' && e.vsFrozen) out.add('cold');
     }
   }
   return out;
@@ -476,12 +529,12 @@ function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
 
 /** Число вставленных приёмов и заклинаний (кроме `except`) — столько раз за ход сработает «Цепная атака». */
 function activeCount(hero: HeroPersistent, except?: string): number {
-  return socketRefs(hero).filter((r) => r.art && r.art.id !== except && artifactDef(r.art.id).kind === 'active').length;
+  return heroHeld(hero, except).filter((a) => artifactDef(a.id).kind === 'active').length;
 }
 
 /** Есть ли физический приём (кроме `except`) — вторая половина «Перекрёстного тока». */
 function hasPhysicalActive(hero: HeroPersistent, except?: string): boolean {
-  return socketRefs(hero).some((s) => s.art && s.art.id !== except && artifactDef(s.art.id).kind === 'active' && artifactDef(s.art.id).school === 'physical');
+  return heroHeld(hero, except).some((a) => artifactDef(a.id).kind === 'active' && artifactDef(a.id).school === 'physical');
 }
 
 /**
@@ -538,8 +591,26 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.lowHpStr ?? 0) * 4 * 0.5 + (m.lowHpSta ?? 0) * avg * W.enemyHp * 0.5 + (m.lowHpReduce ?? 0) * 5 * 0.5;
     // «Ответный удар»: примерно один ответ за ход врага, пока герой держит блок — около половины ходов.
     v += ((m.riposte ?? 0) / 100) * avg * W.enemyHp * 0.5;
-    // «Кровавый след»: Сила по кровоточащей цели — как Камень силы, пока кровь есть.
-    v += (m.vsBleed ?? 0) * 4 * src('bleed') * 0.8;
+    // «Кровавый след» (v0.43 — доля): как «Гниль», только по кровоточащей.
+    v += (m.vsBleed ?? 0) * avg * s.sta * W.enemyHp * 2 * src('bleed');
+    // Архетипы (v0.43). Сколько ран герой вешает за ход: удар с заводкой — каждый удар, иначе порез или шар примерно раз в ход.
+    const bleedApps = s.onHitBleed > 0 ? s.sta : 0.8;
+    const burnApps = s.onHitBurn > 0 ? s.sta : magic ? 1.2 : 0.5;
+    // +1 к ране — +1 на каждом из двух-трёх тиков каждого наложения, три хода боя.
+    v += (m.bleedAdd ?? 0) * bleedApps * 3 * 2 * W.enemyHp * src('bleed');
+    v += (m.burnAdd ?? 0) * burnApps * 3 * 2 * W.enemyHp * src('burn');
+    // Полтора раза к крови — половина её обычного урона сверху.
+    v += (m.bleedMult ?? 0) * bleedApps * 2 * 3 * 2 * W.enemyHp * src('bleed');
+    // Второй тик крови за ход — ещё одна рана средней силы за каждый ход.
+    v += (m.bleedTwice ?? 0) * 3 * bleedApps * 1.5 * W.enemyHp * 2 * src('bleed');
+    // Пожар — горение переходит на выживших, когда врагов больше одного.
+    v += (m.burnSpread ?? 0) * 4 * src('burn');
+    // Минус к удару ключевой вещи: доля всех ударов боя.
+    v += (m.strikeMult ?? 0) * avg * s.sta * W.enemyHp * 3;
+    v += (m.burnImmune ?? 0) * 2;
+    v += (m.blockPerBurning ?? 0) * (applies.has('burn') ? 1.5 : 0.3) * 3 * 0.8;
+    // «Пироман»: каждое заклинание — Горение всем, два тика.
+    v += (m.spellIgniteAll ?? 0) * (magic ? 1.8 * 2 * 3 * W.enemyHp * 1.5 : 0);
     // «Пиявка»: тик на каждом враге по два хода — полтора врага под кровью или ядом.
     v += (m.dotLeech ?? 0) * 3 * Math.max(src('bleed'), src('poison'));
     // «Гниль»: доля урона всех ударов по отравленному — два хода из трёх.
@@ -552,7 +623,43 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.spellSta ?? 0) * (magic ? avg * s.fatigue * W.enemyHp * 3 : 0.3);
     v += (m.skillMp ?? 0) * (magic && hasPhysicalActive(run.hero, inst.id) ? W.mp * 3 : 0.2);
     // Крит по оглушённому: один-два удара за оглушение.
-    v += (m.stunCrit ?? 0) * avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5 * (def.kind === 'active' || applies.has('stun') ? 1 : 0.2);
+    v += (m.stunCrit ?? 0) * avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5 * (def.kind === 'active' || applies.has('stun') || applies.has('cold') ? 1 : 0.2);
+    // ── Архетипы v0.47 ──
+    const pays = heroPaysFor(run, inst.id);
+    const onHit = (st: StatusId) => (pays.has(st) ? 1.5 : 1);
+    // Заводки на ударе (Зазубренное лезвие, Тлеющий и Отравленный клинок): рана с каждого удара, два тика, три хода боя.
+    v += (m.onHitBleed ?? 0) * s.sta * 5 * W.enemyHp * onHit('bleed');
+    v += (m.onHitBurn ?? 0) * s.sta * 5 * W.enemyHp * onHit('burn');
+    v += (m.onHitPoison ?? 0) * s.sta * 6 * W.enemyHp * onHit('poison');
+    const poisonApps = s.onHitPoison > 0 ? s.sta : 0.8;
+    v += (m.poisonAdd ?? 0) * poisonApps * 3 * 2 * W.enemyHp * src('poison');
+    // Бессрочный яд копится весь бой — примерно вдвое больше тиков.
+    v += (m.poisonNoDecay ?? 0) * poisonApps * 3 * 3 * W.enemyHp * src('poison');
+    // Отравленный бьёт слабее: доля среднего удара врага (около 8) за ход, яд висит две трети боя.
+    v += (m.poisonWeaken ?? 0) * 8 * 3 * 0.6 * 5 * src('poison');
+    v += (m.blockSkillAdd ?? 0) * 3 * 0.8;
+    v += (m.blockToDmg ?? 0) * 6 * s.sta * 3 * W.enemyHp;
+    v += (m.maxHpPct ?? 0) * s.maxHp * 0.7;
+    v += (m.thornsAll ?? 0) * (s.thorns + 1) * 2 * 0.8;
+    // «Мученик»: Сила копится с каждого пропущенного удара — к середине боя около +2.
+    v += (m.hitStr ?? 0) * 4 * 2;
+    const healPerFight = s.regen * 4 + s.lifesteal * s.sta * 3 + 6;
+    v -= (m.noHeal ?? 0) * healPerFight;
+    v += (m.healAdd ?? 0) * (2 + (s.regen > 0 ? 4 : 0) + (s.lifesteal > 0 ? s.sta * 3 : 0));
+    v += (m.healMult ?? 0) * healPerFight;
+    v += (m.healSmite ?? 0) * healPerFight * W.enemyHp;
+    v += (m.overhealBlock ?? 0) * 3;
+    // «Разгон»: за ход ударов sta прибавка m × (0 + 1 + … + sta−1).
+    v += (m.momentum ?? 0) * ((s.sta * (s.sta - 1)) / 2) * 3 * W.enemyHp;
+    v -= (m.noDefend ?? 0) * defendBlock(s) * 1.5;
+    v += (m.thirdFree ?? 0) * (s.sta >= 3 ? avg * s.fatigue ** 2 * W.enemyHp * 3 : 0);
+    v -= (m.critOnlySure ?? 0) * s.crit * avg * (s.critDmg / 100 - 1) * 12;
+    v += (m.critSta ?? 0) * Math.min(1, s.crit * s.sta + 0.2) * avg * W.enemyHp * 3;
+    // Холод: три — ход врага пропущен (около шести HP героя); удары приносят его по лимиту за ход.
+    v += (m.onHitCold ?? 0) > 0 ? (Math.min(m.onHitCold ?? 0, s.sta) * 4 * 6) / 3 : 0;
+    v += (m.coldAdd ?? 0) * 3 * src('cold');
+    v += (m.frozenLong ?? 0) * 6 * src('cold');
+    v += (m.freezeVuln ?? 0) * avg * (VULNERABLE_MULT - 1) * s.sta * 2 * W.enemyHp * src('cold');
     return v;
   }
 }
@@ -582,6 +689,18 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         // «Добивание»: возврат стамины срабатывает примерно на каждом третьем ударе; прибавка по раненому — на каждом третьем тоже.
         if (e.refundOnKill) per += e.refundOnKill * avg * s.fatigue * W.enemyHp * 0.35;
         if (e.lowHp) per += e.lowHp.bonus * W.enemyHp * 0.35;
+        // Око за око — около шести полученных за ход врагов; Кара — около трёх вылеченных за ход; Раскол — по оцепеневшему.
+        if (e.revenge) per += 6 * e.revenge * W.enemyHp;
+        if (e.smite) per += (s.regen + 3) * e.smite * W.enemyHp;
+        if (e.vsFrozen) per += avg * (e.vsFrozen - 1) * W.enemyHp * (applies.has('cold') || s.onHitCold > 0 ? 0.5 : 0.1);
+        break;
+      case 'amplify':
+        // Катализатор: яд на цели (при заводке около четырёх) растёт на (mult−1), тикает ещё около трёх ходов.
+        per += (applies.has(e.status) ? 4 : 0.5) * (e.mult - 1) * 3 * W.enemyHp;
+        break;
+      case 'blockBurst':
+        // Обвал щита: блок к моменту обвала — обычно «Защититься» и плащ; бьёт каждого.
+        per += (defendBlock(s) + s.blockTurn) * e.pct * 1.8 * W.enemyHp;
         break;
       case 'detonate': {
         // Взрыв ран: сколько раны ещё нанесли бы — при заводке в руках примерно два тика средней силы; по всем — суммой каждому.
@@ -590,8 +709,12 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         break;
       }
       case 'spread':
-        // Заражение: яд с одной цели на остальных полторы — при заводке.
-        per += 9 * 1.5 * W.enemyHp * src(e.statuses);
+        // Заражение и Кровавая баня: рана с одной цели на остальных полторы — при заводке; баня — долей силы.
+        per += 9 * 1.5 * (e.pct ?? 1) * W.enemyHp * src(e.statuses);
+        break;
+      case 'scorch':
+        // Испепеление: Горение цели × mult разом, огонь остаётся — при заводке Горение на цели около шести.
+        per += (applies.has('burn') ? 6 : 1) * e.mult * W.enemyHp;
         break;
       case 'breakBlock':
         // Пролом щита: блок у врага бывает через ход, средний — около шести.
@@ -656,6 +779,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           else if (e.status === 'echo') per += avg * W.enemyHp * 0.9;
           else if (e.status === 'regen') per += e.value * turns;
           else if (e.status === 'thorns') per += e.value * turns * 1.5;
+          else if (e.status === 'focus') per += avg * (s.critDmg / 100 - 1) * W.enemyHp * 1.5;
+          else if (e.status === 'taunt') per += (s.thorns + 2) * 2 + ((s.riposte / 100) * avg * W.enemyHp);
           else if (e.status === 'exhaust') per -= e.value * avg * W.enemyHp;
           else per += 2;
         } else {
@@ -663,6 +788,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           if (e.status === 'stun') per += 6 * many;
           else if (e.status === 'vulnerable') per += turns * avg * (VULNERABLE_MULT - 1) * many;
           else if (e.status === 'weak') per += turns * 2 * many;
+          // Холод: каждые три — пропущенный ход врага (около шести HP героя).
+          else if (e.status === 'cold') per += (e.value / 3) * 6 * many;
           else per += e.value * turns * W.enemyHp * many;
         }
         break;
@@ -772,9 +899,20 @@ export function artifactGain(run: RunState, art: ArtifactInstance): number {
   }
   const value = artifactValue(run, art);
   if (freeSocketFor(run.hero, art.id)) return value;
-  // Подходящих сокетов нет вовсе — артефакт некуда ставить, он ничего не стоит.
+  // Подходящих сокетов нет вовсе — артефакт некуда ставить; остаётся переплавка в тир другому (v0.43).
   const weakest = weakestSocket(run, art.id);
-  return weakest ? value - weakest.value - 1 : 0;
+  return Math.max(weakest ? value - weakest.value - 1 : 0, bestSmelt(run, art.id)?.gain ?? 0);
+}
+
+/** Лучшая цель переплавки: какому вставленному артефакту +1 тир даст больше всего. */
+function bestSmelt(run: RunState, id: string): { ref: SocketRef; gain: number } | null {
+  let best: { ref: SocketRef; gain: number } | null = null;
+  for (const ref of smeltTargets(run, id)) {
+    const cur = ref.art!;
+    const gain = artifactValue(run, { id: cur.id, tier: (cur.tier + 1) as ArtifactInstance['tier'] }) - artifactValue(run, cur);
+    if (!best || gain > best.gain) best = { ref, gain };
+  }
+  return best;
 }
 
 // ─── Решения вне боя ───────────────────────────────────────────────────────
@@ -800,7 +938,11 @@ export function resolvePending(run: RunState): void {
     return;
   }
   const weakest = weakestSocket(run, art.id, displaced ? p.displaced : []);
-  if (weakest && artifactValue(run, art) > weakest.value + 1) pendingPlace(run, weakest.ref.kind, weakest.ref.index);
+  const replaceGain = weakest ? artifactValue(run, art) - weakest.value - 1 : 0;
+  const smelt = bestSmelt(run, art.id);
+  // Переплавка (v0.43): лишняя находка поднимает тир своему архетипу, если это выгоднее замены.
+  if (smelt && smelt.gain > 0.5 && smelt.gain >= replaceGain) pendingSmelt(run, smelt.ref.kind, smelt.ref.index);
+  else if (weakest && replaceGain > 0) pendingPlace(run, weakest.ref.kind, weakest.ref.index);
   else pendingDiscard(run);
 }
 
@@ -941,6 +1083,67 @@ function shopVisit(run: RunState): void {
 export type RunOutcome = 'victory' | 'defeat' | 'stall';
 
 /** Забег до конца. `onBoss` зовётся перед входом к боссу — для статистики. Пат — бой, который бот не смог ни выиграть, ни проиграть. */
+/**
+ * Цена испытания для сборки героя (v0.48) в «HP за локацию»: бот берёт то, что меньше бьёт по нему. Грубые оценки по статам —
+ * заметить, что Жаропрочность гасит Зной, а лечащемуся Паладину Проклятие склепа дороже, чем Воину. «Чаща» прячет намерения
+ * только в интерфейсе — бот их всё равно видит, поэтому её цена постоянная, как для живого игрока.
+ */
+export function trialCost(run: RunState, id: string): number {
+  const s = heroStats(run);
+  const arts = heldArts(run);
+  const has = (pred: (d: ReturnType<typeof artifactDef>) => boolean) => arts.some((a) => pred(artifactDef(a.id)));
+  const aoe = s.sweep > 0 || has((d) => (d.effects?.(3) ?? []).some((e) => 'target' in e && e.target === 'allEnemies'));
+  const magic = hasMagicActive(run.hero);
+  const heals = s.regen * 4 + s.lifesteal * s.sta * 3 + (has((d) => (d.effects?.(3) ?? []).some((e) => e.type === 'heal' || (e.type === 'spell' && !!e.drain))) ? 10 : 0);
+  const act = run.locationIndex;
+  switch (id) {
+    case 'pack':
+      return 10 - (aoe ? 4 : 0);
+    case 'ambush':
+      return 8 - (s.dodgeStart > 0 ? 4 : 0) - Math.min(4, s.blockTurn);
+    case 'thicket':
+      return 5;
+    case 'mire':
+      return 6 * (1 + act * 0.5) - s.dotReduce * 3;
+    case 'bog':
+      return 5 + (s.sta >= 4 ? 1 : 0);
+    case 'wisps':
+      return 6 - (aoe ? 2 : 0) - (magic ? 1 : 0);
+    case 'restless':
+      return 9 - (aoe ? 2 : 0);
+    case 'grave_chill':
+      return 7 - (magic ? 3 : 0);
+    case 'crypt_curse':
+      return 2 + heals * 0.5;
+    case 'hive_thorns':
+      return 3 + s.sta * 1.5 * (1 + act * 0.5) - (magic ? 2 : 0);
+    case 'acid':
+      return 2 + (defendBlock(s) + s.blockTurn) * 0.6;
+    case 'clutch':
+      return 9 - (aoe ? 3 : 0);
+    case 'heat':
+      return s.burnImmune > 0 ? 1 : 8 - s.dotReduce * 2;
+    case 'fire_blood':
+      return s.burnImmune > 0 ? 0 : 7 * (1 + act * 0.5);
+    case 'hot_armor':
+      return 1 + defendBlock(s) * 0.5;
+    case 'rolling':
+      return 5 + (magic ? 1 : 0);
+    case 'boarding':
+      return 7 - (aoe ? 2 : 0);
+    case 'cannonade':
+      return 6;
+    default:
+      return 5;
+  }
+}
+
+/** Испытание с наименьшей ценой для этой сборки. */
+function chooseTrialFor(run: RunState): void {
+  const best = run.trialOffer.reduce((m, id) => (trialCost(run, id) < trialCost(run, m) ? id : m), run.trialOffer[0]);
+  chooseTrial(run, best);
+}
+
 export function playRun(run: RunState, onBoss?: (run: RunState) => void): RunOutcome {
   let guard = 0;
   while (!isRunOver(run) && guard++ < 800) {
@@ -950,6 +1153,10 @@ export function playRun(run: RunState, onBoss?: (run: RunState) => void): RunOut
     }
     switch (run.phase) {
       case 'map':
+        if (awaitsTrial(run)) {
+          chooseTrialFor(run);
+          break;
+        }
         if (currentRoomKind(run) === 'boss') onBoss?.(run);
         enterRoom(run);
         break;

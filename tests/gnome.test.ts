@@ -144,14 +144,14 @@ describe('гном-вещекрад', () => {
     expect(statusValue(run.battle!.enemies[0], 'evade')).toBe(50);
   });
 
-  it('тянет и персональный артефакт: неприкосновенных нет', () => {
+  it('врождённый навык не крадётся (v0.44): это не вещь в сокете', () => {
     const run = snatcherRun(3, 'mage', []);
     const signature = heroDef('mage').signatures[0];
-    // У Мага на старте в сокете только Волшебная стрела — её и стянут.
+    // У Мага на старте сокеты пусты, в руках только врождённая Волшебная стрела — красть нечего.
     expect(run.battle!.hero.artifacts.map((a) => a.id)).toEqual([signature]);
     passTurn(run);
-    expect(run.battle!.stolenArtifact?.id).toBe(signature);
-    expect(run.battle!.hero.artifacts).toHaveLength(0); // приём пропал из боя сразу
+    expect(run.battle!.stolenArtifact).toBeNull();
+    expect(run.battle!.hero.artifacts.map((a) => a.id)).toEqual([signature]);
   });
 
   it('удирает на пятый ход и уносит артефакт из сокета навсегда', () => {

@@ -1,3 +1,4 @@
+import { trialDef } from '../data/trials';
 import { button, h } from './dom';
 import { ACTS_PER_RUN, EVENT_NAMES, ROOM_KINDS, ROOM_NAMES } from '../data/locations';
 import { artifactDef } from '../data/artifacts';
@@ -44,6 +45,14 @@ function roomStrip(app: App): HTMLElement {
  * Топбар забега, 40 px: слева кнопка-иконка «Персонаж» и золото; по центру акт, локация,
  * вид комнаты и лента клеток; справа ход (только в бою), таймер и меню. Полосок, портрета и имени здесь нет — решение пользователя.
  */
+/** Чип испытания локации (v0.48): значок и подсказка с правилом — действует до конца локации. */
+function trialChip(app: App): HTMLElement | null {
+  const id = app.run?.trial;
+  if (!id) return null;
+  const t = trialDef(id);
+  return h('span', { class: 'trial-chip', tip: `${t.desc(app.run!.locationIndex)}\n${t.hint}`, tipTitle: `Испытание: ${t.name}` }, t.glyph);
+}
+
 export function topbar(app: App): HTMLElement {
   const run = app.run!;
   const loc = currentLocation(run);
@@ -74,6 +83,7 @@ export function topbar(app: App): HTMLElement {
             `−${artifactDef(run.battle.stolenArtifact.id).glyph}`,
           )
         : null,
+      trialChip(app),
     ),
     h('div', { class: 'top-center' }, h('span', { class: 'dim' }, `Акт ${run.locationIndex + 1}/${ACTS_PER_RUN} · ${loc.name} · ${where}`), roomStrip(app)),
     h(

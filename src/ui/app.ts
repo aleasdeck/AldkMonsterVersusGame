@@ -6,7 +6,30 @@ import { enemyDef } from '../data/enemies';
 import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
 import { heroArtUrls, playHeroClip } from './heroSprite';
 import { enemyArtUrls, playEnemyAction, playEnemyClip, playEnemyDeaths } from './enemySprite';
-import { clearRun, loadProfile, loadRun, pickedSignature, recordEnemies, recordFinds, recordResult, saveRun, saveSignaturePick, setAllUnlocked, signatureUnlocked, type Profile } from './save';
+import {
+  clearRun,
+  loadProfile,
+  loadRun,
+  lockedForRun,
+  pickedSignature,
+  pickedStart,
+  pickedTrait,
+  recordAchievements,
+  recordEnemies,
+  recordFinds,
+  recordResult,
+  saveRun,
+  savePick,
+  saveSignaturePick,
+  setAllUnlocked,
+  signatureUnlocked,
+  startUnlocked,
+  traitUnlocked,
+  type Profile,
+  type RunUnlocks,
+} from './save';
+import { achievementKey } from '../data/mastery';
+import { artifactDef } from '../data/artifacts';
 import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
 import { loadoutFinds } from '../data/collection';
@@ -85,6 +108,11 @@ export class App {
   /** Тикает раз в секунду и пишет время забега в топбар напрямую, без перерисовки. */
   private clockTimer: number | null = null;
   private resultRecorded = false;
+  /** Что открыл последний законченный забег (v0.45): опыт, уровень, артефакты — для экрана итогов. */
+  lastUnlocks: RunUnlocks | null = null;
+  /** Всплывающая строка поверх экрана («Открыто: Кровавая баня»), гаснет сама. */
+  toast: string | null = null;
+  private toastTimer: number | null = null;
   /** Отпечаток экрана и момент его смены: клики в первые SETTLE_MS после смены глотаются (см. SETTLE_MS). */
   private screenKey = '';
   private screenChangedAt = -Infinity;
@@ -130,13 +158,14 @@ export class App {
     this.noteOutcome();
     this.noteEnemies();
     this.noteFinds();
+    this.noteAchievements();
     this.warmArt();
     // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
     const r = this.run;
     this.settleArmed();
     this.aim = null;
     // Выбор пула награды (v0.39) — тоже смена экрана: «Выбрать» стоит там же, где потом «Надеть», второй клик двойного не должен брать предмет.
-    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0])].join('|');
+    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0]), r ? R.awaitsTrial(r) : false].join('|');
     if (key !== this.screenKey) {
       this.screenKey = key;
       this.screenChangedAt = performance.now();
@@ -185,8 +214,33 @@ export class App {
     const live = this.root.querySelector<HTMLElement>('.fx-layer');
     const fresh = el.querySelector<HTMLElement>('.fx-layer');
     if (live && fresh) fresh.replaceWith(live);
+    if (this.toast) el.appendChild(h('div', { class: 'toast' }, this.toast));
     this.root.replaceChildren(el);
     this.syncClock();
+  }
+
+  /**
+   * Достижения наборов (v0.45) пишутся в профиль в тот момент, когда набор сработал, — даже если забег потом проигран;
+   * открытые ими артефакты всплывают строкой поверх экрана. Чтение профиля — только когда есть что записать.
+   */
+  private noteAchievements(): void {
+    const run = this.run;
+    if (!run || run.debug) return;
+    const keys = [...(run.setsReached ?? []).map((a) => achievementKey('set', a)), ...(run.bossSets ?? []).map((a) => achievementKey('boss', a))];
+    if (keys.every((k) => this.profile.achievements.includes(k))) return;
+    const res = recordAchievements(run);
+    this.profile = res.profile;
+    if (res.opened.length) this.showToast(`Открыто: ${res.opened.map((id) => artifactDef(id).name).join(', ')}`);
+  }
+
+  showToast(text: string): void {
+    this.toast = text;
+    if (this.toastTimer !== null) window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => {
+      this.toast = null;
+      this.toastTimer = null;
+      this.root.querySelector('.toast')?.remove();
+    }, 3500);
   }
 
   /**
@@ -323,7 +377,12 @@ export class App {
         this.run.stats.finishedAt = this.run.stats.finishedAt || Date.now();
         // Статистика уходит до записи в профиль: в ней число законченных забегов игрока «до этого».
         this.report(this.run.phase === 'victory' ? 'victory' : 'defeat');
-        this.profile = recordResult(this.run);
+        // Отладочный забег мастерство не качает: `?hero=` и так открывает всё, что нужно.
+        if (!this.run.debug) {
+          const res = recordResult(this.run);
+          this.profile = res.profile;
+          this.lastUnlocks = res.unlocks;
+        } else this.lastUnlocks = null;
       }
       clearRun();
       this.render();
@@ -362,6 +421,20 @@ export class App {
   selectSignature(heroId: string, id: string): void {
     if (!signatureUnlocked(this.profile, heroDef(heroId), id)) return;
     this.profile = saveSignaturePick(heroId, id);
+    this.render();
+  }
+
+  /** Черта героя на экране выбора (v0.45): закрытая не выбирается. */
+  selectTrait(heroId: string, id: string): void {
+    if (!traitUnlocked(this.profile, heroDef(heroId), id)) return;
+    this.profile = savePick('traitPick', heroId, id);
+    this.render();
+  }
+
+  /** Стартовое оружие на экране выбора (v0.45): вариант открывается мастерством 5. */
+  selectStart(heroId: string, base: string): void {
+    if (!startUnlocked(this.profile, heroDef(heroId), base)) return;
+    this.profile = savePick('startPick', heroId, base);
     this.render();
   }
 
@@ -436,7 +509,8 @@ export class App {
     const def = heroDef(heroId);
     // Чужой или опечатанный id из URL — молча первый из пары, а не сломанная страница.
     const sig = signature && def.signatures.includes(signature) ? signature : pickedSignature(this.profile, def);
-    this.run = R.newRun(heroId, seed, Date.now(), sig);
+    // Мастерство (v0.45): черта, стартовое оружие и закрытые артефакты — из профиля. Отладочный забег открыт весь.
+    this.run = R.newRun(heroId, seed, Date.now(), sig, pickedTrait(this.profile, def), { start: pickedStart(this.profile, def), locked: debug ? [] : lockedForRun(this.profile), trials: true });
     this.run.debug = debug;
     this.armed = null;
     this.resultRecorded = false;
@@ -698,6 +772,12 @@ export class App {
   }
 
   /** Пул награды за бой: «Нападение» или «Защита» (v0.39), после выбора катятся три карточки. */
+  /** Испытание локации (v0.48): выбор из двух предложенных перед первой клеткой. */
+  chooseTrial(id: string): void {
+    if (!this.run) return;
+    if (R.chooseTrial(this.run, id)) this.commit();
+  }
+
   chooseRewardFocus(focus: RewardFocus): void {
     if (!this.run) return;
     if (R.chooseRewardFocus(this.run, focus)) this.commit();
@@ -712,6 +792,13 @@ export class App {
   pendingDiscard(): void {
     if (!this.run) return;
     R.pendingDiscard(this.run);
+    this.afterPhaseChange();
+  }
+
+  /** Переплавить ожидающий артефакт в тир артефакту своего архетипа (v0.43). */
+  pendingSmelt(kind: GearKind, index: number): void {
+    if (!this.run) return;
+    R.pendingSmelt(this.run, kind, index);
     this.afterPhaseChange();
   }
 

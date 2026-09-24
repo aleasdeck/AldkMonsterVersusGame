@@ -1,5 +1,5 @@
 import type { App } from './app';
-import { awaitsFocus } from '../engine/run';
+import { awaitsFocus, awaitsTrial } from '../engine/run';
 
 /**
  * Горячие клавиши забега: 1–9 приёмы по порядку плиток (выбрать; номер уже выбранного — применить к цели), в награде 1/2 — пул,
@@ -45,6 +45,15 @@ export function installHotkeys(app: App): void {
       if (key === '1' || key === '2') {
         ev.preventDefault();
         app.chooseRewardFocus(key === '1' ? 'attack' : 'defense');
+      }
+      return;
+    }
+    // Порог локации (v0.48): 1 и 2 — испытание из карточек слева направо.
+    if (app.run.phase === 'map' && awaitsTrial(app.run)) {
+      if (key === '1' || key === '2') {
+        ev.preventDefault();
+        const id = app.run.trialOffer[key === '1' ? 0 : 1];
+        if (id) app.chooseTrial(id);
       }
       return;
     }

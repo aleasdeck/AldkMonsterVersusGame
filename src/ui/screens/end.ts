@@ -4,6 +4,8 @@ import { enemyDef } from '../../data/enemies';
 import { ROOM_NAMES } from '../../data/locations';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import { heroSprite } from '../heroSprite';
+import { artifactDef } from '../../data/artifacts';
+import { nextUnlockText } from '../../data/mastery';
 import type { App } from '../app';
 
 /** «45 с», «12 мин 34 с», «1 ч 05 мин» — крупнее часа секунды не нужны. */
@@ -51,6 +53,7 @@ export function endScreen(app: App): HTMLElement {
           row('Сид', `${run.seed}`),
         ),
       ),
+      masteryNote(app),
       h(
         'div',
         { class: 'row' },
@@ -65,4 +68,17 @@ export function endScreen(app: App): HTMLElement {
       ),
     ),
   );
+}
+
+/** Что дал забег мастерству героя (v0.45): опыт, новый уровень и что он открыл, артефакты, открытые наборами. */
+function masteryNote(app: App): HTMLElement | null {
+  const u = app.lastUnlocks;
+  if (!u || u.hero !== app.run?.hero.defId) return null;
+  const lines: string[] = [`Мастерство: +${u.xpGained} опыта${u.levelAfter > u.levelBefore ? `, уровень ${u.levelBefore} → ${u.levelAfter}` : ''}`];
+  for (let lvl = u.levelBefore; lvl < u.levelAfter; lvl++) {
+    const text = nextUnlockText(u.hero, lvl);
+    if (text) lines.push(`Открыто: ${text}`);
+  }
+  if (u.artifacts.length) lines.push(`Открыто в пуле: ${u.artifacts.map((id) => artifactDef(id).name).join(', ')}`);
+  return h('div', { class: 'mastery-note' }, ...lines.map((l) => h('div', null, l)));
 }

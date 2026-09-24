@@ -1,11 +1,11 @@
 import { button, h, type Child } from '../dom';
 import { heroDef } from '../../data/heroes';
-import { enemyDef } from '../../data/enemies';
+import { ROLE_INFO, enemyDef } from '../../data/enemies';
 import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, canUseAction, computeAllyIntent, computeIntent, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
@@ -81,8 +81,10 @@ function intentExtras(intent: IntentInfo): Child[] {
 
 /** Пилюля намерения: иконка и число, цвет по главному эффекту, остальные эффекты хвостом; название, расшифровка и цель — в подсказке. */
 function intentPill(b: BattleState, e: EnemyState): HTMLElement {
-  const intent = computeIntent(e);
+  const intent = computeIntent(e, b);
   if (intent.stunned) return h('div', { class: 'pill intent-stunned', tip: 'Пропустит следующий ход', tipTitle: 'Оглушён' }, statusIcon('stun', 18), 'оглушён');
+  // «Чаща» (v0.48): в первый ход намерения не видно.
+  if (intent.hidden) return h('div', { class: 'pill intent-special', tip: 'Испытание «Чаща»: в первый ход боя намерения врагов скрыты', tipTitle: 'Не разглядеть' }, h('span', { class: 'pill-icon' }, '?'));
   // Враги бьют первого союзника раньше героя.
   const victim = intent.kind === 'attack' ? `\nЦель: ${b.allies[0]?.name ?? 'герой'}` : '';
   return h(
@@ -131,9 +133,25 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     e.statuses.length ? badges(e, false, e) : null,
     bar('hp', e.hp, e.maxHp, '', e.block > 0 ? `HP ${e.hp}/${e.maxHp}, блок ${e.block}: первые ${e.block} урона удара или заклинания уйдут в него` : `HP ${e.hp}/${e.maxHp}`, e.block),
     h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, px, '', e)),
-    h('div', { class: 'name' }, e.name),
+    h('div', { class: 'name' }, roleMark(app.run!.battle!, e), e.name),
   );
   return bindPreview(app, el, () => enemyPreview(app, e.uid));
+}
+
+/**
+ * Значок роли перед именем (v0.46): страж, громила, рой, стрелок, заклинатель, поддержка — с правилом позиции в подсказке.
+ * Прикрытый стражем помечается щитом: первый удар за ход по нему достанется стражу.
+ */
+function roleMark(b: BattleState, e: EnemyState): Child {
+  const role = enemyDef(e.defId).role;
+  const guard = coveringGuard(b, e);
+  const marks: Child[] = [];
+  if (guard) marks.push(h('span', { class: 'role-mark covered', tip: `Первый удар за ход по нему примет ${guard.name}. Второй пройдёт; Крюк и толчок страж не перехватывает`, tipTitle: 'Под прикрытием' }, '⛉'));
+  if (role) {
+    const info = ROLE_INFO[role];
+    marks.push(h('span', { class: `role-mark role-${role}`, tip: info.rule, tipTitle: info.name }, info.icon));
+  }
+  return marks.length ? h('span', { class: 'role-marks' }, ...marks) : null;
 }
 
 /**
@@ -275,6 +293,8 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return [range ? rangeText(range) : '—', h('small', null, e.target === 'allEnemies' ? 'взрыв всем' : 'взрыв')];
       case 'spread':
         return ['☣', h('small', null, 'на всех')];
+      case 'scorch':
+        return [range ? rangeText(range) : '—', h('small', null, `огонь×${e.mult}`)];
       case 'breakBlock':
         return [range ? rangeText(range) : '—', h('small', null, `⛨×${e.mult}`)];
       case 'finisher':
@@ -283,6 +303,10 @@ function effectValue(effects: Effect[], range: DamageRange | null): Child[] {
         return [`${e.amount}`, h('small', null, 'вдогонку')];
       case 'enchant':
         return [statusIcon('enchant', 18), ` ${e.value}`];
+      case 'amplify':
+        return [statusIcon(e.status, 18), ` ×${e.mult}`];
+      case 'blockBurst':
+        return [range ? rangeText(range) : '0', h('small', null, 'всем')];
       default:
         continue;
     }
@@ -386,12 +410,16 @@ export function actionSpecs(app: App): TileSpec[] {
     const breakEff = effects.find((e) => e.type === 'breakBlock');
     const finEff = effects.find((e) => e.type === 'finisher');
     const chainEff = effects.find((e) => e.type === 'chain');
+    const scorchEff = effects.find((e) => e.type === 'scorch');
     let kind: 'hit' | 'spell' | 'dot' = 'hit';
     /** Разброс приёма: без цели — общий (плитка), с целью — по ней (ридаут): взрыв ран, пролом и прибавки по цели зависят от врага. */
     const rangeOn = (t?: number): DamageRange | null => {
       const e = t === undefined ? undefined : findEnemy(b, t);
       if (atkEff && atkEff.type === 'attack') {
-        const r = atkRangeOn(atkEff.bonus, atkEff.mult ?? 1, !!atkEff.sureCrit, t, atkEff.lowHp);
+        // Око за око и Кара (v0.47): прибавка от хода боя; Раскол — множитель по оцепеневшей цели.
+        const extra = attackExtra(b.hero, atkEff);
+        const shatter = atkEff.vsFrozen && e && e.statuses.some((st) => st.id === 'frozen') ? atkEff.vsFrozen : 1;
+        const r = atkRangeOn(atkEff.bonus + extra.revenge + extra.smite, (atkEff.mult ?? 1) * shatter, !!atkEff.sureCrit, t, atkEff.lowHp);
         // Вскрытие: удар плюс взрыв крови на цели — на плитке только удар, по цели вместе.
         if (detEff && detEff.type === 'detonate' && e) {
           const burst = Math.floor(remainingDot(e, detEff.statuses) * detEff.mult);
@@ -419,6 +447,18 @@ export function actionSpecs(app: App): TileSpec[] {
         return { min: dmg, max: dmg };
       }
       if (chainEff && chainEff.type === 'chain') return { min: chainEff.amount, max: chainEff.amount };
+      const burstEff = effects.find((x) => x.type === 'blockBurst');
+      if (burstEff && burstEff.type === 'blockBurst') {
+        // Обвал щита: доля всего блока каждому врагу.
+        const dmg = Math.floor(b.hero.block * burstEff.pct);
+        return { min: dmg, max: dmg };
+      }
+      if (scorchEff && scorchEff.type === 'scorch') {
+        // Испепеление: Горение цели × mult, мимо блока; на плитке — по первому горящему.
+        const tgt = e ?? b.enemies.find((x) => x.statuses.some((st) => st.id === 'burn'));
+        const dmg = Math.floor((tgt?.statuses.find((st) => st.id === 'burn')?.value ?? 0) * scorchEff.mult);
+        return { min: dmg, max: dmg };
+      }
       if (spellEff && spellEff.type === 'spell') {
         let dmg = spellEff.amount + b.hero.stats.spellPower;
         // «Раздуть» и удвоение по Слабому — только когда цель известна.
@@ -431,7 +471,7 @@ export function actionSpecs(app: App): TileSpec[] {
     };
     const range = rangeOn();
     // Взрыв ран бьёт мимо блока, как рана; пролом — по уже снятому блоку: штриховка без вычета блока.
-    if ((detEff && !atkEff) || breakEff) kind = 'dot';
+    if ((detEff && !atkEff) || breakEff || scorchEff) kind = 'dot';
     const kindOn = (t?: number): 'hit' | 'spell' | 'dot' => {
       rangeOn(t);
       return kind;
@@ -490,7 +530,7 @@ export function battleScreen(app: App): HTMLElement {
   );
 
   const canSummon = b.hero.artifacts.some((inst) => artifactDef(inst.id).effects?.(inst.tier).some((e) => e.type === 'summon'));
-  const enemiesAttack = b.enemies.some((e) => computeIntent(e).kind === 'attack');
+  const enemiesAttack = b.enemies.some((e) => computeIntent(e, b).kind === 'attack');
   const ghosts = canSummon && b.phase !== 'won' && b.phase !== 'lost' ? Array.from({ length: MAX_ALLIES - b.allies.length }, summonGhost) : [];
   const allyZone = h('div', { class: 'ally-zone' }, ...b.allies.map((a, i) => allyView(b, a, i === 0 && enemiesAttack)), ...ghosts);
   const enemyZone = h('div', { class: 'enemy-zone' }, ...b.enemies.map((e) => enemyView(app, e)));

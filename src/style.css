@@ -453,6 +453,54 @@ p {
 .room-preview .room-boss {
   color: var(--bad);
 }
+/* Порог локации (v0.48): две карточки испытаний. */
+.threshold h2 {
+  margin: 0 0 2px;
+}
+.threshold > p {
+  margin: 0 0 8px;
+}
+.trial-cards {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+}
+.trial-card {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #0d0d18e6;
+  border: 2px solid #55557a;
+  min-width: 0;
+}
+.trial-card .trial-glyph {
+  font-size: 28px;
+  color: var(--accent);
+  line-height: 1;
+}
+.trial-card .trial-name {
+  font-size: 22px;
+  color: var(--accent);
+}
+.trial-card .trial-desc {
+  font-size: 18px;
+}
+.trial-card .trial-hint {
+  font-size: 16px;
+  flex: 1;
+}
+.trial-card button {
+  align-self: flex-start;
+}
+.trial-chip {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid #55557a;
+  color: var(--accent);
+  cursor: help;
+}
 
 /* ─── Панель героя ───────────────────────────────────────────────────── */
 
@@ -1238,6 +1286,41 @@ p {
 }
 .field.crowded .enemy .name {
   max-width: 120px;
+}
+/* Роль врага (v0.46): значок перед именем, щит — «под прикрытием стража». */
+.role-marks {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 4px;
+  vertical-align: baseline;
+}
+.role-mark {
+  display: inline-block;
+  min-width: 14px;
+  font-size: 15px;
+  color: var(--dim);
+  cursor: help;
+}
+.role-mark.role-guard,
+.role-mark.covered {
+  color: #8fb8ff;
+}
+.role-mark.role-brute {
+  color: #ff9f6b;
+}
+.role-mark.role-shooter,
+.role-mark.role-caster {
+  color: #c9a0ff;
+}
+.role-mark.role-support {
+  color: var(--good);
+}
+.beast-role {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin: 4px 0 2px;
+  font-size: 17px;
 }
 .rank-boss .name {
   color: var(--bad);
@@ -2999,4 +3082,159 @@ p {
   border: 2px solid var(--border);
   padding: 0 8px;
   line-height: 24px;
+}
+
+/* ─── Архетипы и переплавка (v0.43) ─────────────────────────────────── */
+
+/* Метки архетипов в шапке карточки: значки цветом архетипа, суть и пороги набора — в подсказке. */
+.tag-badges {
+  display: inline-flex;
+  gap: 2px;
+  font-size: 18px;
+  flex: none;
+  cursor: help;
+}
+/* Счётчики наборов в листе персонажа: одна строка, сработавший порог — ярче. */
+.set-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 16px;
+}
+.set-counter {
+  opacity: 0.7;
+  cursor: help;
+}
+.set-counter.on {
+  opacity: 1;
+  text-shadow: 0 0 4px currentColor;
+}
+/* Строка переплавки в модалке выбора сокета: подпись и кнопки целей. */
+.smelt-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 16px;
+}
+
+/* ─── Черты и врождённый навык (v0.44) ──────────────────────────────── */
+
+.preview-trait {
+  font-size: 16px;
+  line-height: 1.1;
+  color: var(--text);
+}
+.trait-name {
+  color: var(--accent);
+}
+/* Чип врождённого навыка справа от имени в блоке героя. */
+.c-innate {
+  margin-left: auto;
+  flex: none;
+}
+.c-innate .chip {
+  width: 30px;
+  height: 30px;
+}
+.sheet-innate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  line-height: 1.05;
+  cursor: help;
+}
+.sheet-innate .chip {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+/* v0.44: навык, черта и наборы добавили строк — блоки листа держат свою высоту, прокручиваются только статы. */
+.sheet-left > * {
+  flex: none;
+}
+.sheet-left > .sheet-stats {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* ─── Мастерство (v0.45) ─────────────────────────────────────────────── */
+
+/* Всплывающая строка поверх экрана: открытый набором артефакт. */
+.toast {
+  position: absolute;
+  left: 50%;
+  top: 52px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  font-size: 18px;
+  z-index: 50;
+  pointer-events: none;
+}
+/* Выбор черты и стартового оружия на экране героя: чипы в строку. */
+.pick-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: 15px;
+}
+.pick-chip {
+  font: inherit;
+  font-size: 15px;
+  padding: 0 6px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.pick-chip.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pick-chip.off {
+  opacity: 0.5;
+  cursor: help;
+}
+.mastery-line {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  line-height: 1.1;
+  cursor: help;
+}
+.mastery-head {
+  color: var(--accent);
+}
+.mastery-bar {
+  height: 6px;
+  background: var(--border);
+  margin: 2px 0;
+}
+.mastery-fill {
+  height: 100%;
+  background: var(--accent);
+}
+.mastery-next {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mastery-note {
+  font-size: 17px;
+  color: var(--accent);
+  line-height: 1.15;
+  text-align: center;
+}
+.coll-tile.sealed .coll-name {
+  opacity: 0.7;
 }

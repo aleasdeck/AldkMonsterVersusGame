@@ -4,7 +4,9 @@ import { potionDef } from '../data/potions';
 import { canUseAction } from '../engine/combat';
 import { heroStats } from '../engine/run';
 import type { PlayerAction } from '../engine/types';
-import { bar, potionChip, potionTitle, segBar } from './components';
+import { artifactChip, bar, potionChip, potionTitle, segBar } from './components';
+import { innateOf } from '../engine/stats';
+import { traitDef } from '../data/traits';
 import { gearTile } from './gearTile';
 import { heroAvatar } from './heroSprite';
 import { bindPreview } from './preview';
@@ -57,6 +59,10 @@ export function heroBlock(app: App): HTMLElement {
   const maxSta = b ? b.hero.maxSta : s.sta;
   const mp = b ? b.hero.mp : s.maxMp;
   const maxMp = b ? b.hero.maxMp : s.maxMp;
+  // Врождённый навык и черта (v0.44): навык — чипом справа от имени, черта — подсказкой на имени.
+  const innate = innateOf(run.hero);
+  const trait = run.hero.trait ? traitDef(run.hero.trait) : null;
+  const level = run.hero.innateTier ?? 1;
   return h(
     'div',
     { class: 'c-hero' },
@@ -67,9 +73,10 @@ export function heroBlock(app: App): HTMLElement {
       h(
         'div',
         { class: 'c-hero-title' },
-        h('div', { class: 'name' }, def.name),
+        h('div', { class: 'name', tip: trait ? `Черта «${trait.name}»: ${trait.describe(level)}` : '' }, def.name),
         h('button', { class: 'link', onclick: () => app.toggleSheet(), tip: 'Статы, экипировка, умения (C)' }, 'Персонаж ›'),
       ),
+      innate ? h('div', { class: 'c-innate', tip: 'Врождённый навык: не занимает сокет, уровень растёт с каждой локацией' }, artifactChip(innate)) : null,
     ),
     bar('hp', hp, maxHp, 'HP', b && b.hero.block > 0 ? `Блок ${b.hero.block}: первые ${b.hero.block} урона удара уйдут в него, сгорает в начале следующего хода` : '', b?.hero.block ?? 0),
     segBar('sta', sta, maxSta),

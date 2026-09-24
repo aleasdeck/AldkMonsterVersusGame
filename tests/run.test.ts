@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { HERO_LIST, SIGNATURE_OWNER, heroDef } from '../src/data/heroes';
+import { HERO_LIST, SIGNATURE_OWNER } from '../src/data/heroes';
 import { runReport } from '../src/engine/report';
 import { GAME_VERSION } from '../src/engine/types';
 import { artifactDef } from '../src/data/artifacts';
-import { ACTS, ACT_DMG_BONUS, ACT_TOUGH_HP, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
+import { ACTS, ACT_DMG_BONUS, ACT_TOUGH_HP, BOSS_HEAL_PCT, EVENT_WEIGHTS, FIGHT_DMG_MULT, FIGHT_HP_MULT, FIGHTS_PER_RUN, LOCATIONS, ROOMS_PER_LOCATION, ROOM_KINDS, enemyScale, pickRunLocations } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
 import { createRng } from '../src/engine/rng';
-import { canUseAction } from '../src/engine/combat';
+import { canUseAction, performAction } from '../src/engine/combat';
 import {
+  advanceRoom,
   altarPray,
   altarSacrifice,
   battleAction,
@@ -555,6 +556,7 @@ describe('забег', () => {
 
   it('неподходящий сокет не принимает ожидающий артефакт: причина в canPendingPlace, pendingPlace ничего не делает', () => {
     const run = newRun('warrior', 11);
+    run.hero.weapon.slots = [{ id: 'crippling_shot', tier: 1 }];
     enterRoom(run);
     winCurrentBattle(run);
     // Стартовая кольчуга: один бронный сокет. Огненный шар — оружейный, ему туда нельзя.
@@ -565,11 +567,11 @@ describe('забег', () => {
     expect(pendingPlace(run, 'armor', 0)).toBe(false);
     expect(run.pending).not.toBeNull();
     expect(run.hero.armor.slots[0]).toBeNull();
-    // Оружейный сокет занят Щитовым ударом — замена разрешена, тип совпадает; вытесненный удар ждёт решения.
+    // Оружейный сокет занят Подсечным выстрелом — замена разрешена, тип совпадает; вытесненный ждёт решения.
     expect(canPendingPlace(run, 'weapon', 0)).toBeNull();
     expect(pendingPlace(run, 'weapon', 0)).toBe(true);
     expect(run.hero.weapon.slots[0]?.id).toBe('fireball');
-    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['shield_bash']);
+    expect(run.pending?.artifacts.map((a) => a.id)).toEqual(['crippling_shot']);
     pendingDiscard(run);
     expect(run.phase).toBe('map');
   });
@@ -886,21 +888,24 @@ describe('забег', () => {
   });
 
   it('враги масштабируются под акт, а не под родную локацию', () => {
-    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё +65 % надбавки акта
-    expect(enemyScale(1, 2).hp).toBeCloseTo(2.7);
-    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * ACT_DMG_BONUS[2]);
-    // враг пещер (tier 3) в первом акте — наоборот, тоньше, надбавка первого акта +40 %; боссы растут мягче рядовых
-    expect(enemyScale(3, 0).hp).toBeCloseTo(1 / 2.7);
-    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * ACT_DMG_BONUS[0]);
-    expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4);
-    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * ACT_DMG_BONUS[2]);
-    expect(enemyScale(2, 1).dmg).toBeCloseTo(ACT_DMG_BONUS[1]);
+    // Длина боя (v0.46): поверх акта HP ×FIGHT_HP_MULT и урон ×FIGHT_DMG_MULT — всем рангам одинаково.
+    const H = FIGHT_HP_MULT;
+    const D = FIGHT_DMG_MULT;
+    // крыса из леса (tier 1) в третьем акте — почти втрое толще, урон ×1,95 и ещё надбавка акта
+    expect(enemyScale(1, 2).hp).toBeCloseTo(2.7 * H);
+    expect(enemyScale(1, 2).dmg).toBeCloseTo(1.95 * ACT_DMG_BONUS[2] * D);
+    // враг пещер (tier 3) в первом акте — наоборот, тоньше; боссы растут мягче рядовых
+    expect(enemyScale(3, 0).hp).toBeCloseTo((1 / 2.7) * H);
+    expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * ACT_DMG_BONUS[0] * D);
+    expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4 * H);
+    expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * ACT_DMG_BONUS[2] * D);
+    expect(enemyScale(2, 1).dmg).toBeCloseTo(ACT_DMG_BONUS[1] * D);
     // v0.37.1: элита и босс первого акта толще на ACT_TOUGH_HP[0]; рядовых и поздних актов это не касается.
-    expect(enemyScale(1, 0, 'elite').hp).toBeCloseTo(ACT_TOUGH_HP[0]);
-    expect(enemyScale(1, 0, 'boss').hp).toBeCloseTo(ACT_TOUGH_HP[0]);
-    expect(enemyScale(1, 0).hp).toBeCloseTo(1);
-    expect(enemyScale(1, 1, 'elite').hp).toBeCloseTo(1.5);
-    expect(enemyScale(1, 0, 'elite').dmg).toBeCloseTo(ACT_DMG_BONUS[0]);
+    expect(enemyScale(1, 0, 'elite').hp).toBeCloseTo(ACT_TOUGH_HP[0] * H);
+    expect(enemyScale(1, 0, 'boss').hp).toBeCloseTo(ACT_TOUGH_HP[0] * H);
+    expect(enemyScale(1, 0).hp).toBeCloseTo(H);
+    expect(enemyScale(1, 1, 'elite').hp).toBeCloseTo(1.5 * H);
+    expect(enemyScale(1, 0, 'elite').dmg).toBeCloseTo(ACT_DMG_BONUS[0] * D);
     const run = newRun('warrior', 3);
     run.locations = ['ship', 'forest', 'swamp'];
     enterRoom(run);
@@ -943,20 +948,31 @@ describe('забег', () => {
 });
 
 describe('персональные артефакты', () => {
-  it('выпадают только владельцу: маг никогда не видит шашку, ассасин — видит', () => {
+  it('не выпадают никому (v0.44): выбранный — врождённый навык, невыбранный в забеге не нужен', () => {
     const rng = createRng(3);
     const mage = newRun('mage', 1).hero;
     const assassin = newRun('assassin', 1).hero;
-    const seen = new Set<string>();
     for (let i = 0; i < 400; i++) {
-      const a = rollArtifact(rng, mage, [1], []);
-      expect(SIGNATURE_OWNER[a!.id] ?? 'mage').toBe('mage');
-      seen.add(rollArtifact(rng, assassin, [1], [])!.id);
+      expect(SIGNATURE_OWNER[rollArtifact(rng, mage, [1], [])!.id]).toBeUndefined();
+      expect(SIGNATURE_OWNER[rollArtifact(rng, assassin, [1], [])!.id]).toBeUndefined();
     }
-    expect(seen.has('smoke_bomb')).toBe(true);
-    expect(seen.has('shield_bash')).toBe(false);
-    expect(canDropFor(mage, 'magic_missile')).toBe(true);
+    expect(canDropFor(mage, 'magic_missile')).toBe(false);
     expect(canDropFor(mage, 'rage')).toBe(false);
+    expect(canDropFor(mage, 'fireball')).toBe(true);
+  });
+
+  it('врождённый навык растёт с локацией: уровень = номер локации, в бою — плитка своего тира', () => {
+    const run = newRun('warrior', 1);
+    expect(run.hero.innateTier).toBe(1);
+    expect(run.hero.trait).toBe('stance');
+    run.roomIndex = ROOMS_PER_LOCATION - 1;
+    run.phase = 'reward';
+    advanceRoom(run);
+    expect(run.locationIndex).toBe(1);
+    expect(run.hero.innateTier).toBe(2);
+    enterRoom(run);
+    expect(run.battle!.hero.artifacts.find((a) => a.id === 'shield_bash')).toEqual({ id: 'shield_bash', tier: 2 });
+    expect(run.battle!.hero.innate).toBe('shield_bash');
   });
 
   it('v0.33: у каждого героя пара, забег начинается с выбранным, невыбранный не выпадает никому', () => {
@@ -969,23 +985,14 @@ describe('персональные артефакты', () => {
     expect(plain.hero.signature).toBe('shield_bash');
     const second = newRun('warrior', 1, 0, 'riposte');
     expect(second.hero.signature).toBe('riposte');
-    // Ответный удар бронный (v0.39.1): стартует в сокете кольчуги, сокет меча пуст.
+    // Навык вне сокетов (v0.44): оба стартовых сокета пусты, пассивка навыка — в статах.
     expect(second.hero.weapon.slots).toEqual([null]);
-    expect(second.hero.armor.slots).toEqual([{ id: 'riposte', tier: 1 }]);
-    expect(canDropFor(second.hero, 'riposte')).toBe(true);
-    expect(canDropFor(second.hero, 'shield_bash')).toBe(false);
-    expect(canDropFor(plain.hero, 'riposte')).toBe(false);
+    expect(second.hero.armor.slots).toEqual([null]);
+    expect(heroStats(second).riposte).toBe(45);
+    expect(canDropFor(second.hero, 'riposte')).toBe(false);
     expect(canDropFor(plain.hero, 'crippling_shot')).toBe(true);
     expect(() => newRun('warrior', 1, 0, 'rage')).toThrow(/Not a signature/);
-    // Бронная сигнатура стартует в броне, оружие пустое.
-    const pal = newRun('paladin', 1, 0, 'vengeance_halo');
-    expect(pal.hero.weapon.slots).toEqual([null]);
-    expect(pal.hero.armor.slots).toEqual([{ id: 'vengeance_halo', tier: 1 }]);
-    const rng = createRng(5);
-    for (let i = 0; i < 300; i++) {
-      const a = rollArtifact(rng, second.hero, [1], []);
-      expect(a!.id).not.toBe('shield_bash');
-    }
+    expect(() => newRun('warrior', 1, 0, 'shield_bash', 'charge')).toThrow(/Not a trait/);
   });
 });
 
@@ -1074,7 +1081,8 @@ describe('статистика забега (report.ts)', () => {
     expect(r.maxHp).toBe(heroStats(run).maxHp);
     expect(r.weapon).toBe(`${run.hero.weapon.base}@${run.hero.weapon.tier}`);
     expect(r.armor).toBe(`${run.hero.armor.base}@${run.hero.armor.tier}`);
-    expect(r.artifacts).toBe(`${heroDef('mage').signatures[0]}@1`);
+    // Навык вне сокетов (v0.44): в колонке артефактов только сокеты, навык — в signature.
+    expect(r.artifacts).toBe('');
     expect(r.signature).toBe('magic_missile');
     expect(r.potion).toBe('');
     expect(r.duration).toBe(30);
@@ -1133,7 +1141,7 @@ describe('статистика забега (report.ts)', () => {
     expect(r.damageDealt).toBe(37);
     expect(r.damageTaken).toBe(19);
     expect(r.hp).toBe(0);
-    expect(r.detail.battles).toEqual([{ title: battleTitle(run), result: 'lost', turns: 4 }]);
+    expect(r.detail.battles).toEqual([{ title: battleTitle(run), kind: 'fight', result: 'lost', turns: 4 }]);
     expect(r.detail.stats.kills).toBe(2);
     // Те же цифры, что и у записи после кнопки: клик ничего не добавляет и не теряет.
     finishBattle(run);
@@ -1150,6 +1158,32 @@ describe('статистика забега (report.ts)', () => {
     expect(r.battles).toBe(1);
     expect(r.turns).toBe(3);
     expect(r.damageDealt).toBe(12);
-    expect(r.detail.battles).toEqual([{ title: battleTitle(run), result: 'unfinished', turns: 3 }]);
+    expect(r.detail.battles).toEqual([{ title: battleTitle(run), kind: 'fight', result: 'unfinished', turns: 3 }]);
+  });
+
+  it('доля урона от удара (v0.42): закрытые бои и незакрытый складываются, перебор не считается', () => {
+    const run = newRun('warrior', 3, 1_000_000);
+    enterRoom(run);
+    const b = run.battle!;
+    // Удар по первому врагу засчитывается удару — не больше его остатка HP.
+    const target = b.enemies[0];
+    target.hp = 2;
+    performAction(b, { type: 'attack', target: target.uid }, run.rng);
+    expect(b.dealtBy.attack).toBe(2);
+    b.dealtBy.dot = 6;
+    const r = runReport(run, { ...ctx, event: 'abandoned' });
+    expect(r.detail.dealt).toEqual({ attack: 2, dot: 6 });
+    expect(r.attackShare).toBe(25);
+  });
+
+  it('лог боя хранит вид клетки и разбор урона (v0.42)', () => {
+    const run = newRun('warrior', 3, 1_000_000);
+    enterRoom(run);
+    const b = run.battle!;
+    b.dealtBy = { attack: 10, shield_bash: 5 };
+    b.phase = 'won';
+    finishBattle(run);
+    expect(run.logs[0].kind).toBe('fight');
+    expect(run.logs[0].dealt).toEqual({ attack: 10, shield_bash: 5 });
   });
 });

@@ -1,12 +1,14 @@
-import type { ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
-import { SAVE_VERSION } from './types';
-import { chance, createRng, pick } from './rng';
+import type { ArchetypeId, ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
+import { MAX_ENEMIES, SAVE_VERSION } from './types';
+import { chance, createRng, pick, shuffle } from './rng';
 import { defaultSignature, heroDef } from '../data/heroes';
 import { makeStartingGear, upgradeGearTier } from '../data/gear';
 import { ACTS, ACTS_PER_RUN, BOSS_HEAL_PCT, ROOMS_PER_LOCATION, ROOM_NAMES, locationDef, pickRunLocations, roomKind, type ActDef, type LocationDef } from '../data/locations';
 import { createBattle, endTurn, enemyStep, performAction } from './combat';
-import { computeStats } from './stats';
-import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs } from './equipment';
+import { computeStats, heroStatsOf, innateOf } from './stats';
+import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs, type SocketRef } from './equipment';
+import { activeSets, archetypeCounts, artifactTags } from '../data/archetypes';
+import { trialsOf } from '../data/trials';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
@@ -45,19 +47,35 @@ export function randomSeed(): number {
  * `now` — момент старта; тесты и симулятор могут подставить свой, чтобы состояние не зависело от часов.
  * `signature` — с каким из пары персональных артефактов начать (по умолчанию первый); чужой id — ошибка.
  */
-export function newRun(heroId: string, seed: number = randomSeed(), now: number = Date.now(), signature: string = defaultSignature(heroDef(heroId))): RunState {
+/** Что задаёт мастерство (v0.45): закрытые артефакты и вариант стартового оружия. */
+export interface RunOpts {
+  locked?: string[];
+  start?: string;
+  /** Испытания локаций (v0.48): игра и бот включают, тесты движка по умолчанию играют без них. */
+  trials?: boolean;
+}
+
+export function newRun(
+  heroId: string,
+  seed: number = randomSeed(),
+  now: number = Date.now(),
+  signature: string = defaultSignature(heroDef(heroId)),
+  trait: string = heroDef(heroId).traits[0],
+  opts: RunOpts = {},
+): RunState {
   const def = heroDef(heroId);
   if (!def.signatures.includes(signature)) throw new Error(`Not a signature of ${heroId}: ${signature}`);
-  const gear = makeStartingGear(def, signature);
-  const stats = computeStats(def, gear.weapon, gear.armor);
+  if (!def.traits.includes(trait)) throw new Error(`Not a trait of ${heroId}: ${trait}`);
+  const gear = makeStartingGear(def, opts.start);
+  const stats = computeStats(def, gear.weapon, gear.armor, { innate: { id: signature, tier: 1 }, trait });
   const rng = createRng(seed);
-  return {
+  const run: RunState = {
     version: SAVE_VERSION,
     seed,
     debug: false,
     reported: false,
     rng,
-    hero: { defId: heroId, signature, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
+    hero: { defId: heroId, signature, innateTier: 1, trait, locked: opts.locked ?? [], start: gear.weapon.base, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
     gold: START_GOLD,
     locations: pickRunLocations(rng),
     locationIndex: 0,
@@ -70,7 +88,43 @@ export function newRun(heroId: string, seed: number = randomSeed(), now: number 
     pending: null,
     stats: { kills: 0, turns: 0, damageDealt: 0, damageTaken: 0, roomsCleared: 0, startedAt: now, finishedAt: 0 },
     logs: [],
+    setsReached: [],
+    bossSets: [],
+    trials: !!opts.trials,
+    trial: null,
+    trialOffer: [],
+    trialLog: [],
   };
+  if (run.trials) offerTrials(run);
+  return run;
+}
+
+// ─── Испытания локаций (v0.48) ─────────────────────────────────────────────
+
+/** Два случайных испытания из трёх испытаний локации: выбор обязателен до первой клетки. */
+export function offerTrials(run: RunState): void {
+  const pool = trialsOf(currentLocation(run).id).map((t) => t.id);
+  run.trial = null;
+  run.trialOffer = shuffle(run.rng, pool).slice(0, 2);
+}
+
+/** Ждёт ли забег выбора испытания: пока не выбрано, в клетку не войти. */
+export function awaitsTrial(run: RunState): boolean {
+  return run.trials && run.trial === null && run.trialOffer.length > 0;
+}
+
+export function canChooseTrial(run: RunState, id: string): string | null {
+  if (!awaitsTrial(run)) return 'Испытание уже выбрано';
+  if (!run.trialOffer.includes(id)) return 'Этого испытания нет в предложении';
+  return null;
+}
+
+export function chooseTrial(run: RunState, id: string): boolean {
+  if (canChooseTrial(run, id)) return false;
+  run.trial = id;
+  run.trialOffer = [];
+  run.trialLog.push(id);
+  return true;
 }
 
 /** Локация по номеру акта в этом забеге. */
@@ -97,7 +151,7 @@ export function effectiveRoomKind(run: RunState): RoomKind {
 }
 
 export function heroStats(run: RunState): DerivedStats {
-  return computeStats(heroDef(run.hero.defId), run.hero.weapon, run.hero.armor);
+  return heroStatsOf(heroDef(run.hero.defId), run.hero);
 }
 
 export function isRunOver(run: RunState): boolean {
@@ -114,7 +168,7 @@ function syncMaxHp(run: RunState, before: number): void {
 // ─── Комнаты ───────────────────────────────────────────────────────────────
 
 export function enterRoom(run: RunState): void {
-  if (run.phase !== 'map') return;
+  if (run.phase !== 'map' || awaitsTrial(run)) return;
   const kind = currentRoomKind(run);
   if (kind === 'event') {
     startEvent(run, rollEventKind(run.rng));
@@ -137,9 +191,31 @@ function startBattle(run: RunState, kind: 'fight' | 'elite' | 'boss'): void {
       : kind === 'elite'
         ? loc.encounters.elite
         : loc.encounters.boss;
-  const ids = pick(run.rng, table);
-  run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng, run.locationIndex);
+  let ids = pick(run.rng, table);
+  // «Стая» и «Кладка» (v0.48): лишний противник в каждом бою, кроме босса.
+  const extra = run.trial === 'pack' ? 'wolf' : run.trial === 'clutch' ? 'egg_cluster' : null;
+  if (extra && kind !== 'boss' && ids.length < MAX_ENEMIES) ids = [...ids, extra];
+  run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng, run.locationIndex, run.trial);
   run.phase = 'battle';
+  noteSets(run);
+}
+
+/**
+ * Набор 3/3 засчитывается, как только сработал (v0.45): в бой герой вошёл с тремя вещами архетипа — достижение забега.
+ * Засчитывается и в проигранном забеге.
+ */
+function noteSets(run: RunState): void {
+  for (const arch of fullSets(run)) if (!run.setsReached.includes(arch)) run.setsReached.push(arch);
+}
+
+/** Архетипы, у которых сейчас сработал набор 3/3: вставленные артефакты и навык героя. */
+export function fullSets(run: RunState): ArchetypeId[] {
+  const arts = socketRefs(run.hero).flatMap((r) => (r.art ? [r.art] : []));
+  const innate = innateOf(run.hero);
+  if (innate) arts.push(innate);
+  return activeSets(archetypeCounts(arts))
+    .filter((s) => s.count >= 3 && s.arch.sets[3])
+    .map((s) => s.arch.id);
 }
 
 /**
@@ -199,6 +275,12 @@ export function advanceRoom(run: RunState): void {
     }
     run.locationIndex += 1;
     run.roomIndex = 0;
+    // Врождённый навык растёт с каждой локацией (v0.44): уровень — номер локации.
+    const before = heroStats(run).maxHp;
+    run.hero.innateTier = Math.min(3, run.locationIndex + 1) as ArtifactInstance['tier'];
+    syncMaxHp(run, before);
+    // Новая локация — новые испытания.
+    if (run.trials) offerTrials(run);
   }
   run.phase = 'map';
 }
@@ -235,7 +317,7 @@ export function finishBattle(run: RunState): void {
   run.stats.turns += b.turn;
   run.stats.damageDealt += b.stats.damageDealt;
   run.stats.damageTaken += b.stats.damageTaken;
-  run.logs.push({ title: battleTitle(run), result: b.phase === 'won' && b.fled ? 'fled' : b.phase, turns: b.turn, lines: b.log.slice() });
+  run.logs.push({ title: battleTitle(run), kind: effectiveRoomKind(run), result: b.phase === 'won' && b.fled ? 'fled' : b.phase, turns: b.turn, dealt: { ...b.dealtBy }, lines: b.log.slice() });
   if (b.phase === 'lost') {
     run.hero.hp = 0;
     run.battle = null;
@@ -261,6 +343,8 @@ export function finishBattle(run: RunState): void {
   run.battle = null;
   run.gold += goldReward(kind);
   if (kind === 'boss') {
+    // Достижение «босс с набором 3/3» (v0.45): набор, с которым герой закончил бой с боссом.
+    for (const arch of fullSets(run)) if (!run.bossSets.includes(arch)) run.bossSets.push(arch);
     // Привала после босса нет: герой сразу подлечивается и идёт дальше. Сколько дало — подписью на трофее.
     const heal = bossHealAmount(run);
     run.hero.hp += heal;
@@ -482,6 +566,41 @@ export function pendingPlace(run: RunState, kind: GearKind, index: number): bool
     p.artifacts.push(removed);
     p.displaced = [...(p.displaced ?? []), removed.id];
   }
+  p.cancellable = false;
+  syncMaxHp(run, before);
+  finishPendingStep(run);
+  return true;
+}
+
+// ─── Переплавка (v0.43) ─────────────────────────────────────────────────────
+// docs/plan-reworka.md §2.5: к середине второго акта сокеты полны, и находку было некуда деть. Лишний артефакт
+// переплавляется в тир другому — того же архетипа (общая вещь — любому). Рюкзака и новой траты золота нет.
+
+/** Куда можно переплавить артефакт: вставленные не на максимуме, с общей меткой архетипа; у общей вещи — любые. */
+export function smeltTargets(run: RunState, id: string): SocketRef[] {
+  const tags = artifactTags(id);
+  return socketRefs(run.hero).filter((s) => s.art && s.art.tier < 3 && s.art.id !== id && (tags.length === 0 || artifactTags(s.art.id).some((t) => tags.includes(t))));
+}
+
+/** Почему ожидающий артефакт нельзя переплавить в этот сокет; null — можно. */
+export function canPendingSmelt(run: RunState, kind: GearKind, index: number): string | null {
+  const art = run.pending?.artifacts[0];
+  if (!art) return 'Нечего переплавлять';
+  const target = gearOf(run.hero, kind).slots[index];
+  if (!target) return 'Сокет пуст';
+  if (target.tier >= 3) return 'Уже максимальный тир';
+  if (!smeltTargets(run, art.id).some((s) => s.kind === kind && s.index === index)) return 'Нет общего архетипа';
+  return null;
+}
+
+/** Переплавить ожидающий артефакт: он пропадает, артефакт в сокете получает +1 тир. Отменить после этого нельзя. */
+export function pendingSmelt(run: RunState, kind: GearKind, index: number): boolean {
+  const p = run.pending;
+  if (!p || p.artifacts.length === 0 || canPendingSmelt(run, kind, index)) return false;
+  const before = heroStats(run).maxHp;
+  p.artifacts.shift();
+  const target = gearOf(run.hero, kind).slots[index]!;
+  target.tier = (target.tier + 1) as ArtifactInstance['tier'];
   p.cancellable = false;
   syncMaxHp(run, before);
   finishPendingStep(run);

@@ -1,7 +1,5 @@
-import type { ArmorType, ArtifactInstance, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, SlotKind, StatMods, WeaponReach, WeaponType } from '../engine/types';
+import type { ArmorType, DerivedStats, FxSpec, GearAffix, GearInstance, GearKind, GearTier, HeroDef, SlotKind, StatMods, WeaponReach, WeaponType } from '../engine/types';
 import { chance, pick, weighted, type Rng } from '../engine/rng';
-import { artifactDef } from './artifacts';
-import { defaultSignature } from './heroes';
 
 type ByTier = [number, number, number, number, number];
 
@@ -806,21 +804,26 @@ export function upgradePreview(gear: GearInstance): string {
  * чей сокет его принимает (v0.31): пять сигнатур — в оружие, Дымовая шашка Ассасина — в покров.
  */
 /** Стартовые оружие и броня героя: выбранный персональный артефакт (по умолчанию первый из пары) в предмете своего типа. */
-export function makeStartingGear(def: HeroDef, signature: string = defaultSignature(def)): { weapon: GearInstance; armor: GearInstance } {
-  const sig: ArtifactInstance = { id: signature, tier: 1 };
-  const inWeapon = artifactDef(signature).slot === 'weapon';
+/**
+ * Стартовое снаряжение героя: оба сокета пусты (v0.44) — персональный артефакт стал врождённым навыком и сокет не занимает,
+ * первая находка встаёт сразу.
+ */
+export function makeStartingGear(def: HeroDef, start?: string): { weapon: GearInstance; armor: GearInstance } {
+  // Вариант стартового оружия (мастерство 5, v0.45): база из пула тира 1, кубик — по её весу и разбросу.
+  const alt = start && start !== def.weapon.base ? baseOf('weapon', start) : null;
+  const dice = alt ? baseDamage(alt, 1) : { min: def.weapon.dmgMin, max: def.weapon.dmgMax };
   return {
     weapon: {
       kind: 'weapon',
       tier: 1,
-      base: def.weapon.base,
-      name: def.weapon.name,
-      dmgMin: def.weapon.dmgMin,
-      dmgMax: def.weapon.dmgMax,
+      base: alt ? alt.id : def.weapon.base,
+      name: alt ? alt.name.charAt(0).toUpperCase() + alt.name.slice(1) : def.weapon.name,
+      dmgMin: dice.min,
+      dmgMax: dice.max,
       def: 0,
       hp: 0,
       affix: null,
-      slots: [inWeapon ? sig : null],
+      slots: [null],
       slotKinds: ['weapon'],
     },
     armor: {
@@ -833,8 +836,7 @@ export function makeStartingGear(def: HeroDef, signature: string = defaultSignat
       def: def.armor.def,
       hp: def.armor.hp,
       affix: null,
-      // Второй стартовый артефакт убран (v0.14): пустой сокет ждёт первую находку.
-      slots: [inWeapon ? null : sig],
+      slots: [null],
       slotKinds: ['armor'],
     },
   };

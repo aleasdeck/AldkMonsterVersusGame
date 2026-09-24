@@ -254,8 +254,9 @@ export function playEnemyClip(root: HTMLElement, target: EventTarget, clip: Enem
 
 /** Момент контакта в ближнем бою или выпуска стрелы; полёт добавляется в плане fx. */
 export function playEnemyAction(root: HTMLElement, target: EventTarget, name: string): number {
-  const clip = name === 'Удар мечом' ? 'attack' : name === 'Блок' ? 'block' : name === 'Выстрел' ? 'shoot' : name === 'Залп' ? 'volley'
-    : name === 'Тёмная стрела' ? 'bolt' : name === 'Поднять скелета' ? 'summon' : name === 'Проклятие' ? 'curse' : null;
+  // v0.46: удар после замаха («Раскол»), добивание стрелой и мана-пиявка некроманта играют те же клипы, что основной приём.
+  const clip = name === 'Удар мечом' || name === 'Раскол' ? 'attack' : name === 'Блок' ? 'block' : name === 'Выстрел' || name === 'Стрела в спину' ? 'shoot' : name === 'Залп' ? 'volley'
+    : name === 'Тёмная стрела' || name === 'Похищение души' ? 'bolt' : name === 'Поднять скелета' ? 'summon' : name === 'Проклятие' ? 'curse' : null;
   if (!clip || !playEnemyClip(root, target, clip)) return 0;
   if (clip === 'shoot' || clip === 'volley') return ARCHER_RELEASE;
   if (clip === 'bolt' || clip === 'summon' || clip === 'curse') return NECROMANCER_RELEASE[clip];

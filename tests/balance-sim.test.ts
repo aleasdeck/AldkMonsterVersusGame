@@ -2,13 +2,15 @@
  * Симуляция баланса: бот проходит забеги за каждого героя и печатает статистику.
  * Запуск: SIM=1 npx vitest run tests/balance-sim.test.ts  (по умолчанию пропускается)
  * SIM_HERO=berserk — один герой, SIM_N=300 — число забегов, SIM_LOCS=caves,caves,caves — локации по актам,
- * SIM_SIG=2 — второй персональный артефакт у всех героев (1 — первый, по умолчанию).
+ * SIM_SIG=2 — второй персональный артефакт у всех героев (1 — первый, по умолчанию), SIM_POOL=base — стартовый пул новичка без закрытых мастерством вещей,
+ * SIM_TRIALS=0 — без испытаний локаций.
  * Сам бот — в tests/sim/bot.ts: планирует ход перебором на копии состояния, вне боя считает ценность предметов.
  */
 import { it } from 'vitest';
 import { HERO_LIST } from '../src/data/heroes';
 import { POTION_IDS } from '../src/data/potions';
 import { heroStats, newRun } from '../src/engine/run';
+import { LOCKED } from '../src/data/mastery';
 import { USES, playRun } from './sim/bot';
 import type { RunState } from '../src/engine/types';
 
@@ -21,6 +23,10 @@ const ONLY = env.SIM_HERO;
 const LOCS = env.SIM_LOCS?.split(',').filter(Boolean) as RunState['locations'] | undefined;
 /** SIM_SIG=1|2 — с каким персональным артефактом из пары начинать. */
 const SIG = env.SIM_SIG === '2' ? 1 : 0;
+/** SIM_POOL=base — стартовый пул новичка (v0.45): все закрытые мастерством артефакты закрыты. По умолчанию — полный пул. */
+const LOCKED_POOL = env.SIM_POOL === 'base' ? Object.keys(LOCKED) : [];
+/** SIM_TRIALS=0 — без испытаний локаций (v0.48); по умолчанию бот выбирает их, как игрок. */
+const TRIALS = env.SIM_TRIALS !== '0';
 
 for (const hero of HERO_LIST) {
   // Отдельный it на героя: между ними vitest успевает отчитаться воркеру, иначе долгий прогон падает по таймауту RPC.
@@ -35,7 +41,7 @@ for (const hero of HERO_LIST) {
     const byLoc: Record<string, number> = {};
     const bossHp: number[][] = [[], [], []];
     for (let seed = 1; seed <= N; seed++) {
-      const run = newRun(hero.id, seed * 7919, undefined, hero.signatures[SIG]);
+      const run = newRun(hero.id, seed * 7919, undefined, hero.signatures[SIG], undefined, { locked: LOCKED_POOL, trials: TRIALS });
       if (LOCS) run.locations = LOCS;
       const outcome = playRun(run, (r) => bossHp[r.locationIndex].push(r.hero.hp / heroStats(r).maxHp));
       if (outcome === 'victory') wins++;

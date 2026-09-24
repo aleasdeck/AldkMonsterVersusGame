@@ -17,12 +17,13 @@ import type {
 } from './types';
 import { chance, pick, shuffle, weighted, type Rng } from './rng';
 import { ARTIFACT_IDS, artifactCost, artifactDef } from '../data/artifacts';
+import { artifactTags } from '../data/archetypes';
 import { makeGear } from '../data/gear';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { EVENT_WEIGHTS, type ActDef } from '../data/locations';
 import { POTION_IDS, potionDef } from '../data/potions';
 import { isMaxed, socketRefs } from './equipment';
-import { computeStats } from './stats';
+import { heroStatsOf, innateOf } from './stats';
 
 const ARTIFACT_CHANCE = 0.55;
 
@@ -35,7 +36,7 @@ export const SHOP_POTION_PRICE = 4;
 
 /** Случайное зелье под героя: зелье маны не выпадает тому, у кого маны нет. */
 export function rollPotion(rng: Rng, hero: HeroPersistent): string {
-  const hasMp = computeStats(heroDef(hero.defId), hero.weapon, hero.armor).maxMp > 0;
+  const hasMp = heroStatsOf(heroDef(hero.defId), hero).maxMp > 0;
   const ids = POTION_IDS.filter((id) => hasMp || !potionDef(id).needsMp);
   return pick(rng, ids);
 }
@@ -104,12 +105,19 @@ function bump<T extends number>(tiers: T[], max: T): T[] {
 }
 
 /**
- * Может ли артефакт выпасть герою: персональные — только владельцу и только тот, с которым забег начат
- * (дубликат апгрейдит, выброшенный находится снова); невыбранный из пары в этом забеге не выпадает никому.
+ * Может ли артефакт выпасть герою: персональные не выпадают никому (v0.44) — выбранный стал врождённым навыком
+ * героя с уровнем по локации, невыбранный в этом забеге не нужен.
  */
 export function canDropFor(hero: HeroPersistent, id: string): boolean {
-  const owner = SIGNATURE_OWNER[id];
-  return !owner || (owner === hero.defId && id === hero.signature);
+  // Закрытые мастерством вещи (v0.45) не выпадают, пока их не откроют.
+  return !SIGNATURE_OWNER[id] && !hero.locked?.includes(id);
+}
+
+/** Вещи героя, которые тянут дроп и связки: вставленные артефакты и врождённый навык. */
+function heroArts(hero: HeroPersistent): string[] {
+  const ids = socketRefs(hero).flatMap((ref) => (ref.art ? [ref.art.id] : []));
+  const innate = innateOf(hero);
+  return innate ? [...ids, innate.id] : ids;
 }
 
 // ─── Сходимость дропа (v0.40) ──────────────────────────────────────────────
@@ -123,7 +131,7 @@ const DUPLICATE_WEIGHT = 3;
 const SYNERGY_WEIGHT = 3;
 
 /** Проклятия, которые читает «Резонанс»: он платит за любое из них, поэтому дружит с любой заводкой. */
-const ALL_DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable'];
+const ALL_DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen'];
 
 /** Какие статусы артефакт вешает на врага и на каких у него выплата. */
 interface ArtifactStatuses {
@@ -146,20 +154,32 @@ function artifactStatuses(id: string): ArtifactStatuses {
   if (m.onHitPoison) applies.add('poison');
   if (m.markOnHit) applies.add('vulnerable');
   if (m.stunOnCrit) applies.add('stun');
-  if (m.vsBleed) pays.add('bleed');
+  if (m.vsBleed || m.bleedMult || m.bleedAdd || m.bleedTwice) pays.add('bleed');
+  if (m.burnAdd || m.burnSpread || m.blockPerBurning) pays.add('burn');
+  if (m.spellIgniteAll) applies.add('burn');
   if (m.dotLeech) {
     pays.add('bleed');
     pays.add('poison');
   }
   if (m.poisonVuln) pays.add('poison');
   if (m.spellVsBurn) pays.add('burn');
-  if (m.stunCrit) pays.add('stun');
+  if (m.stunCrit) {
+    pays.add('stun');
+    pays.add('cold');
+  }
   if (m.perDebuff) for (const st of ALL_DEBUFFS) pays.add(st);
+  // Архетипы v0.47: заводки на ударе и выплаты по статусам.
+  if (m.onHitCold) applies.add('cold');
+  if (m.poisonAdd || m.poisonNoDecay || m.poisonWeaken) pays.add('poison');
+  if (m.coldAdd || m.frozenLong || m.freezeVuln) pays.add('cold');
   for (const e of def.effects?.(3) ?? []) {
     if (e.type === 'status' && e.target !== 'self') applies.add(e.status);
     // Стихийная заточка вешает случайную из трёх ран — заводит любую выплату по ранам.
     if (e.type === 'enchant') for (const st of ['bleed', 'burn', 'poison'] as StatusId[]) applies.add(st);
     if (e.type === 'detonate' || e.type === 'spread') for (const st of e.statuses) pays.add(st);
+    if (e.type === 'scorch') pays.add('burn');
+    if (e.type === 'amplify') pays.add(e.status);
+    if (e.type === 'attack' && e.vsFrozen) pays.add('cold');
     if (e.type === 'spell' && e.vsWeak) pays.add('weak');
   }
   const out: ArtifactStatuses = { applies: [...applies], pays: [...pays] };
@@ -175,14 +195,15 @@ function heroApplies(hero: HeroPersistent, s: DerivedStats): Set<StatusId> {
   if (s.onHitPoison > 0) out.add('poison');
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
-  for (const ref of socketRefs(hero)) if (ref.art) for (const st of artifactStatuses(ref.art.id).applies) out.add(st);
+  if (s.onHitCold > 0) out.add('cold');
+  for (const id of heroArts(hero)) for (const st of artifactStatuses(id).applies) out.add(st);
   return out;
 }
 
 /** На каких статусах у героя уже есть выплата: взрыв ран, заражение, «Гниль», «Раздуть», крит по оглушённым. */
 function heroPaysFor(hero: HeroPersistent): Set<StatusId> {
   const out = new Set<StatusId>();
-  for (const ref of socketRefs(hero)) if (ref.art) for (const st of artifactStatuses(ref.art.id).pays) out.add(st);
+  for (const id of heroArts(hero)) for (const st of artifactStatuses(id).pays) out.add(st);
   return out;
 }
 
@@ -211,26 +232,38 @@ function costsMana(id: string): boolean {
   return out;
 }
 
-/** Вес артефакта в броске: втрое за дубликат, втрое за связку с тем, что уже в руках, плюс ступень маны у приёмов с ценой MP. */
-function artifactWeight(id: string, owned: Set<string>, applies: Set<StatusId>, pays: Set<StatusId>, spell: number): number {
+/** Во сколько раз реже выпадает ключевая вещь архетипа (v0.43): её находят, а не получают с первой награды. */
+const KEYSTONE_WEIGHT = 0.5;
+
+/**
+ * Вес артефакта в броске: втрое за дубликат, втрое за связку с тем, что уже в руках — по статусам или по общей метке
+ * архетипа (v0.43), — ступень маны у приёмов с ценой MP и половина у ключевых вещей.
+ */
+function artifactWeight(id: string, owned: Set<string>, applies: Set<StatusId>, pays: Set<StatusId>, tags: Set<string>, spell: number): number {
   const st = artifactStatuses(id);
-  const linked = st.pays.some((s) => applies.has(s)) || st.applies.some((s) => pays.has(s));
-  return (owned.has(id) ? DUPLICATE_WEIGHT : 1) * (linked ? SYNERGY_WEIGHT : 1) * (costsMana(id) ? spell : 1);
+  const linked = st.pays.some((s) => applies.has(s)) || st.applies.some((s) => pays.has(s)) || artifactTags(id).some((t) => tags.has(t));
+  const key = artifactDef(id).keystone ? KEYSTONE_WEIGHT : 1;
+  return (owned.has(id) ? DUPLICATE_WEIGHT : 1) * (linked ? SYNERGY_WEIGHT : 1) * (costsMana(id) ? spell : 1) * key;
 }
 
 /** Артефакт из пула: `slot` сужает до оружейных или бронных (пул награды «Нападение» / «Защита»); торговец, алтарь и вор катят из всех. */
 export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], exclude: string[], slot?: GearKind): ArtifactInstance | null {
   const ids = ARTIFACT_IDS.filter((id) => !exclude.includes(id) && !isMaxed(hero, id) && canDropFor(hero, id) && (!slot || artifactDef(id).slot === slot));
   if (ids.length === 0) return null;
-  const stats = computeStats(heroDef(hero.defId), hero.weapon, hero.armor);
+  const stats = heroStatsOf(heroDef(hero.defId), hero);
   const applies = heroApplies(hero, stats);
   const pays = heroPaysFor(hero);
   const owned = new Set(socketRefs(hero).flatMap((ref) => (ref.art ? [ref.art.id] : [])));
+  // Метки навыка тоже тянут дроп: это и есть сродство героя с его архетипом (v0.44).
+  const tags = new Set<string>(heroArts(hero).flatMap((id) => artifactTags(id)));
   const spell = manaWeight(stats.maxMp);
-  const items = ids.map((candidate) => ({ item: candidate, weight: artifactWeight(candidate, owned, applies, pays, spell) }));
+  const items = ids.map((candidate) => ({ item: candidate, weight: artifactWeight(candidate, owned, applies, pays, tags, spell) }));
   // Весь пул обнулился (у безманового героя остались одни заклинания) — берём равновероятно, иначе weighted бросит.
   const total = items.reduce((sum, it) => sum + it.weight, 0);
-  return { id: total > 0 ? weighted(rng, items) : pick(rng, ids), tier: pick(rng, tiers) };
+  const id = total > 0 ? weighted(rng, items) : pick(rng, ids);
+  // Ключевая вещь приходит тиром 1: её сила — в правиле, а не в числах, выше тир поднимают дубликат, привал и переплавка.
+  const tier = pick(rng, tiers);
+  return { id, tier: artifactDef(id).keystone ? 1 : tier };
 }
 
 /** Экипировка под героя: оружие выпадает с учётом его владения, броня — с учётом умения носить. */

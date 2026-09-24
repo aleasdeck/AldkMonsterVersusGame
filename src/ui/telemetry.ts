@@ -1,7 +1,7 @@
 import type { RunState } from '../engine/types';
 import { runReport, type RunReportEvent } from '../engine/report';
 import type { RunsFeed } from '../engine/globalStats';
-import type { Profile } from './save';
+import { heroLevelOf, type Profile } from './save';
 
 // ─── Статистика забегов ─────────────────────────────────────────────────────
 // Каждый законченный или брошенный забег уходит одной записью (engine/report.ts) в Google Таблицу через веб-приложение
@@ -43,7 +43,7 @@ export function reportRun(run: RunState, event: RunReportEvent, profile: Profile
   if (!STATS_URL) return;
   const local = isLocal();
   if (local && !forced()) return;
-  const report = runReport(run, { event, player: profile.playerId, playerRuns: profile.runs, debug: run.debug || local, now: Date.now() });
+  const report = runReport(run, { event, player: profile.playerId, playerRuns: profile.runs, debug: run.debug || local, now: Date.now(), heroLevel: heroLevelOf(profile, run.hero.defId) });
   try {
     // Тело — строка: text/plain не требует preflight, Apps Script читает его из e.postData.contents.
     void fetch(STATS_URL, { method: 'POST', mode: 'no-cors', keepalive: true, body: JSON.stringify({ ...report, ...client() }) }).catch(() => {});

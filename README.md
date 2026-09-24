@@ -12,6 +12,7 @@ SIM=1 npx vitest run tests/balance-sim.test.ts   # бот-симулятор б�
 SIM=1 SIM_LOCS=caves,caves,caves SIM_N=200 npx vitest run tests/balance-sim.test.ts   # один босс на всех трёх актах
 SIM=1 SIM_HERO=berserk SIM_N=300 npx vitest run tests/balance-sim.test.ts   # один герой, своё число забегов
 SIM=1 SIM_SIG=2 SIM_N=300 npx vitest run tests/balance-sim.test.ts   # все герои со вторым персональным артефактом (1 — с первым, по умолчанию)
+SIM=1 SIM_TRIALS=0 SIM_N=300 npx vitest run tests/balance-sim.test.ts   # без испытаний локаций (v0.48; по умолчанию бот их выбирает)
 SIM_DEBUG=1 SIM_HERO=warrior SIM_SEED=3 SIM_FIGHTS=4 npx vitest run tests/sim-debug.test.ts   # лог первых боёв бота: что и почему он делает
 SIM_DEBUG=stall SIM_HERO=paladin npx vitest run tests/sim-debug.test.ts   # найти забег с патом и показать хвост зависшего боя
 npm run build      # typecheck + сборка в dist/
@@ -41,6 +42,8 @@ npm run preview    # посмотреть собранную версию
 - `&phase=won|reward|shop|event|camp|end` — сразу нужный экран (бой выигрывается читом); `&phase=won` — остаться на плашке победы, `&log=1` — с раскрытым логом боя; `&phase=shop` и `&phase=camp` — торговец или привал в клетке события; `&phase=event&event=chest|altar|forge|elite|shop|camp|gnome|gnome_art` — заданное событие (без `event` — случайное; `gnome` и `gnome_art` сразу начинают бой с вором: деньгокрадом или вещекрадом); `&events=<вид>` — то же, но на весь забег: каждая клетка события разыгрывает заданный вид (живой забег, гарантированное событие); `&phase=reward&focus=attack|defense` — сразу выбрать пул награды (без него экран ждёт выбора); `&phase=reward&take=art` — сразу взять артефакт из награды «Нападение» и открыть выбор слота; `&room=9&phase=reward` — трофей босса (`&room=N` — начать с клетки 0..9).
 - `&gauntlet=1` — парад боссов: каждый акт начинается сразу с босса, экипировка героя на 5 тире, артефакты из `&art=` на 3-м, HP полное; трёх боссов задаёт `&locs=`, остальных трёх — второй забег.
 - `&sheet=1` — открыть оверлей «Персонаж», `&pause=1` — паузу (на любом экране забега).
+- `&trial=pack` — испытание текущей локации (v0.48): сразу выбрано, порог пропущен (id — в `src/data/trials.ts`). Отладочный вход в клетку (`&enter`, `&phase`, `&room`, `&gauntlet`) без `&trial=` идёт без испытания.
+- `&foes=goblin_shaman,goblin,boar` — вместе с `&enter=1` заменить врагов первого боя заданными (ряд всё равно строится по ролям).
 - `&locs=swamp,hive,ship` — задать локации забега по порядку (`forest`, `swamp`, `crypt`, `hive`, `caves`, `ship`); `&loc=1` — начать с акта 0..2; `&art=second_wind,stun_strike` — досыпать артефакты в оружие (в универсальные сокеты, тип артефакта не важен); `&use=war_cry` — применить их сразу после входа в бой; `&potion=heal_potion` — положить зелье в слот (`heal_potion`, `strength_potion`, `stamina_potion`, `mana_potion`, `stone_skin`, `fire_flask`, `antidote`).
 - `&tint=off` — снять тонировку бойцов под свет локации (сравнить «до/после» на том же бою); `&tint=0.5` и `&tintc=ff6442` — своя сила и свой цвет света на всех локациях сразу (подбор цвета для новой локации — `tools/location-tint.py`, см. `docs/art.md`).
 - `&stats=1` — отправить статистику забега и с localhost (проверить таблицу; запись помечается debug). Пока адрес таблицы в `src/ui/telemetry.ts` пустой, не отправляется ничего.

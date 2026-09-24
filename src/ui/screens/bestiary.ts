@@ -1,5 +1,5 @@
 import { button, h } from '../dom';
-import { ENEMY_LIST } from '../../data/enemies';
+import { ENEMY_LIST, ROLE_INFO } from '../../data/enemies';
 import { LOCATIONS, enemyScale, locationDef } from '../../data/locations';
 import { describeAction, type ActionScale } from '../../engine/combat';
 import { enemySprite as spriteImg } from '../enemySprite';
@@ -59,13 +59,33 @@ function actionRow(def: EnemyDef, a: { name: string; effects: EnemyDef['actions'
   );
 }
 
-/** Как враг выбирает приёмы: рядовые — по кругу, боссы — по правилам с условиями и перезарядками. */
+/**
+ * Как враг выбирает приёмы: рядовые и элиты — сначала реакции на состояние боя (v0.46), иначе по кругу;
+ * замах подписан тем, что прилетит следом; боссы — по правилам с условиями и перезарядками.
+ */
 function patternLine(def: EnemyDef): HTMLElement {
-  if (def.ai.type === 'cycle') {
-    const names = def.ai.order.map((id) => def.actions.find((a) => a.id === id)?.name ?? id);
-    return h('div', { class: 'beast-pattern' }, h('span', { class: 'dim' }, 'По кругу: '), names.join(' → '));
+  const name = (id: string) => def.actions.find((a) => a.id === id)?.name ?? id;
+  if (def.ai.type === 'boss') {
+    return h('div', { class: 'beast-pattern' }, h('span', { class: 'dim' }, 'Босс: '), 'выбирает приём по правилам — с условиями, перезарядкой и связками, а не по кругу.');
   }
-  return h('div', { class: 'beast-pattern' }, h('span', { class: 'dim' }, 'Босс: '), 'выбирает приём по правилам — с условиями, перезарядкой и связками, а не по кругу.');
+  const cycle = def.ai.order.map((id) => {
+    const next = def.actions.find((a) => a.id === id)?.next;
+    return next ? `${name(id)} ⇒ ${name(next)}` : name(id);
+  });
+  const rules = def.ai.type === 'priority' ? def.ai.rules : [];
+  return h(
+    'div',
+    { class: 'beast-pattern' },
+    ...rules.map((r) => h('div', null, h('span', { class: 'dim' }, 'Если '), `${r.hint ?? 'условие'}: `, name(r.action), r.maxUses === 1 ? h('span', { class: 'dim' }, ' (раз за бой)') : null)),
+    h('div', null, h('span', { class: 'dim' }, rules.length ? 'Иначе по кругу: ' : 'По кругу: '), cycle.join(' → ')),
+  );
+}
+
+/** Роль и правило позиции (v0.46). */
+function roleLine(def: EnemyDef): HTMLElement | null {
+  if (!def.role) return null;
+  const info = ROLE_INFO[def.role];
+  return h('div', { class: 'beast-role' }, h('span', { class: `role-mark role-${def.role}` }, info.icon), h('span', null, info.name), h('span', { class: 'dim' }, ` — ${info.rule}`));
 }
 
 function detail(def: EnemyDef, open: boolean): HTMLElement {
@@ -78,7 +98,10 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
       h('div', { class: 'beast-empty dim' }, 'Запись откроется, когда этот враг появится в бою — сам, по призыву или отделившись от другого.'),
     );
   }
-  const conditional = (a: EnemyDef['actions'][number]) => (a.condition ? 'по условию' : undefined);
+  const reactions = new Set(def.ai.type === 'priority' ? def.ai.rules.map((r) => r.action) : []);
+  const followUps = new Set(def.actions.map((a) => a.next).filter(Boolean));
+  const conditional = (a: EnemyDef['actions'][number]) =>
+    followUps.has(a.id) ? 'после замаха' : reactions.has(a.id) && !(def.ai.type !== 'boss' && def.ai.order.includes(a.id)) ? 'реакция' : a.condition ? 'по условию' : undefined;
   return h(
     'div',
     { class: 'beast-detail' },
@@ -94,6 +117,7 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
         h('div', { class: 'beast-hp' }, h('span', { class: 'dim' }, 'HP '), `${Math.round(def.hp * firstActScale(def).hpMult)}`),
       ),
     ),
+    roleLine(def),
     h('h3', null, 'Приёмы'),
     h('div', { class: 'beast-actions' }, ...def.actions.map((a) => actionRow(def, a, conditional(a)))),
     patternLine(def),
