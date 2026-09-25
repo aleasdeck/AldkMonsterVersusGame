@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { heroDef } from '../src/data/heroes';
 import { createBattle } from '../src/engine/combat';
 import { newRun } from '../src/engine/run';
-import { planHeroFx } from '../src/ui/fx';
+import { eventFx, planHeroFx } from '../src/ui/fx';
 import { bakeRgba, dissolve } from '../src/ui/fx/bake';
 import { FX_CLIPS } from '../src/ui/fx/clips';
 import { eachRing, type Mask } from '../src/ui/fx/mask';
@@ -36,10 +36,22 @@ describe('клипы лепки эффектов', () => {
     }
   });
 
-  it.each(clips)('%s: виден с первого кадра и к последнему тает', (_, c) => {
+  it.each(clips.filter(([, c]) => !c.loop))('%s: виден с первого кадра и к последнему тает', (_, c) => {
     const frames = bakeRgba(c.w, c.h, c.n, c.draw, c.opts).map((f) => opaque(f.px));
     expect(frames[0]).toBeGreaterThan(0);
     expect(frames[frames.length - 1]).toBeLessThan(Math.max(...frames) * 0.5);
+  });
+
+  it.each(clips.filter(([, c]) => c.loop))('%s: клип полёта виден в каждом кадре и не мигает', (_, c) => {
+    // Полёт крутится по кругу, пока снаряд летит: пустой или вдвое меньший кадр — мигание в воздухе.
+    const frames = bakeRgba(c.w, c.h, c.n, c.draw, c.opts).map((f) => opaque(f.px));
+    for (const n of frames) expect(n).toBeGreaterThan(Math.max(...frames) * 0.5);
+  });
+
+  it('зеркальный мазок — отражение прямого', () => {
+    const [a] = bakeRgba(40, 40, 1, (p) => p.ellipse(-6, -2, 6, 4, { base: '#aabbcc' }), {});
+    const [b] = bakeRgba(40, 40, 1, (p) => p.ellipse(-6, -2, 6, 4, { base: '#aabbcc' }), { flip: true });
+    for (let j = 0; j < a.H; j++) for (let i = 0; i < a.W; i++) expect(b.px[(j * b.W + (b.W - 1 - i)) * 4 + 3]).toBe(a.px[(j * a.W + i) * 4 + 3]);
   });
 });
 
@@ -162,5 +174,51 @@ describe('Боевой клич и приёмы блока в плане ани�
   it('приём с блоком на себя — латы', () => {
     const plan = planHeroFx(run, { type: 'artifact', artifactId: 'mana_shield' });
     expect(plan.after.map((a) => a.kind)).toEqual(['shield']);
+  });
+});
+
+describe('снаряды и статусы лепки в плане анимации', () => {
+  const run = newRun('mage', 6, 0);
+  run.battle = createBattle(heroDef('mage'), run.hero, ['goblin', 'wolf', 'boar'], run.rng);
+  const uids = run.battle.enemies.map((e) => e.uid);
+
+  it('огненный шар — лепка огня с полётом шара', () => {
+    const plan = planHeroFx(run, { type: 'artifact', artifactId: 'fireball', target: uids[2] });
+    expect(plan.shots.map((s) => [s.kind, s.sculpt, s.to, s.flight])).toEqual([['orb', 'fire', uids[2], 330]]);
+    expect(plan.impact).toBe(330);
+  });
+
+  it('удар по тому, кого заслоняет страж, летит в стража — как в движке', () => {
+    // Гоблин — страж: первый удар за ход по кабану за ним достаётся ему. Перехват видит только вставленный приём.
+    run.battle!.hero.artifacts.push({ id: 'fireball', tier: 1 });
+    const plan = planHeroFx(run, { type: 'artifact', artifactId: 'fireball', target: uids[1] });
+    expect(plan.shots.map((s) => s.to)).toEqual([uids[0]]);
+  });
+
+  it('цепная молния бьёт цепью почти сразу: каждая дуга — от прошлой цели', () => {
+    const plan = planHeroFx(run, { type: 'artifact', artifactId: 'chain_lightning' });
+    expect(plan.shots.map((s) => [s.from, s.to])).toEqual([['hero', uids[0]], [uids[0], uids[1]], [uids[1], uids[2]]]);
+    expect(plan.shots.every((s) => s.sculpt === 'bolt' && s.flight < 100)).toBe(true);
+  });
+
+  it('праща кидает камень, атака мечом — мазок без лепки снаряда', () => {
+    const r = newRun('warrior', 6, 0);
+    r.battle = createBattle(heroDef('warrior'), r.hero, ['goblin'], r.rng);
+    const uid = r.battle.enemies[0].uid;
+    expect(planHeroFx(r, { type: 'attack', target: uid }).shots.map((s) => [s.kind, s.sculpt])).toEqual([['melee', undefined]]);
+    r.hero.weapon = { ...r.hero.weapon, base: 'sling' };
+    expect(planHeroFx(r, { type: 'attack', target: uid }).shots.map((s) => [s.kind, s.sculpt])).toEqual([['orb', 'stone']]);
+  });
+
+  it('статус со своим рисунком — лепка, прочий дебаф — облако, оцепенение — иней холода', () => {
+    expect(eventFx({ type: 'status', target: uids[0], status: 'bleed', value: 1 })).toMatchObject({ kind: 'status', status: 'bleed' });
+    expect(eventFx({ type: 'status', target: uids[0], status: 'frozen', value: 1 })).toMatchObject({ kind: 'status', status: 'cold' });
+    expect(eventFx({ type: 'status', target: uids[0], status: 'weak', value: 1 })).toMatchObject({ kind: 'cloud' });
+    expect(eventFx({ type: 'heal', target: 'hero', amount: 3 })).toMatchObject({ kind: 'heal' });
+  });
+
+  it('лечащий приём на себя — зелёный круг лечения, а не фиолетовое свечение магии', () => {
+    const plan = planHeroFx(run, { type: 'artifact', artifactId: 'heal' });
+    expect(plan.after).toEqual([{ kind: 'heal', color: '#80ed99', target: 'hero' }]);
   });
 });

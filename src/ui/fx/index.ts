@@ -7,23 +7,27 @@ import { weaponBase } from '../../data/gear';
 import { drawGrid } from '../sprites';
 import type { HeroClip } from '../heroSprite';
 import { STATUS_COLORS } from '../icons';
-import { echoesEffect } from '../../engine/combat';
+import { echoesEffect, interceptor } from '../../engine/combat';
 import { pxLayer } from './layer';
 import { platesGain } from './plates';
 import { roar } from './cry';
+import { slash, STEEL_EDGE } from './strike';
+import { arrow, bolt, BOLT_MS, fireball, flask, iceShard, orb, stone } from './shots';
+import { bleed, burn, cold, heal, poison, stun } from './status';
 
 /**
- * Типовые анимации боя. Их пять, под каждый приём подставляется одна и меняется только цвет:
- * взмах клинком по цели (оружие и приёмы ближнего боя), стрела (дальнее оружие), магический снаряд
- * (заклинания и магическое оружие), склянка (зелья и Флакон яда), облако на цели (дебаф) и свечение бойца (баф).
+ * Анимации боя. Под приём подставляется семейство, а не свой рисунок: взмах клинком по цели (оружие и приёмы ближнего
+ * боя), стрела (дальнее оружие), снаряд заклинания (огненный шар, лёд, молния, камень пращи или сгусток цвета приёма),
+ * склянка (зелья и Флакон яда); на бойце — рисунок статуса, латы блока, лечение, свечение бафа, облако дебафа.
  * Снаряды летят по старому полю до перерисовки: App ждёт `impact` мс, потом рисует новое состояние и всплывающие числа;
- * слой `.fx-layer` при перерисовке переезжает в новое дерево, так что взрыв шара и облако склянки доигрываются в нём.
- * Облако и свечение выводятся после перерисовки. Враги с `fx` у приёма получают снаряды и взмахи;
- * остальные используют свой рисованный клип или наскок.
+ * слой `.fx-layer` при перерисовке переезжает в новое дерево, так что взрыв шара и брызги склянки доигрываются в нём.
+ * Эффекты на бойце выводятся после перерисовки. Враги с `fx` у приёма получают снаряды и след удара на жертве;
+ * остальные используют свой клип лепки или наскок.
  *
- * С v0.52.7 эффекты переезжают на пиксельную лепку (docs/lepka.md, «Лепка эффектов»): холст в сетке 2 px поверх поля
- * (layer.ts), кадры из движка врагов (bake.ts). Уже на лепке: блок — латы по силуэту бойца (plates.ts), Боевой клич —
- * рёв (cry.ts, `fx.sculpt`). Остальное пока типовое и переходит семействами.
+ * Эффекты — пиксельная лепка (docs/lepka.md, «Лепка эффектов»): холст в сетке 2 px поверх поля (layer.ts), кадры
+ * из движка врагов (bake.ts). Латы блока — plates.ts, рёв Боевого клича — cry.ts, мазок клинка — strike.ts, снаряды —
+ * shots.ts, статусы на цели и лечение — status.ts. Типовыми (DOM) здесь остались свечение бафов, облако прочих
+ * дебафов, глоток зелья и вспышка второй фазы босса.
  */
 
 // ─── План ────────────────────────────────────────────────────────────────────
@@ -31,13 +35,17 @@ import { roar } from './cry';
 /** Один снаряд или взмах: кто, в кого, каким и с какой задержкой от начала розыгрыша. */
 export interface Shot {
   kind: FxKind;
-  /** Цвет снаряда, склянки или росчерка удара. */
+  /** Цвет снаряда, склянки или кромки мазка. */
   color: string;
-  /** Цвет клинка при взмахе: у героя — оружие с его спрайта. */
+  /** Цвет оружия: у героя — клинок с его спрайта, у врага — цвет `fx` приёма (кромка следа его удара). */
   blade: string;
   from: EventTarget;
   to: EventTarget;
   delay: number;
+  /** Сколько летит до попадания, мс (у молнии — почти сразу). */
+  flight: number;
+  /** Лепка снаряда из `fx.sculpt`: огненный шар, лёд, молния, камень; без неё — по роду `kind`. */
+  sculpt?: SculptId;
 }
 
 /**
@@ -45,10 +53,12 @@ export interface Shot {
  * босса или эффект лепки приёма (`sculpt`).
  */
 export interface AfterFx {
-  kind: 'glow' | 'cloud' | 'drink' | 'shield' | 'burst' | 'sculpt';
+  kind: 'glow' | 'cloud' | 'drink' | 'shield' | 'burst' | 'sculpt' | 'status' | 'heal';
   color: string;
   target: EventTarget;
   sculpt?: SculptId;
+  /** Статус с рисунком лепки (`kind: 'status'`): кровь, горение, оглушение, холод, яд. */
+  status?: StatusId;
 }
 
 export interface FxPlan {
@@ -74,17 +84,36 @@ const DEFAULT_BLADE = '#dcdcdc';
 const SHIELD = '#8ecae6';
 const HEAL = '#80ed99';
 
-/** Дебафы ложатся облаком, остальные статусы — свечением. */
-const DEBUFFS = new Set<StatusId>(['weak', 'bleed', 'burn', 'stun', 'exhaust', 'poison', 'vulnerable']);
+/** Дебафы без своего рисунка ложатся облаком, остальные статусы — свечением. */
+const DEBUFFS = new Set<StatusId>(['weak', 'exhaust', 'vulnerable']);
+
+/** Статусы со своим рисунком лепки (status.ts): играют у всех, у рядовых тоже. */
+const STATUS_FX: Partial<Record<StatusId, (root: HTMLElement, target: EventTarget) => void>> = {
+  bleed: (root, t) => withLayer(root, (L) => bleed(L, t)),
+  burn: (root, t) => withLayer(root, (L) => burn(L, t)),
+  stun: (root, t) => withLayer(root, (L) => stun(L, t)),
+  cold: (root, t) => withLayer(root, (L) => cold(L, t)),
+  frozen: (root, t) => withLayer(root, (L) => cold(L, t)),
+  poison: (root, t) => withLayer(root, (L) => poison(L, t)),
+};
+
+function withLayer(root: HTMLElement, fn: (L: NonNullable<ReturnType<typeof pxLayer>>) => void): void {
+  const L = pxLayer(root);
+  if (L) fn(L);
+}
 
 function emptyPlan(): FxPlan {
   return { shots: [], impact: 0, after: [], lunged: new Set() };
 }
 
-function addShots(plan: FxPlan, kind: FxKind, color: string, blade: string, from: EventTarget, targets: EventTarget[], offset = 0): void {
+/** Время до попадания: по роду снаряда, у молнии — почти сразу. */
+const flightOf = (kind: FxKind, sculpt?: SculptId): number => (sculpt === 'bolt' ? BOLT_MS : FLIGHT[kind]);
+
+function addShots(plan: FxPlan, kind: FxKind, color: string, blade: string, from: EventTarget, targets: EventTarget[], offset = 0, sculpt?: SculptId): void {
+  const flight = flightOf(kind, sculpt);
   targets.forEach((to, i) => {
-    plan.shots.push({ kind, color, blade, from, to, delay: offset + i * STAGGER });
-    plan.impact = Math.max(plan.impact, offset + i * STAGGER + FLIGHT[kind]);
+    plan.shots.push({ kind, color, blade, from, to, delay: offset + i * STAGGER, flight, ...(sculpt ? { sculpt } : {}) });
+    plan.impact = Math.max(plan.impact, offset + i * STAGGER + flight);
   });
   if (targets.length) plan.lunged.add(from);
 }
@@ -95,12 +124,12 @@ export function lungeAgain(root: HTMLElement, t: EventTarget): void {
 }
 
 /** Снаряд оружия героя: ближнее — взмах, дальнее — стрела, магическое — шар; праща кидает камень через `fx` базы. */
-function weaponShot(run: RunState): { kind: FxKind; color: string } {
+function weaponShot(run: RunState): { kind: FxKind; color: string; sculpt?: SculptId } {
   const base = weaponBase(run.hero.weapon);
   const type = base.type ?? 'melee';
   const kind = base.fx?.kind ?? (type === 'ranged' ? 'arrow' : type === 'magic' ? 'orb' : 'melee');
   const color = base.fx?.color ?? (kind === 'melee' ? '#ffffff' : kind === 'arrow' ? '#e9c46a' : '#b388ff');
-  return { kind, color };
+  return { kind, color, ...(base.fx?.sculpt ? { sculpt: base.fx.sculpt } : {}) };
 }
 
 /**
@@ -112,7 +141,7 @@ function planEffects(
   plan: FxPlan,
   effects: Effect[],
   fx: FxSpec | undefined,
-  weapon: { kind: FxKind; color: string },
+  weapon: { kind: FxKind; color: string; sculpt?: SculptId },
   blade: string,
   target: number | undefined,
   all: number[],
@@ -129,18 +158,21 @@ function planEffects(
       plan.after.push({ kind: 'sculpt', sculpt: fx.sculpt, color: fx.color ?? selfColor, target: 'hero' });
       return;
     }
-    // Приём на себя: зелье — глоток, блок — латы по силуэту героя, остальное — свечение.
-    const kind = potion ? 'drink' : effects.some((e) => e.type === 'block') ? 'shield' : 'glow';
-    plan.after.push({ kind, color: kind === 'shield' ? (fx?.color ?? SHIELD) : (fx?.color ?? selfColor), target: 'hero' });
+    // Приём на себя: зелье — глоток, блок — латы по силуэту героя, лечение — круг и искры, остальное — свечение.
+    const kind = potion ? 'drink' : effects.some((e) => e.type === 'block') ? 'shield' : effects.some((e) => e.type === 'heal') ? 'heal' : 'glow';
+    const color = kind === 'shield' ? (fx?.color ?? SHIELD) : kind === 'heal' ? (fx?.color ?? HEAL) : (fx?.color ?? selfColor);
+    plan.after.push({ kind, color, target: 'hero' });
     return;
   }
   const targets = hostile.target === 'allEnemies' ? all : target !== undefined && all.includes(target) ? [target] : all.slice(0, 1);
   let kind = fx?.kind;
   let color = fx?.color;
+  let sculpt = fx?.sculpt;
   if (!kind) {
     if (effects.some((e) => e.type === 'attack' || e.type === 'blockStrike' || e.type === 'breakBlock' || e.type === 'finisher' || e.type === 'chain')) {
       kind = weapon.kind;
       color ??= weapon.color;
+      sculpt ??= weapon.sculpt;
     } else if (effects.some((e) => e.type === 'spell' || e.type === 'detonate' || e.type === 'scorch')) {
       kind = 'orb';
       color ??= '#b388ff';
@@ -149,16 +181,18 @@ function planEffects(
   // Сколько раз приём бьёт: у Двойного выпада два удара своими эффектами, «Эхо удара» повторяет все бьющие оружием ещё раз
   // (тот же список, что в движке, — Финишер и Таран с v0.40.4 тоже). Каждый удар — свой взмах с шагом HIT_GAP, как у элиты (v0.40.2).
   const hits = effects.filter((e) => echoesEffect(e.type)).length;
-  addSwings(plan, kind, color ?? DEFAULT_BLADE, blade, targets, Math.max(1, hits * (echo && hits > 0 ? 2 : 1)));
+  addSwings(plan, kind, color ?? DEFAULT_BLADE, blade, targets, Math.max(1, hits * (echo && hits > 0 ? 2 : 1)), sculpt);
+  // Цепная молния бьёт по ряду цепью: каждая следующая дуга — от прошлой цели, а не от героя.
+  if (sculpt === 'bolt') plan.shots.forEach((sh, i) => { if (i > 0) sh.from = plan.shots[i - 1].to; });
 }
 
 /**
  * Несколько взмахов подряд по тем же целям. Перерисовка — по первому удару (`impact`): остальные снаряды доигрываются
  * в перенесённом слое `.fx-layer`, а цифры подтягивает playEvents с тем же шагом HIT_GAP — взмах и число сходятся.
  */
-function addSwings(plan: FxPlan, kind: FxKind, color: string, blade: string, targets: EventTarget[], swings: number): void {
-  for (let i = 0; i < swings; i++) addShots(plan, kind, color, blade, 'hero', targets, i * HIT_GAP);
-  if (swings > 1) plan.impact = FLIGHT[kind];
+function addSwings(plan: FxPlan, kind: FxKind, color: string, blade: string, targets: EventTarget[], swings: number, sculpt?: SculptId): void {
+  for (let i = 0; i < swings; i++) addShots(plan, kind, color, blade, 'hero', targets, i * HIT_GAP, sculpt);
+  if (swings > 1) plan.impact = flightOf(kind, sculpt);
 }
 
 /** План анимации действия героя. Считается до применения действия: цели ещё живы, зелье ещё в слоте. */
@@ -172,9 +206,12 @@ export function planHeroFx(run: RunState, action: PlayerAction): FxPlan {
   const weapon = weaponShot(run);
   // «Эхо удара» повторит атаку ещё раз — значит, и взмахов будет два.
   const echo = b.hero.statuses.some((st) => st.id === 'echo');
+  // Страж заслоняет того, кто за ним: удар, как и в движке, летит в стража.
+  const guard = interceptor(b, action);
+  if (guard && (action.type === 'attack' || action.type === 'artifact')) action = { ...action, target: guard.uid };
   if (action.type === 'attack') {
     // Плеть хлещет весь ряд: взмах по каждому врагу.
-    addSwings(plan, weapon.kind, weapon.color, blade, b.hero.stats.sweep > 0 ? all : [action.target], echo ? 2 : 1);
+    addSwings(plan, weapon.kind, weapon.color, blade, b.hero.stats.sweep > 0 ? all : [action.target], echo ? 2 : 1, weapon.sculpt);
   } else if (action.type === 'artifact') {
     const def = artifactDef(action.artifactId);
     const inst = b.hero.artifacts.find((a) => a.id === def.id);
@@ -206,8 +243,8 @@ export function planEnemyFx(run: RunState, events: BattleEvent[], victim: EventT
     // Многоударный приём — столько же взмахов с шагом HIT_GAP; перерисовка и первая цифра — по первому удару,
     // остальные цифры подтягивает playEvents с тем же шагом.
     const hits = Math.max(1, ...action.effects.map((x) => (x.type === 'attack' ? (x.hits ?? 1) : 1)));
-    for (let i = 0; i < hits; i++) addShots(plan, fx.kind, fx.kind === 'melee' ? '#ffffff' : blade, blade, e.uid, [victim], i * HIT_GAP);
-    if (hits > 1) plan.impact = FLIGHT[fx.kind];
+    for (let i = 0; i < hits; i++) addShots(plan, fx.kind, fx.kind === 'melee' ? '#ffffff' : blade, blade, e.uid, [victim], i * HIT_GAP, fx.sculpt);
+    if (hits > 1) plan.impact = flightOf(fx.kind, fx.sculpt);
   }
   return plan;
 }
@@ -217,18 +254,23 @@ export function delayEnemyShots(plan: FxPlan, target: EventTarget, windup: numbe
   const shots = plan.shots.filter((s) => s.from === target);
   if (!shots.length) return;
   for (const shot of shots) shot.delay += windup;
-  plan.impact = Math.max(plan.impact, Math.min(...shots.map((s) => s.delay + FLIGHT[s.kind])));
+  plan.impact = Math.max(plan.impact, Math.min(...shots.map((s) => s.delay + s.flight)));
 }
 
-/** Облако, свечение или латы по событию боя: статус по своему цвету, блок — латы по силуэту бойца, лечение — зелёное свечение. */
-export function eventFx(ev: BattleEvent): { kind: 'glow' | 'cloud' | 'shield'; color: string } | null {
+/**
+ * Эффект по событию боя: статус со своим рисунком — лепкой (кровь, горение, оглушение, холод, яд), прочий дебаф —
+ * облаком, баф — свечением; блок — латы по силуэту бойца; лечение — круг света и искры.
+ */
+export function eventFx(ev: BattleEvent): { kind: AfterFx['kind']; color: string; status?: StatusId } | null {
   switch (ev.type) {
     case 'status':
+      // Оцепенение — тот же иней, что Холод: переход «холод → оцепенение» одним ударом рисуется один раз.
+      if (STATUS_FX[ev.status]) return { kind: 'status', color: STATUS_COLORS[ev.status], status: ev.status === 'frozen' ? 'cold' : ev.status };
       return { kind: DEBUFFS.has(ev.status) ? 'cloud' : 'glow', color: STATUS_COLORS[ev.status] };
     case 'block':
       return { kind: 'shield', color: SHIELD };
     case 'heal':
-      return { kind: 'glow', color: HEAL };
+      return { kind: 'heal', color: HEAL };
     default:
       return null;
   }
@@ -273,43 +315,6 @@ function img(url: string, w: number, h: number, scale: number): HTMLImageElement
 }
 
 const OUTLINE = '#1b1b2a';
-
-/** Клинок 7×16: остриё, лезвие с бликом, гарда, рукоять. */
-const SWORD = [
-  '...o...',
-  '..oWo..',
-  '.oBWBo.',
-  '.oBWBo.',
-  '.oBWBo.',
-  '.oBWBo.',
-  '.oBWBo.',
-  '.oBWBo.',
-  '.oBWBo.',
-  '.oBWBo.',
-  'ogggggo',
-  '..ohho.',
-  '..ohho.',
-  '..ohho.',
-  '..oggo.',
-  '...o...',
-];
-function swordImg(blade: string): HTMLImageElement {
-  return img(gridUrl(`sword:${blade}`, SWORD, { o: OUTLINE, B: blade, W: mix(blade, '#ffffff', 0.55), g: '#c9a227', h: '#6b4226' }), 7, 16, 4);
-}
-
-/** Стрела 14×5 остриём вправо: оперение цветом, древко, стальной наконечник. */
-const ARROW = ['.F.........o..', 'FF.ssssssssoo.', 'FFFsssssssssoo', 'FF.ssssssssoo.', '.F.........o..'];
-function arrowImg(color: string): HTMLImageElement {
-  return img(gridUrl(`arrow:${color}`, ARROW, { F: color, s: '#8a6b3f', o: '#dcdcdc' }), 14, 5, 3);
-}
-
-/** Шар 7×7: тёмная кромка, тело, блик. */
-const ORB = ['..ooo..', '.oBBBo.', 'oBWWBBo', 'oBWBBBo', 'oBBBBBo', '.oBBBo.', '..ooo..'];
-function orbImg(color: string): HTMLImageElement {
-  const el = img(gridUrl(`orb:${color}`, ORB, { o: mix(color, '#000000', 0.45), B: color, W: mix(color, '#ffffff', 0.6) }), 7, 7, 4);
-  el.style.filter = `drop-shadow(0 0 6px ${color})`;
-  return el;
-}
 
 /** Склянка 7×9: пробка, горлышко, стекло, жидкость цветом. */
 const FLASK = ['..ooo..', '..oco..', '..oGo..', '.oGGGo.', 'oGLLLGo', 'oLLLLLo', 'oLLLLLo', '.oLLLo.', '..ooo..'];
@@ -385,112 +390,52 @@ export function heroClip(plan: FxPlan, action: PlayerAction): HeroClip | null {
   const shot = plan.shots.find((s) => s.from === 'hero');
   if (shot) return shot.kind === 'melee' ? 'heavy' : 'power';
   if (plan.after.some((a) => a.target === 'hero' && a.kind === 'shield')) return 'block';
-  if (plan.after.some((a) => a.target === 'hero' && a.kind === 'drink')) return 'heal';
+  if (plan.after.some((a) => a.target === 'hero' && (a.kind === 'drink' || a.kind === 'heal'))) return 'heal';
   return null;
 }
 
 export function playShots(root: HTMLElement, plan: FxPlan): number {
-  const layer = root.querySelector<HTMLElement>('.fx-layer');
-  if (!layer || plan.shots.length === 0) return 0;
+  const L = pxLayer(root);
+  if (!L || plan.shots.length === 0) return 0;
   const lunged = new Set<EventTarget>(plan.clipped ? ['hero' as EventTarget] : []);
   for (const s of plan.shots) {
+    // Наскок — у героя и союзников при ударе вплотную; враг-лепка замахивается своим клипом, ему наскок не нужен.
     if (s.kind === 'melee' && !lunged.has(s.from)) {
       lunged.add(s.from);
-      restart(zone(root, s.from), 'acting');
+      const z = zone(root, s.from);
+      if (s.from === 'hero' || !z?.querySelector('.mob-sheet')) restart(z, 'acting');
     }
-    window.setTimeout(() => shoot(root, layer, s), s.delay);
+    shoot(L, s);
   }
   return plan.impact;
 }
 
-function shoot(root: HTMLElement, layer: HTMLElement, s: Shot): void {
-  const a = anchor(root, layer, s.from);
-  const b = anchor(root, layer, s.to);
-  if (!a || !b) return;
-  const dir = a.x <= b.x ? 1 : -1;
+/**
+ * Снаряд или взмах лепкой (strike.ts, shots.ts): вылет через `delay`, попадание через `flight` после него — туда же,
+ * куда App ставит перерисовку и цифры. Взмах врага — след удара на жертве кромкой цвета его оружия.
+ */
+function shoot(L: NonNullable<ReturnType<typeof pxLayer>>, s: Shot): void {
+  const hit = s.delay + s.flight;
   switch (s.kind) {
-    case 'melee':
-      slash(layer, b, dir, s.blade, s.color);
+    case 'melee': {
+      const edge = s.color !== '#ffffff' ? s.color : s.from === 'hero' ? STEEL_EDGE : s.blade;
+      slash(L, s.from, s.to, edge, hit);
       break;
+    }
     case 'arrow':
-      fly(layer, a, b, arrowImg(s.color), FLIGHT.arrow - 30, 'linear', (el, end) => animate(el, [{ transform: end, opacity: 1 }, { transform: end, opacity: 0 }], { duration: 160, delay: 60 }, () => el.remove()));
-      break;
-    case 'orb':
-      fly(layer, a, b, orbImg(s.color), FLIGHT.orb - 30, 'ease-in', (el, end) => burst(el, end));
+      arrow(L, s.from, s.to, s.color, s.delay, s.flight);
       break;
     case 'flask':
-      throwFlask(layer, a, b, s.color);
+      flask(L, s.from, s.to, s.color, s.delay, s.flight);
+      break;
+    case 'orb':
+      if (s.sculpt === 'fire') fireball(L, s.from, s.to, s.delay, s.flight);
+      else if (s.sculpt === 'ice') iceShard(L, s.from, s.to, s.delay, s.flight);
+      else if (s.sculpt === 'bolt') bolt(L, s.from, s.to, s.delay, s.color);
+      else if (s.sculpt === 'stone') stone(L, s.from, s.to, s.delay, s.flight);
+      else orb(L, s.from, s.to, s.color, s.delay, s.flight);
       break;
   }
-}
-
-/** Взмах клинком по цели: рукоять у центра спрайта, лезвие проходит дугой над ним; в момент удара — росчерк. */
-function slash(layer: HTMLElement, b: Pt, dir: number, blade: string, color: string): void {
-  const sword = swordImg(blade);
-  sword.style.transformOrigin = '50% 88%';
-  const base = `translate(${b.x - dir * 12 - sword.width / 2}px, ${b.y + 12 - sword.height * 0.88}px)`;
-  const r = (deg: number) => `${base} rotate(${deg * dir}deg)`;
-  layer.appendChild(sword);
-  animate(sword, [
-    { transform: r(-110), opacity: 0 },
-    { transform: r(-95), opacity: 1, offset: 0.25 },
-    { transform: r(45), opacity: 1, offset: 0.7 },
-    { transform: r(60), opacity: 0 },
-  ], { duration: FLIGHT.melee, easing: 'ease-in' }, () => sword.remove());
-  window.setTimeout(() => {
-    const line = document.createElement('div');
-    line.className = 'fx fx-slash';
-    line.style.background = color;
-    line.style.boxShadow = `0 0 6px ${color}`;
-    const len = Math.max(48, b.w * 0.7);
-    line.style.left = `${b.x - len / 2}px`;
-    line.style.top = `${b.y - 2}px`;
-    line.style.width = `${len}px`;
-    const rot = `rotate(${-40 * dir}deg)`;
-    layer.appendChild(line);
-    animate(line, [
-      { transform: `${rot} scaleX(0)`, opacity: 1 },
-      { transform: `${rot} scaleX(1)`, opacity: 1, offset: 0.4 },
-      { transform: `${rot} scaleX(1)`, opacity: 0 },
-    ], { duration: 200, easing: 'ease-out' }, () => line.remove());
-  }, FLIGHT.melee - 120);
-}
-
-/** Прямой полёт от бойца к цели с поворотом по направлению; land получает конечный transform для добивающей анимации. */
-function fly(layer: HTMLElement, a: Pt, b: Pt, el: HTMLImageElement, ms: number, easing: string, land: (el: HTMLImageElement, end: string) => void): void {
-  const ang = Math.atan2(b.y - a.y, b.x - a.x);
-  // Старт чуть впереди стрелка, конец — центр цели.
-  const sx = a.x + Math.cos(ang) * a.w * 0.3;
-  const sy = a.y + Math.sin(ang) * a.w * 0.3;
-  const at = (x: number, y: number) => `translate(${x - el.width / 2}px, ${y - el.height / 2}px) rotate(${ang}rad)`;
-  const end = at(b.x, b.y);
-  layer.appendChild(el);
-  animate(el, [{ transform: at(sx, sy) }, { transform: end }], { duration: ms, easing }, () => land(el, end));
-}
-
-/** Шар лопается: раздувается и гаснет. */
-function burst(el: HTMLImageElement, end: string): void {
-  animate(el, [{ transform: `${end} scale(1)`, opacity: 1 }, { transform: `${end} scale(2.4)`, opacity: 0 }], { duration: 180, easing: 'ease-out' }, () => el.remove());
-}
-
-/** Склянка летит по дуге, кувыркаясь, и разбивается облаком своего цвета. */
-function throwFlask(layer: HTMLElement, a: Pt, b: Pt, color: string): void {
-  const wrap = document.createElement('div');
-  wrap.className = 'fx';
-  const flask = flaskImg(color);
-  flask.style.display = 'block';
-  wrap.appendChild(flask);
-  layer.appendChild(wrap);
-  const ms = FLIGHT.flask - 30;
-  animate(wrap, [{ transform: `translate(${a.x - flask.width / 2}px, ${a.y - flask.height / 2 - 10}px)` }, { transform: `translate(${b.x - flask.width / 2}px, ${b.y - flask.height / 2}px)` }], { duration: ms, easing: 'linear' });
-  animate(flask, [
-    { transform: 'translateY(0) rotate(0deg)', easing: 'ease-out' },
-    { transform: 'translateY(-70px) rotate(270deg)', offset: 0.5, easing: 'ease-in' },
-    { transform: 'translateY(0) rotate(540deg)' },
-  ], { duration: ms }, () => {
-    wrap.remove();
-    cloud(layer, b, color, 4);
-  });
 }
 
 /** Облако из клубов внутри спрайта: расползаются вверх и тают. Разброс детерминирован номером клуба. */
@@ -601,11 +546,8 @@ function phaseBurst(root: HTMLElement, layer: HTMLElement, t: EventTarget, color
 }
 
 /** Эффекты лепки приёмов по `FxSpec.sculpt`: рисуют себя в слое лепки поля. */
-const SCULPTS: Record<SculptId, (root: HTMLElement, target: EventTarget) => void> = {
-  roar: (root, target) => {
-    const L = pxLayer(root);
-    if (L) roar(L, target);
-  },
+const SCULPTS: Partial<Record<SculptId, (root: HTMLElement, target: EventTarget) => void>> = {
+  roar: (root, target) => withLayer(root, (L) => roar(L, target)),
 };
 
 /** Эффект на бойце после перерисовки: облако, свечение, латы блока, глоток, вспышка фазы или лепка приёма. */
@@ -615,8 +557,10 @@ export function playAfter(root: HTMLElement, fx: AfterFx): void {
   if (fx.kind === 'glow') glow(root, layer, fx.target, fx.color);
   else if (fx.kind === 'shield') platesGain(root, fx.target);
   else if (fx.kind === 'sculpt') {
-    if (fx.sculpt) SCULPTS[fx.sculpt](root, fx.target);
-  }
+    if (fx.sculpt) SCULPTS[fx.sculpt]?.(root, fx.target);
+  } else if (fx.kind === 'status') {
+    if (fx.status) STATUS_FX[fx.status]?.(root, fx.target);
+  } else if (fx.kind === 'heal') withLayer(root, (L) => heal(L, fx.target, fx.color));
   else if (fx.kind === 'burst') phaseBurst(root, layer, fx.target, fx.color);
   else if (fx.kind === 'drink') drink(root, layer, fx.color);
   else {

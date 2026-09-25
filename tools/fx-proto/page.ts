@@ -354,7 +354,7 @@ interface Demo {
   melee?: boolean;
   now: string;
   next: string;
-  old: () => { shots: Array<Omit<Shot, 'from' | 'delay'> & { delay?: number; to: number }>; after: Array<{ kind: 'glow' | 'cloud' | 'shield' | 'drink'; color: string; target: 'hero' | number }> };
+  old: () => { shots: Array<Omit<Shot, 'from' | 'delay' | 'flight'> & { delay?: number; to: number }>; after: Array<{ kind: 'glow' | 'cloud' | 'shield' | 'drink'; color: string; target: 'hero' | number }> };
   neu: (S: FX.Scene) => number;
   /** Гоблин бьёт героя через `at` мс (проверка блока): клип удара в обоих полях. */
   enemyAt?: number;
@@ -460,8 +460,8 @@ function ensureHero(id: HeroId): void {
 
 function playOld(d: Demo): void {
   const spec = d.old();
-  const shots: Shot[] = spec.shots.map((s) => ({ ...s, from: 'hero', delay: s.delay ?? 0 }));
   const FLIGHT: Record<string, number> = { melee: 260, arrow: 260, orb: 330, flask: 440 };
+  const shots: Shot[] = spec.shots.map((s) => ({ ...s, from: 'hero', delay: s.delay ?? 0, flight: FLIGHT[s.kind] }));
   const plan: FxPlan = { shots, impact: Math.max(0, ...shots.map((s) => s.delay + FLIGHT[s.kind])), after: [], lunged: new Set() };
   const impact = playShots(OLD.root, plan);
   if (d.enemyAt !== undefined) later(d.enemyAt, () => clipMob(OLD, 1, 'attack'));

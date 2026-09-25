@@ -765,7 +765,7 @@ const list: ArtifactDef[] = [
   // ─── Активные магические (MP) ────────────────────────────────────────────
   {
     id: 'fireball',
-    fx: { color: '#ff7b00' },
+    fx: { color: '#ff7b00', sculpt: 'fire' },
     name: 'Огненный шар',
     glyph: '✹',
     kind: 'active',
@@ -785,7 +785,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'ice_shard',
-    fx: { color: '#7fd7ff' },
+    fx: { color: '#7fd7ff', sculpt: 'ice' },
     name: 'Ледяной осколок',
     glyph: '❄',
     kind: 'active',
@@ -832,7 +832,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'chain_lightning',
-    fx: { color: '#ffe45c' },
+    fx: { color: '#ffe45c', sculpt: 'bolt' },
     name: 'Цепная молния',
     glyph: 'ϟ',
     kind: 'active',
@@ -904,7 +904,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'fire_wave',
-    fx: { color: '#ff7b00' },
+    fx: { color: '#ff7b00', sculpt: 'fire' },
     name: 'Огненная волна',
     glyph: '≋',
     kind: 'active',
@@ -979,7 +979,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'flame_burst',
-    fx: { color: '#ff7b00' },
+    fx: { color: '#ff7b00', sculpt: 'fire' },
     name: 'Взрыв пламени',
     glyph: '✺',
     kind: 'active',
@@ -1052,7 +1052,7 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'incinerate',
-    fx: { color: '#ff7b00' },
+    fx: { color: '#ff7b00', sculpt: 'fire' },
     name: 'Испепеление',
     glyph: '☀',
     kind: 'active',

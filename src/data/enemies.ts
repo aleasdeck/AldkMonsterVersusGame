@@ -784,7 +784,7 @@ const list: EnemyDef[] = [
     rank: 'elite',
     role: 'caster',
     actions: [
-      withFx({ kind: 'orb', color: '#ff7b00' }, act('flame', 'Пламя', [
+      withFx({ kind: 'orb', color: '#ff7b00', sculpt: 'fire' }, act('flame', 'Пламя', [
         { type: 'attack', amount: 14 },
         { type: 'debuff', status: 'burn', value: 4, turns: 3 },
       ])),
@@ -792,7 +792,7 @@ const list: EnemyDef[] = [
         { type: 'block', amount: 12 },
         { type: 'thorns', amount: 2, turns: 3 },
       ]),
-      ...windup('heat', 'Раскаляется', withFx({ kind: 'orb', color: '#ffd166' }, act('burst', 'Взрыв', [{ type: 'attack', amount: 22 }]))),
+      ...windup('heat', 'Раскаляется', withFx({ kind: 'orb', color: '#ffd166', sculpt: 'fire' }, act('burst', 'Взрыв', [{ type: 'attack', amount: 22 }]))),
       // Проверка сборки: пламя пожирает раны — против Крови, Огня и Яда, раз за бой.
       lick('Пламя пожирает раны', 12),
     ],
@@ -824,11 +824,11 @@ const list: EnemyDef[] = [
     location: 'caves',
     rank: 'boss',
     actions: [
-      withFx({ kind: 'orb', color: '#ff5a1f' }, act('breath', 'Дыхание', [
+      withFx({ kind: 'orb', color: '#ff5a1f', sculpt: 'fire' }, act('breath', 'Дыхание', [
         { type: 'attack', amount: 18 },
         { type: 'debuff', status: 'burn', value: 4, turns: 3 },
       ])),
-      withFx({ kind: 'orb', color: '#ff5a1f' }, act('breath2', 'Пламенное дыхание', [
+      withFx({ kind: 'orb', color: '#ff5a1f', sculpt: 'fire' }, act('breath2', 'Пламенное дыхание', [
         { type: 'attack', amount: 18 },
         { type: 'debuff', status: 'burn', value: 5, turns: 3 },
       ])),

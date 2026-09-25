@@ -23,6 +23,11 @@ export interface BakeOpts {
   fade?: number[];
   /** Прозрачность всего клипа: газ и пар чуть просвечивают. */
   alpha?: number;
+  /**
+   * Зеркально по горизонтали: удар врага по герою идёт в обратную сторону, снаряд летит влево. Зеркалят готовый кадр,
+   * а не поворачивают на 180°: свет остаётся сверху, грани осколка и оперение не переворачиваются вверх ногами.
+   */
+  flip?: boolean;
 }
 
 // ─── Шум и мелочи ───────────────────────────────────────────────────────────
@@ -91,6 +96,20 @@ export function dissolve(px: Uint8ClampedArray, W: number, H: number, level: num
 
 // ─── Запекание ──────────────────────────────────────────────────────────────
 
+/** Отразить кадр по горизонтали на месте. */
+function mirror(px: Uint8ClampedArray, W: number, H: number): void {
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W >> 1; i++) {
+      const a = (j * W + i) * 4, b = (j * W + W - 1 - i) * 4;
+      for (let c = 0; c < 4; c++) {
+        const t = px[a + c];
+        px[a + c] = px[b + c];
+        px[b + c] = t;
+      }
+    }
+  }
+}
+
 /**
  * RGBA-кадры клипа эффекта: `n` кадров, модель рисует в своих координатах вокруг точки (0, 0) — она же якорь.
  * `w`×`h` — рамка в единицах поля (кратно 4, чтобы якорь лёг в клетку), ход клипа `u` 0..1, номер кадра `f`.
@@ -106,6 +125,7 @@ export function bakeRgba(w: number, h: number, n: number, draw: (p: Painter, u: 
     const px = p.finish();
     dissolve(px, p.W, p.H, o.fade?.[f] ?? 0);
     if (o.alpha !== undefined) for (let k = 3; k < px.length; k += 4) if (px[k] === 255) px[k] = Math.round(255 * o.alpha);
+    if (o.flip) mirror(px, p.W, p.H);
     out.push({ px, W: p.W, H: p.H });
   }
   return out;
@@ -118,6 +138,8 @@ export interface FxClip {
   n: number;
   draw: (p: Painter, u: number, f: number) => void;
   opts?: BakeOpts;
+  /** Кадры крутятся по кругу (снаряд в полёте, звёзды) — к последнему кадру клип не тает. */
+  loop?: boolean;
 }
 
 const cache = new Map<string, FxFrame[]>();
@@ -132,7 +154,8 @@ export function bake(key: string, clip: FxClip): FxFrame[] {
     c.width = W;
     c.height = H;
     c.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(px), W, H), 0, 0);
-    return { c, W, H, ax: Math.floor(w / 2 / CELL), ay: Math.floor(h / 2 / CELL) };
+    const ax = Math.floor(w / 2 / CELL);
+    return { c, W, H, ax: clip.opts?.flip ? W - 1 - ax : ax, ay: Math.floor(h / 2 / CELL) };
   });
   cache.set(key, frames);
   return frames;
