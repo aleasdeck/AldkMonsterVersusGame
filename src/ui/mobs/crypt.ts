@@ -402,6 +402,17 @@ const BGOLEM = {
 const SOUL = '#5cf0ff';
 
 /**
+ * Брызги крови на тазу: x, y, радиус, свежая ли. Разбросаны один раз генератором с постоянным зерном —
+ * в каждом кадре и при каждом запуске одни и те же (Math.random в лепке нельзя). Точки мимо таза не красятся:
+ * раскраска ложится только на свою часть.
+ */
+const PELVIS_SPATTER: Array<[number, number, number, boolean]> = (() => {
+  let seed = 7;
+  const rnd = (): number => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  return Array.from({ length: 30 }, () => [56 + rnd() * 54, 96 + rnd() * 20, 0.7 + rnd() * rnd() * 1.8, rnd() < 0.55] as [number, number, number, boolean]);
+})();
+
+/**
  * Удар кулаком сверху ближней (правой) рукой: из покоя (кулак у земли) рука уходит назад-вверх, через голову
  * обрушивается вперёд-вниз к герою и опускается в покой (угол 0 — покой, −2π — снова он).
  */
@@ -507,7 +518,11 @@ export const boneGolem: Model = {
         // Рёбра спереди, грудина и таз — в запёкшейся крови пятнами, как будто голем прижимал жертв к груди.
         for (const k of [1, 2, 4]) p.ellipse(62 + k, 50 + k * 7 + up * (1 - k / 8), 7, 3, M.gore, { part: `rib${k}`, paint: true });
         p.limb(60, 70 + up, 2.6, 62, 88, 2.2, M.gore, { part: 'sternum', paint: true });
-        p.ellipse(70, 106, 9, 5, M.gore, { part: 'pelvis', paint: true });
+        // Таз забрызган кровью по всей кости: мелкие капли, у крупных — короткий потёк вниз.
+        for (const [x, y, r, fresh] of PELVIS_SPATTER) {
+          p.ellipse(x, y, r, r * 0.85, fresh ? M.blood : M.gore, { part: 'pelvis', paint: true });
+          if (r > 1.5) p.limb(x, y, r * 0.6, x + 0.5, y + 3 + r, 0.7, fresh ? M.blood : M.gore, { part: 'pelvis', paint: true });
+        }
         // Цепи, что держат рёбра вместе.
         p.chain([[56, 60 + up, 1.1], [70, 66 + up, 1.1], [86, 64 + up, 1.1], [98, 58 + up, 1.1]], M.iron, { part: 'chain' });
 
