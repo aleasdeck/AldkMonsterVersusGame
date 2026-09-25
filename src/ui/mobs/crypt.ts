@@ -1500,7 +1500,8 @@ const NECRO = {
   robe: { base: '#2c1c44', shag: 0.2, tex: { kind: 'stripes', scale: 3, amp: 0.1, angle: 1.45 } } as Mat,
   hood: { base: '#3e2660', tex: { kind: 'noise', scale: 3, amp: 0.1 } } as Mat,
   shade: { base: '#140c1e' } as Mat,
-  skin: { base: '#b4a8bc', tex: { kind: 'noise', scale: 3, amp: 0.08 } } as Mat,
+  skin: { base: '#c0b0b4', tex: { kind: 'noise', scale: 3, amp: 0.06 } } as Mat,
+  beard: { base: '#9a949c', shag: 0.25, tex: { kind: 'stripes', scale: 1.1, amp: 0.2, angle: 1.4 } } as Mat,
   belt: { base: '#3a2418' } as Mat,
   wood: { base: '#4a3222', tex: { kind: 'bark', scale: 1.5, amp: 0.18, angle: 1.57 } } as Mat,
   bone: { base: '#c8b898', ramp: SKULL_RAMP, tex: { kind: 'noise', scale: 2, amp: 0.1 } } as Mat,
@@ -1553,26 +1554,44 @@ export const necromancer: Model = {
         p.line(52, 50 + up, 47, 58 + up, '#8a8070');
         p.scope(0.34, 46, 61 + up, () => skull(p, M.bone, 'amulet', 0, hurt > 0.4 ? '' : NECRO_EYE, 0.2));
 
-        // Капюшон: лицо в глубокой тени — впалые щёки, крючковатый нос, горящие зелёные глаза.
-        p.pose({ dx: p.snap(1.5 * hurt), dy: p.snap(2 - 2 * hurt), rot: -0.1 + 0.24 * hurt - 0.04 * strike, px: 44, py: 46 + up }, () => {
-          p.poly([26, 50 + up, 34, 40 + up, 54, 40 + up, 62, 52 + up, 54, 56 + up, 44, 54 + up, 32, 57 + up], M.hood, { part: 'mantle', bevel: 4 });
-          p.ellipse(44, 30 + up, 13, 14, M.hood, { part: 'hood' });
-          p.poly([46, 18 + up, 60 + hurt * 3, 14 + up + hurt * 4, 56, 30 + up], M.hood, { part: 'hood', bevel: 3 });
-          p.ellipse(37, 33 + up, 8, 10, M.shade, { part: 'hood', paint: true });
-          p.ellipse(35, 36 + up, 5, 7, M.skin, { part: 'face', tone: -0.25 });
-          p.limb(33, 33 + up, 1.7, 29.5, 37.5 + up, 1.5, M.skin, { part: 'nose', lift: 3, tone: -0.15 });
-          p.ellipse(33, 42 + up, 2.6, 2, M.skin, { part: 'face', tone: -0.2, lift: 1 });
-          p.ellipse(37, 38 + up, 2, 2.6, M.shade, { part: 'face', paint: true, tone: 0.3 });
-          if (strike > 0.4 || hurt > 0.4) p.block(31, 40 + up, 2, 1, '#1a0e14');
-          else p.line(31, 40 + up, 34, 40 + up, '#2a1a22');
+        // Глубокий капюшон: большой купол, остриё свисает на спину, толстый край ткани обрамляет лицо.
+        // Лицо — человеческое и освещённое: худой старик, лоб в тени капюшона, глаза горят зелёным из глазниц,
+        // длинный крючковатый нос, впалые щёки, тонкие губы, седая бородка клином.
+        p.pose({ dx: p.snap(1.5 * hurt), dy: p.snap(2 - 2 * hurt), rot: -0.1 + 0.24 * hurt - 0.04 * strike, px: 44, py: 46 + up }, () => p.scope(1.14, 44 * -0.14, (46 + up) * -0.14, () => {
+          p.poly([22, 52 + up, 32, 40 + up, 56, 40 + up, 67, 54 + up, 57, 59 + up, 44, 56 + up, 30, 60 + up], M.hood, { part: 'mantle', bevel: 4 });
+          p.ellipse(47, 28 + up, 16, 17, M.hood, { part: 'hood' });
+          p.poly([52, 14 + up, 68 + hurt * 3, 22 + up + hurt * 3, 66, 38 + up, 58, 34 + up], M.hood, { part: 'hood', bevel: 3 });
+          // Провал капюшона вокруг лица.
+          p.ellipse(36.5, 33 + up, 11.5, 13, M.shade, { part: 'hood', paint: true });
+          // Лицо: высокий лоб, острые скулы, клин подбородка. Тени — узкие: пятна на таком лице читаются черепом.
+          p.ellipse(35.5, 34 + up, 8, 9.5, M.skin, { part: 'face' });
+          p.poly([29, 37 + up, 39.5, 39 + up, 40.5, 44.5 + up, 35, 48 + up, 30.5, 46 + up], M.skin, { part: 'face' });
+          p.poly([29, 26 + up, 43, 26 + up, 43, 28.5 + up, 29, 29.5 + up], M.shade, { part: 'face', paint: true, tone: 0.3 });
+          // Длинный крючковатый нос со светлой спинкой и тёмной ноздрёй.
+          p.chain([[33.5, 32.5 + up, 1.7], [30.5, 36.5 + up, 1.5], [29.2, 39 + up, 1]], M.skin, { part: 'nose', lift: 3 });
+          // Седая бородка клином.
+          p.poly([30.5, 43.5 + up, 36.5, 43.5 + up, 34.5, 50 + up, 32, 52 + up], M.beard, { part: 'beard', bevel: 1.5 });
+          p.line(33, 32.5 + up, 30.5, 36 + up, '#e2d6d6');
+          p.px(30.5, 39 + up, '#3a2630');
+          // Скула — одной складкой.
+          p.line(38.5, 37 + up, 37.5, 41 + up, '#8a7880');
+          if (strike > 0.4 || hurt > 0.4) p.block(31, 41 + up, 2, 2, '#1a0e14');
+          else p.line(30.5, 41.5 + up, 34.5, 41 + up, '#3a2630');
+          // Глаза — тёмные прорези под бровями, в них горит зелёная точка.
+          p.line(31, 33.5 + up, 32.5, 33.5 + up, '#1a0e14');
+          p.line(36, 33.5 + up, 38.5, 33.5 + up, '#1a0e14');
           if (hurt < 0.4) {
             const eye = wind > 0.4 ? '#e0ffe8' : NECRO_EYE;
-            p.glow(34, 32 + up, 4, NECRO_EYE, 0.3 + 0.2 * pulse + 0.2 * wind);
-            p.line(32, 32 + up, 34, 32.5 + up, eye);
-            p.px(37.5, 32.5 + up, '#3aa866');
+            p.glow(35, 33 + up, 4, NECRO_EYE, 0.3 + 0.2 * pulse + 0.2 * wind);
+            p.px(32, 33.5 + up, eye);
+            p.px(37.5, 33.5 + up, eye);
           }
-          p.line(31, 30 + up, 36, 31 + up + wind, '#140c1e');
-        });
+          // Брови сдвинуты к переносице — злой взгляд из-под капюшона.
+          p.line(30, 31.5 + up, 33.5, 32.2 + up + wind, '#4a3a44');
+          p.line(35.5, 32.2 + up + wind, 39.5, 31.2 + up, '#4a3a44');
+          // Толстый край капюшона — поверх лба и затылка, рамой вокруг лица.
+          p.poly([25, 31 + up, 28.5, 22.5 + up, 37, 18.5 + up, 46, 20.5 + up, 50.5, 29 + up, 48.5, 42 + up, 45, 45 + up, 45.5, 32 + up, 42, 25 + up, 34, 24 + up, 28.5, 30 + up], M.hood, { part: 'hoodRim', bevel: 2, tone: 0.08 });
+        }));
 
         // Ближняя рука — справа, поверх туловища: корявый посох, на навершии череп в зелёном огне.
         p.pose({ dy: -5 * wind, rot: 0.18 * wind - 0.2 * strike + 0.12 * hurt, px: 62, py: 64 + up }, () => {
