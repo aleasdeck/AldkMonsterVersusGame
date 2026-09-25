@@ -301,6 +301,10 @@ export interface Model {
   ground: number;
   /** Поле вокруг рамки для клипов, единицы: выпад, замах дубиной и отдача не должны упираться в край кадра. */
   pad?: number;
+  /** Парит над полом (мышь): низ фигуры не на линии земли — тест ступней её не сверяет. */
+  flies?: boolean;
+  /** Рост мимо `ENEMY_BODY_HEIGHT` по замыслу — с причиной: тест и tools/mob-sheet.mjs его не сверяют. */
+  ownHeight?: string;
   /**
    * Каждый кадр лепит тело заново. `p.t` — фаза цикла покоя 0..1, `p.clip` и `p.u` — клип действия и его ход 0..1;
    * позы клипа модель берёт из `p.attack()` и `p.hurt()`, целиком тело наклоняет и сдвигает `p.pose`.
@@ -1019,7 +1023,7 @@ export class Painter {
  */
 export function scaleModel(model: Model, s: number): Model {
   return {
-    id: model.id,
+    ...model,
     w: Math.ceil(model.w * s),
     h: Math.ceil(model.h * s),
     ground: model.ground * s,

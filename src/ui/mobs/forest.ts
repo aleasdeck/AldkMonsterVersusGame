@@ -168,6 +168,8 @@ export const alphaWolf: Model = {
   w: Math.ceil(116 * ALPHA_SCALE),
   h: Math.ceil(80 * ALPHA_SCALE),
   ground: 76 * ALPHA_SCALE,
+  // Выпад волка в полтора раза крупнее: нос в кадре контакта уходит за рамку на 32 единицы.
+  pad: 36,
   draw(p: Painter) {
     p.scope(ALPHA_SCALE, 0, 0, () => wolfFigure(p, { M: ALPHA, alpha: true, eye: '#ff3b3b', glint: '#ffd0d0' }));
   },
@@ -277,6 +279,7 @@ export const rat: Model = {
   w: 80,
   h: 44,
   ground: 42,
+  ownHeight: 'длинная и низкая: по «массе» — как прежний квадратный спрайт ростом 40',
   draw(p: Painter) {
     const M = RAT;
     // Укус: привстать и задрать морду, бросок вперёд с резцами наружу. Урон: отбросило, сжалась, хвост дёрнулся.
@@ -351,6 +354,8 @@ export const bat: Model = {
   w: 96,
   h: 72,
   ground: 70,
+  flies: true,
+  ownHeight: 'парит: в рамку от макушки до пола входит просвет под крыльями',
   draw(p: Painter) {
     const M = BAT;
     // Пикирование: замах — взмыть с поднятыми крыльями, выпад — нырок вниз-вперёд, крылья сложены назад, клыки.
@@ -520,6 +525,8 @@ export const banditArcher: Model = {
   w: 84,
   h: 112,
   ground: 110,
+  // Выпущенная стрела в кадре контакта — на 22 единицы левее рамки.
+  pad: 26,
   draw(p: Painter) {
     const M = ARCHER;
     const G = 110;
@@ -634,8 +641,8 @@ export const cutthroat: Model = {
   w: 92,
   h: 116,
   ground: 114,
-  // Тесак в верхней точке замаха поднят над головой: полю сверху нужен запас.
-  pad: 34,
+  // Тесак в верхней точке замаха поднят над головой, а в кадре контакта вынесен вперёд на 46 единиц за рамку.
+  pad: 50,
   draw(p: Painter) {
     const M = CUT;
     const G = 114;
@@ -830,6 +837,8 @@ export const goblinShaman: Model = {
   w: 88,
   h: 82,
   ground: 80,
+  // Посох в кадре контакта выброшен вперёд: сияние кристалла — на 26 единиц за рамкой.
+  pad: 30,
   draw(p: Painter) {
     const M = SHAMAN;
     const G = 80;
