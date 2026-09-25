@@ -5,6 +5,7 @@ import { SWAMP_MODELS } from './swamp';
 import { HIVE_MODELS } from './hive';
 import { SHIP_MODELS } from './ship';
 import { CAVES_MODELS } from './caves';
+import { CRYPT_MODELS } from './crypt';
 import { enemyDef } from '../../data/enemies';
 import type { EventTarget } from '../../engine/types';
 
@@ -14,7 +15,7 @@ import type { EventTarget } from '../../engine/types';
  * Клип удара запускает `playMobAction` (из `playEnemyAction`, до перерисовки поля), клип урона — `playMobClip`
  * (из `playEnemyClip` на событии урона). Идущий клип переживает `App.render()`: состояние живёт на экземпляре врага.
  */
-export const MOB_MODELS: Record<string, Model> = { ...FOREST_MODELS, ...SWAMP_MODELS, ...HIVE_MODELS, ...SHIP_MODELS, ...CAVES_MODELS };
+export const MOB_MODELS: Record<string, Model> = { ...FOREST_MODELS, ...SWAMP_MODELS, ...HIVE_MODELS, ...SHIP_MODELS, ...CAVES_MODELS, ...CRYPT_MODELS };
 
 type ActClip = 'attack' | 'hurt';
 

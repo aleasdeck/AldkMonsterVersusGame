@@ -1124,9 +1124,6 @@ p {
   margin-bottom: calc(-1 * var(--sprite-foot));
   pointer-events: none;
 }
-.enemy.drawn > .bar {
-  margin-bottom: 14px;
-}
 .hero-zone > .name,
 .enemy > .name {
   height: var(--fighter-caption-height);
@@ -1278,7 +1275,6 @@ p {
    иначе область фильтра обрезала бы лист героя — он рисуется ячейкой шире своего места.
    `--tint` ставит поле боя, вне боя переменной нет и спрайты остаются в своей палитре. */
 .field .sprite-wrap img.sprite,
-.field .sprite-wrap canvas.enemy-sheet,
 .field .sprite-wrap .mob-sheet,
 .field .hero-sprite::before {
   filter: var(--tint, none);
@@ -1333,11 +1329,6 @@ p {
     animation: none;
   }
 }
-.enemy-sheet {
-  image-rendering: auto;
-  flex: none;
-}
-
 /* Рисованный герой (heroSprite.ts): ряд листа — клип, --row его номер, --frames кадров в ряду, --dur длительность.
    В разметке спрайт занимает квадрат --box по фигуре в покое, а сам лист рисуется поверх ячейкой --cell (она шире):
    так замах мечом и падение вылезают за место героя и не обрезаются. Листы нарисованы без пиксельной сетки,

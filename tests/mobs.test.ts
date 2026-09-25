@@ -3,7 +3,6 @@ import { renderSheet, type Sheet } from '../src/ui/mobs/pixel';
 import { MOB_STYLE } from '../src/ui/mobs/styles';
 import { MOB_MODELS } from '../src/ui/mobs';
 import { ENEMY_LIST } from '../src/data/enemies';
-import { hasDrawnSheet } from '../src/ui/characterSize';
 import { ENEMY_BODY_HEIGHT } from '../src/data/characterSizes';
 
 /** Последняя строка кадра, где есть непрозрачный пиксель (тень на земле полупрозрачна и не считается). */
@@ -46,16 +45,14 @@ const sheets = new Map(MODELS.map(([id, m]) => [id, {
 }]));
 
 describe('пиксельная лепка (v0.52)', () => {
-  it('локация переходит на лепку целиком: модель у каждого её врага без рисованного листа, лишних моделей нет', () => {
+  it('локация переходит на лепку целиком: модель у каждого её врага, лишних моделей нет', () => {
     const ids = new Set(ENEMY_LIST.map((e) => e.id));
     for (const id of Object.keys(MOB_MODELS)) {
       expect(ids.has(id), `${id}: нет такого врага`).toBe(true);
-      // Лепка в enemySprite проверяется первой и перекрыла бы рисованный лист (скелеты, некромант).
-      expect(hasDrawnSheet(id), `${id}: у врага рисованный лист`).toBe(false);
     }
     const locs = new Set(ENEMY_LIST.filter((e) => Object.hasOwn(MOB_MODELS, e.id)).map((e) => e.location));
     for (const loc of locs) {
-      for (const e of ENEMY_LIST.filter((x) => x.location === loc && !hasDrawnSheet(x.id))) {
+      for (const e of ENEMY_LIST.filter((x) => x.location === loc)) {
         expect(Object.hasOwn(MOB_MODELS, e.id), `${loc}: у ${e.id} нет модели`).toBe(true);
       }
     }

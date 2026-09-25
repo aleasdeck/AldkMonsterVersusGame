@@ -16,7 +16,7 @@
 <script type="module">
   import '../src/style.css';
   import { enemyDef } from '../src/data/enemies.ts';
-  import { enemySprite, hasEnemySheet } from '../src/ui/enemySprite.ts';
+  import { enemySprite } from '../src/ui/enemySprite.ts';
   import { enemySize, enemySizeStyle } from '../src/ui/characterSize.ts';
   import { heroSprite } from '../src/ui/heroSprite.ts';
   import { HERO_BODY_HEIGHT } from '../src/data/characterSizes.ts';
@@ -44,7 +44,7 @@
     const zone = h('div', { class: 'enemy-zone' });
     for (const id of ids) {
       const def = enemyDef(id), size = enemySize(def);
-      zone.append(h('div', { class: `enemy ${hasEnemySheet(id) ? 'drawn' : ''}`, style: enemySizeStyle(size) },
+      zone.append(h('div', { class: 'enemy', style: enemySizeStyle(size) },
         h('div', { class: 'pill' }, 'Атака'), h('div', { class: 'bar' }, 'HP'),
         h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, size.px)), h('div', { class: 'name' }, def.name)));
     }
