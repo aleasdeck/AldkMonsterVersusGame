@@ -741,11 +741,12 @@ const GHOUL = {
 const GHOUL_EYE = '#ffb030';
 
 /**
- * Удар когтями ближней рукой: плечо и предплечье по ходу клипа, градусы — в покое когти выставлены вперёд под пастью,
- * замах — рука над горбом, когти назад; контакт — рука к герою ниже головы, когти рубят сверху вниз и не закрывают морду.
+ * Удар ближней передней лапой: плечо и предплечье по ходу клипа, градусы. В покое лапа стоит на земле ладонью,
+ * замах — лапа взлетает вверх-вперёд, когти назад; контакт — лапа вытянута к герою ниже морды, когти рубят вниз,
+ * потом лапа снова опускается на землю.
  */
-const GH_UPPER: Keys = [[0, 112], [0.14, 245], [0.3, 258], [0.43, 205], [0.57, 150], [0.72, 132], [0.86, 112], [1, 100]];
-const GH_FORE: Keys = [[0, 160], [0.14, 290], [0.3, 305], [0.43, 225], [0.57, 160], [0.72, 140], [0.86, 145], [1, 150]];
+const GH_UPPER: Keys = [[0, 95], [0.14, 215], [0.3, 225], [0.43, 190], [0.57, 140], [0.72, 118], [0.86, 95], [1, 82]];
+const GH_FORE: Keys = [[0, 125], [0.14, 275], [0.3, 290], [0.43, 225], [0.57, 150], [0.72, 125], [0.86, 120], [1, 118]];
 
 /** Коготь-клинок из кисти (x, y) в направлении `a` градусов: длинный, чуть загнут вниз, толстый у основания. */
 function blade(p: Painter, x: number, y: number, a: number, len: number, wid: number, mat: Mat, part: string, tone = 0): void {
@@ -774,117 +775,121 @@ function shackle(p: Painter, x: number, y: number, a: number, r: number, M: type
 const ghoulBase: Model = {
   id: 'ghoul',
   w: 112,
-  h: 96,
-  ground: 94,
-  // Когти в кадре контакта выброшены к герою, в замахе — над горбом.
-  pad: 48,
+  h: 80,
+  ground: 76,
+  // Лапа с когтями в замахе поднимается над головой, в кадре контакта выброшена к герою.
+  pad: 50,
+  ownHeight: 'стоит на четырёх лапах: длинный и низкий, рост — до шипов на горбу, как у зверя, а не у человека',
   draw(p: Painter) {
     const M = GHOUL;
-    const G = 94;
-    // Прыжок с когтями: замах — присесть ниже, ближняя рука взлетает над горбом, пасть раскрыта; выпад — бросок
-    // к герою, когти рубят сверху вниз. Урон: отбросило, голову запрокинуло, пасть в визге, когти поджаты.
+    const G = 76;
+    // Прыжок с когтями: замах — присесть на задние лапы, передняя лапа взлетает, пасть раскрыта; выпад — бросок
+    // к герою, лапа рубит когтями ниже морды. Урон: отбросило, голову запрокинуло, пасть в визге, шипы прижаты.
     const { wind, strike } = p.attack();
     const hurt = p.hurt();
-    // Хрипло дышит: горб ходит вверх-вниз, когти подрагивают, голова дёргается — принюхивается; с челюсти тянется слюна.
+    // Хрипло дышит: горб с шипами ходит вверх-вниз, когти скребут пол, голова дёргается — принюхивается; слюна с челюсти.
     const up = -p.bob(1.5, 2);
     const flex = p.wave(3, 0.2);
     const sniff = p.clip === 'idle' ? p.snap(1.5 * p.blink(0.3, 0.1)) : 0;
     const drip = p.clip === 'idle' ? (p.t * 2) % 1 : -1;
     const sway = p.wave(1, 0.4) + 2 * hurt;
+    // Задние лапы: бедро вперёд-вниз к колену, голень назад к скакательному суставу, стопа вперёд — сложены под тазом.
+    const hind = (hip: [number, number], knee: [number, number], hock: [number, number], toe: number, part: string, tone: number): void => {
+      p.chain([[hip[0], hip[1], 7], [knee[0], knee[1], 4], [hock[0], hock[1], 2.8]], M.skin, { part, tone });
+      p.limb(hip[0] - 1, hip[1] + 1, 5, knee[0] + 2, knee[1] - 2, 2.6, M.muscle, { part, paint: true, tone });
+      p.ellipse(knee[0], knee[1], 4, 3.6, M.skin, { part, tone, lift: 1 });
+      p.poly([hock[0] + 2, hock[1] - 2, hock[0] + 3, G, toe, G, toe + 2, G - 3.5], M.skin, { part: `${part}Foot`, tone: tone - 0.04, bevel: 1.2 });
+      for (const x of [toe, toe + 4]) p.line(x, G - 1, x - 2, G, '#2a2420');
+    };
+    // Передняя лапа, что стоит на земле: плечо — локоть — запястье, ладонь плашмя, когти веером вперёд по полу.
+    const front = (sx: number, sy: number, a1: number, a2: number, part: string, tone: number, cuffSway: number): { hx: number; hy: number } => {
+      const { ex, ey, hx, hy } = limb2(sx, sy, a1, 20, a2, 20);
+      p.limb(sx, sy, 5, ex, ey, 3.6, M.skin, { part, tone });
+      p.limb(ex, ey, 3.6, hx, hy, 2.8, M.skin, { part, tone });
+      p.limb(ex, ey, 2.8, hx, hy, 2.2, M.muscle, { part, paint: true, tone });
+      p.ellipse(sx, sy, 5.4, 5, M.skin, { part, tone, lift: 1 });
+      p.ellipse(ex, ey, 3.4, 3.2, M.skin, { part, tone, lift: 1 });
+      const [cx, cy] = at(hx, hy, a2 + 180, 4);
+      shackle(p, cx, cy, a2, 3.4, M, cuffSway, `${part}Cuff`, tone);
+      p.ellipse(hx - 1, hy + 1, 4, 2.6, M.skin, { part: `${part}Hand`, tone });
+      return { hx: hx - 2, hy: hy + 1 };
+    };
 
-    p.pose({ dx: -16 * strike + 4 * wind + 5 * hurt, dy: 3 * wind, rot: 0.06 * wind - 0.08 * strike + 0.07 * hurt, px: 70, py: G }, () => {
-      p.shadow(62, 40, 3);
-      // Обрывок цепи от кандалов на ближней лодыжке волочится по полу.
-      for (let k = 0; k < 4; k++) p.ellipse(90 + k * 3.4, G - 1.2, 1.6, 1.2, M.iron, { part: 'floorChain', tone: -0.1 });
+    p.pose({ dx: -18 * strike + 4 * wind + 5 * hurt, dy: 3 * wind - 3 * strike, rot: -0.05 * strike + 0.04 * wind + 0.06 * hurt, px: 84, py: G }, () => {
+      p.shadow(56, 42, 3);
+      // Обрывок цепи от кандалов на задней лапе волочится по полу.
+      for (let k = 0; k < 4; k++) p.ellipse(96 + k * 3.4, G - 1.2, 1.6, 1.2, M.iron, { part: 'floorChain', tone: -0.1 });
 
-      // Низкая стойка перед прыжком: колени выставлены к герою, стопы под тазом, пальцы с когтями в камне.
-      const leg = (hip: [number, number], knee: [number, number], ankle: [number, number], toe: number, part: string, tone: number): void => {
-        p.chain([[hip[0], hip[1], 6], [knee[0], knee[1], 3.8], [ankle[0], ankle[1], 2.6]], M.skin, { part, tone });
-        p.limb(hip[0] - 1, hip[1] + 1, 4.2, knee[0] + 2, knee[1] - 1.5, 2.4, M.muscle, { part, paint: true, tone });
-        p.ellipse(knee[0], knee[1], 3.8, 3.4, M.skin, { part, tone, lift: 1 });
-        p.poly([ankle[0] + 2, ankle[1] - 2, ankle[0] + 4, G, toe, G, toe + 2, G - 3.5], M.skin, { part: `${part}Foot`, tone: tone - 0.04, bevel: 1.2 });
-        for (const x of [toe, toe + 4]) p.line(x, G - 1, x - 2, G, '#2a2420');
-      };
-      leg([76, 54], [58, 70], [66, 88], 50, 'far', -0.16);
+      // Дальние лапы — за телом, темнее: задняя сложена, передняя стоит впереди ближней, ближе к герою.
+      hind([80, 38 + up * 0.5], [68, 56], [80, 66], 64, 'farHind', -0.16);
+      // Локти отставлены назад, ладони впереди — хищник в засаде, а не собака на прямых ногах.
+      const far = front(42, 34 + up, 88, 121, 'farFront', -0.16, sway);
+      for (let k = 0; k < 3; k++) blade(p, far.hx, far.hy + k * 0.8, 180 + (k - 1) * 9 + 2 * flex, 16 - k * 2, 2.4, M.claw, `farClaw${k}`, -0.12);
 
-      // Дальняя рука — слева, за телом: опирается о пол, когти-клинки веером впереди.
-      p.chain([[50, 38 + up, 4.4], [40, 56 + up * 0.5, 3.4], [30, 72, 2.8]], M.skin, { part: 'farArm', tone: -0.16 });
-      p.limb(44, 48 + up * 0.5, 3, 33, 68, 2.2, M.muscle, { part: 'farArm', paint: true, tone: -0.16 });
-      p.ellipse(40, 56 + up * 0.5, 3.4, 3.2, M.skin, { part: 'farArm', tone: -0.16, lift: 1 });
-      p.ellipse(28, 75, 3.6, 3, M.skin, { part: 'farHand', tone: -0.16 });
-      shackle(p, 32, 69, 125, 3.2, M, sway, 'farCuff', -0.16);
-      for (let k = 0; k < 3; k++) blade(p, 27, 74 + k * 1.6, 172 + (k - 1) * 13 + 3 * flex, 22 - k * 2, 2.8, M.claw, `farClaw${k}`, -0.1);
+      // Тело: таз, длинная спина горбом, глубокая грудь между передними лапами, втянутый живот; бока содраны до мышц.
+      p.ellipse(84, 38 + up * 0.5, 10, 9, M.skin);
+      p.ellipse(64, 30 + up, 20, 10, M.skin, { rot: 0.05 });
+      p.ellipse(48, 40 + up, 12, 11, M.skin);
+      p.ellipse(68, 42 + up * 0.5, 12, 6, M.skin);
+      p.ellipse(48, 44 + up, 6, 5, M.muscle, { paint: true });
+      p.ellipse(72, 36 + up * 0.7, 6, 4, M.muscle, { paint: true, tone: -0.05 });
+      for (let k = 0; k < 4; k++) p.line(56 + k * 4, 34 + up, 58 + k * 4, 44 + up * 0.5, '#5a3a36');
+      // Костяные шипы из хребта по всей спине — наклонены назад, самые высокие на горбу.
+      const spikes: Array<[number, number, number, number]> = [[48, 24, 7, 2.2], [56, 21, 11, 2.8], [64, 20, 13, 3.2], [72, 21, 12, 3], [80, 25, 9, 2.6], [87, 30, 6, 2]];
+      for (const [x, y, h, w] of spikes) p.poly([x - w, y + up + 2, x + h * 0.35 - 2 * hurt, y + up - h - 2 * wind + 2 * hurt, x + w, y + up + 2], M.bone, { part: 'spikes', bevel: 1 });
+      // Рваньё на бёдрах.
+      p.poly([78, 42, 94, 40, 95, 50, 90, 54, 85, 49, 80, 53, 76, 47], M.rag, { part: 'rag', bevel: 2 });
 
-      // Тело: таз сзади выше головы, спина горбом, грудь низко между рук, живот втянут; на груди кожа содрана.
-      p.ellipse(82, 52, 9, 8, M.skin);
-      p.ellipse(74, 38 + up * 0.6, 15, 9, M.skin, { rot: 0.83 });
-      p.ellipse(56, 42 + up, 12, 10, M.skin, { rot: -0.3 });
-      p.ellipse(70, 50 + up * 0.5, 9, 6, M.skin);
-      p.ellipse(54, 46 + up, 6, 5, M.muscle, { paint: true });
-      for (let k = 0; k < 4; k++) p.line(46 + k * 3.2, 40 + up + k * 1.2, 52 + k * 3.2, 46 + up + k * 1.6, '#5a3a36');
-      p.ellipse(72, 48 + up * 0.5, 4, 3, M.muscle, { paint: true, tone: -0.05 });
-      // Костяные шипы из хребта по выгнутой спине — наклонены назад, самые высокие на горбу.
-      const spikes: Array<[number, number, number, number]> = [[56, 32, 9, 2.6], [63, 27, 13, 3.2], [70, 27, 14, 3.2], [77, 31, 11, 2.8], [83, 38, 8, 2.2]];
-      for (const [x, y, h, w] of spikes) p.poly([x - w, y + up + 2, x + h * 0.35, y + up - h - 2 * wind, x + w, y + up + 2], M.bone, { part: 'spikes', bevel: 1 });
-      // Набедренная повязка — рваньё.
-      p.poly([74, 56, 90, 54, 92, 66, 86, 70, 80, 65, 74, 69, 70, 62], M.rag, { part: 'rag', bevel: 2 });
+      // Ближняя задняя лапа — поверх тела; на скакательном суставе кандалы.
+      hind([86, 38 + up * 0.5], [76, 58], [90, 68], 76, 'nearHind', 0);
+      shackle(p, 90, 69, 90, 3.4, M, 0, 'ankle');
 
-      // Ближняя нога — поверх тела; на лодыжке кандалы.
-      leg([84, 54], [72, 74], [82, 90], 66, 'near', 0);
-      shackle(p, 82, 86, 90, 3.4, M, 0, 'ankle');
-
-      // Голова на жилистой шее вытянута к герою ниже горба: череп, обтянутый кожей, гребень костяных шипов,
+      // Голова на жилистой шее опущена ниже плеч и вытянута к герою: череп, обтянутый кожей, гребень шипов,
       // носа нет — две щели, огромная пасть с частоколом клыков; глаза горят из-под надбровий.
-      p.limb(52, 36 + up, 5, 36, 40 + up, 4.4, M.skin, { part: 'neck', tone: -0.05 });
+      p.limb(46, 32 + up, 5.4, 34, 37 + up, 4.6, M.skin, { part: 'neck', tone: -0.05 });
       const open = 4 + 3 * wind + 5 * strike + 5 * hurt + (p.clip === 'idle' ? 0.8 * p.wave(1) : 0);
-      p.pose({ dx: p.snap(-3 * strike + 2 * hurt - sniff), dy: up + p.snap(-2 * wind - 2 * hurt), rot: 0.14 * wind - 0.06 * strike + 0.32 * hurt, px: 36, py: 40 }, () => {
-        p.scope(1.12, 30, 40, () => {
-          // Космы на затылке и заострённое ухо.
-          p.chain([[6, -8, 1.4], [14, -6, 1.1], [18, 0, 0.6]], M.hair, { part: 'hair' });
-          p.poly([4, -6, 14 + 2 * hurt, -12 + hurt, 8, -1], M.skin, { part: 'ear', bevel: 1.4, tone: -0.1 });
-          // Нижняя челюсть — длинная, отвисшая.
-          p.pose({ rot: 0.04 * open, px: 4, py: 2 }, () => {
-            p.poly([-15, 4 + open * 0.6, -4, 4.5 + open, 4, 3, 3, 8 + open * 0.5, -6, 11 + open, -13, 9 + open], M.skin, { part: 'jaw', tone: -0.1, bevel: 1.6 });
-          });
-          p.ellipse(1, -4, 8, 7.5, M.skin, { part: 'head' });
-          p.ellipse(-7, 0, 6.5, 4.5, M.skin, { part: 'head' });
-          // Гребень коротких костяных шипов от лба к затылку.
-          for (const [x, y, tx, ty] of [[-3, -10.5, -4, -16], [1, -11.5, 2, -17.5], [5, -10, 8, -15]]) p.poly([x - 1.5, y + 1, tx, ty, x + 1.5, y + 1], M.bone, { part: 'crest', bevel: 0.8 });
-          // Надбровье нависает, щёки впали; носа нет — две щели.
-          p.ellipse(-4, -5.5, 6.5, 2, M.shade, { part: 'head', paint: true });
-          p.ellipse(1, 1, 3, 2.2, M.shade, { part: 'head', paint: true });
-          p.line(-12, -1.5, -11, 0.5, '#2a1a18');
-          p.line(-9.5, -1.5, -8.5, 0.5, '#2a1a18');
-          // Пасть: провал с частоколом верхних и нижних клыков.
-          p.poly([-15, 3, 1, 2.5, 2, 4 + open * 0.8, -5, 5.5 + open, -13, 4.5 + open * 0.8], M.mouth, { part: 'maw', bevel: 0.6 });
-          for (const x of [-13, -9.5, -6, -2.5]) p.poly([x - 1.2, 3, x + 1.2, 3, x, 6.5], M.tooth, { part: 'teeth' });
-          for (const x of [-11.5, -7.5, -3.5]) p.poly([x - 1.2, 5 + open * 0.9, x + 1.2, 5 + open * 0.9, x, 1.5 + open * 0.9], M.tooth, { part: 'teeth' });
-          if (drip > 0.05 && drip < 0.7) p.line(-11, 5 + open, -11, 6 + open + drip * 8, '#c8b0a0a0');
-          const shut = hurt > 0.4 ? 1 : p.blink(0.7, 0.04);
-          if (shut < 1) {
-            p.glow(-6, -4.5, 4.5, GHOUL_EYE, 0.35 + 0.25 * wind);
-            p.line(-7, -4.5, -4.5, -4, wind > 0.4 ? '#fff0b0' : GHOUL_EYE);
-            p.px(-0.5, -4, '#d08020');
-          } else p.line(-8, -4, -4, -4, '#2a1a18');
+      p.pose({ dx: p.snap(-3 * strike + 2 * hurt - sniff), dy: up + p.snap(-3 * wind - 2 * hurt), rot: 0.16 * wind - 0.08 * strike + 0.32 * hurt, px: 36, py: 38 }, () => {
+        // Космы на затылке и заострённое ухо.
+        p.chain([[30, 30, 1.4], [38, 32, 1.1], [42, 38, 0.6]], M.hair, { part: 'hair' });
+        p.poly([30, 32, 40 + 2 * hurt, 26 + hurt, 33, 37], M.skin, { part: 'ear', bevel: 1.4, tone: -0.1 });
+        // Нижняя челюсть — длинная, отвисшая.
+        p.pose({ rot: 0.04 * open, px: 30, py: 42 }, () => {
+          p.poly([10, 43 + open * 0.6, 20, 44 + open, 30, 42, 29, 47 + open * 0.5, 20, 50 + open, 12, 48 + open], M.skin, { part: 'jaw', tone: -0.1, bevel: 1.6 });
         });
+        p.ellipse(26, 35.5, 8.5, 7.5, M.skin, { part: 'head' });
+        p.ellipse(18, 40, 6.5, 4.5, M.skin, { part: 'head' });
+        // Гребень коротких костяных шипов от лба к затылку.
+        for (const [x, y, tx, ty] of [[21, 29, 20, 23.5], [25.5, 28, 26.5, 22], [30, 29.5, 33, 24.5]]) p.poly([x - 1.5, y + 1, tx, ty, x + 1.5, y + 1], M.bone, { part: 'crest', bevel: 0.8 });
+        // Надбровье нависает, щёки впали; носа нет — две щели.
+        p.ellipse(19, 33, 6.5, 2, M.shade, { part: 'head', paint: true });
+        p.ellipse(26, 40, 3, 2.2, M.shade, { part: 'head', paint: true });
+        p.line(11, 37.5, 12, 39.5, '#2a1a18');
+        p.line(13.5, 37.5, 14.5, 39.5, '#2a1a18');
+        // Пасть: провал с частоколом верхних и нижних клыков.
+        p.poly([10, 42, 26, 41.5, 27, 43 + open * 0.8, 20, 44.5 + open, 12, 43.5 + open * 0.8], M.mouth, { part: 'maw', bevel: 0.6 });
+        for (const x of [12, 15.5, 19, 22.5]) p.poly([x - 1.2, 42, x + 1.2, 42, x, 45.5], M.tooth, { part: 'teeth' });
+        for (const x of [13.5, 17.5, 21.5]) p.poly([x - 1.2, 44 + open * 0.9, x + 1.2, 44 + open * 0.9, x, 40.5 + open * 0.9], M.tooth, { part: 'teeth' });
+        if (drip > 0.05 && drip < 0.7) p.line(14, 44 + open, 14, 45 + open + drip * 7, '#c8b0a0a0');
+        const shut = hurt > 0.4 ? 1 : p.blink(0.7, 0.04);
+        if (shut < 1) {
+          p.glow(19, 34.5, 4.5, GHOUL_EYE, 0.35 + 0.25 * wind);
+          p.line(18, 34.5, 20.5, 35, wind > 0.4 ? '#fff0b0' : GHOUL_EYE);
+          p.px(24.5, 35, '#d08020');
+        } else p.line(17, 35, 21, 35, '#2a1a18');
       });
 
-      // Ближняя рука — справа, поверх: предплечье содрано до мышц, на запястье кандалы; когти-клинки выставлены
-      // к герою ниже пасти, в ударе рука взлетает над горбом и рубит сверху.
-      const a1 = ang(p, GH_UPPER, 100) - 20 * hurt;
-      const a2 = ang(p, GH_FORE, 150) - 30 * hurt;
-      const { ex, ey, hx, hy } = limb2(58, 38 + up, a1, 16, a2, 16);
-      p.limb(58, 38 + up, 5, ex, ey, 3.6, M.skin, { part: 'nearArm' });
-      p.limb(ex, ey, 3.6, hx, hy, 2.8, M.skin, { part: 'nearArm' });
-      p.limb(ex, ey, 2.8, hx, hy, 2.2, M.muscle, { part: 'nearArm', paint: true });
-      p.ellipse(58, 38 + up, 5.4, 5, M.skin, { part: 'nearArm', lift: 1 });
-      p.ellipse(ex, ey, 3.4, 3.2, M.skin, { part: 'nearArm', lift: 1 });
-      const [cx, cy] = at(hx, hy, a2 + 180, 4);
-      shackle(p, cx, cy, a2, 3.4, M, sway, 'nearCuff');
-      p.ellipse(hx, hy, 3.4, 3, M.skin, { part: 'hand' });
-      const curl = 12 * hurt - 6 * strike + 3 * flex;
-      for (let k = 0; k < 3; k++) blade(p, hx, hy + (k - 1) * 1.6, a2 + 15 + (k - 1) * 15 + curl, 25 - k * 2, 3, M.claw, `claw${k}`);
-      if (strike > 0.5) p.film([hx, hy, ...at(hx, hy, a2 - 50, 22), ...at(hx, hy, a2 + 40, 22)], '#ffb03030');
+      // Ближняя передняя лапа — поверх: в покое стоит на земле, в ударе взлетает и рубит когтями ниже морды.
+      const a1 = ang(p, GH_UPPER, 82) - 20 * hurt;
+      const a2 = ang(p, GH_FORE, 118) - 20 * hurt;
+      const near = front(50, 34 + up, a1, a2, 'nearFront', 0, sway);
+      const onFloor = p.clip !== 'attack' ? 1 : Math.max(0, 1 - 3 * Math.max(wind, strike));
+      const curl = 10 * hurt + 3 * flex;
+      for (let k = 0; k < 3; k++) {
+        // На земле когти лежат веером вперёд; в замахе и ударе смотрят туда, куда идёт предплечье.
+        const aFloor = 180 + (k - 1) * 9, aSwing = a2 + 15 + (k - 1) * 15;
+        blade(p, near.hx, near.hy + k * 0.8, aFloor * onFloor + aSwing * (1 - onFloor) + curl, 19 - k * 2, 2.8, M.claw, `claw${k}`);
+      }
+      if (strike > 0.5) p.film([near.hx, near.hy, ...at(near.hx, near.hy, a2 - 50, 22), ...at(near.hx, near.hy, a2 + 40, 22)], '#ffb03030');
     });
   },
 };
@@ -1694,8 +1699,8 @@ export const lichGhost: Model = {
 
 /** Призрак парит: с зазором до пола и волосами над макушкой рамка выше тела — фигура уменьшена до таблицы. */
 export const ghost = scaleModel(ghostBase, 0.9);
-/** Гуль в низкой стойке перед прыжком: рост до шипов на горбу — по таблице, поэтому модель крупнее лепки. */
-export const ghoul = scaleModel(ghoulBase, 1.1);
+/** Гуль на четырёх лапах чуть крупнее лепки: рядом с вампиром и мумией он хищник, а не собачка. */
+export const ghoul = scaleModel(ghoulBase, 1.15);
 /** Скелеты одного роста: крупный череп поднял макушку, поэтому обе лепки чуть уменьшены до таблицы. */
 export const skeletonWarrior = scaleModel(skeletonWarriorBase, 0.965);
 export const skeletonArcher = scaleModel(skeletonArcherBase, 0.955);
