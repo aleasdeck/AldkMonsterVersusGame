@@ -1,4 +1,4 @@
-import { keys, mixPt, type Keys, type Mat, type Model, type Painter } from './pixel';
+import { along, keys, mixPt, type Keys, type Mat, type Model, type Painter, type Pt } from './pixel';
 
 /**
  * Враги Болот пиксельной лепкой (v0.52.2). Все смотрят влево — на героя; единица — пиксель поля боя,
@@ -191,20 +191,6 @@ export const toadMother: Model = {
 };
 
 // ─── Пиявка ─────────────────────────────────────────────────────────────────
-
-/** Точка хребта [x, y, r]. */
-type Pt = [number, number, number];
-
-/** Точка на ломаной хребта по доле длины 0..1: место, толщина и направление хода (единичный вектор). */
-function along(spine: Pt[], f: number): { x: number; y: number; r: number; tx: number; ty: number } {
-  const lens = spine.slice(1).map(([x, y], i) => Math.hypot(x - spine[i][0], y - spine[i][1]));
-  let d = f * lens.reduce((a, b) => a + b, 0);
-  let i = 0;
-  while (i < lens.length - 1 && d > lens[i]) d -= lens[i++];
-  const [ax, ay, ar] = spine[i], [bx, by, br] = spine[i + 1];
-  const k = lens[i] ? Math.min(1, d / lens[i]) : 0, l = lens[i] || 1;
-  return { x: ax + (bx - ax) * k, y: ay + (by - ay) * k, r: ar + (br - ar) * k, tx: (bx - ax) / l, ty: (by - ay) / l };
-}
 
 const LEECH = {
   skin: { base: '#2e4529', shine: 0.9, tex: { kind: 'noise', scale: 2, amp: 0.1 } } as Mat,
