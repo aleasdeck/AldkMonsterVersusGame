@@ -330,6 +330,19 @@ export function keys(k: Keys, u: number): number {
 }
 
 /**
+ * Угол руки или оружия по ходу клипа атаки: ключевые точки [ход 0..1, угол]. Замах и удар идут одной дугой
+ * (замах назад-вверх, через голову, вперёд-вниз), последний кадр — полный оборот, то есть поза покоя.
+ */
+export function arc(p: Painter, k: Keys): number {
+  return p.clip === 'attack' ? keys(k, p.u) : 0;
+}
+
+/** Смешать позу покоя с позами замаха и удара: точка = покой + (замах − покой)·w + (удар − покой)·s. */
+export function mixPt(rest: readonly [number, number], wind: readonly [number, number], hit: readonly [number, number], w: number, s: number): [number, number] {
+  return [rest[0] + (wind[0] - rest[0]) * w + (hit[0] - rest[0]) * s, rest[1] + (wind[1] - rest[1]) * w + (hit[1] - rest[1]) * s];
+}
+
+/**
  * Удар: замах (отвести тело и оружие назад) держится первые кадры, выпад приходит в кадр контакта (4 из 8)
  * и тает к последнему — последний кадр совпадает с первым кадром покоя, переход без скачка.
  */
@@ -558,10 +571,15 @@ export class Painter {
     this.wShadow(this.ta * cx - this.tb * ym + this.tx, rx * k, ry * k, alpha, this.ground);
   }
 
-  /** Замах и выпад клипа атаки, 0..1; вне атаки и в её последнем кадре — нули. */
-  attack(): { wind: number; strike: number } {
+  /**
+   * Замах и выпад клипа атаки, 0..1; вне атаки и в её последнем кадре — нули.
+   * `lag` — доля клипа, на которую часть тела отстаёт от остальных (дальние головы гидры бьют позже ближней):
+   * её кривые сжаты в остаток клипа, поэтому в покой она приходит в тот же последний кадр.
+   */
+  attack(lag = 0): { wind: number; strike: number } {
     if (this.clip !== 'attack') return { wind: 0, strike: 0 };
-    return { wind: keys(WIND, this.u), strike: keys(STRIKE, this.u) };
+    const u = lag > 0 ? Math.max(0, (this.u - lag) / (1 - lag)) : this.u;
+    return { wind: keys(WIND, u), strike: keys(STRIKE, u) };
   }
 
   /** Отдача клипа урона, 0..1: сильнее всего в первом кадре; вне клипа — 0. */
