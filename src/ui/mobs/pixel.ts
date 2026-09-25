@@ -342,6 +342,20 @@ export function mixPt(rest: readonly [number, number], wind: readonly [number, n
   return [rest[0] + (wind[0] - rest[0]) * w + (hit[0] - rest[0]) * s, rest[1] + (wind[1] - rest[1]) * w + (hit[1] - rest[1]) * s];
 }
 
+/** Точка хребта [x, y, r]: пиявка, шеи гидры, щупальца, тело личинки. */
+export type Pt = [number, number, number];
+
+/** Точка на ломаной хребта по доле длины 0..1: место, толщина и направление хода (единичный вектор). */
+export function along(spine: Pt[], f: number): { x: number; y: number; r: number; tx: number; ty: number } {
+  const lens = spine.slice(1).map(([x, y], i) => Math.hypot(x - spine[i][0], y - spine[i][1]));
+  let d = f * lens.reduce((a, b) => a + b, 0);
+  let i = 0;
+  while (i < lens.length - 1 && d > lens[i]) d -= lens[i++];
+  const [ax, ay, ar] = spine[i], [bx, by, br] = spine[i + 1];
+  const k = lens[i] ? Math.min(1, d / lens[i]) : 0, l = lens[i] || 1;
+  return { x: ax + (bx - ax) * k, y: ay + (by - ay) * k, r: ar + (br - ar) * k, tx: (bx - ax) / l, ty: (by - ay) / l };
+}
+
 /**
  * Удар: замах (отвести тело и оружие назад) держится первые кадры, выпад приходит в кадр контакта (4 из 8)
  * и тает к последнему — последний кадр совпадает с первым кадром покоя, переход без скачка.
@@ -548,6 +562,18 @@ export class Painter {
   eye(x: number, y: number, r: number, color: string, o: EyeOpts = {}): void {
     const [X, Y] = this.pt(x, y);
     this.wEye(X, Y, r * this.ts, color, o);
+  }
+
+  /**
+   * Плёнка: многоугольник [x0, y0, x1, y1, …] полупрозрачного цвета — крыло насекомого. В каждую клетку ложится
+   * ровно одна декаль, поэтому плёнка остаётся прозрачной и в позе с поворотом (две полупрозрачные декали в одной
+   * клетке движок делает непрозрачной). Над телом плёнка подкрашивает его; `under` — только в пустых клетках:
+   * дальнее крыло за телом. Ближнее крыло рисовать раньше дальнего — тогда дальнее не ляжет поверх ближнего.
+   */
+  film(pts: number[], color: string, under = false): void {
+    const out: number[] = [];
+    for (let k = 0; k + 1 < pts.length; k += 2) out.push(...this.pt(pts[k], pts[k + 1]));
+    this.wFilm(out, color, under);
   }
 
   /** Свечение: кольца полупрозрачного цвета в пустых клетках вокруг точки — огонёк посоха, блеск монет. */
@@ -859,6 +885,28 @@ export class Painter {
     else this.wDisc(x, y, rr, color, false);
     if (o.pupil && rr >= 1.2 * d) this.wDisc(x - rr * 0.25, y + rr * 0.1, rr * 0.45, o.pupil, false);
     if (o.glint && rr >= d) this.wPx(x - rr * 0.45, y - rr * 0.45, o.glint);
+  }
+
+  private wFilm(pts: number[], color: string, under: boolean): void {
+    const d = this.d;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let k = 0; k < pts.length; k += 2) {
+      minX = Math.min(minX, pts[k]); maxX = Math.max(maxX, pts[k]);
+      minY = Math.min(minY, pts[k + 1]); maxY = Math.max(maxY, pts[k + 1]);
+    }
+    const [i0, i1, j0, j1] = this.range(minX, maxX, minY, maxY);
+    const n = pts.length / 2;
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const X = (i + 0.5) * d, Y = (j + 0.5) * d;
+        let inside = false;
+        for (let a = 0, b = n - 1; a < n; b = a++) {
+          const xa = pts[a * 2], ya = pts[a * 2 + 1], xb = pts[b * 2], yb = pts[b * 2 + 1];
+          if (ya > Y !== yb > Y && X < ((xb - xa) * (Y - ya)) / (yb - ya) + xa) inside = !inside;
+        }
+        if (inside) this.decal(i, j, color, under);
+      }
+    }
   }
 
   private wGlow(x: number, y: number, r: number, color: string, alpha: number): void {
