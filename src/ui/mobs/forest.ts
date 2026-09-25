@@ -1,23 +1,10 @@
-import { keys, scaleModel, type Keys, type Mat, type Model, type Painter } from './pixel';
+import { arc, mixPt, scaleModel, type Keys, type Mat, type Model, type Painter } from './pixel';
 
 /**
  * Лесные враги пиксельной лепкой. Все смотрят влево — на героя; единица — пиксель поля боя,
  * рост от макушки до земли — как в `ENEMY_BODY_HEIGHT` (characterSizes.ts).
  * Цвета продолжают палитры прежних спрайтов (`sprite` в enemies.ts): волк серый с жёлтыми глазами, кабан бурый и т. д.
  */
-
-/**
- * Угол руки или оружия по ходу клипа атаки: ключевые точки [ход 0..1, угол]. Замах и удар идут одной дугой
- * (замах назад-вверх, через голову, вперёд-вниз), последний кадр — полный оборот, то есть поза покоя.
- */
-function arc(p: Painter, k: Keys): number {
-  return p.clip === 'attack' ? keys(k, p.u) : 0;
-}
-
-/** Смешать позу покоя с позами замаха и удара: точка = покой + (замах − покой)·w + (удар − покой)·s. */
-function mixPt(rest: readonly [number, number], wind: readonly [number, number], hit: readonly [number, number], w: number, s: number): [number, number] {
-  return [rest[0] + (wind[0] - rest[0]) * w + (hit[0] - rest[0]) * s, rest[1] + (wind[1] - rest[1]) * w + (hit[1] - rest[1]) * s];
-}
 
 // ─── Волк ───────────────────────────────────────────────────────────────────
 
