@@ -1497,8 +1497,12 @@ export const slimelet: Model = {
 // ─── Некромант ──────────────────────────────────────────────────────────────
 
 const NECRO = {
-  robe: { base: '#2c1c44', shag: 0.2, tex: { kind: 'stripes', scale: 3, amp: 0.1, angle: 1.45 } } as Mat,
+  robe: { base: '#2e1c48', shag: 0.3, tex: { kind: 'stripes', scale: 2.2, amp: 0.18, angle: 1.5 } } as Mat,
+  /** Складки рясы: тёмные заломы и светлые грани ткани. */
+  robeDark: { base: '#1a0e2c', tex: { kind: 'noise', scale: 2, amp: 0.1 } } as Mat,
+  robeLight: { base: '#4a3072', tex: { kind: 'noise', scale: 2, amp: 0.1 } } as Mat,
   hood: { base: '#3e2660', tex: { kind: 'noise', scale: 3, amp: 0.1 } } as Mat,
+  hoodDark: { base: '#241440' } as Mat,
   shade: { base: '#140c1e' } as Mat,
   skin: { base: '#c0b0b4', tex: { kind: 'noise', scale: 3, amp: 0.06 } } as Mat,
   beard: { base: '#9a949c', shag: 0.25, tex: { kind: 'stripes', scale: 1.1, amp: 0.2, angle: 1.4 } } as Mat,
@@ -1531,8 +1535,16 @@ export const necromancer: Model = {
     p.pose({ dx: -4 * strike + 2 * wind + 5 * hurt, rot: 0.03 * wind - 0.04 * strike + 0.05 * hurt, px: 46, py: G }, () => {
       p.shadow(46, 26, 3);
       p.poly([14, G - 4, 24, G - 5, 27, G, 12, G], M.boot, { part: 'boot', bevel: 1 });
-      // Ряса колоколом, подол изодран в клочья.
-      p.poly([32, 48 + up, 56, 48 + up, 62, 76, 68 + hem, 104, 70 + hem, 116, 64, 112, 60 + hem * 0.6, G, 52, 114, 44, G, 36, 113, 30, G, 22, 114, 16 + hem * 0.3, G, 18, 106, 26, 76], M.robe, { bevel: 8 });
+      // Ряса колоколом: подол изорван полосами разной длины, по ткани от пояса — складки: тёмные заломы и светлые грани.
+      const hem2 = p.wave(1, 0.55);
+      p.poly([32, 48 + up, 56, 48 + up, 62, 76, 68 + hem, 100, 72 + hem, 112, 66 + hem * 0.8, 108, 64 + hem * 0.7, G, 58, 110, 54 + hem * 0.5, 118, 49, 108, 44, G, 39, 110, 35 + hem2 * 0.4, 117, 30, 106, 26, G - 1, 21, 110, 16 + hem2 * 0.3, G - 2, 18, 100, 26, 76], M.robe, { bevel: 8 });
+      for (const [x0, x1, w] of [[34, 29, 1.8], [42, 41, 2], [50, 55, 1.8], [58, 66, 1.6]]) p.poly([x0 - 0.6, 80, x0 + 0.6, 80, x1 + w, 112, x1 - w, 112], M.robeDark, { paint: true });
+      for (const [x0, x1] of [[38, 35], [46, 48], [54, 61]]) p.poly([x0 - 0.5, 82, x0 + 0.5, 82, x1 + 1.2, 108, x1 - 1.2, 108], M.robeLight, { paint: true });
+      // Лохмотья — рваные полосы свисают ниже края и колышутся.
+      for (const [x, len, ph] of [[20, 7, 0.1], [33, 8, 0.4], [47, 7, 0.7], [61, 8, 0.25]] as const) {
+        const sw = p.wave(1, ph);
+        p.chain([[x, G - 10, 1.8], [x + sw * 0.8, G - 10 + len * 0.6, 1.3], [x + sw * 1.4, G - 10 + len, 0.7]], M.robe, { part: `tatter${x}`, tone: -0.06 });
+      }
 
       p.pose({ dy: 2, rot: -0.08, px: 46, py: 80 }, () => {
         // Дальняя рука протянута к герою ладонью вверх, на ладони пляшет зелёный огонь; в замахе прижата к груди.
@@ -1557,12 +1569,16 @@ export const necromancer: Model = {
         // Глубокий капюшон: большой купол, остриё свисает на спину, толстый край ткани обрамляет лицо.
         // Лицо — человеческое и освещённое: худой старик, лоб в тени капюшона, глаза горят зелёным из глазниц,
         // длинный крючковатый нос, впалые щёки, тонкие губы, седая бородка клином.
-        p.pose({ dx: p.snap(1.5 * hurt), dy: p.snap(2 - 2 * hurt), rot: -0.1 + 0.24 * hurt - 0.04 * strike, px: 44, py: 46 + up }, () => p.scope(1.14, 44 * -0.14, (46 + up) * -0.14, () => {
-          p.poly([22, 52 + up, 32, 40 + up, 56, 40 + up, 67, 54 + up, 57, 59 + up, 44, 56 + up, 30, 60 + up], M.hood, { part: 'mantle', bevel: 4 });
-          p.ellipse(47, 28 + up, 16, 17, M.hood, { part: 'hood' });
-          p.poly([52, 14 + up, 68 + hurt * 3, 22 + up + hurt * 3, 66, 38 + up, 58, 34 + up], M.hood, { part: 'hood', bevel: 3 });
-          // Провал капюшона вокруг лица.
-          p.ellipse(36.5, 33 + up, 11.5, 13, M.shade, { part: 'hood', paint: true });
+        p.pose({ dx: p.snap(1.5 * hurt), dy: p.snap(2 - 2 * hurt), rot: -0.1 + 0.24 * hurt - 0.04 * strike, px: 44, py: 46 + up }, () => p.scope(1.1, 44 * -0.1, (46 + up) * -0.1, () => {
+          // Пелерина капюшона на плечах — с рваным краем.
+          p.poly([20, 54 + up, 30, 42 + up, 58, 42 + up, 70, 56 + up, 64, 60 + up, 58, 57 + up, 50, 62 + up, 42, 57 + up, 34, 62 + up, 27, 58 + up], M.hood, { part: 'mantle', bevel: 4 });
+          // Капюшон — треугольником, как на прежнем рисованном листе: острая макушка, прямые скаты к плечам.
+          p.poly([24, 46 + up, 25, 34 + up, 31, 22 + up, 40, 12 + up, 47 + hurt * 2, 6 + up + hurt, 54, 14 + up, 62, 28 + up, 67, 44 + up, 60, 50 + up, 46, 50 + up, 34, 50 + up], M.hood, { part: 'hood', bevel: 5 });
+          // Складки ткани от макушки вниз по скату.
+          p.poly([46.5, 9 + up, 48, 9 + up, 56, 34 + up, 53, 34 + up], M.hoodDark, { part: 'hood', paint: true });
+          p.poly([49.5, 12 + up, 50.5, 12 + up, 62, 40 + up, 60, 41 + up], M.hoodDark, { part: 'hood', paint: true });
+          // Провал капюшона: лицо глубоко внутри.
+          p.ellipse(36, 34 + up, 10.5, 12.5, M.shade, { part: 'hood', paint: true });
           // Лицо: высокий лоб, острые скулы, клин подбородка. Тени — узкие: пятна на таком лице читаются черепом.
           p.ellipse(35.5, 34 + up, 8, 9.5, M.skin, { part: 'face' });
           p.poly([29, 37 + up, 39.5, 39 + up, 40.5, 44.5 + up, 35, 48 + up, 30.5, 46 + up], M.skin, { part: 'face' });
@@ -1590,7 +1606,8 @@ export const necromancer: Model = {
           p.line(30, 31.5 + up, 33.5, 32.2 + up + wind, '#4a3a44');
           p.line(35.5, 32.2 + up + wind, 39.5, 31.2 + up, '#4a3a44');
           // Толстый край капюшона — поверх лба и затылка, рамой вокруг лица.
-          p.poly([25, 31 + up, 28.5, 22.5 + up, 37, 18.5 + up, 46, 20.5 + up, 50.5, 29 + up, 48.5, 42 + up, 45, 45 + up, 45.5, 32 + up, 42, 25 + up, 34, 24 + up, 28.5, 30 + up], M.hood, { part: 'hoodRim', bevel: 2, tone: 0.08 });
+          // Передний край капюшона нависает над лицом треугольной аркой — рама вокруг лица.
+          p.poly([22.5, 46 + up, 23, 34 + up, 29, 23.5 + up, 37, 17.5 + up, 45.5, 20.5 + up, 50, 29 + up, 49, 44 + up, 45.5, 46 + up, 46, 31 + up, 42.5, 25 + up, 36.5, 22.5 + up, 30.5, 27 + up, 27, 34 + up, 26.5, 46 + up], M.hood, { part: 'hoodRim', bevel: 2, tone: 0.08 });
         }));
 
         // Ближняя рука — справа, поверх туловища: корявый посох, на навершии череп в зелёном огне.
