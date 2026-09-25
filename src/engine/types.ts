@@ -500,7 +500,8 @@ export type EnemyEffect =
   | { type: 'heal'; amount: number; target: 'self' | 'allies' | 'neighbors' }
   | { type: 'debuff'; status: StatusId; value: number; turns: number }
   | { type: 'drainMp'; amount: number }
-  | { type: 'summon'; enemyId: string; count: number }
+  /** replace — вылупление: призванные встают на место призвавшего, а сам он уходит с поля живым, не считаясь убитым (Кладка). */
+  | { type: 'summon'; enemyId: string; count: number; replace?: boolean }
   | { type: 'invuln' }
   | { type: 'thorns'; amount: number; turns?: number } // turns — на срок (стража перехода), без него навсегда
   | { type: 'dodge'; value: number }
@@ -722,6 +723,8 @@ export interface BattleState {
   enrageAt?: number;
   /** Испытание локации, под которым идёт бой (v0.48); нет — без испытания. */
   trial?: string | null;
+  /** Благословение локации, под которым идёт бой (лёгкая сложность, data/boons.ts); нет — без благословения. */
+  boon?: string | null;
   /** «Неупокоенные» уже подняли своего мертвеца в этом бою. */
   risen?: boolean;
   allies: AllyState[];
@@ -905,9 +908,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.52.8';
+export const GAME_VERSION = '0.53.0';
 
-export const SAVE_VERSION = 40;
+export const SAVE_VERSION = 41;
 
 export interface RunState {
   version: typeof SAVE_VERSION;
@@ -944,14 +947,24 @@ export interface RunState {
   /** Архетипы, с набором 3/3 которых побеждён босс (v0.45). */
   bossSets: ArchetypeId[];
   /**
-   * Испытания локаций включены (v0.48): игра и бот — да, тесты движка по умолчанию — нет (`RunOpts.trials`).
-   * Пока предложение не выбрано (`awaitsTrial`), в клетку не войти.
+   * Сложность забега, выбранная перед ним: `hard` — испытание перед каждой локацией (v0.48), `normal` — без выбора,
+   * `easy` — благословение перед каждой локацией. Тесты движка по умолчанию — `normal` (`RunOpts.difficulty`).
+   * Пока предложение не выбрано (`awaitsThreshold`), в клетку не войти.
    */
-  trials: boolean;
-  /** Испытание текущей локации (data/trials.ts); null — не выбрано или испытания выключены. */
+  difficulty: Difficulty;
+  /** Испытание текущей локации (data/trials.ts); null — не выбрано или сложность не «Сложный». */
   trial: string | null;
   /** Два предложенных испытания перед локацией; пусто — выбор сделан. */
   trialOffer: string[];
   /** Испытания, выбранные за забег по порядку локаций, — для статистики. */
   trialLog: string[];
+  /** Благословение текущей локации (data/boons.ts); null — не выбрано или сложность не «Лёгкий». */
+  boon: string | null;
+  /** Два предложенных благословения перед локацией; пусто — выбор сделан. */
+  boonOffer: string[];
+  /** Благословения, выбранные за забег по порядку локаций, — для статистики. */
+  boonLog: string[];
 }
+
+/** Сложность забега: что игрок выбирает перед каждой локацией — благословение, ничего или испытание. */
+export type Difficulty = 'easy' | 'normal' | 'hard';

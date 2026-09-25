@@ -4,7 +4,9 @@ import { LOCATION_BY_ID } from '../../data/locations';
 import { ARTIFACTS } from '../../data/artifacts';
 import { ARMOR_BASES, WEAPON_BASES } from '../../data/gear';
 import { durationText, summarize, type GlobalSummary, type ItemSummary, type SpotSummary } from '../../engine/globalStats';
-import type { LocationId } from '../../engine/types';
+import { DIFFICULTY_LIST } from '../../data/boons';
+import { paramTip } from '../tips';
+import type { Difficulty, LocationId } from '../../engine/types';
 import type { App } from '../app';
 
 /** Герой с меньшим числом забегов — процент не показываем: три забега с одной победой «33 %» ничего не значат. */
@@ -106,22 +108,53 @@ function tabBody(app: App, s: GlobalSummary): HTMLElement[] {
   }
 }
 
-/** Правый край шапки: сколько записей в таблице, а во время обновления — что она сейчас перезапрашивается (v0.40.5). */
-function headNote(app: App): HTMLElement {
+/**
+ * Правый край шапки: сколько записей в таблице (с фильтром сложности — «N из M»), а во время обновления — что она сейчас
+ * перезапрашивается (v0.40.5).
+ */
+function headNote(app: App, shown?: number): HTMLElement {
   if (app.statsLoading) return h('span', { class: 'dim', tip: 'Статистика перезапрашивается при каждом заходе на экран' }, 'обновляем…');
   if (app.statsError && app.statsFeed) return h('span', { class: 'dim', tip: app.statsError }, 'не обновилось');
-  return h('span', { class: 'dim' }, app.statsFeed ? `${app.statsFeed.rows.length} записей` : '');
+  if (!app.statsFeed) return h('span', { class: 'dim' }, '');
+  const total = app.statsFeed.rows.length;
+  return h('span', { class: 'dim' }, shown !== undefined && shown !== total ? `${shown} из ${total} записей` : `${total} записей`);
+}
+
+/**
+ * Фильтр по сложности забега справа от вкладок: «Все» и три сложности, выбранная — рамкой своего цвета. Записи до выбора
+ * сложности считаются «Сложным» — они шли с испытаниями. Сколько законченных забегов на каждой — в подсказке.
+ */
+function difficultyFilter(app: App, s: GlobalSummary): HTMLElement {
+  const total = s.byDifficulty.easy + s.byDifficulty.normal + s.byDifficulty.hard;
+  const btn = (d: Difficulty | null, label: string, color: string, glyph: string | null, text: string, count: number) =>
+    h(
+      'button',
+      {
+        class: `gs-diff ${app.statsDiff === d ? 'selected' : ''}`.trim(),
+        style: `--diff:${color}`,
+        tip: paramTip(glyph ? { glyph } : null, label, text, { color, note: `В таблице законченных забегов: ${count}` }),
+        onclick: () => app.setStatsDiff(d),
+      },
+      glyph ? h('span', { class: 'gs-diff-glyph' }, glyph) : null,
+      label,
+    );
+  return h(
+    'div',
+    { class: 'gs-diffs' },
+    btn(null, 'Все', 'var(--accent)', null, 'Забеги всех сложностей вместе', total),
+    ...DIFFICULTY_LIST.map((d) => btn(d.id, d.name, d.color, d.glyph, d.id === 'hard' ? `${d.desc}. Сюда же — забеги до выбора сложности: они шли с испытаниями` : d.desc, s.byDifficulty[d.id])),
+  );
 }
 
 function everyone(app: App): HTMLElement {
-  const head = h('div', { class: 'coll-head' }, h('span', null, 'Все игроки'), headNote(app));
+  const head = (shown?: number) => h('div', { class: 'coll-head' }, h('span', null, 'Все игроки'), headNote(app, shown));
   // «Загружаем…» — только когда показывать нечего: при повторном заходе на экране остаётся прошлая таблица.
-  if (app.statsLoading && !app.statsFeed) return h('div', { class: 'gs-panel' }, head, h('div', { class: 'dim' }, 'Загружаем…'));
+  if (app.statsLoading && !app.statsFeed) return h('div', { class: 'gs-panel' }, head(), h('div', { class: 'dim' }, 'Загружаем…'));
   if (!app.statsFeed) {
     return h(
       'div',
       { class: 'gs-panel' },
-      head,
+      head(),
       h('div', { class: 'dim' }, app.statsError ?? 'Общая статистика недоступна.'),
       app.statsError ? button('Повторить', () => app.showStats(), { class: 'small' }) : null,
     );
@@ -130,9 +163,15 @@ function everyone(app: App): HTMLElement {
     heroes: HERO_LIST.map((d) => d.id),
     locationName: (id) => LOCATION_BY_ID[id as LocationId]?.name ?? id,
     top: ROWS,
+    difficulty: app.statsDiff ?? undefined,
   });
-  const tabs = h('div', { class: 'gs-tabs' }, ...TABS.map((t) => button(t.name, () => app.setStatsTab(t.id), { class: `small gs-tab ${t.id === app.statsTab ? 'selected' : ''}` })));
-  return h('div', { class: 'gs-panel' }, head, tabs, ...tabBody(app, s));
+  const tabs = h(
+    'div',
+    { class: 'gs-tabs' },
+    ...TABS.map((t) => button(t.name, () => app.setStatsTab(t.id), { class: `small gs-tab ${t.id === app.statsTab ? 'selected' : ''}` })),
+    difficultyFilter(app, s),
+  );
+  return h('div', { class: 'gs-panel' }, head(s.rows), tabs, ...tabBody(app, s));
 }
 
 function mine(app: App): HTMLElement {

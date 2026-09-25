@@ -2,6 +2,7 @@ import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { enemyDef } from '../../data/enemies';
 import { ROOM_NAMES } from '../../data/locations';
+import { DIFFICULTIES } from '../../data/boons';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import { heroSprite } from '../heroSprite';
 import { artifactDef } from '../../data/artifacts';
@@ -42,7 +43,8 @@ export function endScreen(app: App): HTMLElement {
         h(
           'div',
           { class: 'stats-grid wide' },
-          row('Герой', def.name),
+          // Сложность — в строке героя: лишняя строка вместе с заметкой мастерства вылезла бы за кадр 540.
+          row('Герой', DIFFICULTIES[run.difficulty] ? `${def.name} · ${DIFFICULTIES[run.difficulty].name}` : def.name),
           row('Боёв выиграно', `${s.roomsCleared}`),
           row('Врагов убито', `${s.kills}`),
           row('Ходов', `${s.turns}`),

@@ -1,5 +1,5 @@
 import type { App } from './app';
-import { awaitsFocus, awaitsTrial } from '../engine/run';
+import { awaitsBoon, awaitsFocus, awaitsTrial } from '../engine/run';
 
 /**
  * Горячие клавиши забега: 1–9 приёмы по порядку плиток (выбрать; номер уже выбранного — применить к цели), в награде 1/2 — пул,
@@ -54,6 +54,15 @@ export function installHotkeys(app: App): void {
         ev.preventDefault();
         const id = app.run.trialOffer[key === '1' ? 0 : 1];
         if (id) app.chooseTrial(id);
+      }
+      return;
+    }
+    // Порог на лёгкой сложности: 1 и 2 — благословение.
+    if (app.run.phase === 'map' && awaitsBoon(app.run)) {
+      if (key === '1' || key === '2') {
+        ev.preventDefault();
+        const id = app.run.boonOffer[key === '1' ? 0 : 1];
+        if (id) app.chooseBoon(id);
       }
       return;
     }

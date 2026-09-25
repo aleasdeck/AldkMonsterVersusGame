@@ -8,7 +8,8 @@ import { defendBlock } from '../../engine/combat';
 import { traitDef } from '../../data/traits';
 import { HERO_MASTERY, MASTERY_LEVELS, UNLOCK_LEVEL, nextLevelXp } from '../../data/mastery';
 import { heroAvatar, heroSprite } from '../heroSprite';
-import { heroLevelOf, heroXpOf, pickedSignature, pickedStart, pickedTrait, signatureUnlocked, startUnlocked, traitUnlocked } from '../save';
+import { heroLevelOf, heroXpOf, pickedDifficulty, pickedSignature, pickedStart, pickedTrait, signatureUnlocked, startUnlocked, traitUnlocked } from '../save';
+import { DIFFICULTY_LIST } from '../../data/boons';
 import { uiIcon, type UiIconId } from '../icons';
 import { markKeywords } from '../keywords';
 import { paramChip, useParams } from '../cardParts';
@@ -329,6 +330,32 @@ function tabBar(app: App): HTMLElement {
   return h('div', { class: 'hs-tabs' }, ...TABS.map((t) => h('button', { class: `hs-tab ${t.key === app.heroTab ? 'active' : ''}`, onclick: () => app.setHeroTab(t.key) }, uiIcon(t.icon, 14), t.label)));
 }
 
+/**
+ * Сложность забега — три кнопки в подвале рядом со стартом: выбор виден перед каждым забегом и запоминается в профиле
+ * (общий для всех героев). Что даёт каждая — в подсказке.
+ */
+function difficultyPicker(app: App): HTMLElement {
+  const cur = pickedDifficulty(app.profile);
+  return h(
+    'div',
+    { class: 'hs-diff' },
+    h('span', { class: 'hs-diff-label dim' }, 'Сложность'),
+    ...DIFFICULTY_LIST.map((d) =>
+      h(
+        'button',
+        {
+          class: `hs-diff-btn ${d.id === cur ? 'active' : ''}`.trim(),
+          style: `--diff:${d.color}`,
+          tip: paramTip({ glyph: d.glyph }, d.name, d.desc, { color: d.color, note: d.id === cur ? 'Выбрано для следующего забега' : undefined, action: d.id === cur ? undefined : 'выбрать' }),
+          onclick: () => app.selectDifficulty(d.id),
+        },
+        h('span', { class: 'hs-diff-glyph' }, d.glyph),
+        d.name,
+      ),
+    ),
+  );
+}
+
 /** Превью справа: шапка, вкладки, тело вкладки и кнопка старта в подвале. */
 function heroPreview(app: App, def: HeroDef): HTMLElement {
   const body =
@@ -344,7 +371,7 @@ function heroPreview(app: App, def: HeroDef): HTMLElement {
     header(def),
     tabBar(app),
     h('div', { class: 'hs-body' }, body),
-    h('div', { class: 'hs-foot' }, button(h('span', null, `В забег: ${def.name} `, '▶'), () => app.newRun(def.id, parseSeed(app.seedText)), { class: 'primary big hs-start' })),
+    h('div', { class: 'hs-foot' }, difficultyPicker(app), button(h('span', null, `В забег: ${def.name} `, '▶'), () => app.newRun(def.id, parseSeed(app.seedText)), { class: 'primary big hs-start' })),
   );
 }
 

@@ -31,6 +31,7 @@ import { SWEEP_MULT } from '../data/gear';
 import { potionDef } from '../data/potions';
 import { computeStats, innateOf, socketedArtifacts, statCtxOf } from './stats';
 import { ACID_BLOCK_MULT, CANNONADE_PCT, CRYPT_CURSE_MULT, HOT_ARMOR_MULT, trialValue } from '../data/trials';
+import { BROADSIDE_PCT, HOLY_WATER_MULT, TEMPERED_MULT, wolfFriendHp } from '../data/boons';
 
 export const STATUS_NAMES: Record<StatusId, string> = {
   strength: 'Сила',
@@ -718,8 +719,9 @@ function healHero(state: BattleState, amount: number, why?: string): void {
   const h = state.hero;
   // «Мученик» (v0.47): лечение не действует вовсе.
   if (h.stats.noHeal > 0 || amount <= 0) return;
-  // Набор «Свет» 2 и «Обет» (v0.47): каждое лечение сильнее; «Проклятие склепа» (v0.48) — вдвое слабее.
-  amount = Math.round((amount + h.stats.healAdd) * (1 + h.stats.healMult) * (state.trial === 'crypt_curse' ? CRYPT_CURSE_MULT : 1));
+  // Набор «Свет» 2 и «Обет» (v0.47): каждое лечение сильнее; «Проклятие склепа» (v0.48) — вдвое слабее, «Святая вода» — в полтора раза сильнее.
+  const place = state.trial === 'crypt_curse' ? CRYPT_CURSE_MULT : state.boon === 'holy_water' ? HOLY_WATER_MULT : 1;
+  amount = Math.round((amount + h.stats.healAdd) * (1 + h.stats.healMult) * place);
   if (amount <= 0) return;
   // «Искупление» Паладина (v0.45): в первый ход боя лечение сильнее.
   if (state.turn === 1 && h.stats.firstTurnHeal > 0) amount = Math.round(amount * (1 + h.stats.firstTurnHeal));
@@ -879,6 +881,9 @@ function cleanupDead(state: BattleState, rng: Rng): void {
     }
     // «Огненная кровь» (v0.48): павший поджигает героя.
     if (state.trial === 'fire_blood' && state.hero.hp > 0) addStatus(state, state.hero, 'hero', 'burn', trialValue(2, state.act ?? 0), 2);
+    // Благословения: «Жатва душ» — глоток жизни за павшего, «Абордажный азарт» — Сила за павшего.
+    if (state.boon === 'soul_harvest' && state.hero.hp > 0) healHero(state, trialValue(2, state.act ?? 0), 'жатва душ');
+    if (state.boon === 'plunder' && state.hero.hp > 0) addStatus(state, state.hero, 'hero', 'strength', 1, -1);
   }
   // «Абордаж» (v0.48): каждая смерть злит живых.
   if (state.trial === 'boarding') {
@@ -886,6 +891,15 @@ function cleanupDead(state: BattleState, rng: Rng): void {
   }
   state.enemies = state.enemies.filter((e) => e.hp > 0);
   state.enemyQueue = state.enemyQueue.filter((uid) => state.enemies.some((e) => e.uid === uid));
+  // «Лавовые жилы» (благословение): каждый павший опаляет живых мимо блока — не добивая, чтобы не плодить смерти внутри разбора.
+  if (state.boon === 'lava_veins' && state.phase !== 'lost') {
+    const dmg = trialValue(3, state.act ?? 0) * dead.length;
+    const living = state.enemies.filter((x) => x.hp > 1);
+    if (living.length > 0) {
+      log(state, `Лавовые жилы: ${dead.length > 1 ? `павшие (${dead.length}) опаляют` : 'павший опаляет'} живых на ${dmg}`);
+      for (const x of living) damageEnemy(state, x, Math.min(dmg, x.hp - 1), 'dot', { src: 'boon' });
+    }
+  }
   // Набор «Огонь» 3/3 (v0.43): пожар — погибший горящий враг перекидывает своё Горение на живых.
   if (state.hero.stats.burnSpread > 0 && state.phase !== 'lost') {
     for (const e of dead) {
@@ -938,6 +952,7 @@ export function heroDefendGain(state: BattleState): number {
   let gain = defendBlock(state.hero.stats) + state.hero.stats.blockSkillAdd;
   if (state.trial === 'hot_armor') gain = Math.floor(gain * HOT_ARMOR_MULT);
   if (state.trial === 'acid') gain = Math.floor(gain * ACID_BLOCK_MULT);
+  if (state.boon === 'tempered') gain = Math.round(gain * TEMPERED_MULT);
   return gain;
 }
 
@@ -1801,7 +1816,8 @@ function startPlayerTurn(state: BattleState): void {
     log(state, `Боевой транс: +${h.stats.lowHpSta} STA`);
   }
   if (state.turn === 1) h.sta += h.stats.firstTurnSta;
-  else h.mp = Math.min(h.maxMp, h.mp + h.stats.mpRegen);
+  // «Попутный ветер» (благословение): лишняя мана каждый ход, кроме первого — в первый мана и так полная.
+  else h.mp = Math.min(h.maxMp, h.mp + h.stats.mpRegen + (state.boon === 'tailwind' ? 1 : 0));
   // «Ярость» Берсерка (v0.44): набралось на треть HP — Неистовство на этот ход.
   const rage = getStatus(h, 'rage');
   if (rage && h.stats.rageTrait > 0 && rage.value >= rageThreshold(h)) {
@@ -1822,6 +1838,14 @@ function startPlayerTurn(state: BattleState): void {
     }
     const self = Math.min(h.hp - 1, Math.ceil(h.maxHp * CANNONADE_PCT));
     if (self > 0) damageHero(state, self, 'dot', undefined, true);
+  }
+  // «Бортовой залп» (благословение): та же канонада, только по врагам.
+  if (state.boon === 'broadside' && state.turn % 3 === 0) {
+    log(state, 'Бортовой залп!');
+    for (const e of state.enemies) {
+      const dmg = Math.min(e.hp - 1, Math.ceil(e.maxHp * BROADSIDE_PCT));
+      if (dmg > 0) damageEnemy(state, e, dmg, 'dot', { src: 'boon' });
+    }
   }
   // Страж снова готов заслонить; громила, вставший первым, раз за бой наливается Силой (v0.46).
   for (const e of state.enemies) e.covered = false;
@@ -2080,12 +2104,26 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       log(state, `Герой теряет ${drained} маны`);
       break;
     }
-    case 'summon':
+    case 'summon': {
+      // Вылупление: кладка лопается, и личинки встают на её место в ряду. Она уходит живой, как вор с добычей, — не убита,
+      // поэтому ни «за убийство», ни «Неупокоенных»; её место освобождается, и вылупиться она может и в полном ряду.
+      const at = eff.replace ? state.enemies.indexOf(e) : -1;
+      if (at >= 0) {
+        state.enemies.splice(at, 1);
+        state.enemyQueue = state.enemyQueue.filter((uid) => uid !== e.uid);
+        state.events.push({ type: 'death', target: e.uid });
+        log(state, `${e.name} лопается`);
+      }
       for (let i = 0; i < eff.count; i++) {
         if (state.enemies.length >= MAX_ENEMIES) break;
-        spawnEnemy(state, eff.enemyId, rng, true);
+        const s = spawnEnemy(state, eff.enemyId, rng, true);
+        if (at >= 0) {
+          state.enemies.splice(state.enemies.indexOf(s), 1);
+          state.enemies.splice(Math.min(at + i, state.enemies.length), 0, s);
+        }
       }
       break;
+    }
     case 'invuln':
       addStatus(state, e, e.uid, 'invuln', 1, 1);
       break;
@@ -2264,7 +2302,8 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     log(state, `${e.name} отходит назад`);
   }
   tickDurations(e, 'end');
-  if (state.phase === 'lost' || e.hp <= 0) return;
+  // Ушёл с поля своим же приёмом (вылупился, удрал) — намерение ему больше не нужно.
+  if (state.phase === 'lost' || e.hp <= 0 || !state.enemies.includes(e)) return;
   chooseIntent(state, e, rng);
 }
 
@@ -2314,7 +2353,15 @@ export function resolveEnemyTurn(state: BattleState, rng: Rng): void {
 
 // ─── Создание боя ──────────────────────────────────────────────────────────
 
-export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: string[], rng: Rng, act: number | null = null, trial: string | null = null): BattleState {
+export function createBattle(
+  heroDef: HeroDef,
+  hero: HeroPersistent,
+  enemyIds: string[],
+  rng: Rng,
+  act: number | null = null,
+  trial: string | null = null,
+  boon: string | null = null,
+): BattleState {
   const stats = computeStats(heroDef, hero.weapon, hero.armor, statCtxOf(hero));
   // Врождённый навык (v0.44) — в руках героя, как вставленный артефакт: своя плитка, перезарядка и пассивка.
   const innate = innateOf(hero);
@@ -2352,6 +2399,7 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     act,
     enrageAt: ENRAGE_TURN[rankOrder[top]],
     trial,
+    boon,
     allies: [],
     turn: 0,
     phase: 'enemy',
@@ -2375,7 +2423,14 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
   for (const e of state.enemies) {
     if (trial === 'wisps') addStatus(state, e, e.uid, 'dodge', 1, -1);
     if (trial === 'hive_thorns') addStatus(state, e, e.uid, 'thorns', trialValue(1, tAct), -1);
+    // Благословения на врагах: Уязвимость на первый ход, Яд, Горение и Слабость с начала боя.
+    if (boon === 'tracker') addStatus(state, e, e.uid, 'vulnerable', 1, 1);
+    if (boon === 'miasma') addStatus(state, e, e.uid, 'poison', trialValue(2, tAct), 3);
+    if (boon === 'forge_heat') addStatus(state, e, e.uid, 'burn', trialValue(2, tAct), 2);
+    if (boon === 'shroud') addStatus(state, e, e.uid, 'weak', 1, 2);
   }
+  // «Волчий друг»: волк встаёт рядом с героем до выбора намерений — враги сразу видят, кого бить первым.
+  if (boon === 'wolf_friend') spawnAlly(state, 'wolf', wolfFriendHp(tAct) - enemyDef('wolf').hp);
   for (const e of state.enemies) chooseIntent(state, e, rng);
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
   if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
@@ -2400,6 +2455,15 @@ export function createBattle(heroDef: HeroDef, hero: HeroPersistent, enemyIds: s
     if (trial === 'rolling') h.mp = Math.max(0, h.mp - 1);
     log(state, trial === 'bog' ? 'Топь: −1 STA в первый ход' : 'Качка: −1 STA и −1 MP в первый ход');
   }
+  // Благословения на герое — тоже после старта хода.
+  if (boon === 'hummock') {
+    h.sta += 1;
+    log(state, 'Кочки: +1 STA в первый ход');
+  }
+  if (boon === 'wisp_guide') addStatus(state, h, 'hero', 'dodge', 1, -1);
+  if (boon === 'chitin') addStatus(state, h, 'hero', 'thorns', trialValue(2, tAct), -1);
+  if (boon === 'royal_jelly') addStatus(state, h, 'hero', 'regen', trialValue(1, tAct), -1);
+  if (boon === 'stinger') addStatus(state, h, 'hero', 'focus', 1, -1);
   // Тень покрова — после старта первого хода: иначе тик начала хода съел бы ход скрытности. Блок «Плаща странника»
   // первый ход получает уже в startPlayerTurn, вместе со всеми остальными.
   if (stats.stealthStart > 0) addStatus(state, state.hero, 'hero', 'stealth', 1, stats.stealthStart);
@@ -2591,7 +2655,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         kinds.push('debuff');
         break;
       case 'summon':
-        parts.push(`Призыв: ${enemyDef(eff.enemyId).name}${eff.count > 1 ? ` ×${eff.count}` : ''}`, 'summon');
+        parts.push(`${eff.replace ? 'Вылупляется' : 'Призыв'}: ${enemyDef(eff.enemyId).name}${eff.count > 1 ? ` ×${eff.count}` : ''}${eff.replace ? ', сама исчезает' : ''}`, 'summon');
         kinds.push('summon');
         break;
       case 'invuln':

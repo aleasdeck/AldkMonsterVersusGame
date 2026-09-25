@@ -1,4 +1,4 @@
-import type { ArchetypeId, ArtifactInstance, DerivedStats, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
+import type { ArchetypeId, ArtifactInstance, DerivedStats, Difficulty, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
 import { MAX_ENEMIES, SAVE_VERSION } from './types';
 import { chance, createRng, pick, shuffle } from './rng';
 import { defaultSignature, heroDef } from '../data/heroes';
@@ -8,7 +8,8 @@ import { createBattle, endTurn, enemyStep, performAction } from './combat';
 import { computeStats, heroStatsOf, innateOf } from './stats';
 import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, replaceArtifact, socketRefs, type SocketRef } from './equipment';
 import { activeSets, archetypeCounts, artifactTags } from '../data/archetypes';
-import { trialsOf } from '../data/trials';
+import { trialValue, trialsOf } from '../data/trials';
+import { boonsOf } from '../data/boons';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
@@ -51,8 +52,11 @@ export function randomSeed(): number {
 export interface RunOpts {
   locked?: string[];
   start?: string;
-  /** Испытания локаций (v0.48): игра и бот включают, тесты движка по умолчанию играют без них. */
-  trials?: boolean;
+  /**
+   * Сложность забега: «Сложный» — испытания локаций (v0.48), «Лёгкий» — благословения. Тесты движка по умолчанию играют
+   * на «Среднем» — без выбора перед локацией.
+   */
+  difficulty?: Difficulty;
 }
 
 export function newRun(
@@ -90,16 +94,32 @@ export function newRun(
     logs: [],
     setsReached: [],
     bossSets: [],
-    trials: !!opts.trials,
+    difficulty: opts.difficulty ?? 'normal',
     trial: null,
     trialOffer: [],
     trialLog: [],
+    boon: null,
+    boonOffer: [],
+    boonLog: [],
   };
-  if (run.trials) offerTrials(run);
+  offerThreshold(run);
   return run;
 }
 
-// ─── Испытания локаций (v0.48) ─────────────────────────────────────────────
+// ─── Порог локации: испытания (v0.48) и благословения ─────────────────────
+
+/**
+ * Предложение перед локацией по сложности забега: на «Сложном» — два испытания из трёх, на «Лёгком» — два благословения
+ * из трёх, на «Среднем» — ничего. Прежний выбор снимается: испытание и благословение действуют только до конца локации.
+ */
+export function offerThreshold(run: RunState): void {
+  run.trial = null;
+  run.trialOffer = [];
+  run.boon = null;
+  run.boonOffer = [];
+  if (run.difficulty === 'hard') offerTrials(run);
+  else if (run.difficulty === 'easy') offerBoons(run);
+}
 
 /** Два случайных испытания из трёх испытаний локации: выбор обязателен до первой клетки. */
 export function offerTrials(run: RunState): void {
@@ -108,9 +128,26 @@ export function offerTrials(run: RunState): void {
   run.trialOffer = shuffle(run.rng, pool).slice(0, 2);
 }
 
+/** Два случайных благословения из трёх благословений локации — как испытания, только в пользу героя. */
+export function offerBoons(run: RunState): void {
+  const pool = boonsOf(currentLocation(run).id).map((b) => b.id);
+  run.boon = null;
+  run.boonOffer = shuffle(run.rng, pool).slice(0, 2);
+}
+
 /** Ждёт ли забег выбора испытания: пока не выбрано, в клетку не войти. */
 export function awaitsTrial(run: RunState): boolean {
-  return run.trials && run.trial === null && run.trialOffer.length > 0;
+  return run.trial === null && run.trialOffer.length > 0;
+}
+
+/** Ждёт ли забег выбора благословения. */
+export function awaitsBoon(run: RunState): boolean {
+  return run.boon === null && run.boonOffer.length > 0;
+}
+
+/** Порог локации не пройден: ждёт выбора испытания или благословения. */
+export function awaitsThreshold(run: RunState): boolean {
+  return awaitsTrial(run) || awaitsBoon(run);
 }
 
 export function canChooseTrial(run: RunState, id: string): string | null {
@@ -124,6 +161,20 @@ export function chooseTrial(run: RunState, id: string): boolean {
   run.trial = id;
   run.trialOffer = [];
   run.trialLog.push(id);
+  return true;
+}
+
+export function canChooseBoon(run: RunState, id: string): string | null {
+  if (!awaitsBoon(run)) return 'Благословение уже выбрано';
+  if (!run.boonOffer.includes(id)) return 'Этого благословения нет в предложении';
+  return null;
+}
+
+export function chooseBoon(run: RunState, id: string): boolean {
+  if (canChooseBoon(run, id)) return false;
+  run.boon = id;
+  run.boonOffer = [];
+  run.boonLog.push(id);
   return true;
 }
 
@@ -168,7 +219,7 @@ function syncMaxHp(run: RunState, before: number): void {
 // ─── Комнаты ───────────────────────────────────────────────────────────────
 
 export function enterRoom(run: RunState): void {
-  if (run.phase !== 'map' || awaitsTrial(run)) return;
+  if (run.phase !== 'map' || awaitsThreshold(run)) return;
   const kind = currentRoomKind(run);
   if (kind === 'event') {
     startEvent(run, rollEventKind(run.rng));
@@ -195,7 +246,7 @@ function startBattle(run: RunState, kind: 'fight' | 'elite' | 'boss'): void {
   // «Стая» и «Кладка» (v0.48): лишний противник в каждом бою, кроме босса.
   const extra = run.trial === 'pack' ? 'wolf' : run.trial === 'clutch' ? 'egg_cluster' : null;
   if (extra && kind !== 'boss' && ids.length < MAX_ENEMIES) ids = [...ids, extra];
-  run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng, run.locationIndex, run.trial);
+  run.battle = createBattle(heroDef(run.hero.defId), run.hero, ids, run.rng, run.locationIndex, run.trial, run.boon);
   run.phase = 'battle';
   noteSets(run);
 }
@@ -252,9 +303,10 @@ export function startEvent(run: RunState, kind: EventKind): void {
       return;
     case 'gnome':
     case 'gnome_art':
-      // Вор не даёт выбора «войти или пройти мимо»: он уже тянет руку к кошельку, драка начинается сразу.
+      // Вор не даёт выбора «войти или пройти мимо»: он уже тянет руку к кошельку, драка начинается сразу. Испытание бой
+      // с вором не видит (лишний враг или засада сломали бы бегство), благословение — видит: «в каждом бою».
       run.event = kind === 'gnome' ? { kind, result: 'fight', gold: 0, artifact: null } : { kind, result: 'fight', gold: 0, artifact: null, loot: null };
-      run.battle = createBattle(heroDef(run.hero.defId), run.hero, [kind === 'gnome' ? GNOME_ID : GNOME_ART_ID], run.rng, run.locationIndex);
+      run.battle = createBattle(heroDef(run.hero.defId), run.hero, [kind === 'gnome' ? GNOME_ID : GNOME_ART_ID], run.rng, run.locationIndex, null, run.boon);
       run.phase = 'battle';
       return;
   }
@@ -279,8 +331,8 @@ export function advanceRoom(run: RunState): void {
     const before = heroStats(run).maxHp;
     run.hero.innateTier = Math.min(3, run.locationIndex + 1) as ArtifactInstance['tier'];
     syncMaxHp(run, before);
-    // Новая локация — новые испытания.
-    if (run.trials) offerTrials(run);
+    // Новая локация — новые испытания или благословения.
+    offerThreshold(run);
   }
   run.phase = 'map';
 }
@@ -327,6 +379,9 @@ export function finishBattle(run: RunState): void {
   run.hero.hp = b.hero.hp;
   // Выпитое в бою зелье не возвращается; невыпитое остаётся в слоте.
   run.hero.potion = b.hero.potion;
+  // «Целебные травы»: после выигранного боя (вор, удравший с добычей, — не победа) герой подлечивается.
+  const herbs = b.boon === 'herbs' && !b.fled ? healAmount(run, 0, trialValue(4, run.locationIndex)) : 0;
+  run.hero.hp += herbs;
   run.stats.roomsCleared += 1;
   const kind = effectiveRoomKind(run);
   const act = currentAct(run);
@@ -354,6 +409,7 @@ export function finishBattle(run: RunState): void {
     // Пул («Нападение» / «Защита») игрок выбирает вслепую, бросок — после выбора (chooseRewardFocus).
     const source = kind === 'elite' ? 'elite' : 'fight';
     run.rewards = [{ title: kind === 'elite' ? 'Награда за элиту' : 'Награда', source, options: [], rerolled: false }];
+    if (herbs > 0) run.rewards[0].note = `Целебные травы: +${herbs} HP. Можно взять только одно.`;
   }
   // С любого монстра может выпасть зелье — отдельным экраном после награды. После финального босса некуда: забег окончен.
   const finalBoss = kind === 'boss' && !act.bossGearTier;
@@ -624,10 +680,10 @@ export function pendingCancel(run: RunState): void {
 
 // ─── События: сундук, алтарь, кузнец ───────────────────────────────────────
 
-/** Лечение до доли максимума, но не сверх него. */
-function healAmount(run: RunState, pct: number): number {
+/** Лечение долей максимума `pct` плюс `flat`, но не сверх максимума. */
+function healAmount(run: RunState, pct: number, flat = 0): number {
   const max = heroStats(run).maxHp;
-  return Math.max(0, Math.min(Math.floor(max * pct), max - run.hero.hp));
+  return Math.max(0, Math.min(Math.floor(max * pct) + flat, max - run.hero.hp));
 }
 
 /** Сколько HP вернёт босс локации. */

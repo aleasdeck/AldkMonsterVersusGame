@@ -418,7 +418,7 @@ describe('новые механики врагов', () => {
     expect(getStatus(first(state), 'dodge')?.value).toBe(1);
   });
 
-  it('кладка щетинится, вылупляется на третий ход и не щетинится дважды', () => {
+  it('кладка щетинится, на третий ход лопается личинками и исчезает — не вылупляет без конца', () => {
     const { state, rng } = mkBattle('warrior', ['egg_cluster']);
     const hp0 = state.hero.hp;
     pass(state, rng); // Щетина: шипы 3, сама не бьёт
@@ -426,12 +426,30 @@ describe('новые механики врагов', () => {
     expect(getStatus(first(state), 'thorns')?.value).toBe(3);
     pass(state, rng); // Пульсация: ничего
     expect(state.enemies.length).toBe(1);
-    pass(state, rng); // Вылупление: две личинки — вперёд, заслоняя кладку (v0.26)
-    expect(state.enemies.map((e) => e.defId)).toEqual(['larva', 'larva', 'egg_cluster']);
+    expect(computeIntent(first(state), state).text).toContain('сама исчезает');
+    pass(state, rng); // Вылупление: две личинки на месте кладки, самой кладки больше нет
+    expect(state.enemies.map((e) => e.defId)).toEqual(['larva', 'larva']);
+    // Кладка ушла живой: не убийство.
+    expect(state.stats.kills).toBe(0);
+    expect(state.log).toContain('Кладка лопается');
+    // Больше никто не вылупляется: личинок столько же и через несколько ходов.
+    state.hero.hp = 999;
+    pass(state, rng, 4);
+    expect(state.enemies.filter((e) => e.defId === 'larva').length).toBe(2);
+    expect(state.enemies.some((e) => e.defId === 'egg_cluster')).toBe(false);
+  });
+
+  it('кладка вылупляется и в полном ряду: личинки встают на её место', () => {
+    const { state, rng } = mkBattle('warrior', ['beetle', 'egg_cluster', 'sporeling']);
     const egg = state.enemies.find((e) => e.defId === 'egg_cluster')!;
-    // Второй круг: щетина не накладывается поверх своей же — шипы остаются 3.
-    pass(state, rng, 3);
-    expect(getStatus(egg, 'thorns')?.value).toBe(3);
+    const at = state.enemies.indexOf(egg);
+    egg.intent = 'hatch';
+    for (const e of state.enemies) if (e !== egg) e.statuses.push({ id: 'stun', value: 1, turns: -1 });
+    pass(state, rng);
+    // Ряд полон (MAX_ENEMIES 3): на место кладки встаёт одна личинка, вторая не помещается.
+    expect(state.enemies.length).toBe(3);
+    expect(state.enemies[at].defId).toBe('larva');
+    expect(state.enemies.some((e) => e === egg)).toBe(false);
   });
 
   it('разбитая кладка не оставляет ни личинок, ни предсмертия', () => {

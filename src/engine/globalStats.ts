@@ -3,6 +3,8 @@
 // последних забегов без отладочных и без приватных колонок. Здесь из этого считается то, что показывает экран «Статистика»:
 // чистая функция, чтобы формат и правила счёта фиксировали тесты.
 
+import type { Difficulty } from './types';
+
 /** Ответ скрипта: шапка и строки, строка — массив по keys. Пустые ячейки приходят пустой строкой. */
 export interface RunsFeed {
   keys: string[];
@@ -31,6 +33,10 @@ export interface ItemSummary {
 }
 
 export interface GlobalSummary {
+  /** Записи, прошедшие фильтр сложности (все, если фильтра нет), — вместе с брошенными. */
+  rows: number;
+  /** Законченные забеги по сложностям — по всем записям, без фильтра: подсказки переключателя. */
+  byDifficulty: Record<Difficulty, number>;
   runs: number;
   wins: number;
   abandoned: number;
@@ -57,6 +63,16 @@ export interface SummarizeOpts {
   locationName?: (id: string) => string;
   /** Сколько строк «где гибнут» и «убийцы». */
   top?: number;
+  /** Считать только забеги этой сложности; нет — все. */
+  difficulty?: Difficulty;
+}
+
+/**
+ * Сложность записи. Колонка `difficulty` появилась с выбором сложности (v0.53.0); у записей до неё колонки нет или ячейка
+ * пуста — те забеги шли с испытаниями, то есть на «Сложном». Незнакомое значение считается так же.
+ */
+export function rowDifficulty(v: unknown): Difficulty {
+  return v === 'easy' || v === 'normal' ? v : 'hard';
 }
 
 function col(feed: RunsFeed, key: string): number {
@@ -111,7 +127,10 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
   const cWeapon = col(feed, 'weapon');
   const cArmor = col(feed, 'armor');
   const cArts = col(feed, 'artifacts');
+  const cDiff = col(feed, 'difficulty');
   const top = opts.top ?? 5;
+  const byDifficulty: Record<Difficulty, number> = { easy: 0, normal: 0, hard: 0 };
+  let rows = 0;
   const heroes = new Map<string, HeroSummary>(opts.heroes.map((id) => [id, { hero: id, runs: 0, wins: 0 }]));
   let runs = 0;
   let wins = 0;
@@ -127,6 +146,10 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
   const artifacts = new Map<string, ItemSummary>();
   for (const row of feed.rows) {
     const event = cEvent >= 0 ? str(row[cEvent]) : '';
+    const diff = rowDifficulty(cDiff >= 0 ? row[cDiff] : '');
+    if (event === 'victory' || event === 'defeat') byDifficulty[diff] += 1;
+    if (opts.difficulty && diff !== opts.difficulty) continue;
+    rows += 1;
     if (event === 'abandoned') {
       abandoned += 1;
       continue;
@@ -167,6 +190,8 @@ export function summarize(feed: RunsFeed, opts: SummarizeOpts): GlobalSummary {
   }
   const deaths = runs - wins;
   return {
+    rows,
+    byDifficulty,
     runs,
     wins,
     abandoned,

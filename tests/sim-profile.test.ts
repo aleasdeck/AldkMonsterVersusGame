@@ -40,7 +40,7 @@ for (const hero of HERO_LIST) {
     let turnsWin = 0;
     let takenWin = 0;
     for (let seed = 1; seed <= N; seed++) {
-      const run = newRun(hero.id, seed * 7919, undefined, hero.signatures[SIG], undefined, { trials: env.SIM_TRIALS !== '0' });
+      const run = newRun(hero.id, seed * 7919, undefined, hero.signatures[SIG], undefined, { difficulty: env.SIM_DIFF === 'easy' || env.SIM_DIFF === 'normal' ? env.SIM_DIFF : env.SIM_TRIALS === '0' ? 'normal' : 'hard' });
       let prevTaken = 0;
       let prevLogs = 0;
       // Срез перед боссом акта: урон, полученный в акте до него, и бои по логам.

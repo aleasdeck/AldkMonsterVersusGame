@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { durationText, summarize, type RunsFeed } from '../src/engine/globalStats';
+import { durationText, rowDifficulty, summarize, type RunsFeed } from '../src/engine/globalStats';
 
 const KEYS = ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken'];
 const row = (event: string, hero: string, act = 1, location = 'forest', room = 10, turns = 40, duration = 600, last = 'Вожак стаи', dealt = 100, taken = 50) => [
@@ -104,6 +104,40 @@ describe('общая статистика (globalStats.ts)', () => {
       { id: 'fireball', runs: 2, wins: 1 },
       { id: 'thorns', runs: 1, wins: 1 },
     ]);
+  });
+
+  it('фильтр сложности: только забеги этой сложности; записи без колонки или с пустой ячейкой — «Сложный»', () => {
+    const feed: RunsFeed = {
+      keys: [...KEYS, 'difficulty'],
+      rows: [
+        [...row('victory', 'warrior'), 'easy'],
+        [...row('defeat', 'warrior'), 'easy'],
+        [...row('defeat', 'mage'), 'normal'],
+        [...row('victory', 'mage'), ''],
+        [...row('defeat', 'assassin'), 'hard'],
+        [...row('abandoned', 'assassin'), 'easy'],
+      ],
+    };
+    const all = summarize(feed, { heroes: HEROES });
+    expect(all.rows).toBe(6);
+    expect(all.runs).toBe(5);
+    expect(all.byDifficulty).toEqual({ easy: 2, normal: 1, hard: 2 });
+    const easy = summarize(feed, { heroes: HEROES, difficulty: 'easy' });
+    expect(easy.rows).toBe(3);
+    expect([easy.runs, easy.wins, easy.abandoned]).toEqual([2, 1, 1]);
+    expect(easy.heroes[0]).toEqual({ hero: 'warrior', runs: 2, wins: 1 });
+    // Подсказки переключателя считаются по всей таблице, а не по отфильтрованной.
+    expect(easy.byDifficulty).toEqual(all.byDifficulty);
+    const hard = summarize(feed, { heroes: HEROES, difficulty: 'hard' });
+    expect([hard.runs, hard.wins]).toEqual([2, 1]);
+    expect(hard.heroes.map((h) => h.runs)).toEqual([0, 1, 1]);
+    // Старая таблица без колонки: всё — «Сложный».
+    const old = summarize({ keys: KEYS, rows: [row('victory', 'warrior'), row('defeat', 'mage')] }, { heroes: HEROES, difficulty: 'hard' });
+    expect(old.runs).toBe(2);
+    expect(summarize({ keys: KEYS, rows: [row('victory', 'warrior')] }, { heroes: HEROES, difficulty: 'easy' }).runs).toBe(0);
+    expect(rowDifficulty('normal')).toBe('normal');
+    expect(rowDifficulty(undefined)).toBe('hard');
+    expect(rowDifficulty('???')).toBe('hard');
   });
 
   it('пустой ответ — нули без ошибок', () => {
