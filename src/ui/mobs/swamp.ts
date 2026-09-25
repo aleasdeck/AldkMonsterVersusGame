@@ -161,11 +161,18 @@ export const toad: Model = {
   },
 };
 
+/**
+ * Мать жаб — старая жаба: тон рядовой, но тусклее и темнее, брюхо и икра грязнее. Прежняя палитра (ярче жабы)
+ * на крупной фигуре выбивалась из Болот: светлее и насыщеннее всех врагов набора.
+ */
 const MOTHER: typeof TOAD = {
   ...TOAD,
-  skin: { base: '#66852e', shine: 0.3, tex: { kind: 'noise', scale: 3, amp: 0.14 } },
-  back: { base: '#3c5a1c', shine: 0.3, tex: { kind: 'spots', scale: 6, amp: 0.3, density: 0.35 } },
-  wart: { base: '#8a9c3c', shine: 0.4 },
+  skin: { base: '#596b3a', shine: 0.3, tex: { kind: 'noise', scale: 3, amp: 0.14 } },
+  back: { base: '#3c4b27', shine: 0.3, tex: { kind: 'spots', scale: 6, amp: 0.3, density: 0.35 } },
+  belly: { base: '#9a936c', tex: { kind: 'noise', scale: 2, amp: 0.1 } },
+  sac: { base: '#ada582', shine: 0.5, dither: 0 },
+  wart: { base: '#737e46', shine: 0.4 },
+  egg: { base: '#8c906d', shine: 0.5, dither: 0 },
 };
 
 /** Мать жаб — та же жаба в два с лишним раза крупнее (рост 132 против 56). */
@@ -869,11 +876,12 @@ export const triton: Model = {
 
 // ─── Гидра ──────────────────────────────────────────────────────────────────
 
+/** Гидра — в оливковой гамме Болот: изумрудная кожа и светлые гребни прежнего спрайта выбивались из набора. */
 const HYDRA = {
-  skin: { base: '#386c44', shine: 0.35, tex: { kind: 'spots', scale: 3, amp: 0.22, density: 0.45 } } as Mat,
-  back: { base: '#20482a', shine: 0.3, tex: { kind: 'spots', scale: 3, amp: 0.2, density: 0.45 } } as Mat,
-  belly: { base: '#a49c62', tex: { kind: 'stripes', scale: 2.4, amp: 0.2 } } as Mat,
-  horn: { base: '#b8a878', dither: 0 } as Mat,
+  skin: { base: '#455d3c', shine: 0.35, tex: { kind: 'spots', scale: 3, amp: 0.22, density: 0.45 } } as Mat,
+  back: { base: '#2a3e25', shine: 0.3, tex: { kind: 'spots', scale: 3, amp: 0.2, density: 0.45 } } as Mat,
+  belly: { base: '#85825c', tex: { kind: 'stripes', scale: 2.4, amp: 0.2 } } as Mat,
+  horn: { base: '#908667', dither: 0 } as Mat,
   mouth: { base: '#5a1e22', dither: 0 } as Mat,
   tongue: { base: '#c84a5a', dither: 0 } as Mat,
 };
