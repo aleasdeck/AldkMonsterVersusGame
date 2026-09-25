@@ -14,7 +14,6 @@ import { GEAR_TIERS, baseArmorStats, baseDamage, baseOf, baseTitle, rollAffix, r
 import type { ArtTier, DerivedStats, GearAffix, GearKind, GearTier, LootItem, SlotKind } from './engine/types';
 import type { Rng } from './engine/rng';
 import { setTint } from './ui/tint';
-import { setMobStyle } from './ui/mobs';
 
 const HERO_LIST_IDS = HERO_LIST.map((d) => d.id);
 const WIDTH = 960;
@@ -50,9 +49,6 @@ else if (tintParam || tintColor) {
     ...(tintColor ? { light: `#${tintColor}` } : {}),
   });
 }
-
-// &mobs=a|b|c — лесные враги пиксельной лепкой с циклом покоя (прототип v0.52: три варианта на выбор, без параметра — прежние спрайты)
-setMobStyle(params.get('mobs'));
 
 // &mock=1 — демо-профиль: статистика, часть коллекции (у артефактов — часть тиров) и половина бестиария (для отладки экранов);
 // экрану «Статистика» — демо-ответ таблицы вместо сети (mockRuns)

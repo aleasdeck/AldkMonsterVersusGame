@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderSheet, type Sheet } from '../src/ui/mobs/pixel';
-import { MOB_STYLES } from '../src/ui/mobs/styles';
+import { MOB_STYLE } from '../src/ui/mobs/styles';
 import { FOREST_MODELS } from '../src/ui/mobs/forest';
 import { ENEMY_LIST } from '../src/data/enemies';
 import { ENEMY_BODY_HEIGHT } from '../src/data/characterSizes';
@@ -20,45 +20,91 @@ function print(f: Uint8ClampedArray): number {
   return h >>> 0;
 }
 
-describe('пиксельная лепка (прототип v0.52)', () => {
+/** Доля непрозрачных пикселей, которые отличаются между кадрами. */
+function diff(a: Uint8ClampedArray, b: Uint8ClampedArray): number {
+  let changed = 0, opaque = 0;
+  for (let k = 0; k < a.length; k += 4) {
+    if (a[k + 3] === 255 || b[k + 3] === 255) opaque++;
+    if (a[k] !== b[k] || a[k + 1] !== b[k + 1] || a[k + 2] !== b[k + 2] || a[k + 3] !== b[k + 3]) changed++;
+  }
+  return changed / Math.max(1, opaque);
+}
+
+/** Средняя яркость непрозрачных пикселей кадра. */
+function brightness(f: Uint8ClampedArray): number {
+  let sum = 0, n = 0;
+  for (let k = 0; k < f.length; k += 4) if (f[k + 3] === 255) { sum += f[k] + f[k + 1] + f[k + 2]; n++; }
+  return sum / Math.max(1, n) / 3;
+}
+
+const MODELS = Object.entries(FOREST_MODELS);
+const sheets = new Map(MODELS.map(([id, m]) => [id, {
+  idle: renderSheet(m, MOB_STYLE),
+  attack: renderSheet(m, MOB_STYLE, 'attack'),
+  hurt: renderSheet(m, MOB_STYLE, 'hurt'),
+}]));
+
+describe('пиксельная лепка (v0.52)', () => {
   it('у каждого врага Леса есть модель, лишних моделей нет', () => {
     const forest = ENEMY_LIST.filter((e) => e.location === 'forest').map((e) => e.id).sort();
     expect(Object.keys(FOREST_MODELS).sort()).toEqual(forest);
   });
 
-  for (const sid of ['a', 'b'] as const) {
-    it(`вариант ${sid}: кадры цикла непустые, враг стоит на земле, рост по таблице`, () => {
-      const st = MOB_STYLES[sid];
-      for (const [id, model] of Object.entries(FOREST_MODELS)) {
-        const sh = renderSheet(model, st);
-        expect(sh.frames, id).toHaveLength(st.frames);
-        const ground = sh.h - sh.foot;
-        for (const f of sh.frames) {
-          let opaque = 0;
-          for (let k = 3; k < f.length; k += 4) if (f[k] === 255) opaque++;
-          expect(opaque, id).toBeGreaterThan(40);
-          // Ступни на линии земли (контур может уйти на пиксель ниже); мышь парит над полом по замыслу.
-          if (id !== 'bat') expect(Math.abs(lowestRow(sh, f) + 1 - ground), id).toBeLessThanOrEqual(2);
-        }
-        // Рост от макушки до земли — как в ENEMY_BODY_HEIGHT. Крыса длинная и низкая (по «массе» как прежний
-        // квадратный спрайт), у мыши в рамку входит просвет до пола — у обеих рост свой.
-        if (id !== 'rat' && id !== 'bat') {
-          const body = (ground - sh.top) * sh.d;
-          expect(Math.abs(body - ENEMY_BODY_HEIGHT[id]) / ENEMY_BODY_HEIGHT[id], `${id}: ${body}`).toBeLessThan(0.12);
-        }
+  it('кадры покоя непустые, враг стоит на земле, рост по таблице', () => {
+    for (const [id] of MODELS) {
+      const sh = sheets.get(id)!.idle;
+      expect(sh.frames, id).toHaveLength(MOB_STYLE.frames);
+      const ground = sh.h - sh.foot;
+      for (const f of sh.frames) {
+        let opaque = 0;
+        for (let k = 3; k < f.length; k += 4) if (f[k] === 255) opaque++;
+        expect(opaque, id).toBeGreaterThan(40);
+        // Ступни на линии земли (контур может уйти на пиксель ниже); мышь парит над полом по замыслу.
+        if (id !== 'bat') expect(Math.abs(lowestRow(sh, f) + 1 - ground), id).toBeLessThanOrEqual(2);
       }
-    });
-  }
+      // Рост от макушки до земли — как в ENEMY_BODY_HEIGHT. Крыса длинная и низкая (по «массе» как прежний
+      // квадратный спрайт), у мыши в рамку входит просвет до пола — у обеих рост свой.
+      if (id !== 'rat' && id !== 'bat') {
+        const body = (ground - sh.top) * sh.d;
+        expect(Math.abs(body - ENEMY_BODY_HEIGHT[id]) / ENEMY_BODY_HEIGHT[id], `${id}: ${body}`).toBeLessThan(0.12);
+      }
+    }
+  });
+
+  it('клипы удара и урона: своё число кадров, тот же размер кадра, что у покоя', () => {
+    for (const [id] of MODELS) {
+      const s = sheets.get(id)!;
+      expect(s.attack.frames, id).toHaveLength(MOB_STYLE.clips.attack.frames);
+      expect(s.hurt.frames, id).toHaveLength(MOB_STYLE.clips.hurt.frames);
+      expect([s.attack.w, s.attack.h, s.hurt.w, s.hurt.h], id).toEqual([s.idle.w, s.idle.h, s.idle.w, s.idle.h]);
+    }
+  });
+
+  it('клип кончается позой покоя: переход к первому кадру покоя без скачка', () => {
+    for (const [id] of MODELS) {
+      const s = sheets.get(id)!;
+      expect(diff(s.attack.frames[s.attack.frames.length - 1], s.idle.frames[0]), `${id}: удар`).toBeLessThan(0.02);
+      expect(diff(s.hurt.frames[s.hurt.frames.length - 1], s.idle.frames[0]), `${id}: урон`).toBeLessThan(0.02);
+    }
+  });
+
+  it('удар заметно меняет позу к кадру контакта, урон начинается белой вспышкой', () => {
+    const contact = MOB_STYLE.clips.attack.contact ?? 4;
+    for (const [id] of MODELS) {
+      const s = sheets.get(id)!;
+      expect(diff(s.attack.frames[contact], s.idle.frames[0]), `${id}: контакт`).toBeGreaterThan(0.15);
+      expect(brightness(s.hurt.frames[0]), `${id}: вспышка`).toBeGreaterThan(brightness(s.idle.frames[0]) + 60);
+    }
+  });
 
   it('рисунок детерминирован: та же модель — те же пиксели, без Math.random', () => {
-    const a = renderSheet(FOREST_MODELS.wolf, MOB_STYLES.c);
-    const b = renderSheet(FOREST_MODELS.wolf, MOB_STYLES.c);
-    expect(a.frames).toHaveLength(MOB_STYLES.c.frames);
-    for (let f = 0; f < a.frames.length; f += 7) expect(print(a.frames[f])).toBe(print(b.frames[f]));
+    const a = renderSheet(FOREST_MODELS.wolf, MOB_STYLE, 'attack');
+    const b = renderSheet(FOREST_MODELS.wolf, MOB_STYLE, 'attack');
+    for (let f = 0; f < a.frames.length; f++) expect(print(a.frames[f])).toBe(print(b.frames[f]));
   });
 
   it('покой живой: больше половины кадров цикла различаются', () => {
-    const sh = renderSheet(FOREST_MODELS.goblin_shaman, MOB_STYLES.b);
+    const sh = sheets.get('goblin_shaman')!.idle;
     const distinct = new Set(sh.frames.map(print));
     expect(distinct.size).toBeGreaterThan(sh.frames.length / 2);
   });

@@ -1,10 +1,10 @@
 /**
- * Пиксельная лепка: процедурный враг из осмысленных фигур, а не из случайного пятна (прототип v0.52).
+ * Пиксельная лепка: процедурный враг из осмысленных фигур, а не из случайного пятна (v0.52).
  *
  * Модель врага — функция, которая каждым кадром заново «лепит» тело из эллипсов, конечностей и полигонов
  * в координатах логического кадра (1 единица = 1 px поля боя, рост тела — как в `characterSizes.ts`).
- * Движок растеризует фигуры в сетку со стороной `d` единиц: тот же рисунок выходит крупным пикселем
- * (d = 3), пикселем фона (d = 2) или тонким (d = 1) — модели плотности не знают.
+ * Движок растеризует фигуры в сетку со стороной `d` единиц, модели плотности не знают: прототип сравнивал
+ * крупный пиксель (d = 3), пиксель фона (d = 2) и тонкий (d = 1), в игре — пиксель фона (`styles.ts`).
  *
  * Каждая фигура — купол своей высоты; фигуры одной части тела (`part`) сливаются мягким максимумом высот,
  * поэтому грудь, живот и круп волка светятся как одно тело, а не как набор шаров. Тон клетки — свет по нормали
@@ -12,6 +12,10 @@
  * (дальние лапы темнее), квантованные в рамп материала. Рамп строится из одного базового цвета со сдвигом
  * оттенка: тени уходят в синеву, свет — в тёплую желтизну, как у рисованного фона.
  * После фигур — пряди по краю шерсти, линии между частями, внешний контур, «декали» (глаза, блики, зубы) и тень на полу.
+ *
+ * Удар и урон — та же лепка, а не отдельный рисунок: модель читает ход клипа (`p.attack()` — замах и выпад,
+ * `p.hurt()` — отдача) и наклоняет или сдвигает тело и его части (`p.pose`). Кривые у всех врагов общие,
+ * поэтому контакт удара у всех приходится на один кадр, а последний кадр клипа — это первый кадр покоя.
  *
  * Модуль без DOM: отдаёт RGBA-кадры, которые запекает для игры `mobs/index.ts`, а тесты и превью считают в Node.
  */
@@ -198,7 +202,22 @@ export interface Style {
   /** Кадров в цикле покоя и их частота. */
   frames: number;
   fps: number;
+  /** Клипы действий: удар и урон (кадры, частота, кадр контакта, вспышка по кадрам). */
+  clips: Record<'attack' | 'hurt', ClipSpec>;
 }
+
+/** Клип действия. Действие быстрее покоя, поэтому своя частота кадров. */
+export interface ClipSpec {
+  frames: number;
+  fps: number;
+  /** Кадр контакта удара: к нему игра приурочивает цифру урона и снаряд. */
+  contact?: number;
+  /** Белая вспышка по кадрам: доля смешения с белым (урон: первый кадр ярче). */
+  flash?: number[];
+}
+
+/** Что рисует модель: цикл покоя или клип действия. */
+export type MobClip = 'idle' | 'attack' | 'hurt';
 
 export interface Mat {
   /** Средний тон материала; рамп строится из него. */
@@ -280,9 +299,40 @@ export interface Model {
   h: number;
   /** Линия земли, y в единицах: по ней враг встаёт на пол поля. */
   ground: number;
-  /** Каждый кадр лепит тело заново: `p.t` — фаза цикла покоя 0..1. */
+  /** Поле вокруг рамки для клипов, единицы: выпад, замах дубиной и отдача не должны упираться в край кадра. */
+  pad?: number;
+  /**
+   * Каждый кадр лепит тело заново. `p.t` — фаза цикла покоя 0..1, `p.clip` и `p.u` — клип действия и его ход 0..1;
+   * позы клипа модель берёт из `p.attack()` и `p.hurt()`, целиком тело наклоняет и сдвигает `p.pose`.
+   */
   draw(p: Painter): void;
 }
+
+/** Поле вокруг рамки модели по умолчанию, единицы. */
+const PAD = 22;
+
+/** Ключевые точки кривой: [ход клипа 0..1, значение]; между ними — линейно. */
+export type Keys = ReadonlyArray<readonly [number, number]>;
+export function keys(k: Keys, u: number): number {
+  if (u <= k[0][0]) return k[0][1];
+  for (let i = 1; i < k.length; i++) {
+    const [u1, v1] = k[i];
+    if (u <= u1) {
+      const [u0, v0] = k[i - 1];
+      return v0 + ((v1 - v0) * (u - u0)) / (u1 - u0 || 1);
+    }
+  }
+  return k[k.length - 1][1];
+}
+
+/**
+ * Удар: замах (отвести тело и оружие назад) держится первые кадры, выпад приходит в кадр контакта (4 из 8)
+ * и тает к последнему — последний кадр совпадает с первым кадром покоя, переход без скачка.
+ */
+const WIND: Keys = [[0, 0.35], [0.14, 1], [0.3, 1], [0.43, 0.15], [0.55, 0], [1, 0]];
+const STRIKE: Keys = [[0, 0], [0.36, 0], [0.5, 0.7], [0.57, 1], [0.72, 0.7], [0.86, 0.3], [1, 0]];
+/** Урон: отдача сильнее всего в первом кадре (там же вспышка) и сходит на нет к последнему. */
+const RECOIL: Keys = [[0, 1], [0.25, 0.85], [0.5, 0.45], [0.75, 0.15], [1, 0]];
 
 type Decal = { i: number; j: number; rgb: RGB; a: number; under: boolean };
 /** Глаз: `closed` 1 — веко опущено, 0.5 — прищур; блик, цвет века и зрачок. */
@@ -293,8 +343,11 @@ export class Painter {
   readonly W: number;
   readonly H: number;
   readonly d: number;
-  /** Фаза цикла покоя 0..1. */
+  /** Фаза цикла покоя 0..1 (в клипах действий — 0: покой замирает). */
   readonly t: number;
+  /** Клип, который рисуется, и его ход 0..1 (первый кадр — 0, последний — 1). */
+  readonly clip: MobClip;
+  readonly u: number;
   readonly frames: number;
   readonly style: Style;
   readonly ground: number;
@@ -315,19 +368,28 @@ export class Painter {
   private readonly parts = new Map<string, number>();
   private order = 0;
   private readonly decals: Decal[] = [];
-  /** Текущий масштаб и сдвиг (`scope`): модель рисует в своих координатах, холст — в координатах кадра. */
-  private ts = 1;
-  private tx = 0;
-  private ty = 0;
+  /**
+   * Текущее преобразование модели в кадр (`scope`, `pose`): X = a·x − b·y + tx, Y = b·x + a·y + ty —
+   * масштаб, поворот и сдвиг. Модель рисует в своих координатах, холст — в координатах кадра с полем `pad`.
+   */
+  private ta = 1;
+  private tb = 0;
+  private tx: number;
+  private ty: number;
 
-  constructor(model: Model, style: Style, t: number) {
+  constructor(model: Model, style: Style, t: number, clip: MobClip = 'idle', u = 0) {
     this.d = style.d;
     this.style = style;
     this.t = t;
+    this.clip = clip;
+    this.u = u;
     this.frames = style.frames;
-    this.W = Math.ceil(model.w / style.d);
-    this.H = Math.ceil(model.h / style.d);
-    this.ground = model.ground;
+    const pad = model.pad ?? PAD;
+    this.tx = pad;
+    this.ty = pad;
+    this.W = Math.ceil((model.w + 2 * pad) / style.d);
+    this.H = Math.ceil((model.h + pad) / style.d);
+    this.ground = model.ground + pad;
     this.aoSpan = model.ground * 0.3;
     const n = this.W * this.H;
     this.m = new Int16Array(n).fill(-1);
@@ -341,33 +403,75 @@ export class Painter {
     this.noLineAt = new Uint8Array(n);
   }
 
+  /** Масштаб текущего преобразования: радиусы, подъёмы и фаски растут вместе с ним. */
+  private get ts(): number {
+    return Math.hypot(this.ta, this.tb);
+  }
+
+  /** Поворот текущего преобразования: эллипсы поворачиваются вместе с телом. */
+  private get tr(): number {
+    return Math.atan2(this.tb, this.ta);
+  }
+
+  /** Вложить преобразование p ↦ (a + ib)·p + (ox, oy) в текущее на время `fn`. */
+  private nest(a: number, b: number, ox: number, oy: number, fn: () => void): void {
+    const prev = [this.ta, this.tb, this.tx, this.ty] as const;
+    const [pa, pb, px, py] = prev;
+    this.ta = pa * a - pb * b;
+    this.tb = pa * b + pb * a;
+    this.tx = pa * ox - pb * oy + px;
+    this.ty = pb * ox + pa * oy + py;
+    try {
+      fn();
+    } finally {
+      [this.ta, this.tb, this.tx, this.ty] = prev;
+    }
+  }
+
   /**
    * Нарисовать часть модели в своём масштабе: `fn` рисует в координатах, умноженных на `s` и сдвинутых на (ox, oy).
    * Так Вожак стаи — тот же волк крупнее, а не отдельная лепка.
    */
   scope(s: number, ox: number, oy: number, fn: () => void): void {
-    const prev = [this.ts, this.tx, this.ty];
-    this.tx += ox * this.ts;
-    this.ty += oy * this.ts;
-    this.ts *= s;
-    try { fn(); } finally { [this.ts, this.tx, this.ty] = prev; }
+    this.nest(s, 0, ox, oy, fn);
   }
 
-  private X(x: number): number { return this.tx + x * this.ts; }
-  private Y(y: number): number { return this.ty + y * this.ts; }
+  /**
+   * Поза в клипе: наклон `rot` (радианы; минус — вперёд, к герою, плюс — назад) вокруг опоры (px, py)
+   * и сдвиг (dx, dy). Сдвиг прижат к сетке — выпад идёт целыми пикселями, без дрожи.
+   */
+  pose(o: { dx?: number; dy?: number; rot?: number; px?: number; py?: number }, fn: () => void): void {
+    const rot = o.rot ?? 0;
+    const c = Math.cos(rot), s = Math.sin(rot);
+    const px = o.px ?? 0, py = o.py ?? 0;
+    const dx = this.snap(o.dx ?? 0), dy = this.snap(o.dy ?? 0);
+    this.nest(c, s, px - (c * px - s * py) + dx, py - (s * px + c * py) + dy, fn);
+  }
+
+  private pt(x: number, y: number): [number, number] {
+    return [this.ta * x - this.tb * y + this.tx, this.tb * x + this.ta * y + this.ty];
+  }
+
   private scaled(o: Shape): Shape {
-    if (this.ts === 1) return o;
-    return { ...o, lift: o.lift === undefined ? undefined : o.lift * this.ts, bevel: o.bevel === undefined ? undefined : o.bevel * this.ts };
+    const k = this.ts;
+    if (k === 1) return o;
+    return { ...o, lift: o.lift === undefined ? undefined : o.lift * k, bevel: o.bevel === undefined ? undefined : o.bevel * k };
   }
 
   /** Эллипс-купол: высота как у полусферы толщиной `min(rx, ry)`; `rot` поворачивает его вместе с фактурой. */
   ellipse(cx: number, cy: number, rx: number, ry: number, mat: Mat, o: Shape = {}): void {
-    this.wEllipse(this.X(cx), this.Y(cy), rx * this.ts, ry * this.ts, mat, this.scaled(o));
+    const [X, Y] = this.pt(cx, cy);
+    const k = this.ts;
+    const tr = this.tr;
+    this.wEllipse(X, Y, rx * k, ry * k, mat, tr ? { ...this.scaled(o), rot: (o.rot ?? 0) + tr } : this.scaled(o));
   }
 
   /** Конечность: сужающаяся капсула от (x1, y1, r1) к (x2, y2, r2), высота как у цилиндра. */
   limb(x1: number, y1: number, r1: number, x2: number, y2: number, r2: number, mat: Mat, o: Shape = {}): void {
-    this.wLimb(this.X(x1), this.Y(y1), r1 * this.ts, this.X(x2), this.Y(y2), r2 * this.ts, mat, this.scaled(o));
+    const [X1, Y1] = this.pt(x1, y1);
+    const [X2, Y2] = this.pt(x2, y2);
+    const k = this.ts;
+    this.wLimb(X1, Y1, r1 * k, X2, Y2, r2 * k, mat, this.scaled(o));
   }
 
   /** Цепочка конечностей по точкам [x, y, r]: хвост, лапа паука, нить. */
@@ -384,32 +488,40 @@ export class Painter {
    * Край скруглён фаской шириной `bevel` (по умолчанию треть меньшей стороны): плоская середина, светлый верхний край.
    */
   poly(pts: number[], mat: Mat, o: Shape = {}): void {
-    this.wPoly(pts.map((v, i) => (i % 2 ? this.Y(v) : this.X(v))), mat, this.scaled(o));
+    const out: number[] = [];
+    for (let k = 0; k + 1 < pts.length; k += 2) out.push(...this.pt(pts[k], pts[k + 1]));
+    this.wPoly(out, mat, this.scaled(o));
   }
 
   /** Стереть клетки эллипсом — просвет, вырез пасти. */
   erase(cx: number, cy: number, rx: number, ry: number): void {
-    this.wErase(this.X(cx), this.Y(cy), rx * this.ts, ry * this.ts);
+    const [X, Y] = this.pt(cx, cy);
+    this.wErase(X, Y, rx * this.ts, ry * this.ts);
   }
 
   /** Один пиксель рисунка в точке (x, y). */
   px(x: number, y: number, color: string): void {
-    this.wPx(this.X(x), this.Y(y), color);
+    const [X, Y] = this.pt(x, y);
+    this.wPx(X, Y, color);
   }
 
   /** Прямоугольник w×h пикселей рисунка от точки (x, y): размер в пикселях, а не в единицах. */
   block(x: number, y: number, w: number, h: number, color: string): void {
-    this.wBlock(this.X(x), this.Y(y), w, h, color);
+    const [X, Y] = this.pt(x, y);
+    this.wBlock(X, Y, w, h, color);
   }
 
   /** Линия в один пиксель рисунка (Брезенхем): тетива, усы, рот. `under` — только по пустым клеткам. */
   line(x1: number, y1: number, x2: number, y2: number, color: string, under = false): void {
-    this.wLine(this.X(x1), this.Y(y1), this.X(x2), this.Y(y2), color, under);
+    const [X1, Y1] = this.pt(x1, y1);
+    const [X2, Y2] = this.pt(x2, y2);
+    this.wLine(X1, Y1, X2, Y2, color, under);
   }
 
   /** Диск пикселей радиуса r (не меньше пикселя): зрачок, монета, огонёк. */
   disc(x: number, y: number, r: number, color: string, under = false): void {
-    this.wDisc(this.X(x), this.Y(y), r * this.ts, color, under);
+    const [X, Y] = this.pt(x, y);
+    this.wDisc(X, Y, r * this.ts, color, under);
   }
 
   /**
@@ -417,17 +529,40 @@ export class Painter {
    * Размер не меньше пикселя — на крупном пикселе глаз остаётся одной яркой точкой.
    */
   eye(x: number, y: number, r: number, color: string, o: EyeOpts = {}): void {
-    this.wEye(this.X(x), this.Y(y), r * this.ts, color, o);
+    const [X, Y] = this.pt(x, y);
+    this.wEye(X, Y, r * this.ts, color, o);
   }
 
   /** Свечение: кольца полупрозрачного цвета в пустых клетках вокруг точки — огонёк посоха, блеск монет. */
   glow(x: number, y: number, r: number, color: string, alpha = 0.5): void {
-    this.wGlow(this.X(x), this.Y(y), r * this.ts, color, alpha);
+    const [X, Y] = this.pt(x, y);
+    this.wGlow(X, Y, r * this.ts, color, alpha);
   }
 
-  /** Тень на земле: плоский эллипс под существом (по умолчанию на линии земли), только в пустых клетках. */
+  /**
+   * Тень на земле: плоский эллипс под существом, только в пустых клетках. Без `y` лежит на линии земли под той
+   * точкой модели, что над ней: выпад и наклон тела тень сдвигают, но от пола не отрывают.
+   */
   shadow(cx: number, rx: number, ry: number, alpha = 0.34, y?: number): void {
-    this.wShadow(this.X(cx), rx * this.ts, ry * this.ts, alpha, y === undefined ? this.ground : this.Y(y));
+    const k = this.ts;
+    if (y !== undefined) {
+      const [X, Y] = this.pt(cx, y);
+      this.wShadow(X, rx * k, ry * k, alpha, Y);
+      return;
+    }
+    const ym = (this.ground - this.ty - this.tb * cx) / (this.ta || 1e-6);
+    this.wShadow(this.ta * cx - this.tb * ym + this.tx, rx * k, ry * k, alpha, this.ground);
+  }
+
+  /** Замах и выпад клипа атаки, 0..1; вне атаки и в её последнем кадре — нули. */
+  attack(): { wind: number; strike: number } {
+    if (this.clip !== 'attack') return { wind: 0, strike: 0 };
+    return { wind: keys(WIND, this.u), strike: keys(STRIKE, this.u) };
+  }
+
+  /** Отдача клипа урона, 0..1: сильнее всего в первом кадре; вне клипа — 0. */
+  hurt(): number {
+    return this.clip === 'hurt' ? keys(RECOIL, this.u) : 0;
   }
 
   /** Координата, прижатая к сетке рисунка: сдвиги частей целыми пикселями не дрожат. */
@@ -879,7 +1014,7 @@ export class Painter {
 }
 
 /**
- * Та же модель в другом масштабе: рамка и линия земли растут вместе с рисунком.
+ * Та же модель в другом масштабе: рамка, поле и линия земли растут вместе с рисунком.
  * Так подгоняется рост под `ENEMY_BODY_HEIGHT`, не переписывая координаты лепки.
  */
 export function scaleModel(model: Model, s: number): Model {
@@ -888,6 +1023,7 @@ export function scaleModel(model: Model, s: number): Model {
     w: Math.ceil(model.w * s),
     h: Math.ceil(model.h * s),
     ground: model.ground * s,
+    pad: Math.round((model.pad ?? PAD) * s),
     draw: (p) => p.scope(s, 0, 0, () => model.draw(p)),
   };
 }
@@ -895,7 +1031,7 @@ export function scaleModel(model: Model, s: number): Model {
 // ─── Лист кадров ────────────────────────────────────────────────────────────
 
 export interface Sheet {
-  /** Размер кадра в пикселях рисунка. */
+  /** Размер кадра в пикселях рисунка (рамка модели с полем вокруг). */
   w: number;
   h: number;
   /** Единиц логического кадра на пиксель. */
@@ -906,24 +1042,46 @@ export interface Sheet {
   top: number;
   /** Строк ниже линии земли: на столько лист опускается под пол. */
   foot: number;
+  /** Пустых столбцов слева и справа по всем кадрам: видимая ширина фигуры — w − left − right. */
+  left: number;
+  right: number;
 }
 
-export function renderSheet(model: Model, style: Style): Sheet {
+/**
+ * Лист кадров клипа. Покой — `style.frames` кадров по фазе цикла; удар и урон — кадры `style.clips` по ходу 0..1
+ * при замершем покое (фаза 0), поэтому последний кадр клипа совпадает с первым кадром покоя.
+ * Урон вспыхивает белым в первых кадрах (`flash`), как принято у пиксельных бойцов.
+ */
+export function renderSheet(model: Model, style: Style, clip: MobClip = 'idle'): Sheet {
+  const spec = clip === 'idle' ? null : style.clips[clip];
+  const n = spec ? spec.frames : style.frames;
   const frames: Uint8ClampedArray[] = [];
-  let w = 0, h = 0, top = Infinity;
-  for (let f = 0; f < style.frames; f++) {
-    const p = new Painter(model, style, f / style.frames);
+  let w = 0, h = 0, top = Infinity, minX = Infinity, maxX = -1;
+  for (let f = 0; f < n; f++) {
+    const p = spec ? new Painter(model, style, 0, clip, n > 1 ? f / (n - 1) : 0) : new Painter(model, style, f / n);
     model.draw(p);
     const px = p.finish();
     w = p.W;
     h = p.H;
-    rows: for (let j = 0; j < h && j < top; j++) {
+    const flash = spec?.flash?.[f] ?? 0;
+    for (let j = 0; j < h; j++) {
       for (let i = 0; i < w; i++) {
-        if (px[(j * w + i) * 4 + 3] === 255) { top = j; break rows; }
+        const k = (j * w + i) * 4;
+        if (px[k + 3] !== 255) continue;
+        if (j < top) top = j;
+        if (i < minX) minX = i;
+        if (i > maxX) maxX = i;
+        if (flash) for (let c = 0; c < 3; c++) px[k + c] = Math.round(px[k + c] + (255 - px[k + c]) * flash);
       }
     }
     frames.push(px);
   }
-  const groundRow = Math.round(model.ground / style.d);
-  return { w, h, d: style.d, frames, fps: style.fps, top: Number.isFinite(top) ? top : 0, foot: Math.max(0, h - groundRow) };
+  const groundRow = Math.round((model.ground + (model.pad ?? PAD)) / style.d);
+  return {
+    w, h, d: style.d, frames, fps: spec ? spec.fps : style.fps,
+    top: Number.isFinite(top) ? top : 0,
+    foot: Math.max(0, h - groundRow),
+    left: Number.isFinite(minX) ? minX : 0,
+    right: maxX >= 0 ? w - 1 - maxX : 0,
+  };
 }

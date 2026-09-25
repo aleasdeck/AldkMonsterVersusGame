@@ -4,6 +4,7 @@ import { HERO_LIST } from '../src/data/heroes';
 import { ENEMY_BODY_HEIGHT, HERO_BODY_HEIGHT } from '../src/data/characterSizes';
 import { enemySize } from '../src/ui/characterSize';
 import { spriteBounds, spriteSize } from '../src/ui/sprites';
+import { hasMobArt } from '../src/ui/mobs';
 
 describe('масштаб персонажей по видимому телу', () => {
   it('каждый монстр и герой имеет явно заданный рост', () => {
@@ -21,7 +22,8 @@ describe('масштаб персонажей по видимому телу', (
     expect(height('gnome_thief')).toBeLessThan(height('bandit_archer'));
   });
   it('прозрачные поля процедурных картинок не уменьшают видимый рост', () => {
-    for (const def of ENEMY_LIST.filter((e) => !['skeleton_warrior', 'skeleton_archer', 'necromancer'].includes(e.id))) {
+    // Рисованные листы меряются своими числами, лепка Леса — моделью (рост против таблицы проверяет tests/mobs.test.ts).
+    for (const def of ENEMY_LIST.filter((e) => !['skeleton_warrior', 'skeleton_archer', 'necromancer'].includes(e.id) && !hasMobArt(e.id))) {
       const size = enemySize(def), bounds = spriteBounds(def.sprite, def.id);
       expect(size.px - size.top - size.foot).toBeCloseTo(ENEMY_BODY_HEIGHT[def.id]);
       expect(size.px * bounds.height / spriteSize(def.sprite)).toBeCloseTo(size.body);

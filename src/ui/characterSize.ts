@@ -13,13 +13,14 @@ const DRAWN_METRICS: Readonly<Record<string, { body: number; top: number; foot: 
 
 /**
  * Размер изображения и убираемые поля. Бестиарий может задать уменьшение всей шкалы.
- * `px` — высота изображения (у квадратных спрайтов и ширина), `width` — ширина: лепка и рисованные листы шире своего роста.
+ * `px` — высота изображения (у квадратных спрайтов и ширина); `width` — ширина самой фигуры без пустых краёв:
+ * по ней альбом ужимает широких (медведь боком шире своего роста).
  */
 export function enemySize(def: EnemyDef, scale = 1): { px: number; width: number; top: number; foot: number; body: number } {
   if (hasMobArt(def.id)) {
     // Пиксельная лепка рисуется ровно своим пикселем: рост задаёт модель, пересчёт по таблице размыл бы сетку.
     const m = mobMetrics(def.id);
-    return { px: m.h * scale, width: m.w * scale, top: m.top * scale, foot: m.foot * scale, body: (m.h - m.top - m.foot) * scale };
+    return { px: m.h * scale, width: (m.w - m.left - m.right) * scale, top: m.top * scale, foot: m.foot * scale, body: (m.h - m.top - m.foot) * scale };
   }
   const body = (ENEMY_BODY_HEIGHT[def.id] ?? 108) * scale;
   const drawn = DRAWN_METRICS[def.id];
