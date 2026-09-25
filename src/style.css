@@ -1279,6 +1279,7 @@ p {
    `--tint` ставит поле боя, вне боя переменной нет и спрайты остаются в своей палитре. */
 .field .sprite-wrap img.sprite,
 .field .sprite-wrap canvas.enemy-sheet,
+.field .sprite-wrap .mob-sheet,
 .field .hero-sprite::before {
   filter: var(--tint, none);
 }
@@ -1290,6 +1291,47 @@ p {
 }
 .bob {
   animation: bob 1.6s ease-in-out infinite;
+}
+/* Пиксельная лепка (mobs/index.ts, v0.52): лист в три ряда — покой, удар, урон; ряд — --row, кадров в нём — --n.
+   Покой листает бесконечный mob-loop; клип действия — одноразовый mob-once, после него JS возвращает покой.
+   --delay отрицательный от общих часов, поэтому перерисовка экрана не сбрасывает ни покой, ни идущий клип. */
+.mob-sheet {
+  flex: none;
+  width: var(--w);
+  height: var(--h);
+  background: var(--sheet) 0 calc(var(--h) * -1 * var(--row, 0)) / calc(var(--w) * var(--cols)) calc(var(--h) * 3) no-repeat;
+  image-rendering: pixelated;
+  animation: mob-loop var(--dur) steps(var(--n)) var(--delay, 0ms) infinite;
+}
+.mob-sheet.once {
+  animation: mob-once var(--dur) steps(var(--n), jump-none) var(--delay, 0ms) forwards;
+}
+@keyframes mob-loop {
+  to {
+    background-position-x: calc(var(--w) * -1 * var(--n));
+  }
+}
+@keyframes mob-once {
+  to {
+    background-position-x: calc(var(--w) * -1 * (var(--n) - 1));
+  }
+}
+/* Аура второй фазы тоже анимирует спрайт: у лепки обе анимации идут вместе. */
+.enemy.aura .sprite-wrap .mob-sheet {
+  animation: mob-loop var(--dur) steps(var(--n)) var(--delay, 0ms) infinite, aura-glow 2.2s ease-in-out infinite;
+}
+.enemy.aura .sprite-wrap .mob-sheet.once {
+  animation: mob-once var(--dur) steps(var(--n), jump-none) var(--delay, 0ms) forwards, aura-glow 2.2s ease-in-out infinite;
+}
+/* Лепка смотрит влево, на героя; союзник (волк из Волчьего свистка) стоит рядом с героем и смотрит на врагов. */
+.ally .mob-sheet {
+  transform: scaleX(-1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mob-sheet,
+  .enemy.aura .sprite-wrap .mob-sheet {
+    animation: none;
+  }
 }
 .enemy-sheet {
   image-rendering: auto;

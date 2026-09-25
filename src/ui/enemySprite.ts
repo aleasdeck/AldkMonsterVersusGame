@@ -4,6 +4,7 @@ import necromancerSheet from '../assets/enemies/necromancer.webp';
 import { NECROMANCER_FRAMES } from './necromancerFrames';
 import type { BattleEvent, EventTarget, SpriteSpec } from '../engine/types';
 import { spriteImg } from './sprites';
+import { hasMobArt, mobSprite, playMobAction, playMobClip } from './mobs';
 
 type WarriorClip = 'attack' | 'block' | 'hurt';
 type EnemyClip = WarriorClip | 'shoot' | 'volley' | 'bolt' | 'summon' | 'curse' | 'death';
@@ -159,8 +160,9 @@ function drawNecromancer(ctx: CanvasRenderingContext2D, now: number, state: Pose
   ctx.restore();
 }
 
-/** Рисованные враги получают атласы; остальные сохраняют процедурный спрайт. */
+/** Лесные враги — пиксельная лепка с покоем, ударом и уроном (mobs/); рисованные получают атласы; остальные — процедурный спрайт. */
 export function enemySprite(spec: SpriteSpec, id: string, px: number, cls = '', instance?: object): HTMLElement {
+  if (hasMobArt(id)) return mobSprite(id, px, cls, instance);
   if (!hasEnemySheet(id)) return spriteImg(spec, id, px, cls);
   const canvas = document.createElement('canvas');
   canvas.width = 576;
@@ -244,6 +246,8 @@ export function enemySprite(spec: SpriteSpec, id: string, px: number, cls = '', 
 
 export function playEnemyClip(root: HTMLElement, target: EventTarget, clip: EnemyClip): boolean {
   if (target === 'hero') return false;
+  // Лепка (v0.52): свой клип урона; на блок клипа нет — щит показывает эффект блока.
+  if (clip === 'hurt' && playMobClip(root, target, 'hurt')) return true;
   const canvas = root.querySelector<HTMLCanvasElement>(`[data-uid="${target}"] .enemy-sheet`);
   const state = canvas && controllers.get(canvas);
   if (!state) return false;
@@ -254,6 +258,9 @@ export function playEnemyClip(root: HTMLElement, target: EventTarget, clip: Enem
 
 /** Момент контакта в ближнем бою или выпуска стрелы; полёт добавляется в плане fx. */
 export function playEnemyAction(root: HTMLElement, target: EventTarget, name: string): number {
+  // Лепка (v0.52): удар — своим клипом, контакт на пятом кадре.
+  const mob = playMobAction(root, target, name);
+  if (mob > 0) return mob;
   // v0.46: удар после замаха («Раскол»), добивание стрелой и мана-пиявка некроманта играют те же клипы, что основной приём.
   const clip = name === 'Удар мечом' || name === 'Раскол' ? 'attack' : name === 'Блок' ? 'block' : name === 'Выстрел' || name === 'Стрела в спину' ? 'shoot' : name === 'Залп' ? 'volley'
     : name === 'Тёмная стрела' || name === 'Похищение души' ? 'bolt' : name === 'Поднять скелета' ? 'summon' : name === 'Проклятие' ? 'curse' : null;

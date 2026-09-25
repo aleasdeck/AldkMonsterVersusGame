@@ -24,9 +24,10 @@ function tileTip(def: EnemyDef, open: boolean): TipFn {
   });
 }
 
-/** В альбоме вся шкала уменьшена пропорционально, стопы стоят на нижнем краю слота. */
+/** В альбоме вся шкала уменьшена пропорционально, стопы стоят на нижнем краю слота. Широкий зверь (медведь боком) ужимается по ширине. */
 function portrait(def: EnemyDef, box: number, cls = ''): HTMLElement {
-  const size = enemySize(def, box / 200);
+  let size = enemySize(def, box / 200);
+  if (size.width > box) size = enemySize(def, (box / 200) * (box / size.width));
   const sprite = spriteImg(def.sprite, def.id, size.px, cls);
   sprite.style.marginTop = `${-size.top}px`;
   sprite.style.marginBottom = `${-size.foot}px`;

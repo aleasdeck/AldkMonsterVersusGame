@@ -2,10 +2,11 @@ import { h } from './dom';
 import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RewardFocus, RunState } from '../engine/types';
 import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
-import { enemyDef } from '../data/enemies';
+import { ENEMY_LIST, enemyDef } from '../data/enemies';
 import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
 import { heroArtUrls, playHeroClip } from './heroSprite';
 import { enemyArtUrls, playEnemyAction, playEnemyClip, playEnemyDeaths } from './enemySprite';
+import { replayMobStrike, warmMobs } from './mobs';
 import {
   clearRun,
   loadProfile,
@@ -255,6 +256,8 @@ export class App {
     if (!run) return;
     const here = R.currentLocation(run).id;
     warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'), ...heroArtUrls(run.hero.defId), ...enemyArtUrls);
+    // Листы пиксельной лепки рисуются кодом: прогреваются очередью в фоне, пока игрок на карте.
+    warmMobs(ENEMY_LIST.filter((e) => e.location === here || e.id.startsWith('gnome_')).map((e) => e.id));
     const next = run.locations[run.locationIndex + 1];
     if (next && run.roomIndex >= WARM_NEXT_ROOM) warmImages(locationBackground(next, 'tall'), locationBackground(next, 'wide'));
   }
@@ -1007,7 +1010,8 @@ export class App {
             if (hurt && !animatedEnemy) shake(wrap);
             // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит.
             if (ev.target === 'hero' && this.run) playHeroClip(this.root, this.run.hero.defId, hurt ? 'hurt' : 'block');
-            if (seq > 0 && who !== null && !this.root.querySelector(`[data-uid="${who}"] .enemy-sheet`)) lungeAgain(this.root, who);
+            // Лепка бьёт каждый удар своим клипом; рисованные листы — одним клипом; остальные наскакивают снова.
+            if (seq > 0 && who !== null && !this.root.querySelector(`[data-uid="${who}"] .enemy-sheet`) && !replayMobStrike(this.root, who)) lungeAgain(this.root, who);
             // Полоска догоняет цифру: первый удар отматывает её назад без перехода, остальные снимают HP по своему куску.
             if (drain) setBarHp(drain.el, drain.hp + drain.left[seq + 1], seq === 0);
             floatText(wrap, text, cls, n - seq);
