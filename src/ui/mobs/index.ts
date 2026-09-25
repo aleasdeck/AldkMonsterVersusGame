@@ -1,16 +1,17 @@
 import { renderSheet, type Model, type Sheet } from './pixel';
 import { MOB_STYLE } from './styles';
 import { FOREST_MODELS } from './forest';
+import { SWAMP_MODELS } from './swamp';
 import { enemyDef } from '../../data/enemies';
 import type { EventTarget } from '../../engine/types';
 
 /**
- * Враги пиксельной лепки в игре (v0.52): пока Лес. Лист врага — три ряда кадров (покой, удар, урон),
+ * Враги пиксельной лепки в игре: Лес (v0.52) и Болота (v0.53). Лист врага — три ряда кадров (покой, удар, урон),
  * рисуется один раз, лежит одной картинкой в data URL; ряды и кадры листает CSS (`.mob-sheet` в style.css).
  * Клип удара запускает `playMobAction` (из `playEnemyAction`, до перерисовки поля), клип урона — `playMobClip`
  * (из `playEnemyClip` на событии урона). Идущий клип переживает `App.render()`: состояние живёт на экземпляре врага.
  */
-export const MOB_MODELS: Record<string, Model> = { ...FOREST_MODELS };
+export const MOB_MODELS: Record<string, Model> = { ...FOREST_MODELS, ...SWAMP_MODELS };
 
 type ActClip = 'attack' | 'hurt';
 
