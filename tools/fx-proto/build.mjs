@@ -4,6 +4,7 @@
 //
 // Черновики лежат в fxlepka.ts и не входят в игру: по ним переносятся семейства эффектов в src/ui/fx/.
 // Сцена — page.ts: два поля Леса, сверху настоящий fx.ts, снизу черновики; варианты клича и блока.
+// «Сейчас» — игра, какая она есть на момент сборки: с v0.53 блок там уже латами (src/ui/fx/plates.ts).
 import { build } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -14,7 +15,8 @@ const ROOT = resolve(HERE, '../..');
 const OUT = join(ROOT, 'fx-preview');
 const uri = (p) => 'data:image/png;base64,' + readFileSync(join(ROOT, p)).toString('base64');
 
-const bundle = await build({ entryPoints: [join(HERE, 'page.ts')], bundle: true, format: 'iife', minify: true, write: false, logLevel: 'warning', target: 'es2020' });
+// Листы героев игры странице не нужны (героя она рисует сама, из data URI ниже): картинки из src — пустышки.
+const bundle = await build({ entryPoints: [join(HERE, 'page.ts')], bundle: true, format: 'iife', minify: true, write: false, logLevel: 'warning', target: 'es2020', loader: { '.png': 'empty' } });
 const js = bundle.outputFiles[0].text.replace(/<\/script>/g, '<\\/script>');
 const heroes = Object.fromEntries(['warrior', 'mage', 'archer', 'assassin'].map((id) => [id, uri(`src/assets/heroes/${id}.png`)]));
 const html = readFileSync(join(HERE, 'template.html'), 'utf8')

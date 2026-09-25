@@ -30,9 +30,17 @@ const ROW: Record<Row, number> = { idle: 0, attack: 1, hurt: 2 };
 
 /**
  * Запечённый лист: картинка и то, что нужно разметке, — размер кадра и число кадров в рядах.
- * Сами RGBA-кадры после запекания не держим: на весь Лес это около 11 МБ.
+ * Сами RGBA-кадры после запекания не держим: на весь Лес это около 11 МБ. Остаётся силуэт каждого кадра —
+ * бит на клетку (v0.53): по нему эффекты приёмов кладут латы блока по контуру врага.
  */
-interface Baked { url: string; cols: number; w: number; h: number; d: number; n: Record<Row, number> }
+interface Baked { url: string; cols: number; w: number; h: number; d: number; n: Record<Row, number>; masks: Record<Row, Uint8Array[]> }
+
+/** Силуэт кадра: непрозрачные клетки (тень и свечение полупрозрачны — они не фигура), бит на клетку. */
+function packMask(px: Uint8ClampedArray, w: number, h: number): Uint8Array {
+  const out = new Uint8Array(Math.ceil((w * h) / 8));
+  for (let k = 0; k < w * h; k++) if (px[k * 4 + 3] === 255) out[k >> 3] |= 1 << (k & 7);
+  return out;
+}
 const baked = new Map<string, Baked>();
 
 /** Мерки кадра покоя в пикселях поля: по ним разметка ставит врага на пол. */
@@ -68,6 +76,11 @@ function bake(id: string): Baked {
   const out: Baked = {
     url: canvas.toDataURL(), cols, w: idle.w, h: idle.h, d: idle.d,
     n: { idle: idle.frames.length, attack: rows.attack.frames.length, hurt: rows.hurt.frames.length },
+    masks: {
+      idle: idle.frames.map((f) => packMask(f, idle.w, idle.h)),
+      attack: rows.attack.frames.map((f) => packMask(f, idle.w, idle.h)),
+      hurt: rows.hurt.frames.map((f) => packMask(f, idle.w, idle.h)),
+    },
   };
   baked.set(id, out);
   if (!metrics.has(id)) metrics.set(id, measure(idle));
@@ -183,6 +196,33 @@ export function mobSprite(id: string, px: number, cls = '', instance?: object): 
     apply(el, state, performance.now());
   });
   return el;
+}
+
+/** Силуэт кадра врага в клетках его листа: `w`×`h`, бит на клетку (строками). */
+export interface MobMask { w: number; h: number; bits: Uint8Array }
+
+/**
+ * Какой кадр показывает спрайт лепки прямо сейчас — тем же счётом, что CSS (steps покоя от общих часов, клип от
+ * своего старта), — и его силуэт. По нему слой эффектов кладёт латы блока ровно по контуру, даже посреди удара.
+ */
+export function mobMaskNow(el: HTMLElement, now = performance.now()): MobMask | null {
+  const st = byEl.get(el);
+  const b = st ? baked.get(st.id) : undefined;
+  if (!st || !b) return null;
+  const run = st.run;
+  let phase = (now + st.offset) % IDLE_MS;
+  if (run) {
+    const dur = clipMs(run.clip);
+    const elapsed = now - run.started;
+    if (elapsed < dur) {
+      const n = b.n[run.clip];
+      return { w: b.w, h: b.h, bits: b.masks[run.clip][Math.min(n - 1, Math.floor(elapsed / (dur / n)))] };
+    }
+    // Клип уже кончился, а animationend ещё не пришёл: покой идёт с первого кадра от конца клипа.
+    phase = (now - run.started - dur) % IDLE_MS;
+  }
+  const n = b.n.idle;
+  return { w: b.w, h: b.h, bits: b.masks.idle[Math.floor((phase / IDLE_MS) * n) % n] };
 }
 
 const reducedMotion = (): boolean => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
