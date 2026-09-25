@@ -22,18 +22,14 @@ describe('масштаб персонажей по видимому телу', (
     expect(height('gnome_thief')).toBeLessThan(height('bandit_archer'));
   });
   it('прозрачные поля процедурных картинок не уменьшают видимый рост', () => {
-    // Рисованные листы меряются своими числами, лепка Леса — моделью (рост против таблицы проверяет tests/mobs.test.ts).
-    for (const def of ENEMY_LIST.filter((e) => !['skeleton_warrior', 'skeleton_archer', 'necromancer'].includes(e.id) && !hasMobArt(e.id))) {
+    // Лепка меряется моделью (рост против таблицы проверяет tests/mobs.test.ts).
+    for (const def of ENEMY_LIST.filter((e) => !hasMobArt(e.id))) {
       const size = enemySize(def), bounds = spriteBounds(def.sprite, def.id);
       expect(size.px - size.top - size.foot).toBeCloseTo(ENEMY_BODY_HEIGHT[def.id]);
       expect(size.px * bounds.height / spriteSize(def.sprite)).toBeCloseTo(size.body);
       expect(size.top).toBeGreaterThanOrEqual(0);
       expect(size.foot).toBeGreaterThanOrEqual(0);
     }
-  });
-  it('рост рисованных фигур считается без посоха и пустого холста', () => {
-    expect(enemySize(enemyDef('skeleton_warrior')).px * 179 / 256).toBeCloseTo(100);
-    expect(enemySize(enemyDef('necromancer')).px * 162 * 1.02 / 256).toBeCloseTo(120);
   });
   it('ранг не меняет размер, альбом пропорционален бою', () => {
     const def = enemyDef('necromancer');

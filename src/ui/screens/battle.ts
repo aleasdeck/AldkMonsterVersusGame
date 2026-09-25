@@ -12,7 +12,7 @@ import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedSt
 import { MAX_ALLIES } from '../../engine/types';
 import { actionPartLines, bar, coin, hpTip, statusIcons } from '../components';
 import { heroSprite } from '../heroSprite';
-import { enemySprite, hasEnemySheet } from '../enemySprite';
+import { enemySprite } from '../enemySprite';
 import { MARK_COLORS, STATUS_COLORS, markIcon, statusIcon, uiIcon } from '../icons';
 import { paramTip, tipHead, tipLines, tipNote, tipText, turnsWord } from '../tips';
 import { backgroundStyle } from '../backgrounds';
@@ -152,15 +152,14 @@ function fleeTimer(e: EnemyState): HTMLElement | null {
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
   const size = enemySize(def);
-  const drawn = hasEnemySheet(def.id);
   const px = size.px;
   const targets = app.armedTargets();
   const cls = targets ? (targets.includes(e.uid) ? 'ok' : 'far') : '';
   const el = h(
     'div',
     {
-      class: `enemy rank-${def.rank} ${drawn ? 'drawn' : ''} ${cls} ${e.aura ? 'aura' : ''}`,
-      // Холст сохраняет запас под движение, прозрачные поля исключены из высоты карточки.
+      class: `enemy rank-${def.rank} ${cls} ${e.aura ? 'aura' : ''}`,
+      // Лист лепки сохраняет запас под движение, прозрачные поля исключены из высоты карточки.
       style: `${e.aura ? `--aura:${e.aura};` : ''}${enemySizeStyle(size)}`,
       'data-uid': e.uid,
       onclick: () => app.applyArmed(e.uid),

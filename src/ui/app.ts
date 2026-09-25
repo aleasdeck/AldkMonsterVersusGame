@@ -5,7 +5,7 @@ import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/co
 import { ENEMY_LIST, enemyDef } from '../data/enemies';
 import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
 import { heroArtUrls, playHeroClip } from './heroSprite';
-import { enemyArtUrls, playEnemyAction, playEnemyClip, playEnemyDeaths } from './enemySprite';
+import { playEnemyAction, playEnemyClip } from './enemySprite';
 import { replayMobStrike, warmMobs } from './mobs';
 import {
   clearRun,
@@ -255,7 +255,7 @@ export class App {
     const run = this.run;
     if (!run) return;
     const here = R.currentLocation(run).id;
-    warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'), ...heroArtUrls(run.hero.defId), ...enemyArtUrls);
+    warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'), ...heroArtUrls(run.hero.defId));
     // Листы пиксельной лепки рисуются кодом: прогреваются очередью в фоне, пока игрок на карте.
     warmMobs(ENEMY_LIST.filter((e) => e.location === here || e.id.startsWith('gnome_')).map((e) => e.id));
     const next = run.locations[run.locationIndex + 1];
@@ -671,7 +671,6 @@ export class App {
     const impact = playShots(this.root, plan);
     const land = () => {
       this.fxTimer = null;
-      playEnemyDeaths(this.root, events, HIT_GAP);
       this.render();
       this.playEvents(events, plan);
     };
@@ -724,7 +723,6 @@ export class App {
     const impact = Math.max(playShots(this.root, plan), clipImpact);
     const land = () => {
       this.stepTimer = null;
-      playEnemyDeaths(this.root, events, HIT_GAP);
       if (run.battle!.phase === 'enemy') {
         this.render();
         this.scheduleStep(this.playEvents(events, plan));
@@ -1010,8 +1008,8 @@ export class App {
             if (hurt && !animatedEnemy) shake(wrap);
             // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит.
             if (ev.target === 'hero' && this.run) playHeroClip(this.root, this.run.hero.defId, hurt ? 'hurt' : 'block');
-            // Лепка бьёт каждый удар своим клипом; рисованные листы — одним клипом; остальные наскакивают снова.
-            if (seq > 0 && who !== null && !this.root.querySelector(`[data-uid="${who}"] .enemy-sheet`) && !replayMobStrike(this.root, who)) lungeAgain(this.root, who);
+            // Лепка бьёт каждый удар своим клипом; остальные наскакивают снова.
+            if (seq > 0 && who !== null && !replayMobStrike(this.root, who)) lungeAgain(this.root, who);
             // Полоска догоняет цифру: первый удар отматывает её назад без перехода, остальные снимают HP по своему куску.
             if (drain) setBarHp(drain.el, drain.hp + drain.left[seq + 1], seq === 0);
             floatText(wrap, text, cls, n - seq);
