@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Лепка врагов — клипы</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px; background: #0f0f18; color: #e8e6df; font: 15px/1.45 system-ui, sans-serif; }
+  h1 { margin: 0 0 6px; font-size: 24px; }
+  .hint { color: #9a9ab0; margin: 0 0 12px; max-width: 90ch; }
+  code { color: #ffd166; }
+  .bar { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 0 12px; background: #0f0f18; }
+  .bar span { color: #9a9ab0; }
+  button { font: inherit; color: inherit; background: #1f1f33; border: 1px solid #3a3a5a; padding: 3px 10px; cursor: pointer; }
+  button[aria-pressed='true'] { border-color: #ffd166; color: #ffd166; }
+  article { background: #171726; border: 1px solid #2a2a42; padding: 12px; margin-bottom: 12px; }
+  header { display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: baseline; margin-bottom: 8px; }
+  header b { font-size: 18px; }
+  .dim { color: #9a9ab0; }
+  .warn { color: #ff8a8a; }
+  .cells { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cell { position: relative; overflow: hidden; background-color: #10131a; background-repeat: no-repeat; image-rendering: pixelated; cursor: pointer; }
+  .cell > span { position: absolute; left: 6px; top: 4px; font-size: 13px; text-shadow: 0 1px 2px #000; }
+  .cell canvas { position: absolute; image-rendering: pixelated; filter: var(--tint, none); }
+  .strip { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 10px; }
+  .strip > div { display: grid; gap: 4px; }
+  .frames { display: flex; gap: 3px; align-items: flex-end; }
+  figure { margin: 0; display: grid; gap: 2px; justify-items: center; font-size: 11px; color: #9a9ab0; font-variant-numeric: tabular-nums; }
+  figure canvas { background: #151822; border: 1px solid #2a2a42; image-rendering: pixelated; }
+  figure.key { color: #ffd166; }
+  figure.key canvas { border-color: #ffd166; }
+</style>
+<h1>Лепка врагов · клипы</h1>
+<p class="hint">
+  Все модели пиксельной лепки в трёх клипах на полу своей локации, с тонировкой боя. Удар и урон повторяются через полный цикл покоя;
+  клик по клетке — повторить сразу. Ниже — кадры удара (контакт выделен) и урона со временем от начала клипа.
+  Адрес: <code>?loc=forest</code> — одна локация, <code>?ids=wolf,boar</code> — выбранные, <code>&amp;zoom=3</code>, <code>&amp;speed=0.25</code>.
+  Правка модели перезагружает страницу сама. Как делать модели — <code>docs/lepka.md</code>.
+</p>
+<div class="bar">
+  <span>Масштаб</span><button data-zoom="1">×1</button><button data-zoom="2">×2</button><button data-zoom="3">×3</button>
+  <span>Скорость</span><button data-speed="1">×1</button><button data-speed="0.5">×½</button><button data-speed="0.25">×¼</button>
+  <button id="pause">Пауза</button>
+</div>
+<main id="list"></main>
+<script type="module">
+  import { renderSheet } from '../src/ui/mobs/pixel.ts';
+  import { MOB_STYLE } from '../src/ui/mobs/styles.ts';
+  import { MOB_MODELS } from '../src/ui/mobs/index.ts';
+  import { ENEMY_LIST, enemyDef } from '../src/data/enemies.ts';
+  import { ENEMY_BODY_HEIGHT } from '../src/data/characterSizes.ts';
+  import { locationBackground } from '../src/ui/backgrounds.ts';
+  import { tintVar } from '../src/ui/tint.ts';
+
+  const q = new URLSearchParams(location.search);
+  const ST = MOB_STYLE;
+  /** Пол кадра боя: враги стоят в 38 px над низом фона 960×320. */
+  const GROUND = 282;
+  const IDLE_MS = (ST.frames / ST.fps) * 1000;
+  const CLIP_MS = { attack: (ST.clips.attack.frames / ST.clips.attack.fps) * 1000, hurt: (ST.clips.hurt.frames / ST.clips.hurt.fps) * 1000 };
+  const CONTACT = ST.clips.attack.contact ?? 4;
+  let zoom = Number(q.get('zoom') ?? 2);
+  let speed = Number(q.get('speed') ?? 1);
+  let paused = false;
+  let vt = 0, last = performance.now();
+  const views = [];
+
+  const ids = q.get('ids')?.split(',') ?? (q.get('loc') ? ENEMY_LIST.filter((e) => e.location === q.get('loc')).map((e) => e.id) : Object.keys(MOB_MODELS));
+  const el = (tag, cls = '', text = '') => Object.assign(document.createElement(tag), { className: cls, textContent: text });
+
+  /** Три клипа, полосы кадров на холстах и общая рамка всех кадров (пиксели рисунка). */
+  function render(id) {
+    const m = MOB_MODELS[id];
+    const sheets = { idle: renderSheet(m, ST), attack: renderSheet(m, ST, 'attack'), hurt: renderSheet(m, ST, 'hurt') };
+    const { w, h, d } = sheets.idle;
+    let x0 = w, y0 = h, x1 = 0, y1 = 0, edge = 0;
+    const strips = {};
+    for (const [clip, sh] of Object.entries(sheets)) {
+      const c = document.createElement('canvas');
+      c.width = w * sh.frames.length;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      sh.frames.forEach((f, k) => {
+        ctx.putImageData(new ImageData(new Uint8ClampedArray(f), w, h), k * w, 0);
+        for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+          if (!f[(j * w + i) * 4 + 3]) continue;
+          x0 = Math.min(x0, i); x1 = Math.max(x1, i + 1); y0 = Math.min(y0, j); y1 = Math.max(y1, j + 1);
+          if (i === 0 || i === w - 1 || j === 0) edge++;
+        }
+      });
+      strips[clip] = { c, n: sh.frames.length, fps: sh.fps };
+    }
+    const idleBox = sheets.idle.frames.reduce((b, f) => {
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (f[(j * w + i) * 4 + 3]) { b[0] = Math.min(b[0], i); b[1] = Math.max(b[1], i + 1); }
+      return b;
+    }, [w, 0]);
+    return { w, h, d, strips, box: { x0, y0, x1, y1 }, mid: (idleBox[0] + idleBox[1]) / 2, ground: h - sheets.idle.foot, top: sheets.idle.top, edge };
+  }
+
+  function frameAt(v) {
+    if (v.clip === 'idle') return ['idle', Math.floor((((vt + v.phase) % IDLE_MS + IDLE_MS) % IDLE_MS) * ST.fps / 1000) % ST.frames];
+    const dur = CLIP_MS[v.clip];
+    const t = (((vt - v.offset) % (dur + IDLE_MS)) + dur + IDLE_MS) % (dur + IDLE_MS);
+    if (t < dur) return [v.clip, Math.min(v.r.strips[v.clip].n - 1, Math.floor((t * v.r.strips[v.clip].fps) / 1000))];
+    return ['idle', Math.floor(((t - dur) * ST.fps) / 1000) % ST.frames];
+  }
+
+  function card(id) {
+    const def = enemyDef(id);
+    const r = render(id);
+    const { box, d } = r;
+    const bw = box.x1 - box.x0, bh = box.y1 - box.y0;
+    const body = (r.ground - r.top) * d, want = ENEMY_BODY_HEIGHT[id];
+    const off = want ? Math.round(((body - want) / want) * 100) : 0;
+    const art = el('article');
+    const head = el('header');
+    head.append(el('b', '', def.name), el('span', 'dim', `${id} · ${def.location} · кадр ${r.w * d}×${r.h * d}`));
+    const own = MOB_MODELS[id].ownHeight;
+    head.append(el('span', Math.abs(off) > 12 && !own ? 'warn' : 'dim', `рост ${body} при таблице ${want} (${off >= 0 ? '+' : ''}${off} %${own ? ` — свой: ${own}` : ''})`));
+    if (r.edge) head.append(el('span', 'warn', `упирается в край листа (${r.edge} px): модели нужен больше pad`));
+    const cells = el('div', 'cells');
+    const cellW = Math.max(bw * d * zoom + 24, 140), cellH = bh * d * zoom + 44;
+    const floor = 16;
+    for (const [clip, name] of [['idle', 'покой'], ['attack', 'удар'], ['hurt', 'урон']]) {
+      const cell = el('div', 'cell');
+      cell.style.cssText = `width:${cellW}px;height:${cellH}px;${tintVar(def.location)}`;
+      cell.style.backgroundImage = `url(${locationBackground(def.location, 'wide')})`;
+      cell.style.backgroundSize = `${960 * zoom}px ${320 * zoom}px`;
+      cell.style.backgroundPosition = `calc(50% - ${120 * zoom}px) ${cellH - floor - GROUND * zoom}px`;
+      const c = document.createElement('canvas');
+      c.width = bw;
+      c.height = bh;
+      c.style.width = `${bw * d * zoom}px`;
+      c.style.height = `${bh * d * zoom}px`;
+      c.style.left = `${cellW / 2 - (r.mid - box.x0) * d * zoom}px`;
+      c.style.bottom = `${floor - (box.y1 - r.ground) * d * zoom}px`;
+      cell.append(c, el('span', '', name));
+      const v = { c, r, clip, phase: views.length * 733, offset: vt, last: '' };
+      cell.addEventListener('click', () => { v.offset = vt; v.last = ''; });
+      views.push(v);
+      cells.append(cell);
+    }
+    const strip = el('div', 'strip');
+    const k = bh <= 30 ? 2 : 1;
+    for (const [clip, title] of [['attack', 'удар, мс'], ['hurt', 'урон, мс']]) {
+      const part = el('div');
+      part.append(el('span', 'dim', title));
+      const row = el('div', 'frames');
+      const s = r.strips[clip];
+      for (let f = 0; f < s.n; f++) {
+        const fig = el('figure', clip === 'attack' && f === CONTACT ? 'key' : '');
+        const c = document.createElement('canvas');
+        c.width = bw;
+        c.height = bh;
+        c.style.width = `${bw * k}px`;
+        c.style.height = `${bh * k}px`;
+        c.getContext('2d').drawImage(s.c, f * r.w + box.x0, box.y0, bw, bh, 0, 0, bw, bh);
+        const ms = Math.round((f * 1000) / s.fps);
+        fig.append(c, el('figcaption', '', clip === 'attack' && f === CONTACT ? `${ms} контакт` : String(ms)));
+        row.append(fig);
+      }
+      part.append(row);
+      strip.append(part);
+    }
+    art.append(head, cells, strip);
+    return art;
+  }
+
+  function build() {
+    views.length = 0;
+    const list = document.getElementById('list');
+    list.replaceChildren();
+    for (const id of ids) {
+      if (!MOB_MODELS[id]) { list.append(el('p', 'warn', `${id}: модели лепки нет`)); continue; }
+      list.append(card(id));
+    }
+    document.querySelectorAll('[data-zoom]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.zoom) === zoom)));
+    document.querySelectorAll('[data-speed]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === speed)));
+  }
+
+  function tick(now) {
+    const dt = Math.min(100, now - last);
+    last = now;
+    if (!paused) vt += dt * speed;
+    for (const v of views) {
+      const [clip, f] = frameAt(v);
+      const key = clip + f;
+      if (key === v.last) continue;
+      v.last = key;
+      const { box, w } = v.r;
+      const bw = box.x1 - box.x0, bh = box.y1 - box.y0;
+      const ctx = v.c.getContext('2d');
+      ctx.clearRect(0, 0, bw, bh);
+      ctx.drawImage(v.r.strips[clip].c, f * w + box.x0, box.y0, bw, bh, 0, 0, bw, bh);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  document.querySelectorAll('[data-zoom]').forEach((b) => b.addEventListener('click', () => { zoom = Number(b.dataset.zoom); build(); }));
+  document.querySelectorAll('[data-speed]').forEach((b) => b.addEventListener('click', () => {
+    speed = Number(b.dataset.speed);
+    document.querySelectorAll('[data-speed]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  }));
+  const pause = document.getElementById('pause');
+  pause.addEventListener('click', () => { paused = !paused; pause.textContent = paused ? 'Запустить' : 'Пауза'; });
+  build();
+  requestAnimationFrame(tick);
+</script>

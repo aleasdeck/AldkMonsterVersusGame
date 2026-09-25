@@ -11,6 +11,9 @@ const DRAWN_METRICS: Readonly<Record<string, { body: number; top: number; foot: 
   necromancer: { body: 162 * 1.02, top: 252 - 192 * 1.02, foot: 4 },
 };
 
+/** Враг с рисованным листом (скелеты, некромант): рост у него свой, а модели лепки быть не должно — она перекрыла бы лист. */
+export const hasDrawnSheet = (id: string): boolean => Object.hasOwn(DRAWN_METRICS, id);
+
 /**
  * Размер изображения и убираемые поля. Бестиарий может задать уменьшение всей шкалы.
  * `px` — высота изображения (у квадратных спрайтов и ширина); `width` — ширина самой фигуры без пустых краёв:
