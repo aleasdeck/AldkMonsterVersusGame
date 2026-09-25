@@ -11,7 +11,7 @@ import { MOB_MODELS } from '../src/ui/mobs';
 import { renderSheet } from '../src/ui/mobs/pixel';
 import { MOB_STYLE } from '../src/ui/mobs/styles';
 
-/** Лепка эффектов (v0.53, docs/lepka.md → «Лепка эффектов»): клипы, растворение, латы блока, рёв клича. */
+/** Лепка эффектов (v0.52.7, docs/lepka.md → «Лепка эффектов»): клипы, растворение, латы блока, рёв клича. */
 
 const opaque = (px: Uint8ClampedArray): number => {
   let n = 0;

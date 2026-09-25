@@ -260,7 +260,7 @@ export type StatMods = Partial<DerivedStats>;
  */
 export type FxKind = 'melee' | 'arrow' | 'orb' | 'flask';
 
-/** Эффект пиксельной лепки (v0.53, src/ui/fx/): своя анимация приёма вместо типовой. */
+/** Эффект пиксельной лепки (v0.52.7, src/ui/fx/): своя анимация приёма вместо типовой. */
 export type SculptId = 'roar';
 
 /** Настройка типовой анимации: род (по умолчанию выводится из эффектов и оружия) и цвет; `sculpt` — эффект лепки. */
@@ -901,7 +901,7 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.53.0';
+export const GAME_VERSION = '0.52.7';
 
 export const SAVE_VERSION = 40;
 

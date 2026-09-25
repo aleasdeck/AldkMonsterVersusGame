@@ -38,7 +38,7 @@ const HERO_SHEETS: Record<string, HeroSheet> = {
   archer: { url: archerSheet, clips: ['idle'], frames: 8, cell: 186, body: 170 },
 };
 
-/** Лист героя и его разметка: по ним слой эффектов снимает силуэт кадра (латы блока, v0.53). */
+/** Лист героя и его разметка: по ним слой эффектов снимает силуэт кадра (латы блока, v0.52.7). */
 export function heroSheetInfo(heroId: string): Readonly<HeroSheet> | undefined {
   return HERO_SHEETS[heroId];
 }

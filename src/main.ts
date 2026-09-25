@@ -187,7 +187,7 @@ if (heroParam) {
       run.battle = createBattle(heroDef(run.hero.defId), run.hero, foes, run.rng, run.locationIndex);
       app.render();
     }
-    // &foeblock=8 — всем врагам блок на старте (латы блока на врагах, v0.53)
+    // &foeblock=8 — всем врагам блок на старте (латы блока на врагах, v0.52.7)
     const foeBlock = Number(params.get('foeblock'));
     if (foeBlock > 0 && run.battle) {
       for (const e of run.battle.enemies) e.block = foeBlock;
