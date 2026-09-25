@@ -1,13 +1,16 @@
-import type { BattleEvent, Effect, EventTarget, FxKind, FxSpec, PlayerAction, RunState, StatusId } from '../engine/types';
-import { artifactDef } from '../data/artifacts';
-import { potionDef } from '../data/potions';
-import { enemyDef } from '../data/enemies';
-import { heroDef } from '../data/heroes';
-import { weaponBase } from '../data/gear';
-import { drawGrid } from './sprites';
-import type { HeroClip } from './heroSprite';
-import { STATUS_COLORS } from './icons';
-import { echoesEffect } from '../engine/combat';
+import type { BattleEvent, Effect, EventTarget, FxKind, FxSpec, PlayerAction, RunState, SculptId, StatusId } from '../../engine/types';
+import { artifactDef } from '../../data/artifacts';
+import { potionDef } from '../../data/potions';
+import { enemyDef } from '../../data/enemies';
+import { heroDef } from '../../data/heroes';
+import { weaponBase } from '../../data/gear';
+import { drawGrid } from '../sprites';
+import type { HeroClip } from '../heroSprite';
+import { STATUS_COLORS } from '../icons';
+import { echoesEffect } from '../../engine/combat';
+import { pxLayer } from './layer';
+import { platesGain } from './plates';
+import { roar } from './cry';
 
 /**
  * Типовые анимации боя. Их пять, под каждый приём подставляется одна и меняется только цвет:
@@ -17,6 +20,10 @@ import { echoesEffect } from '../engine/combat';
  * слой `.fx-layer` при перерисовке переезжает в новое дерево, так что взрыв шара и облако склянки доигрываются в нём.
  * Облако и свечение выводятся после перерисовки. Враги с `fx` у приёма получают снаряды и взмахи;
  * остальные используют свой рисованный клип или наскок.
+ *
+ * С v0.52.7 эффекты переезжают на пиксельную лепку (docs/lepka.md, «Лепка эффектов»): холст в сетке 2 px поверх поля
+ * (layer.ts), кадры из движка врагов (bake.ts). Уже на лепке: блок — латы по силуэту бойца (plates.ts), Боевой клич —
+ * рёв (cry.ts, `fx.sculpt`). Остальное пока типовое и переходит семействами.
  */
 
 // ─── План ────────────────────────────────────────────────────────────────────
@@ -33,11 +40,15 @@ export interface Shot {
   delay: number;
 }
 
-/** Эффект на бойце после перерисовки: свечение (баф), облако (дебаф), щит (блок), глоток зелья или вспышка второй фазы босса. */
+/**
+ * Эффект на бойце после перерисовки: свечение (баф), облако (дебаф), латы (блок), глоток зелья, вспышка второй фазы
+ * босса или эффект лепки приёма (`sculpt`).
+ */
 export interface AfterFx {
-  kind: 'glow' | 'cloud' | 'drink' | 'shield' | 'burst';
+  kind: 'glow' | 'cloud' | 'drink' | 'shield' | 'burst' | 'sculpt';
   color: string;
   target: EventTarget;
+  sculpt?: SculptId;
 }
 
 export interface FxPlan {
@@ -113,7 +124,12 @@ function planEffects(
     (e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status' || e.type === 'pull' || e.type === 'push' || e.type === 'detonate' || e.type === 'spread' || e.type === 'breakBlock' || e.type === 'finisher' || e.type === 'chain' || e.type === 'scorch') && e.target !== 'self',
   );
   if (!hostile || !('target' in hostile)) {
-    // Приём на себя: зелье — глоток, блок — щит перед героем, остальное — свечение.
+    // Приём на себя с лепкой (Боевой клич — рёв) рисует её вместо свечения.
+    if (fx?.sculpt && !potion) {
+      plan.after.push({ kind: 'sculpt', sculpt: fx.sculpt, color: fx.color ?? selfColor, target: 'hero' });
+      return;
+    }
+    // Приём на себя: зелье — глоток, блок — латы по силуэту героя, остальное — свечение.
     const kind = potion ? 'drink' : effects.some((e) => e.type === 'block') ? 'shield' : 'glow';
     plan.after.push({ kind, color: kind === 'shield' ? (fx?.color ?? SHIELD) : (fx?.color ?? selfColor), target: 'hero' });
     return;
@@ -204,7 +220,7 @@ export function delayEnemyShots(plan: FxPlan, target: EventTarget, windup: numbe
   plan.impact = Math.max(plan.impact, Math.min(...shots.map((s) => s.delay + FLIGHT[s.kind])));
 }
 
-/** Облако, свечение или щит по событию боя: статус по своему цвету, блок — щит перед бойцом, лечение — зелёное свечение. */
+/** Облако, свечение или латы по событию боя: статус по своему цвету, блок — латы по силуэту бойца, лечение — зелёное свечение. */
 export function eventFx(ev: BattleEvent): { kind: 'glow' | 'cloud' | 'shield'; color: string } | null {
   switch (ev.type) {
     case 'status':
@@ -299,33 +315,6 @@ function orbImg(color: string): HTMLImageElement {
 const FLASK = ['..ooo..', '..oco..', '..oGo..', '.oGGGo.', 'oGLLLGo', 'oLLLLLo', 'oLLLLLo', '.oLLLo.', '..ooo..'];
 function flaskImg(color: string): HTMLImageElement {
   return img(gridUrl(`flask:${color}`, FLASK, { o: OUTLINE, c: '#8a6b3f', G: '#cfe8ff', L: color }), 7, 9, 4);
-}
-
-/** Щит 11×13: контур, кайма, поле цветом, блик слева сверху, умбон по центру. */
-const SHIELD_SPRITE = [
-  '.ooooooooo.',
-  'oRRRRRRRRRo',
-  'oRWWBBBBBRo',
-  'oRWBBBBBBRo',
-  'oRWBBuuBBRo',
-  'oRBBBuuBBRo',
-  'oRBBBBBBBRo',
-  'oRBBBBBBBRo',
-  '.oRBBBBBRo.',
-  '.oRBBBBBRo.',
-  '..oRBBBRo..',
-  '...oRBRo...',
-  '....ooo....',
-];
-function shieldImg(color: string): HTMLImageElement {
-  const el = img(
-    gridUrl(`shield:${color}`, SHIELD_SPRITE, { o: OUTLINE, R: mix(color, '#000000', 0.35), B: color, W: mix(color, '#ffffff', 0.55), u: '#f4d35e' }),
-    11,
-    13,
-    4,
-  );
-  el.style.filter = `drop-shadow(0 0 5px ${color})`;
-  return el;
 }
 
 /** Клуб облака 9×9 без контура, два тона. */
@@ -547,37 +536,6 @@ function glow(root: HTMLElement, layer: HTMLElement, t: EventTarget, color: stri
   }
 }
 
-/**
- * Щит блока: вырастает перед бойцом со стороны противника (герой смотрит вправо, враги — влево),
- * держится и растворяется вверх. Сам боец коротко подсвечивается цветом щита.
- */
-function shield(root: HTMLElement, layer: HTMLElement, t: EventTarget, color: string): void {
-  const sprite = spriteOf(root, t);
-  const p = anchor(root, layer, t);
-  if (!sprite || !p) return;
-  const el = shieldImg(color);
-  const side = t === 'hero' ? 1 : -1;
-  const x = p.x + side * p.w * 0.38 - el.width / 2;
-  const y = p.y - el.height / 2 + p.h * 0.05;
-  el.style.transformOrigin = '50% 60%';
-  layer.appendChild(el);
-  animate(el, [
-    { transform: `translate(${x}px, ${y + 6}px) scale(0.4)`, opacity: 0 },
-    { transform: `translate(${x}px, ${y}px) scale(1.15)`, opacity: 1, offset: 0.22 },
-    { transform: `translate(${x}px, ${y}px) scale(1)`, opacity: 1, offset: 0.35 },
-    { transform: `translate(${x}px, ${y}px) scale(1)`, opacity: 1, offset: 0.68 },
-    { transform: `translate(${x}px, ${y - 10}px) scale(1.2)`, opacity: 0, filter: 'brightness(2)' },
-  ], { duration: 900, easing: 'ease-out' }, () => el.remove());
-  sprite.animate(
-    [
-      { filter: 'drop-shadow(0 0 0 transparent)' },
-      { filter: `drop-shadow(0 0 8px ${color})`, offset: 0.3 },
-      { filter: 'drop-shadow(0 0 0 transparent)' },
-    ],
-    { duration: 700, easing: 'ease-out' },
-  );
-}
-
 /** Глоток: склянка появляется у лица героя, наклоняется и исчезает, герой светится её цветом. */
 function drink(root: HTMLElement, layer: HTMLElement, color: string): void {
   const p = anchor(root, layer, 'hero');
@@ -642,12 +600,23 @@ function phaseBurst(root: HTMLElement, layer: HTMLElement, t: EventTarget, color
   }
 }
 
-/** Эффект на бойце после перерисовки: облако, свечение, глоток или вспышка фазы. */
+/** Эффекты лепки приёмов по `FxSpec.sculpt`: рисуют себя в слое лепки поля. */
+const SCULPTS: Record<SculptId, (root: HTMLElement, target: EventTarget) => void> = {
+  roar: (root, target) => {
+    const L = pxLayer(root);
+    if (L) roar(L, target);
+  },
+};
+
+/** Эффект на бойце после перерисовки: облако, свечение, латы блока, глоток, вспышка фазы или лепка приёма. */
 export function playAfter(root: HTMLElement, fx: AfterFx): void {
   const layer = root.querySelector<HTMLElement>('.fx-layer');
   if (!layer) return;
   if (fx.kind === 'glow') glow(root, layer, fx.target, fx.color);
-  else if (fx.kind === 'shield') shield(root, layer, fx.target, fx.color);
+  else if (fx.kind === 'shield') platesGain(root, fx.target);
+  else if (fx.kind === 'sculpt') {
+    if (fx.sculpt) SCULPTS[fx.sculpt](root, fx.target);
+  }
   else if (fx.kind === 'burst') phaseBurst(root, layer, fx.target, fx.color);
   else if (fx.kind === 'drink') drink(root, layer, fx.color);
   else {

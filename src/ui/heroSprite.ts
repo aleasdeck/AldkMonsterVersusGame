@@ -18,7 +18,7 @@ import warriorSheet from '../assets/heroes/warrior.png';
  */
 export type HeroClip = 'idle' | 'battle' | 'attack' | 'heavy' | 'power' | 'heal' | 'block' | 'hurt' | 'death';
 
-interface HeroSheet {
+export interface HeroSheet {
   url: string;
   /** Ряды листа по порядку; чего нет — не играем (герой останется в покое). */
   clips: HeroClip[];
@@ -37,6 +37,11 @@ const HERO_SHEETS: Record<string, HeroSheet> = {
   berserk: { url: berserkSheet, clips: ['idle'], frames: 8, cell: 194, body: 186 },
   archer: { url: archerSheet, clips: ['idle'], frames: 8, cell: 186, body: 170 },
 };
+
+/** Лист героя и его разметка: по ним слой эффектов снимает силуэт кадра (латы блока, v0.52.7). */
+export function heroSheetInfo(heroId: string): Readonly<HeroSheet> | undefined {
+  return HERO_SHEETS[heroId];
+}
 
 /**
  * Аватарки героев (v0.41.1): портрет в рисованной рамке, лист генератора режет `tools/hero-avatars.py`.

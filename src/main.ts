@@ -187,9 +187,16 @@ if (heroParam) {
       run.battle = createBattle(heroDef(run.hero.defId), run.hero, foes, run.rng, run.locationIndex);
       app.render();
     }
-    // &use=id1,id2 — сразу применить артефакты по первому врагу
+    // &foeblock=8 — всем врагам блок на старте (латы блока на врагах, v0.52.7)
+    const foeBlock = Number(params.get('foeblock'));
+    if (foeBlock > 0 && run.battle) {
+      for (const e of run.battle.enemies) e.block = foeBlock;
+      app.render();
+    }
+    // &use=id1,id2 — сразу применить артефакты по первому врагу; defend — «Защититься» (латы блока героя)
     for (const id of (params.get('use') ?? '').split(',').filter(Boolean)) {
-      app.battleAction({ type: 'artifact', artifactId: id, target: run.battle?.enemies[0]?.uid }, false);
+      if (id === 'defend') app.battleAction({ type: 'defend' }, false);
+      else app.battleAction({ type: 'artifact', artifactId: id, target: run.battle?.enemies[0]?.uid }, false);
     }
     // &boss2=1 (вместе с &room=9) — сразу вторая фаза босса: HP на порог (или 1 у встающих после смерти) и один удар героя
     if (params.get('boss2')) {

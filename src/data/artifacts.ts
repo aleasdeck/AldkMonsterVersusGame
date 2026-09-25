@@ -339,6 +339,7 @@ const list: ArtifactDef[] = [
     cost: { sta: 1 },
     cooldown: () => 3,
     target: 'self',
+    fx: { sculpt: 'roar' },
     effects: (tier) => [{ type: 'status', target: 'self', status: 'strength', value: t(2, 3, 4)(tier), turns: 2 }],
     describe: (tier) => `+${t(2, 3, 4)(tier)} к Силе на этот и следующий ход`,
   },

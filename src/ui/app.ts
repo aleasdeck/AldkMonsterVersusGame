@@ -4,6 +4,7 @@ import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { ENEMY_LIST, enemyDef } from '../data/enemies';
 import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
+import { syncPlates } from './fx/plates';
 import { heroArtUrls, playHeroClip } from './heroSprite';
 import { playEnemyAction, playEnemyClip } from './enemySprite';
 import { replayMobStrike, warmMobs } from './mobs';
@@ -220,6 +221,7 @@ export class App {
     if (this.toast) el.appendChild(h('div', { class: 'toast' }, this.toast));
     this.root.replaceChildren(el);
     this.syncClock();
+    if (this.screen === 'run' && this.run?.phase === 'battle') this.syncBlocks(null);
   }
 
   /**
@@ -965,24 +967,25 @@ export class App {
     let actor: EventTarget | null = plan?.lunged.has('hero') ? 'hero' : null;
     let longest = 0;
     const done = new Set<string>();
-    const after = (kind: AfterFx['kind'], color: string, target: EventTarget) => {
-      const key = `${kind}:${target}`;
+    const after = (fx: AfterFx) => {
+      const key = `${fx.kind}:${fx.target}`;
       if (done.has(key)) return;
       done.add(key);
-      // Глоток сам подсвечивает героя.
-      if (kind === 'drink') done.add('glow:hero');
-      playAfter(this.root, { kind, color, target });
+      // Глоток сам подсвечивает героя, лепка приёма (рёв) рисует себя вместо свечения статуса.
+      if (fx.kind === 'drink') done.add('glow:hero');
+      if (fx.kind === 'sculpt') done.add(`glow:${fx.target}`);
+      playAfter(this.root, fx);
     };
     // Разбитая склянка сама даёт облако — статусное поверх него не нужно.
     for (const s of plan?.shots ?? []) if (s.kind === 'flask') done.add(`cloud:${s.to}`);
-    for (const a of plan?.after ?? []) after(a.kind, a.color, a.target);
+    for (const a of plan?.after ?? []) after(a);
     for (const ev of events) {
       if (ev.type === 'log') continue;
       const wrap = this.spriteWrap(ev.target);
       if (!wrap) continue;
       const fx = eventFx(ev);
-      // Щит и облако видны у всех, свечение — только у героя, элит и боссов.
-      if (fx && (fx.kind !== 'glow' || this.glows(ev.target))) after(fx.kind, fx.color, ev.target);
+      // Латы и облако видны у всех, свечение — только у героя, элит и боссов.
+      if (fx && (fx.kind !== 'glow' || this.glows(ev.target))) after({ kind: fx.kind, color: fx.color, target: ev.target });
       const key = String(ev.target);
       const n = counters.get(key) ?? 0;
       counters.set(key, n + 1);
@@ -1058,7 +1061,21 @@ export class App {
       }
       floatText(wrap, text, cls, n);
     }
+    this.syncBlocks(events);
     return longest;
+  }
+
+  /**
+   * Латы блока (fx/plates.ts) по состоянию боя: зовётся в конце розыгрыша событий, когда видно то же, что в движке, —
+   * удар в блок звенит, пробитый блок ломает латы, сгоревший в начале хода — растапливает. Без событий (перерисовка)
+   * только ставит недостающие латы: блок на старте боя, возврат к бою.
+   */
+  private syncBlocks(events: BattleEvent[] | null): void {
+    const b = this.run?.battle;
+    if (!b) return;
+    const struck = events ? new Set(events.flatMap((e) => (e.type === 'damage' && e.kind !== 'dot' ? [e.target] : []))) : null;
+    const fighters: Array<[EventTarget, number]> = [['hero', b.hero.block], ...b.enemies.map((e): [EventTarget, number] => [e.uid, e.block]), ...b.allies.map((a): [EventTarget, number] => [a.uid, a.block])];
+    syncPlates(this.root, fighters, struck);
   }
 }
 

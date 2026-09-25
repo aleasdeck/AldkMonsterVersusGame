@@ -1204,6 +1204,14 @@ p {
   will-change: transform, opacity;
   image-rendering: pixelated;
 }
+/* Холст лепки эффектов (fx/layer.ts, v0.52.7): клетка — 2 px поля, как пиксель лепки и фона; растягивается без сглаживания. */
+.fx-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
 /* Росчерк удара: светлая полоса по цели в момент попадания. */
 .fx-slash {
   height: 4px;
