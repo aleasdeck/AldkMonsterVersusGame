@@ -279,9 +279,11 @@ function mockRuns(): RunsFeed {
       `${pickOne(weapons)}@${1 + act} +str`,
       `${pickOne(armors)}@${1 + act}`,
       artList,
+      // Первая треть — записи до выбора сложности (пустая ячейка, считаются «Сложным»), дальше — все три вперемешку.
+      i < 30 ? '' : pickOne(['easy', 'normal', 'hard']),
     ]);
   }
-  return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken', 'weapon', 'armor', 'artifacts'], rows };
+  return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken', 'weapon', 'armor', 'artifacts', 'difficulty'], rows };
 }
 
 /**

@@ -3164,6 +3164,12 @@ p {
   color: var(--accent);
   background: #2a2412;
 }
+/* Фильтр сложности — в той же строке, прижат вправо; кнопки — как выбор сложности на экране героя. */
+.gs-diffs {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
 
 /* ─── Бестиарий: вкладки локаций, сетка врагов слева, запись справа ──── */
 
@@ -4138,7 +4144,8 @@ p {
   font-size: 18px;
   margin-right: 4px;
 }
-.hs-diff-btn {
+.hs-diff-btn,
+.gs-diff {
   font: inherit;
   font-size: 19px;
   color: var(--dim);
@@ -4150,15 +4157,18 @@ p {
   gap: 4px;
   cursor: pointer;
 }
-.hs-diff-btn:hover {
+.hs-diff-btn:hover,
+.gs-diff:hover {
   color: var(--text);
 }
-.hs-diff-btn.active {
+.hs-diff-btn.active,
+.gs-diff.selected {
   color: var(--diff);
   border-color: var(--diff);
   background: color-mix(in srgb, var(--diff) 14%, #0d0d18);
 }
-.hs-diff-glyph {
+.hs-diff-glyph,
+.gs-diff-glyph {
   font-size: 16px;
 }
 /* Вкладка «Герой»: статы плитками и владение в той же сетке. */

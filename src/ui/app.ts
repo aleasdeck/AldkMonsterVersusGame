@@ -108,6 +108,8 @@ export class App {
   /** Экран «Статистика»: главная вкладка — все игроки или своя; внутри общей — герои, гибели, убийцы, оружие, броня, артефакты. */
   statsScope: StatsScope = 'all';
   statsTab: StatsTab = 'heroes';
+  /** Фильтр общей статистики по сложности забега; null — все забеги. Действует на все вкладки «Общего». */
+  statsDiff: Difficulty | null = null;
   private stepTimer: number | null = null;
   /** Снаряд героя в полёте: перерисовка и числа ждут попадания, новые действия не принимаются. */
   private fxTimer: number | null = null;
@@ -471,6 +473,11 @@ export class App {
 
   setStatsTab(tab: StatsTab): void {
     this.statsTab = tab;
+    this.render();
+  }
+
+  setStatsDiff(d: Difficulty | null): void {
+    this.statsDiff = d;
     this.render();
   }
 
