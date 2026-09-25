@@ -1,0 +1,416 @@
+<title>Лепка приёмов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Tiny5&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --ink: #121118;
+  --panel: #1a1821;
+  --panel-2: #211f2a;
+  --line: #2e2b38;
+  --text: #e8e3d7;
+  --muted: #a49dae;
+  --faint: #6f6979;
+  --gold: #e9c46a;
+  --gold-ink: #1d1708;
+  --steel: #8d99ae;
+  --ember: #ff8a3a;
+  --good: #7ddc5a;
+  --display: 'Tiny5', 'IBM Plex Mono', ui-monospace, monospace;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --spd: 1;
+}
+body {
+  background: var(--ink);
+  color: var(--text);
+  font: 16px/1.6 var(--body);
+  padding-inline: 16px;
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1040px; margin: 0 auto; }
+.prose { max-width: 70ch; }
+h1, h2 { font-family: var(--display); font-weight: 400; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.05; margin: 40px 0 12px; color: var(--gold); }
+h2 { font-size: clamp(24px, 3.4vw, 30px); line-height: 1.15; margin: 64px 0 14px; }
+h3 { font-size: 17px; font-weight: 600; margin: 28px 0 8px; }
+p { margin: 0 0 12px; }
+a { color: var(--gold); }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.lead { font-size: 18px; color: var(--text); max-width: 68ch; }
+.meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 28px; }
+.meta b { color: var(--text); font-weight: 500; }
+
+/* ─── Сцена ─── */
+.bench { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px; display: grid; gap: 12px; }
+.skills { display: flex; flex-wrap: wrap; gap: 6px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.skill, .tog button {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; font-size: 14px; line-height: 1.3;
+}
+.skill:hover, .tog button:hover { border-color: var(--faint); }
+.skill[aria-pressed="true"], .tog button[aria-pressed="true"] { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13px; color: var(--muted); }
+.tog { display: inline-flex; gap: 4px; align-items: center; }
+.tog button { font-size: 13px; padding: 3px 8px; }
+.tog-label { margin-right: 4px; }
+.stage-label { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; }
+.tag.old { background: #2a2d36; color: #c3cad6; }
+.tag.new { background: var(--gold); color: var(--gold-ink); }
+.stage { width: 100%; }
+.stage-scale { position: relative; width: 100%; overflow: hidden; border-radius: 4px; background: #0b0a0e; }
+.field { position: absolute; left: 0; top: 0; width: 960px; height: 320px; transform-origin: 0 0; overflow: hidden; }
+.field .bg { position: absolute; inset: 0; width: 960px; height: 320px; max-width: none; image-rendering: pixelated; }
+.hero-zone, .enemy { position: absolute; }
+.hero-box { position: relative; }
+.hero-art {
+  position: absolute; left: 50%; top: 50%; width: var(--cell); height: var(--cell);
+  margin: calc(var(--cell) / -2) 0 0 calc(var(--cell) / -2);
+  background: var(--sheet) no-repeat 0 0 / calc(var(--cell) * 8) auto;
+  animation: hero-frames var(--dur) steps(8) infinite;
+}
+@keyframes hero-frames { to { background-position-x: calc(var(--cell) * -8); } }
+.mob {
+  width: var(--w); height: var(--h);
+  background: var(--sheet) 0 calc(var(--h) * -1 * var(--row, 0)) / calc(var(--w) * var(--cols)) calc(var(--h) * 3) no-repeat;
+  image-rendering: pixelated;
+  animation: mob-loop var(--dur) steps(var(--n)) infinite;
+}
+.mob.once { animation: mob-once var(--dur) steps(var(--n), jump-none) forwards; }
+@keyframes mob-loop { to { background-position-x: calc(var(--w) * -1 * var(--n)); } }
+@keyframes mob-once { to { background-position-x: calc(var(--w) * -1 * (var(--n) - 1)); } }
+.hero-zone.acting .sprite-wrap { animation: lunge-right calc(400ms / var(--spd)) ease-out; }
+@keyframes lunge-right { 0%, 100% { transform: translateX(0); } 40% { transform: translateX(18px); } }
+.fx-layer { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
+.fx { position: absolute; left: 0; top: 0; will-change: transform, opacity; image-rendering: pixelated; max-width: none; }
+.fx-slash { height: 4px; transform-origin: 50% 50%; }
+.fx-ring { border: 3px solid; border-radius: 50%; transform-origin: 50% 50%; box-shadow: 0 0 12px currentColor; }
+.pxfx { position: absolute; left: 0; top: 0; width: 960px; height: 320px; image-rendering: pixelated; pointer-events: none; z-index: 4; }
+.tint-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.cap { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cap-name { grid-column: 1 / -1; font-family: var(--display); font-size: 22px; line-height: 1.1; color: var(--gold); }
+.cap-col { font-size: 14px; line-height: 1.55; }
+.cap-col .tag { display: inline-block; margin-bottom: 4px; }
+.var-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
+.var-label { display: block; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.variant.rec::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 7px; vertical-align: 2px; background: var(--gold); border-radius: 1px; }
+.variant.rec[aria-pressed="true"]::after { background: var(--gold-ink); }
+.var-text { grid-column: 1 / -1; max-width: 80ch; }
+.legend { font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 6px; height: 6px; background: var(--gold); border-radius: 1px; margin-right: 6px; vertical-align: 1px; }
+.bench > * { min-width: 0; }
+.strip { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+#strip, #var-strip { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.strip-head { font-size: 13px; color: var(--muted); }
+.strip-row { display: grid; gap: 3px; overflow-x: auto; min-width: 0; }
+.strip-label { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.strip-canvas { image-rendering: pixelated; display: block; max-width: none; }
+
+/* ─── Текст и таблицы ─── */
+ul, ol { padding-left: 1.2em; margin: 0 0 12px; }
+li { margin: 4px 0; }
+.scroll { overflow-x: auto; margin: 10px 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .mono { color: var(--muted); }
+.fam td:first-child { font-weight: 600; white-space: nowrap; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+.problems { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin: 14px 0 8px; }
+.problem { border-left: 3px solid var(--steel); padding: 2px 0 2px 12px; }
+.problem b { display: block; margin-bottom: 2px; }
+.problem p { margin: 0; color: var(--muted); font-size: 14px; }
+
+.qs { display: grid; gap: 14px; margin-top: 16px; counter-reset: q; }
+.q { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px 16px; }
+.q h3 { margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; }
+.q h3::before { counter-increment: q; content: 'В' counter(q); font-family: var(--mono); font-size: 12px; color: var(--gold); font-weight: 500; }
+.opts { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.opts li { margin: 0; padding: 6px 10px; border-radius: 4px; background: var(--panel-2); font-size: 14px; }
+.opts li b { font-family: var(--mono); font-weight: 500; margin-right: 6px; }
+.opts li.rec { outline: 1px solid var(--gold); }
+.opts li.rec::after { content: 'рекомендую'; float: right; font-size: 11px; font-family: var(--mono); color: var(--gold); letter-spacing: 0.05em; margin-left: 10px; }
+.opts li.chosen { background: var(--gold); color: var(--gold-ink); }
+.opts li.chosen::after { content: 'выбрано'; float: right; font-size: 11px; font-family: var(--mono); letter-spacing: 0.05em; margin-left: 10px; }
+.q.done { opacity: 0.85; }
+
+.phases { list-style: none; padding: 0; counter-reset: ph; display: grid; gap: 10px; }
+.phases li { counter-increment: ph; display: grid; grid-template-columns: 34px 1fr; gap: 10px; margin: 0; }
+.phases li::before { content: counter(ph); font-family: var(--display); font-size: 22px; color: var(--gold); line-height: 1.2; }
+.phases b { display: block; }
+.phases span { color: var(--muted); font-size: 14px; }
+details { border-top: 1px solid var(--line); padding: 8px 0; }
+summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+summary:hover { color: var(--text); }
+.note { color: var(--muted); font-size: 14px; }
+
+@media (max-width: 640px) {
+  .cap, .var-groups { grid-template-columns: 1fr; }
+  body { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-art, .mob { animation: none; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Лепка приёмов</h1>
+    <p class="lead">Враги всех шести локаций перелеплены по <code>docs/lepka.md</code>. Анимации приёмов остались прежними: пять типовых картинок крупнее мира и плоским цветом. Ниже живое сравнение на одиннадцати черновиках, выбранные клич и блок (Рёв и Латы) рядом с отклонёнными вариантами, разбор того, что есть, план по семействам эффектов и открытые вопросы.</p>
+    <div class="meta"><span>Версия игры <b>0.52.6</b></span><span>Код приёмов: <b>src/ui/fx.ts</b></span><span>Движок лепки: <b>src/ui/mobs/pixel.ts</b></span><span>Черновик, ничего не закоммичено</span></div>
+  </header>
+
+  <section aria-labelledby="bench-h">
+    <h2 id="bench-h">Сравнение на поле</h2>
+    <p class="prose">Оба поля одинаковые: фон Леса, враги-лепка из игры, тонировка локации. Сверху играет настоящий <code>fx.ts</code> с теми же числами, что в бою. Снизу — прототип: кадры слеплены тем же движком, что враги, и лежат в той же сетке 2 px. Клип урона врага в обоих полях общий.</p>
+    <div class="bench">
+      <div class="skills" id="skills" role="group" aria-label="Приём"></div>
+      <div class="controls">
+        <button type="button" class="skill" id="auto" aria-pressed="true">Автопоказ</button>
+        <button type="button" class="skill" id="replay">Повторить</button>
+        <span class="tog"><span class="tog-label">Скорость</span>
+          <button type="button" data-speed="1" aria-pressed="true">1×</button>
+          <button type="button" data-speed="0.5" aria-pressed="false">½×</button>
+          <button type="button" data-speed="0.25" aria-pressed="false">¼×</button>
+        </span>
+        <span class="tog"><span class="tog-label">Полёт лепки</span>
+          <button type="button" data-step="0" aria-pressed="true">плавно</button>
+          <button type="button" data-step="1" aria-pressed="false">12 к/с</button>
+        </span>
+      </div>
+      <div class="stage">
+        <div class="stage-label"><span class="tag old">Сейчас</span><span>fx.ts из игры</span></div>
+        <div id="stage-old"></div>
+      </div>
+      <div class="stage">
+        <div class="stage-label"><span class="tag new">Лепка</span><span>прототип, сетка 2 px</span></div>
+        <div id="stage-new"></div>
+      </div>
+      <div class="cap" id="cap" aria-live="polite">
+        <div class="cap-name"></div>
+        <div class="cap-col"><span class="tag old">Сейчас</span><div class="cap-now"></div></div>
+        <div class="cap-col"><span class="tag new">Лепка</span><div class="cap-next"></div></div>
+      </div>
+      <div class="strip">
+        <div class="strip-head">Кадры лепки этого приёма, ×3. Каждый ряд — один клип; частицы (искры, угли, капли) и молния рисуются клетками прямо на холсте и в ленту не попадают. Это черновики для разговора о подходе, а не готовая лепка: цвет и форму каждого доводим в своей фазе.</div>
+        <div id="strip"></div>
+      </div>
+    </div>
+    <p class="note">«Полёт лепки» меняет только движение по полю: плавно — снаряд идёт каждый кадр экрана, но всегда по целым клеткам 2 px; 12 к/с — рывками, как ходят кадры клипов у врагов. Собственные кадры эффекта в обоих случаях идут по 12 в секунду.</p>
+  </section>
+
+  <section aria-labelledby="var-h">
+    <h2 id="var-h">Боевой клич и блок: решено</h2>
+    <p class="prose">Выбраны клич А «Рёв» и блок Б «Латы», они отмечены золотой точкой. Остальные варианты оставлены для сравнения. В сцене блока гоблин бьёт героя через секунду после защиты, а ещё через секунду начинается следующий ход: латы встают, принимают удар и тают. Латы строятся по силуэту, поэтому в сцене «Латы на враге» они стоят на гоблине, а бьёт Воин.</p>
+    <div class="bench">
+      <div class="var-groups">
+        <div><span class="var-label">Боевой клич</span><div class="skills" id="var-cry" role="group" aria-label="Вариант боевого клича"></div></div>
+        <div><span class="var-label">Блок («Защититься»)</span><div class="skills" id="var-block" role="group" aria-label="Вариант блока"></div></div>
+      </div>
+      <div class="controls">
+        <button type="button" class="skill" id="var-auto" aria-pressed="true">Автопоказ</button>
+        <button type="button" class="skill" id="var-replay">Повторить</button>
+        <span class="legend"><i></i>выбрано</span>
+      </div>
+      <div class="stage">
+        <div class="stage-label"><span class="tag new">Лепка</span><span id="var-note"></span></div>
+        <div id="stage-var"></div>
+      </div>
+      <div class="cap" id="var-cap" aria-live="polite">
+        <div class="cap-name"></div>
+        <div class="cap-col var-text"></div>
+      </div>
+      <div class="strip">
+        <div class="strip-head">Кадры варианта, ×3.</div>
+        <div id="var-strip"></div>
+      </div>
+    </div>
+    <h3>Что это значит для остальных приёмов</h3>
+    <ul class="prose">
+      <li><b>Латы — общий рисунок блока.</b> «Защититься», Глухая оборона, Колючая броня (латы с шипами по контуру), Насмешка (латы и вызов над головой), блок врагов. Для Магического щита — те же латы пурпурным светом вместо стали, это решим в фазе «На себя».</li>
+      <li><b>Латы живут, пока есть блок.</b> Тонкий стальной контур держится до начала следующего хода; удар по блоку звенит по контуру, а не вспышкой урона бойца. Если блок пробит насквозь, латы слетают и боец получает обычный клип урона.</li>
+      <li><b>У врагов по их лепке.</b> Маска берётся из того же листа, что рисует врага, поэтому контур идёт за его дыханием и работает у всех 44 врагов с блоком без отдельного рисунка.</li>
+      <li><b>Рёв — только у Боевого клича.</b> Жар по силуэту (вариант Б) отходит Ярости, знак (вариант В) — зелью силы и статусам без своего рисунка.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="now-h">
+    <h2 id="now-h">Что сейчас</h2>
+    <p class="prose">В <code>fx.ts</code> девять картинок, нарисованных строками символов, и анимации через CSS и Web Animations. Приём выбирает род (<code>melee</code>, <code>arrow</code>, <code>orb</code>, <code>flask</code>) и цвет, всё остальное — общее.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Рисунок</th><th class="n">Сетка</th><th class="n">Пиксель</th><th>Где играет</th><th class="n">Приёмов</th></tr></thead>
+        <tbody>
+          <tr><td>Клинок + CSS-росчерк</td><td class="n">7×16</td><td class="n">4 px</td><td>всё ближнее оружие и ближние приёмы; у героя с мечом — ещё и приёмы «оружием»</td><td class="n">3 + 14</td></tr>
+          <tr><td>Стрела</td><td class="n">14×5</td><td class="n">3 px</td><td>лук, арбалет, дротики; Дождь из стрел, Крюк-кошка</td><td class="n">2</td></tr>
+          <tr><td>Шар + CSS-свечение</td><td class="n">7×7</td><td class="n">4 px</td><td>все заклинания, магическое оружие, праща</td><td class="n">9</td></tr>
+          <tr><td>Склянка</td><td class="n">7×9</td><td class="n">4 px</td><td>яды, огненная склянка</td><td class="n">3</td></tr>
+          <tr><td>Клуб облака ×4–5</td><td class="n">9×9</td><td class="n">4 px</td><td>любой дебаф на цели и разбитая склянка</td><td class="n">—</td></tr>
+          <tr><td>Свечение + искры</td><td class="n">3×3</td><td class="n">3 px</td><td>все приёмы на себя, бафы, лечение</td><td class="n">15</td></tr>
+          <tr><td>Щит</td><td class="n">11×13</td><td class="n">4 px</td><td>блок у всех</td><td class="n">4</td></tr>
+          <tr><td>Склянка у лица</td><td class="n">7×9</td><td class="n">4 px</td><td>шесть зелий из семи</td><td class="n">—</td></tr>
+          <tr><td>CSS-кольцо + облако</td><td class="n">—</td><td class="n">—</td><td>вторая фаза босса</td><td class="n">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Счёт по 52 активным артефактам. Ещё у 14 приёмов род берётся от оружия героя: у Воина с мечом это клинок, у Лучника стрела, у Мага шар. Ловчая сеть и Кровавая баня снаряда не имеют, их видно только по облакам статусов.</p>
+
+    <h3>Что не так</h3>
+    <div class="problems">
+      <div class="problem"><b>Другой пиксель</b><p>Эффекты нарисованы пикселем 3–4 px, враги и фоны — 2 px. Клинок над гоблином крупнее его головы и выглядит наклеенным поверх сцены.</p></div>
+      <div class="problem"><b>Плоская заливка</b><p>Один цвет, блик и чёрный контур <code>#1b1b2a</code>. У лепки пять тонов со сдвигом оттенка, свет сверху слева, контур из тона материала.</p></div>
+      <div class="problem"><b>Не пиксельные приёмы</b><p>Свечение — размытие <code>drop-shadow</code>, исчезание — прозрачность, склянка кувыркается CSS-поворотом с размытыми краями.</p></div>
+      <div class="problem"><b>Всё одинаково</b><p>Огненный шар, Волшебная стрела, Высасывание и сфера оружия — один шар. Топор, булава, кинжал и плеть рубят одним мечом.</p></div>
+      <div class="problem"><b>Статусы неразличимы</b><p>Кровь, яд, горение, оглушение, слабость — одинаковые клубы разного цвета. Холод на рядовом враге не виден вовсе.</p></div>
+      <div class="problem"><b>Ошибки выбора</b><p>Лечение светится пурпурным. Катализатор и Обвал щита бьют врага, а светится герой. Минотавр рубит своей секирой, а поверх ещё взмахивает общий клинок из <code>fx.ts</code>.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="how-h">
+    <h2 id="how-h">Как лепить эффекты</h2>
+    <p class="prose">Те же правила, что у врагов, плюс несколько своих. Прототип выше сделан по ним.</p>
+    <ul class="prose">
+      <li><b>Одна сетка.</b> Всё рисуется клетками 2 px поля: кадры эффектов, частицы, движение. Слой эффектов — холст 480×160 поверх поля, растянутый без сглаживания.</li>
+      <li><b>Кадры лепит <code>Painter</code>.</b> Фигуры, части, мягкий максимум, рамп из пяти тонов, контур и декали — без нового движка. Огонь из Пещер (<code>FLAME</code>, <code>flame</code>, <code>fireball</code>) уезжает в общий модуль и служит и Импу, и Огненному шару.</li>
+      <li><b>Свет сам по себе.</b> Пламя, молния, магия — материалы с <code>glow</code>; ореол — декаль <code>glow</code> с дизерингом, а не CSS-размытие.</li>
+      <li><b>Гаснет по клеткам.</b> Вместо прозрачности — растворение: первыми гаснут клетки у края фигуры, внутри — вразброс. Кадр теряет пиксели, но не становится полупрозрачным. Исключение — газ и плёнки, как крыло насекомого у врагов.</li>
+      <li><b>Угол запекается.</b> Стрела, шар, осколок и склянка рисуются уже повёрнутыми на угол полёта, CSS их не крутит.</li>
+      <li><b>Тайминги игры не трогаем.</b> Попадание в те же мс (<code>FLIGHT</code>, <code>HIT_GAP</code>), у удара — кадр контакта, как пятый кадр удара у врагов. Движок боя, числа и бот не меняются, SIM не нужен.</li>
+      <li><b>Детерминизм и тесты.</b> Никакого <code>Math.random</code>: разброс частиц — от сида приёма. Тесты как у <code>mobs.test.ts</code>: кадр не упирается в край, клип заканчивается пустым кадром, одинаковый результат от запуска к запуску.</li>
+      <li><b>Врагам — без чужого меча.</b> Лепка сама замахивается своим оружием, поэтому у врагов с <code>fx: melee</code> остаётся только след удара на герое. Снаряд врага вылетает из точки оружия в кадре контакта, а не из центра спрайта.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="fam-h">
+    <h2 id="fam-h">Семейства эффектов</h2>
+    <p class="prose">52 приёма, 7 зелий, 16 баз оружия и 30 приёмов врагов с <code>fx</code> не требуют сотни рисунков. Хватает четырнадцати семейств: у каждого одна лепка, а приём задаёт вариант и цвет. Статусы на цели — отдельный набор, его видят все приёмы, которые их вешают.</p>
+    <div class="scroll">
+      <table class="fam">
+        <thead><tr><th>Семейство</th><th>Что рисуем</th><th>Кто пользуется</th></tr></thead>
+        <tbody>
+          <tr><td>Удар клинком</td><td>мазок по дуге, вспышка-крест, искры</td><td>меч, топор (дуга сверху шире, щепки); Двойной выпад — две дуги, Вихрь — круговой мазок по всем, Добивание, Око за око, Финишер (вспышка на каждый удар), Цепная атака</td></tr>
+          <tr><td>Удар дробящим</td><td>удар сверху, вспышка, волна пыли по полу</td><td>булава, молот; Раскол (лёд цели трескается)</td></tr>
+          <tr><td>Укол и росчерк</td><td>прямой прокол насквозь; две короткие черты крест-накрест</td><td>копьё (сквозной — через двоих), кинжал, стилет</td></tr>
+          <tr><td>Хлёст</td><td>волна по ряду, щелчок на конце</td><td>плеть и её перк «Хлёст»</td></tr>
+          <tr><td>Удар щитом</td><td>щит героя выдвигается, полукруглая ударная волна</td><td>Щитовой удар (с толчком), Таран, Пролом щита (блок цели бьётся осколками), Обвал щита (волна по всем)</td></tr>
+          <tr><td>Выстрел</td><td>лепленый снаряд, застревает и дрожит</td><td>стрела, болт арбалета (короче, без дуги), камень пращи (кувырок, пыль), три дротика; Прицельный выстрел (золотой след), Подсечный, Дождь из стрел (сверху по всем), Крюк-кошка (крюк на верёвке тянет цель и возвращается); враги — скелет-лучник, Пистоль и Бортовой залп капитана, Залп с того света</td></tr>
+          <tr><td>Огонь</td><td>три слоя пламени, угли, взрыв, дым</td><td>Огненный шар, Огненная волна (стена огня катится по ряду), Испепеление (столб огня на цели), Взрыв пламени (горение вспыхивает на всех), Огненная склянка; враги — огненный элементаль, дракон</td></tr>
+          <tr><td>Лёд</td><td>кристалл с гранями, осколки, иней</td><td>Ледяной осколок, Подсечный выстрел, Раскол; Ловчая сеть (сеть накрывает ряд и сковывает инеем)</td></tr>
+          <tr><td>Молния</td><td>ломаная дуга клетками, ореол, вспышка лучей</td><td>Цепная молния; оружие со стихийным аффиксом</td></tr>
+          <tr><td>Тьма и чары</td><td>сгусток с хвостом, знак над целью, поток частиц</td><td>Волшебная стрела (пурпурные искры-звёзды), Высасывание (поток от цели к герою), Сглаз (тёмный знак над рядом), Стихийная заточка (клинок героя в стихии); враги — некромант (Тёмная стрела, Похищение души), лич (Тёмный луч)</td></tr>
+          <tr><td>Яд</td><td>склянка, брызги, туча одной поверхностью, пузыри</td><td>Флакон яда, Ядовитое облако (туча над рядом), Заражение (туча переползает на соседей), Катализатор (пузыри на цели вскипают); враги — Ядовитый плевок Матери жаб, Кислотный дождь Сердца улья</td></tr>
+          <tr><td>Кровь</td><td>капли и брызги на полу</td><td>Кровопускание, Вскрытие (раны лопаются фонтаном), Кровавая баня (капли перелетают на соседей), Крюк-кошка</td></tr>
+          <tr><td>Щит и блок</td><td>латы по силуэту бойца: сталь от ступней к макушке, контур держится, пока есть блок, звенит от удара, тает в начале хода</td><td>Защититься, Глухая оборона, Колючая броня (латы в шипах), Насмешка (латы и вызов над головой), Магический щит (латы пурпурным светом), блок врагов</td></tr>
+          <tr><td>Свет и бафы</td><td>круг у ног, искры вверх, волны крика, жар по силуэту, знак статуса, дым</td><td>Лечение, Травяной отвар, Молот света и Кара (луч сверху), Ореол возмездия; Боевой клич (рёв), Ярость (жар в жилах), Второе дыхание, Адреналин, Эхо удара (контур-двойник), Верный глаз (прицел), Уклонение (послеобразы), Дымовая шашка (клубы, герой в тени), Волчий свисток; зелья — склянка своего цвета у лица</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Статусы на цели</h3>
+    <p class="prose">Сейчас дебаф — облако цвета статуса, баф — свечение. Предлагаю свой короткий рисунок на каждый, поверх любого приёма, который его вешает. Иконки над головой остаются как есть.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Статус</th><th>Сейчас</th><th>Лепка</th></tr></thead>
+        <tbody>
+          <tr><td><span class="swatch" style="background:#e63946"></span>Кровотечение</td><td>красное облако</td><td>капли из раны, брызг на полу</td></tr>
+          <tr><td><span class="swatch" style="background:#7ddc5a"></span>Яд</td><td>зелёное облако</td><td>зелёные пузыри поднимаются и лопаются</td></tr>
+          <tr><td><span class="swatch" style="background:#ff7b00"></span>Горение</td><td>оранжевое облако</td><td>языки пламени у ног</td></tr>
+          <tr><td><span class="swatch" style="background:#7fd7ff"></span>Холод</td><td>на рядовом не видно</td><td>снежинки и иней у ног, гуще с каждым накоплением</td></tr>
+          <tr><td><span class="swatch" style="background:#bfefff"></span>Оцепенение</td><td>на рядовом не видно</td><td>ледяная корка нарастает снизу вверх</td></tr>
+          <tr><td><span class="swatch" style="background:#e0e0e0"></span>Оглушение</td><td>серое облако</td><td>звёзды кружат над головой</td></tr>
+          <tr><td><span class="swatch" style="background:#b388ff"></span>Слабость</td><td>пурпурное облако</td><td>тёмные капли стекают вниз по фигуре</td></tr>
+          <tr><td><span class="swatch" style="background:#ff6b6b"></span>Уязвимость</td><td>красное облако</td><td>трещины-метка вспыхивают на цели</td></tr>
+          <tr><td><span class="swatch" style="background:#f9a825"></span>Сила</td><td>жёлтое свечение</td><td>рисует сам приём (рёв клича, жар Ярости); у зелья — знак силы</td></tr>
+          <tr><td><span class="swatch" style="background:#9aa6c8"></span>Скрытность</td><td>свечение</td><td>клубы дыма, герой уходит в тень</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="q-h">
+    <h2 id="q-h">Что решить</h2>
+    <p class="prose">Семь вопросов. В6 и В7 решены, открыты В1–В5. Ответ вроде «В1 — Б, остальное по рекомендации» подойдёт.</p>
+    <div class="qs">
+      <div class="q">
+        <h3>Насколько глубоко</h3>
+        <ul class="opts">
+          <li><b>А</b>Перелепить девять нынешних картинок в стиле лепки. Род и цвет приёма остаются, различий между приёмами не прибавится.</li>
+          <li class="rec"><b>Б</b>Четырнадцать семейств из таблицы выше и свой рисунок у статусов. Приём задаёт вариант и цвет.</li>
+          <li><b>В</b>У каждого из 52 приёмов своя анимация. Дольше в несколько раз, а разницу между соседними вариантами в бою почти не видно.</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Как рисовать на поле</h3>
+        <ul class="opts">
+          <li><b>А</b>Как у врагов: лист кадров в data URL, кадры листает CSS, полёт — CSS-сдвиг. Меньше нового кода, но сдвиг и масштаб кадра ложатся между клетками.</li>
+          <li class="rec"><b>Б</b>Холст эффектов 480×160 поверх поля, как в прототипе. Всё в сетке 2 px, частицы и растворение дешёвые, тайминги считает один цикл.</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Как летят снаряды</h3>
+        <ul class="opts">
+          <li class="rec"><b>А</b>Плавно по клеткам: позиция каждый кадр экрана, шаг 2 px. Кадры самого снаряда — 12 в секунду.</li>
+          <li><b>Б</b>Рывками по 12 кадров в секунду, как клипы врагов. Стрела через поле делает три-четыре прыжка.</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Удар оружием героя</h3>
+        <ul class="opts">
+          <li><b>А</b>Один мазок на всё ближнее оружие, отличается только цвет кромки.</li>
+          <li class="rec"><b>Б</b>По типу базы: дуга (меч, топор), удар сверху (булава, молот), укол (копьё), росчерк (кинжал, стилет), хлёст (плеть). Дальнее — свой снаряд у лука, арбалета, пращи и дротиков.</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Меч над врагом-лепкой</h3>
+        <ul class="opts">
+          <li class="rec"><b>А</b>Убрать: у врагов с <code>fx: melee</code> только след удара на герое, замах уже в клипе врага. Снаряды врагов вылетают из точки оружия.</li>
+          <li><b>Б</b>Оставить летающий клинок поверх замаха лепки, как сейчас.</li>
+        </ul>
+      </div>
+      <div class="q done">
+        <h3>Боевой клич — решено</h3>
+        <ul class="opts">
+          <li class="chosen"><b>А</b>Рёв: волны крика к врагам, пыль у ног, поле вздрагивает.</li>
+          <li><b>Б</b>Жар в жилах: багровый контур героя вспыхивает кольцами, с плеч пар.</li>
+          <li><b>В</b>Знак силы: крупная стрелка Силы над героем уменьшается в иконку.</li>
+        </ul>
+      </div>
+      <div class="q done">
+        <h3>Блок — решено</h3>
+        <ul class="opts">
+          <li><b>А</b>Барьер со стороны врагов: встаёт, держится тусклым, принимает удар, осыпается в начале хода.</li>
+          <li class="chosen"><b>Б</b>Латы по силуэту бойца: встают от ступней, держатся контуром, звенят от удара, тают в начале хода.</li>
+          <li><b>В</b>Купол с решёткой над бойцом.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="plan-h">
+    <h2 id="plan-h">Порядок работ</h2>
+    <p class="prose">По одной фазе за раз, каждая — своя версия с проверкой в бою и постом. Числа игры не меняются, симулятор не нужен.</p>
+    <ol class="phases">
+      <li><div><b>Движок эффектов</b><span><code>src/ui/fx/</code>: стиль <code>FX_STYLE</code>, запекание кадров, холст-слой вместо <code>.fx-layer</code>, частицы, растворение, общий огонь из Пещер; <code>tests/fx.test.ts</code>, <code>tools/fx-sheet.mjs</code> и обзор <code>tools/fx-preview.html</code>, как у врагов.</span></div></li>
+      <li><div><b>Удары оружием</b><span>пять мазков ближнего боя, четыре снаряда дальнего, снаряды магического оружия; след удара вместо меча у врагов.</span></div></li>
+      <li><div><b>Стихии</b><span>огонь, лёд, молния, тьма и чары — все заклинания и снаряды врагов.</span></div></li>
+      <li><div><b>Статусы и яд</b><span>десять рисунков статусов, склянки и туча, кровь.</span></div></li>
+      <li><div><b>На себя</b><span>щит и блок, лечение, бафы, зелья.</span></div></li>
+      <li><div><b>Особые приёмы</b><span>Вихрь, Дождь из стрел, Крюк-кошка, Волчий свисток, выплаты (Вскрытие, Кровавая баня, Взрыв пламени, Заражение, Пролом щита), вторая фаза босса.</span></div></li>
+      <li><div><b>Документы</b><span>раздел «Лепка эффектов» в <code>docs/lepka.md</code> с рецептами семейств, GDD §8 и §13, строка в CLAUDE.md.</span></div></li>
+    </ol>
+    <details>
+      <summary>Что остаётся как есть</summary>
+      <p class="note">Рисованные герои и их клипы (<code>heroSprite.ts</code>), всплывающие числа, полоски HP, наскок героя, иконки статусов над головой, аура босса CSS-пульсом. Эффекты не тонируются светом локации: огонь и магия светят сами, а тонировать стрелу и склянку — отдельный вопрос после первой фазы.</p>
+    </details>
+  </section>
+</div>
+
+<script>window.ASSETS = { bg: '{{BG}}', heroes: {{HEROES}} };</script>
+<script>{{BUNDLE}}</script>
