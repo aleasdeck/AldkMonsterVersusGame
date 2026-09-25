@@ -942,18 +942,18 @@ const TORM = {
   hoof: { base: '#1e1214', dither: 0 } as Mat,
   leather: { base: '#3a1a1e', tex: { kind: 'noise', scale: 2, amp: 0.14 } } as Mat,
   iron: { base: '#8a8a90', shine: 0.8, dither: 0 } as Mat,
-  whip: { base: '#3a2420', tex: { kind: 'stripes', scale: 1.2, amp: 0.2, angle: 0.8 } } as Mat,
+  whip: { base: '#6a4834', tex: { kind: 'stripes', scale: 1.2, amp: 0.2, angle: 0.8 } } as Mat,
   barb: { base: '#e0e0e0', shine: 0.6, dither: 0 } as Mat,
   mouth: { base: '#2a0608', dither: 0 } as Mat,
 };
 
 /** Плеть: точки относительно кулака — лежит петлёй на полу (покой), закинута за плечо (замах), вытянута к герою (удар). */
-const WHIP_REST: Array<[number, number]> = [[0, 0], [-1, 9], [-3, 18], [-6, 27], [-11, 34], [-18, 38], [-26, 39], [-33, 37]];
+const WHIP_REST: Array<[number, number]> = [[0, 0], [-1, 10], [-3, 20], [-6, 30], [-10, 40], [-16, 48], [-25, 52], [-34, 52]];
 const WHIP_WIND: Array<[number, number]> = [[0, 0], [5, -3], [11, -4], [17, -2], [22, 3], [26, 10], [28, 18], [28, 26]];
 const WHIP_HIT: Array<[number, number]> = [[0, 0], [-8, 1], [-16, 2], [-24, 4], [-32, 6], [-40, 8], [-47, 11], [-53, 15]];
 /** Рука с плетью: плечо и предплечье по ходу клипа, градусы. */
-const WHIP_UPPER: Keys = [[0, 120], [0.14, 240], [0.3, 250], [0.43, 210], [0.57, 165], [0.72, 130], [0.86, 118], [1, 115]];
-const WHIP_FORE: Keys = [[0, 140], [0.14, 280], [0.3, 292], [0.43, 225], [0.57, 170], [0.72, 140], [0.86, 128], [1, 125]];
+const WHIP_UPPER: Keys = [[0, 110], [0.14, 240], [0.3, 252], [0.43, 215], [0.57, 175], [0.72, 150], [0.86, 115], [1, 100]];
+const WHIP_FORE: Keys = [[0, 130], [0.14, 285], [0.3, 295], [0.43, 230], [0.57, 172], [0.72, 150], [0.86, 125], [1, 115]];
 
 export const tormentor: Model = {
   id: 'tormentor',
@@ -982,27 +982,30 @@ export const tormentor: Model = {
         p.chain([[x, 94, 8], [x - 9, 110, 6], [x + 1, 125, 4], [x - 3, G - 4, 3.4]], M.fur, { part, tone });
         p.poly([x - 9, G - 5, x + 1, G - 6, x + 2, G, x - 10, G], M.hoof, { part: `${part}Hoof`, tone, bevel: 1.5 });
       };
-      leg(70, 'far', -0.15);
+      // Развёрнут к герою вполоборота: дальние нога, плечо и рука — слева, у героя, и за телом; ближние — справа.
+      leg(54, 'far', -0.15);
 
       // Хвост со стрелкой: хлещет за спиной.
       const tx = 3 * tail + 6 * hurt;
       p.chain([[76, 92, 3.5], [88, 100, 2.8], [98, 96 + tx * 0.3, 2.2], [104 + tx * 0.5, 84 + tx * 0.5, 1.6], [102 + tx, 74 + tx * 0.6, 1.2]], M.skin, { part: 'tail', tone: -0.1 });
       p.poly([102 + tx, 68 + tx * 0.6, 107 + tx, 75 + tx * 0.6, 97 + tx, 76 + tx * 0.6], M.dark, { part: 'tailTip', bevel: 1 });
 
-      // Дальняя рука висит: когти, на запястье — кандалы с обрывком цепи.
-      p.chain([[78, 52 + up, 8.5], [84, 70 + up, 7], [85, 86 + up, 6]], M.skin, { part: 'farArm', tone: -0.15 });
-      p.ellipse(84, 91 + up, 6, 5.5, M.skin, { part: 'farArm', tone: -0.15 });
-      p.limb(80, 82 + up, 3, 88, 82 + up, 3, M.iron, { part: 'cuff', tone: -0.15 });
-      p.chain([[86, 84 + up, 1.1], [88, 92 + up, 1], [87, 100 + up + creep, 1]], M.iron, { part: 'chain', tone: -0.2 });
+      // Дальняя рука висит за телом: когти, на запястье — кандалы с обрывком цепи.
+      p.chain([[46, 52 + up, 8], [40, 70 + up, 7], [39, 86 + up, 6]], M.skin, { part: 'farArm', tone: -0.18 });
+      p.ellipse(39, 91 + up, 6, 5.5, M.skin, { part: 'farArm', tone: -0.18 });
+      p.limb(35, 82 + up, 3, 43, 82 + up, 3, M.iron, { part: 'cuff', tone: -0.15 });
+      p.chain([[37, 84 + up, 1.1], [35, 92 + up, 1], [36, 100 + up + creep, 1]], M.iron, { part: 'chain', tone: -0.2 });
 
-      leg(54, 'near', 0);
+      leg(70, 'near', 0);
 
       // Торс: мощная грудь, узкая талия, бугры трапеций; ремни крест-накрест, кожаные полы с заклёпками.
       p.ellipse(60, 86, 12, 10, M.skin);
       p.ellipse(61, 64 + up, 20, 18 + breath * 0.8, M.skin);
       p.ellipse(62, 46 + up, 18, 9, M.skin);
-      p.ellipse(52, 62 + up, 9, 7, M.skin, { lift: 3 });
-      p.ellipse(78, 50 + up, 9, 8.5, M.skin, { tone: -0.1 });
+      p.ellipse(47, 50 + up, 8, 7.5, M.skin, { tone: -0.12 });
+      p.ellipse(51, 63 + up, 8, 6.5, M.skin, { lift: 2, tone: -0.06 });
+      p.ellipse(68, 62 + up, 10, 7.5, M.skin, { lift: 3 });
+      p.ellipse(78, 50 + up, 10, 9, M.skin, { lift: 2 });
       p.ellipse(56, 78 + up * 0.5, 8, 6, M.dark, { paint: true });
       p.line(52, 74 + up * 0.5, 60, 74 + up * 0.5, '#5a1420');
       p.line(52, 80 + up * 0.5, 60, 80 + up * 0.5, '#5a1420');
@@ -1020,9 +1023,9 @@ export const tormentor: Model = {
       // Голова на короткой бычьей шее над плечами, чуть вперёд: рога дугой, острое ухо, пасть с клыками, глаза горят.
       p.limb(62, 48 + up, 9, 55, 36 + up, 8, M.skin);
       p.pose({ dx: p.snap(-2 * strike + 2 * hurt), dy: up, rot: 0.06 * wind - 0.05 * strike + 0.22 * hurt, px: 58, py: 40 }, () => {
-        // Дальний рог.
-        p.chain([[62, 20, 4], [70, 12, 3.2], [74, 4, 2.2], [71, 0, 1]], M.horn, { part: 'hornFar', tone: -0.15 });
-        p.poly([72, 6, 76, 2, 71, 0], M.hornTip, { part: 'hornFar', paint: true });
+        // Дальний рог — со стороны героя, за головой.
+        p.chain([[50, 20, 4], [44, 12, 3.2], [42, 4, 2.2], [46, 0, 1]], M.horn, { part: 'hornFar', tone: -0.15 });
+        p.poly([41, 6, 43, 1, 47, 0], M.hornTip, { part: 'hornFar', paint: true });
         p.poly([60, 28, 72 + 2 * hurt, 24 + 3 * hurt, 62, 33], M.skin, { part: 'ear', bevel: 1.5, tone: -0.1 });
         const open = 2 * wind + 3 * strike + 4 * hurt;
         p.ellipse(46, 38 + open * 0.6, 8, 4.5, M.skin, { part: 'jaw', tone: -0.1 });
@@ -1030,8 +1033,8 @@ export const tormentor: Model = {
         p.ellipse(46, 33, 8, 6, M.skin, { part: 'head' });
         p.ellipse(49, 23, 8.5, 3, M.dark, { part: 'head', paint: true });
         // Ближний рог: толстый, загибается вверх и назад.
-        p.chain([[52, 20, 4.5], [46, 12, 3.6], [47, 4, 2.4], [53, 0.5, 1.2]], M.horn, { part: 'horn' });
-        p.poly([46, 6, 49, 1, 54, 1, 48, 5], M.hornTip, { part: 'horn', paint: true });
+        p.chain([[60, 19, 4.6], [68, 11, 3.6], [70, 3, 2.4], [66, 0, 1.2]], M.horn, { part: 'horn' });
+        p.poly([69, 6, 71, 1, 66, 0, 67, 5], M.hornTip, { part: 'horn', paint: true });
         if (open > 1.5) {
           p.poly([38, 35, 50, 35, 49, 36 + open, 39, 36 + open * 0.8], M.mouth, { part: 'maw', bevel: 0.6 });
           p.poly([40, 35, 42, 35, 41, 38], M.hornTip, { part: 'fang' });
@@ -1047,33 +1050,34 @@ export const tormentor: Model = {
         p.line(40, 24, 50, 25.5 + 1.5 * wind, '#2a0608');
       });
 
-      // Ближняя рука с плетью: в покое плеть петлёй на полу, в ударе хлещет к герою.
-      const a1 = ang(p, WHIP_UPPER, 115) - 20 * hurt;
-      const a2 = ang(p, WHIP_FORE, 125) - 25 * hurt;
-      const { ex, ey, hx, hy } = limb2(44, 54 + up, a1, 18, a2, 17);
+      // Ближняя рука с плетью — справа, поверх туловища: в покое плеть свисает до пола, в ударе хлещет к герою.
+      const a1 = ang(p, WHIP_UPPER, 100) - 20 * hurt;
+      const a2 = ang(p, WHIP_FORE, 115) - 25 * hurt;
+      const { ex, ey, hx, hy } = limb2(78, 52 + up, a1, 18, a2, 17);
       const pts = WHIP_REST.map((r, k) => {
         const [mx, my] = mixPt(r, WHIP_WIND[k], WHIP_HIT[k], wind, strike);
         const f = k / (WHIP_REST.length - 1);
         // В покое кончик лежит на полу: плеть под кулаком опирается на землю.
         const floor = G - 2 - (hy + my);
         const dy = wind + strike < 0.05 && floor < 0 ? floor : 0;
-        return [hx + mx + 2 * creep * f * f + 10 * hurt * f, hy + my + dy - 6 * hurt * f, 1.8 - 0.9 * f] as [number, number, number];
+        return [hx + mx + 2 * creep * f * f + 10 * hurt * f, hy + my + dy - 6 * hurt * f, 2.3 - 1.2 * f] as [number, number, number];
       });
       p.chain(pts, M.whip, { part: 'whip' });
       // Стальные крючья по плети и на конце.
       for (const k of [3, 5, 7]) p.poly([pts[k][0] - 1.5, pts[k][1] + 1, pts[k][0], pts[k][1] - 2.5, pts[k][0] + 1.5, pts[k][1] + 1], M.barb, { part: 'barb' });
-      p.limb(44, 54 + up, 8.5, ex, ey, 7.5, M.skin, { part: 'nearArm' });
+      p.limb(78, 52 + up, 8.5, ex, ey, 7.5, M.skin, { part: 'nearArm' });
       p.limb(ex, ey, 7, hx, hy, 5.5, M.skin, { part: 'nearArm' });
       p.limb(ex - 1, ey + 2, 6.5, (ex + hx) / 2, (ey + hy) / 2, 6, M.leather, { part: 'bracer' });
       p.ellipse(hx, hy, 5.8, 5.4, M.skin, { part: 'fist' });
       // Кожаный наплечник с железными шипами поверх ближнего плеча.
-      p.poly([35, 52 + up, 38, 45 + up, 46, 43 + up, 53, 46 + up, 54, 52 + up, 44, 55 + up], M.leather, { part: 'pauldron', bevel: 2 });
-      for (const [x, y] of [[39, 45], [45, 43], [51, 45]]) p.poly([x - 1.8, y + 2 + up, x - 0.5, y - 5 + up, x + 1.8, y + 2 + up], M.iron, { part: 'spike' });
+      p.poly([69, 52 + up, 72, 45 + up, 80, 43 + up, 87, 46 + up, 88, 52 + up, 78, 55 + up], M.leather, { part: 'pauldron', bevel: 2 });
+      for (const [x, y] of [[73, 45], [79, 43], [85, 45]]) p.poly([x - 1.8, y + 2 + up, x - 0.5, y - 5 + up, x + 1.8, y + 2 + up], M.iron, { part: 'spike' });
       p.limb(hx, hy - 4, 2, hx, hy + 3, 2, M.leather, { part: 'grip' });
     });
   },
 };
 
+// ─── Каменный голем ─────────────────────────────────────────────────────────
 // ─── Каменный голем ─────────────────────────────────────────────────────────
 // ─── Каменный голем ─────────────────────────────────────────────────────────
 // ─── Каменный голем ─────────────────────────────────────────────────────────
@@ -1086,10 +1090,10 @@ const GOLEM = {
 };
 
 /**
- * Удар кулаком сверху: каменная рука из покоя (кулак у земли) уходит назад за спину, через верх обрушивается
- * вперёд и бьёт в землю чуть впереди места, где лежала (угол 0 — покой, −2π — снова он).
+ * Удар кулаком сверху ближней (правой) рукой: из покоя (кулак у бедра) рука уходит назад-вверх, через голову
+ * обрушивается вперёд-вниз к герою и опускается в покой (угол 0 — покой, −2π — снова он).
  */
-const POUND: Keys = [[0, -0.5], [0.14, -2.2], [0.3, -2.5], [0.43, -4.1], [0.57, -6.08], [0.72, -6.08], [0.86, -6.2], [1, -2 * Math.PI]];
+const POUND: Keys = [[0, -0.4], [0.14, -2.0], [0.3, -2.35], [0.43, -3.9], [0.57, -5.3], [0.72, -5.3], [0.86, -5.8], [1, -2 * Math.PI]];
 
 const golemBase: Model = {
   id: 'golem',
@@ -1117,74 +1121,72 @@ const golemBase: Model = {
 
     p.pose({ dx: -5 * strike + 2 * wind + 4 * hurt, rot: 0.03 * wind - 0.04 * strike + 0.04 * hurt, px: 76, py: G }, () => {
       p.shadow(76, 50, 4.5);
-      // Ноги — короткие столбы из глыб.
-      p.chain([[90, 112, 14], [94, 132, 13], [93, 142, 12]], M.dark, { part: 'far', tone: -0.12 });
-      p.ellipse(92, G - 5, 16, 6, M.dark, { part: 'far', tone: -0.12, flat: 0.3 });
-      p.chain([[60, 112, 15], [56, 132, 14], [56, 142, 13]], M.stone, { part: 'near' });
-      p.ellipse(54, G - 5, 17, 6, M.stone, { part: 'near', flat: 0.3 });
-      seam([58, 124, 64, 128, 62, 134]);
+      // Развёрнут к герою вполоборота: дальние нога и рука — слева, у героя, темнее и за телом;
+      // ближние — справа, поверх туловища.
+      p.chain([[60, 112, 14], [56, 132, 13], [56, 142, 12]], M.dark, { part: 'far', tone: -0.12 });
+      p.ellipse(54, G - 5, 16, 6, M.dark, { part: 'far', tone: -0.12, flat: 0.3 });
+      p.chain([[52, 52 + up, 12], [42, 82 + up, 10.5], [38, 104 + up, 10]], M.dark, { part: 'farArm', tone: -0.14 });
+      p.ellipse(36, 120 + up, 14, 13, M.dark, { part: 'farArm', tone: -0.14 });
+      p.chain([[92, 112, 15], [96, 132, 14], [95, 142, 13]], M.stone, { part: 'near' });
+      p.ellipse(94, G - 5, 17, 6, M.stone, { part: 'near', flat: 0.3 });
+      seam([92, 124, 98, 128, 96, 134]);
 
-      // Дальняя рука висит до земли, кулак-валун; вся рука — одна глыба.
-      p.chain([[106, 50 + up, 14], [114, 80 + up, 12], [116, 104 + up, 11]], M.dark, { part: 'farArm', tone: -0.12 });
-      p.ellipse(116, 120 + up, 15, 14, M.dark, { part: 'farArm', tone: -0.12 });
-
-      // Туловище — огромный валун с плечами из того же камня; таз — плита. В швах светится лава.
-      p.ellipse(74, 108, 26, 13, M.dark, { part: 'pelvis' });
-      p.ellipse(76, 74 + up, 38, 32 + breath, M.stone, { part: 'chest' });
-      p.ellipse(100, 44 + up, 18, 15, M.stone, { part: 'chest', tone: -0.08 });
-      p.ellipse(50, 50 + up, 19, 16, M.stone, { part: 'chest', lift: 3 });
-      p.ellipse(72, 60 + up, 6, 4, M.moss, { part: 'chest', paint: true });
-      seam([62, 72 + up, 72, 82 + up, 70, 96 + up]);
-      seam([86, 62 + up, 92, 72 + up, 102, 76 + up]);
-      seam([56, 90 + up, 64, 98 + up]);
-      seam([40, 44 + up, 50, 50 + up, 58, 46 + up]);
-      seam([96, 36 + up, 104, 44 + up]);
+      // Туловище — огромный валун; дальнее плечо уходит за него, ближнее — глыба поверх. В швах светится лава.
+      p.ellipse(76, 108, 26, 13, M.dark, { part: 'pelvis' });
+      p.ellipse(52, 48 + up, 16, 13, M.stone, { part: 'chest', tone: -0.12 });
+      p.ellipse(74, 74 + up, 38, 32 + breath, M.stone, { part: 'chest' });
+      p.ellipse(98, 46 + up, 20, 16, M.stone, { part: 'chest', lift: 3 });
+      p.ellipse(80, 60 + up, 6, 4, M.moss, { part: 'chest', paint: true });
+      seam([60, 70 + up, 70, 80 + up, 68, 94 + up]);
+      seam([84, 64 + up, 90, 74 + up, 100, 78 + up]);
+      seam([54, 90 + up, 62, 98 + up]);
+      seam([90, 40 + up, 98, 46 + up, 106, 42 + up]);
+      seam([46, 42 + up, 52, 48 + up]);
       // Сердце-горнило в груди: светится сквозь трещину.
-      p.glow(78, 82 + up, 6 + 3 * heat, '#ff8a14', 0.3 + 0.2 * heat);
-      p.poly([74, 78 + up, 80, 76 + up, 83, 84 + up, 76, 88 + up], M.magma, { part: 'core', bevel: 1.5 });
+      p.glow(72, 82 + up, 6 + 3 * heat, '#ff8a14', 0.3 + 0.2 * heat);
+      p.poly([68, 78 + up, 74, 76 + up, 77, 84 + up, 70, 88 + up], M.magma, { part: 'core', bevel: 1.5 });
 
-      // Голова — глыба между плеч, чуть впереди: тяжёлый лоб, глаза-угли в глубоких щелях, рот-трещина.
-      p.pose({ dx: p.snap(-3 * strike + 2 * hurt), dy: up + p.snap(-2 * wind - 2 * hurt), rot: 0.05 * wind - 0.04 * strike + 0.14 * hurt, px: 66, py: 44 }, () => {
-        p.ellipse(64, 30, 15, 13, M.stone, { part: 'head' });
-        p.ellipse(58, 38, 11, 7, M.stone, { part: 'head' });
-        p.ellipse(60, 22, 15, 5, M.dark, { part: 'head', lift: 6 });
+      // Голова — глыба между плеч, смещена к герою: тяжёлый лоб, глаза-угли в глубоких щелях, рот-трещина.
+      p.pose({ dx: p.snap(-3 * strike + 2 * hurt), dy: up + p.snap(-2 * wind - 2 * hurt), rot: 0.05 * wind - 0.04 * strike + 0.14 * hurt, px: 64, py: 44 }, () => {
+        p.ellipse(62, 30, 15, 13, M.stone, { part: 'head' });
+        p.ellipse(55, 38, 11, 7, M.stone, { part: 'head' });
+        p.ellipse(58, 22, 15, 5, M.dark, { part: 'head', lift: 6 });
         const glow = hurt > 0.4 ? 0.08 : 0.45 + 0.2 * heat + 0.3 * wind;
-        p.glow(54, 28, 5, '#ff9f1c', glow);
-        p.glow(64, 28, 4, '#ff9f1c', glow * 0.8);
+        p.glow(51, 28, 5, '#ff9f1c', glow);
+        p.glow(61, 28, 4, '#ff9f1c', glow * 0.8);
         if (hurt > 0.4) {
-          p.line(51, 28, 56, 28, '#2a2220');
-          p.line(61, 28, 65, 28, '#2a2220');
+          p.line(48, 28, 53, 28, '#2a2220');
+          p.line(58, 28, 62, 28, '#2a2220');
         } else {
           const lid = p.blink(0.4, 0.05) ? 0 : 1;
-          p.block(52, 27, 3, 1 + lid, '#ffb428');
-          p.block(62, 27, 2, 1 + lid, '#ff9f1c');
+          p.block(49, 27, 3, 1 + lid, '#ffb428');
+          p.block(59, 27, 2, 1 + lid, '#ff9f1c');
         }
         const open = 2 * strike + 3 * hurt + wind;
-        p.line(50, 38, 63, 39 + open * 0.3, open > 1 ? '#ffb428' : '#f06a10');
-        if (open > 1.5) p.line(51, 39, 62, 40 + open * 0.6, '#ff8a14');
-        seam([70, 20, 74, 28]);
+        p.line(47, 38, 60, 39 + open * 0.3, open > 1 ? '#ffb428' : '#f06a10');
+        if (open > 1.5) p.line(48, 39, 59, 40 + open * 0.6, '#ff8a14');
+        seam([68, 20, 72, 28]);
       });
 
-      // Ближняя рука одной глыбой: плечо, локоть и кулак-валун сливаются; в ударе — дугой через голову в землю.
+      // Ближняя рука одной глыбой — справа, поверх туловища: в ударе дугой через голову обрушивается к герою.
       const phi = arc(p, POUND);
-      p.pose({ rot: phi - 0.15 * hurt, px: 46, py: 54 + up }, () => {
-        p.chain([[46, 54 + up, 13], [38, 84 + up, 11.5], [34, 108 + up, 10.5]], M.stone, { part: 'arm' });
-        p.ellipse(32, 124 + up, 17, 16, M.stone, { part: 'arm' });
-        p.ellipse(26, 120 + up, 8, 7, M.dark, { part: 'arm', paint: true });
-        seam([34, 82 + up, 42, 86 + up, 40, 92 + up]);
-        seam([26, 126 + up, 34, 132 + up, 40, 128 + up]);
+      p.pose({ rot: phi - 0.15 * hurt, px: 98, py: 52 + up }, () => {
+        p.chain([[98, 52 + up, 13], [106, 82 + up, 11.5], [110, 106 + up, 10.5]], M.stone, { part: 'arm' });
+        p.ellipse(112, 122 + up, 17, 16, M.stone, { part: 'arm' });
+        p.ellipse(106, 118 + up, 8, 7, M.dark, { part: 'arm', paint: true });
+        seam([102, 80 + up, 110, 84 + up, 108, 90 + up]);
+        seam([104, 124 + up, 112, 130 + up, 118, 126 + up]);
       });
-      // Пыль и осколки из-под кулака в кадрах удара о землю.
+      // Осколки и пыль от удара кулака в кадрах контакта.
       if (strike > 0.6) {
         const c = Math.cos(phi), sn = Math.sin(phi);
-        const dx = 32 - 46, dy = 138 - (54 + up);
-        const cx = 46 + dx * c - dy * sn;
-        for (const [ox, r] of [[-16, 4], [-6, 5], [8, 4.5], [18, 3]]) p.disc(cx + ox * strike, G - 3 - r * 0.4, r * strike, '#8a7a6ab0', true);
-        for (const [ox, oy] of [[-12, -14], [4, -18], [14, -10]]) p.block(cx + ox, G - 6 + oy * strike, 2, 2, '#6a6560');
+        const cx = 98 + 14 * c - 70 * sn, cy = 52 + up + 14 * sn + 70 * c;
+        for (const [ox, oy, r] of [[-14, -6, 4], [-8, 8, 5], [-18, 4, 3.5]]) p.disc(cx + ox * strike, cy + oy, r * strike, '#8a7a6ab0', true);
+        for (const [ox, oy] of [[-20, -10], [-12, -16], [-22, 6]]) p.block(cx + ox * strike, cy + oy * strike, 2, 2, '#6a6560');
       }
       // Камешки от удара.
       if (hurt > 0.2) for (const [ox, oy] of [[-4, -20], [10, -26], [24, -16]]) p.block(64 + ox * (1.6 - hurt), 44 + oy * hurt, 2, 2, '#8a8580');
-      if (pebble >= 0) p.block(98, 32 + pebble * (G - 36), 1, 1, '#8a8580');
+      if (pebble >= 0) p.block(104, 34 + pebble * (G - 38), 1, 1, '#8a8580');
     });
   },
 };
@@ -1365,10 +1367,13 @@ const MINO = {
 };
 
 /**
- * Удар секирой: рука с секирой из покоя (лезвие у земли впереди) уходит назад-вверх за спину, через голову
- * обрушивается и врубается в землю чуть впереди места покоя (угол 0 — покой, −2π — снова он).
+ * Удар секирой ближней (правой) рукой: направления плеча, предплечья и древка по ходу клипа, градусы
+ * (90 — вниз, 180 — к герою, 270 — вверх, 360 — назад). В покое секира лежит на плече лезвием за спиной;
+ * замах — рука взлетает, лезвие уходит выше головы; удар — через голову наискось к герою; потом снова на плечо.
  */
-const CLEAVE: Keys = [[0, -0.7], [0.14, -2.25], [0.3, -2.55], [0.43, -4.15], [0.57, -6.08], [0.72, -6.08], [0.86, -6.2], [1, -2 * Math.PI]];
+const CLEAVE_UPPER: Keys = [[0, 110], [0.14, 235], [0.3, 250], [0.43, 215], [0.57, 165], [0.72, 155], [0.86, 125], [1, 100]];
+const CLEAVE_FORE: Keys = [[0, 230], [0.14, 270], [0.3, 280], [0.43, 225], [0.57, 158], [0.72, 150], [0.86, 190], [1, 220]];
+const CLEAVE_AXE: Keys = [[0, 305], [0.14, 325], [0.3, 332], [0.43, 240], [0.57, 135], [0.72, 128], [0.86, 220], [1, 300]];
 
 export const minotaur: Model = {
   id: 'minotaur',
@@ -1398,29 +1403,30 @@ export const minotaur: Model = {
         p.poly([x - 7, G - 6, x + 5, G - 6, x + 6, G, x - 8, G], M.hoof, { part: `${part}Hoof`, tone, bevel: 1.5 });
         p.line(x - 1, G - 5, x - 1, G - 1, '#4a3a30');
       };
-      leg(80, 'far', -0.15);
+      // Развёрнут к герою вполоборота: дальние нога, плечо и рука — слева, у героя, и за телом; ближние — справа.
+      leg(58, 'far', -0.15);
       // Хвост с кисточкой.
       const tx = 3 * tail + 5 * hurt;
       p.chain([[88, 100, 2.6], [98, 106, 2], [104 + tx * 0.5, 118, 1.6], [106 + tx, 130, 1.3]], M.fur, { part: 'tail', tone: -0.1 });
       p.ellipse(106 + tx, 134, 2.6, 4, M.dark, { part: 'tail' });
 
-      // Дальняя рука висит, кулак сжат; золотой браслет.
-      p.chain([[86, 56 + up, 10], [94, 80 + up, 8.5], [96, 100 + up, 7.5]], M.fur, { part: 'farArm', tone: -0.15 });
-      p.ellipse(96, 106 + up, 7.5, 7, M.fur, { part: 'farArm', tone: -0.15 });
-      p.limb(90, 94 + up, 4, 101, 94 + up, 4, M.gold, { part: 'bracelet', tone: -0.15 });
+      // Дальняя рука висит за телом, кулак сжат; золотой браслет.
+      p.chain([[44, 58 + up, 9.5], [38, 80 + up, 8], [36, 100 + up, 7]], M.fur, { part: 'farArm', tone: -0.18 });
+      p.ellipse(36, 106 + up, 7, 6.5, M.fur, { part: 'farArm', tone: -0.18 });
+      p.limb(31, 94 + up, 3.8, 41, 94 + up, 3.8, M.gold, { part: 'bracelet', tone: -0.15 });
 
-      leg(58, 'near', 0);
+      leg(80, 'near', 0);
 
       // Торс грудью к зрителю, вполоборота к герою: грудные мышцы, пресс, плечи по бокам; тёмная шерсть по груди.
       p.ellipse(66, 96, 19, 11, M.fur);
       p.ellipse(64, 70 + up, 26, 21 + breath, M.fur);
       p.ellipse(64, 50 + up, 22, 9, M.fur);
-      p.ellipse(84, 56 + up, 10, 9.5, M.fur, { tone: -0.1 });
-      p.ellipse(54, 64 + up, 12, 9, M.fur, { lift: 3 });
-      p.ellipse(75, 63 + up, 10.5, 8.5, M.fur, { lift: 2, tone: -0.06 });
+      p.ellipse(44, 56 + up, 9.5, 9, M.fur, { tone: -0.14 });
+      p.ellipse(53, 64 + up, 10, 8, M.fur, { lift: 2, tone: -0.06 });
+      p.ellipse(74, 64 + up, 12, 9, M.fur, { lift: 3 });
       p.ellipse(63, 85 + up * 0.5, 11, 8, M.fur, { lift: 1.5 });
-      p.ellipse(54, 65 + up, 10, 7, M.chest, { paint: true });
-      p.ellipse(75, 64 + up, 9, 6.5, M.chest, { paint: true, tone: -0.06 });
+      p.ellipse(53, 65 + up, 8, 6, M.chest, { paint: true, tone: -0.06 });
+      p.ellipse(74, 65 + up, 10, 7, M.chest, { paint: true });
       p.ellipse(63, 86 + up * 0.5, 9, 6, M.chest, { paint: true });
       p.ellipse(64, 60 + up, 4, 8, M.dark, { paint: true });
       p.line(54, 73 + up, 62, 74 + up, '#3e2818');
@@ -1437,9 +1443,9 @@ export const minotaur: Model = {
       p.pose({ dx: p.snap(-3 * strike + 2 * hurt), dy: up + p.snap(2 * wind - 3 * hurt), rot: -0.08 * wind + 0.1 * strike + 0.24 * hurt, px: 60, py: 44 }, () => {
         // Грива за головой.
         p.ellipse(68, 30, 11, 12, M.dark, { part: 'mane' });
-        // Дальний рог и ухо.
-        p.chain([[68, 20, 4.4], [78, 15, 3.6], [86, 8, 2.6], [86, 1, 1.2]], M.horn, { part: 'hornFar', tone: -0.12 });
-        p.poly([70, 26, 82 + 2 * hurt, 29 + hurt, 72, 32], M.fur, { part: 'earFar', bevel: 1.5, tone: -0.15 });
+        // Дальний рог и ухо — со стороны героя, за головой.
+        p.chain([[52, 20, 4.4], [42, 15, 3.6], [34, 8, 2.6], [34, 1, 1.2]], M.horn, { part: 'hornFar', tone: -0.12 });
+        p.poly([50, 26, 40 - 2 * hurt, 29 + hurt, 48, 32], M.fur, { part: 'earFar', bevel: 1.5, tone: -0.15 });
         const open = 2 * wind + 2 * strike + 5 * hurt;
         p.ellipse(48, 51 + open * 0.5, 7.5, 4, M.muzzle, { part: 'jaw', tone: -0.15 });
         p.ellipse(60, 30, 13.5, 13.5, M.fur, { part: 'head' });
@@ -1453,14 +1459,14 @@ export const minotaur: Model = {
         p.limb(45, 55, 0.9, 49, 54.5, 0.9, M.gold, { part: 'ring' });
         p.limb(49, 54.5, 0.9, 48, 50, 0.9, M.gold, { part: 'ring' });
         if (open > 2) p.poly([42, 51, 54, 51, 53, 52 + open, 43, 52 + open * 0.8], M.nostril, { part: 'maw', bevel: 0.6 });
-        // Ближнее ухо и рог: толстый у лба, дугой в сторону героя и вверх, острие светлее.
-        p.poly([50, 26, 40 - 2 * hurt, 29 + hurt, 48, 32], M.fur, { part: 'ear', bevel: 1.5 });
-        p.chain([[52, 20, 5], [42, 15, 4], [34, 8, 2.9], [33, 0, 1.3]], M.horn, { part: 'horn' });
+        // Ближнее ухо и рог: толстый у лба, дугой в сторону и вверх.
+        p.poly([70, 26, 82 + 2 * hurt, 29 + hurt, 72, 32], M.fur, { part: 'ear', bevel: 1.5 });
+        p.chain([[68, 20, 5], [78, 15, 4], [86, 8, 2.9], [87, 0, 1.3]], M.horn, { part: 'horn' });
         // Глаза посажены глубоко под тёмным лбом, горят красным.
         const shut = hurt > 0.4 ? 1 : p.blink(0.7);
-        if (shut < 1) p.glow(52, 31, 3, '#ff5a2a', 0.35);
-        p.eye(52, 31, 1.7, '#ff5a2a', { closed: shut, glint: '#ffd0a0', lid: '#1e1410' });
-        p.eye(64, 30.5, 1.3, '#d8401a', { closed: shut, lid: '#1e1410' });
+        if (shut < 1) p.glow(63, 30.5, 3, '#ff5a2a', 0.35);
+        p.eye(52, 31, 1.3, '#d8401a', { closed: shut, lid: '#1e1410' });
+        p.eye(63, 30.5, 1.7, '#ff5a2a', { closed: shut, glint: '#ffd0a0', lid: '#1e1410' });
         p.line(48, 27.5, 56, 29 + 2 * wind, '#2a1a10');
         p.line(61, 28.5 + 2 * wind, 67, 27.5, '#2a1a10');
         // Пар из ноздрей.
@@ -1478,35 +1484,37 @@ export const minotaur: Model = {
       p.chain([[48, 50 + up, 1.1], [56, 57 + up, 1.1], [64, 59 + up, 1.1], [72, 56 + up, 1.1], [80, 50 + up, 1.1]], M.gold, { part: 'chain' });
       p.ellipse(64, 63 + up, 3, 3, M.gold, { part: 'pendant' });
       p.px(64, 63 + up, '#3e2818');
-      // Ближнее плечо поверх груди.
-      p.ellipse(42, 58 + up, 11, 10, M.fur, { part: 'shoulder' });
-      // Ближняя рука с секирой: в покое лезвие стоит на земле перед копытами; в ударе — дугой через голову в землю.
-      const phi = arc(p, CLEAVE);
-      p.pose({ rot: phi - 0.12 * hurt, px: 42, py: 58 + up }, () => {
-        p.chain([[42, 58 + up, 10.5], [36, 80 + up, 9], [34, 100 + up, 8]], M.fur, { part: 'shoulder' });
-        // Древко от кулака вниз, двусторонняя секира у земли.
-        p.limb(35, 92 + up, 2.2, 22, 150, 2.4, M.haft, { part: 'haft' });
-        p.limb(23, 146, 2.6, 21, 154, 2.6, M.gold, { part: 'pommel' });
-        const ax = 26, ay = 126;
-        p.poly([ax + 2, ay - 10, ax - 14, ay - 20, ax - 21, ay - 5, ax - 14, ay + 11, ax + 2, ay + 2], M.steel, { part: 'blade', bevel: 1.8 });
-        p.poly([ax + 3, ay - 10, ax + 16, ay - 16, ax + 20, ay - 4, ax + 16, ay + 8, ax + 3, ay + 2], M.steel, { part: 'bladeBack', bevel: 1.8, tone: -0.1 });
-        p.line(ax - 20, ay - 4, ax - 14, ay + 10, '#e8eef4');
-        p.limb(ax, ay - 11, 3.2, ax + 1.5, ay + 3, 3.2, M.leather, { part: 'socket' });
-        p.ellipse(34, 100 + up, 7.5, 7, M.fur, { part: 'fist' });
-        p.limb(34, 90 + up, 4.5, 36, 94 + up, 4.5, M.gold, { part: 'bracer' });
-      });
-      // Искры и пыль из-под лезвия в кадрах удара о землю.
+      // Ближняя рука с секирой — справа, поверх туловища: в покое секира на плече, в ударе рубит через голову к герою.
+      const a1 = ang(p, CLEAVE_UPPER, 100) - 15 * hurt;
+      const a2 = ang(p, CLEAVE_FORE, 220) - 20 * hurt;
+      const a3 = ang(p, CLEAVE_AXE, 300) + 15 * hurt;
+      const { ex, ey, hx, hy } = limb2(86, 58 + up, a1, 16, a2, 16);
+      // Секира: древко от навершия за кулаком к лезвию, два полумесяца стали по сторонам от древка.
+      const ux = Math.cos(a3 * DEG), uy = Math.sin(a3 * DEG), nx = -uy, ny = ux;
+      const P = (f: number, s: number): [number, number] => [hx + ux * f + nx * s, hy + uy * f + ny * s];
+      p.limb(...P(-14, 0), 2.4, ...P(50, 0), 2.2, M.haft, { part: 'haft' });
+      p.limb(...P(-16, 0), 2.6, ...P(-12, 0), 2.6, M.gold, { part: 'pommel' });
+      p.poly([...P(34, 2), ...P(28, 14), ...P(42, 21), ...P(56, 14), ...P(50, 2)], M.steel, { part: 'blade', bevel: 1.8 });
+      p.poly([...P(35, -2), ...P(30, -12), ...P(42, -17), ...P(54, -12), ...P(49, -2)], M.steel, { part: 'bladeBack', bevel: 1.8, tone: -0.12 });
+      p.line(...P(29, 15), ...P(42, 21), '#e8eef4');
+      p.line(...P(42, 21), ...P(55, 15), '#e8eef4');
+      p.limb(...P(32, 0), 3.2, ...P(52, 0), 3.2, M.leather, { part: 'socket' });
+      p.ellipse(86, 58 + up, 11, 10, M.fur, { part: 'nearArm' });
+      p.limb(86, 58 + up, 10, ex, ey, 8.5, M.fur, { part: 'nearArm' });
+      p.limb(ex, ey, 8, hx, hy, 7, M.fur, { part: 'nearArm' });
+      p.limb(ex + (hx - ex) * 0.35, ey + (hy - ey) * 0.35, 4.8, ex + (hx - ex) * 0.6, ey + (hy - ey) * 0.6, 4.8, M.gold, { part: 'bracer' });
+      p.ellipse(hx, hy, 7.5, 7, M.fur, { part: 'fist' });
+      // Искры с лезвия в кадрах удара.
       if (strike > 0.6) {
-        const c = Math.cos(phi), sn = Math.sin(phi);
-        const dx = 12 - 42, dy = 150 - (58 + up);
-        const cx = 42 + dx * c - dy * sn;
-        for (const [ox, r] of [[-12, 3.5], [-4, 4.5], [6, 3.5], [13, 2.5]]) p.disc(cx + ox * strike, G - 3 - r * 0.4, r * strike, '#8a7a6ab0', true);
-        for (const [ox, oy] of [[-8, -12], [2, -16], [10, -9]]) p.px(cx + ox, G - 4 + oy * strike, '#ffe8a0');
+        const [sx, sy] = P(42, 22);
+        for (const [ox, oy] of [[-8, -6], [-4, 6], [-12, 2], [2, 10]]) p.px(sx + ox * strike, sy + oy * strike, '#ffe8a0');
+        p.glow(sx, sy, 6 * strike, '#fff0c0', 0.35);
       }
     });
   },
 };
 
+// ─── Древний дракон ─────────────────────────────────────────────────────────
 // ─── Древний дракон ─────────────────────────────────────────────────────────
 // ─── Древний дракон ─────────────────────────────────────────────────────────
 // ─── Древний дракон ─────────────────────────────────────────────────────────
