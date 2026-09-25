@@ -2104,12 +2104,26 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       log(state, `Герой теряет ${drained} маны`);
       break;
     }
-    case 'summon':
+    case 'summon': {
+      // Вылупление: кладка лопается, и личинки встают на её место в ряду. Она уходит живой, как вор с добычей, — не убита,
+      // поэтому ни «за убийство», ни «Неупокоенных»; её место освобождается, и вылупиться она может и в полном ряду.
+      const at = eff.replace ? state.enemies.indexOf(e) : -1;
+      if (at >= 0) {
+        state.enemies.splice(at, 1);
+        state.enemyQueue = state.enemyQueue.filter((uid) => uid !== e.uid);
+        state.events.push({ type: 'death', target: e.uid });
+        log(state, `${e.name} лопается`);
+      }
       for (let i = 0; i < eff.count; i++) {
         if (state.enemies.length >= MAX_ENEMIES) break;
-        spawnEnemy(state, eff.enemyId, rng, true);
+        const s = spawnEnemy(state, eff.enemyId, rng, true);
+        if (at >= 0) {
+          state.enemies.splice(state.enemies.indexOf(s), 1);
+          state.enemies.splice(Math.min(at + i, state.enemies.length), 0, s);
+        }
       }
       break;
+    }
     case 'invuln':
       addStatus(state, e, e.uid, 'invuln', 1, 1);
       break;
@@ -2288,7 +2302,8 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     log(state, `${e.name} отходит назад`);
   }
   tickDurations(e, 'end');
-  if (state.phase === 'lost' || e.hp <= 0) return;
+  // Ушёл с поля своим же приёмом (вылупился, удрал) — намерение ему больше не нужно.
+  if (state.phase === 'lost' || e.hp <= 0 || !state.enemies.includes(e)) return;
   chooseIntent(state, e, rng);
 }
 
@@ -2640,7 +2655,7 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         kinds.push('debuff');
         break;
       case 'summon':
-        parts.push(`Призыв: ${enemyDef(eff.enemyId).name}${eff.count > 1 ? ` ×${eff.count}` : ''}`, 'summon');
+        parts.push(`${eff.replace ? 'Вылупляется' : 'Призыв'}: ${enemyDef(eff.enemyId).name}${eff.count > 1 ? ` ×${eff.count}` : ''}${eff.replace ? ', сама исчезает' : ''}`, 'summon');
         kinds.push('summon');
         break;
       case 'invuln':

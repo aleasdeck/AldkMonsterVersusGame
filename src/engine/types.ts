@@ -500,7 +500,8 @@ export type EnemyEffect =
   | { type: 'heal'; amount: number; target: 'self' | 'allies' | 'neighbors' }
   | { type: 'debuff'; status: StatusId; value: number; turns: number }
   | { type: 'drainMp'; amount: number }
-  | { type: 'summon'; enemyId: string; count: number }
+  /** replace — вылупление: призванные встают на место призвавшего, а сам он уходит с поля живым, не считаясь убитым (Кладка). */
+  | { type: 'summon'; enemyId: string; count: number; replace?: boolean }
   | { type: 'invuln' }
   | { type: 'thorns'; amount: number; turns?: number } // turns — на срок (стража перехода), без него навсегда
   | { type: 'dodge'; value: number }

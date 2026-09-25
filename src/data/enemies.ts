@@ -1159,11 +1159,12 @@ const list: EnemyDef[] = [
     location: 'hive',
     rank: 'normal',
     role: 'support',
-    // Кладка не нападает: щетинится иглами и зреет. Успеешь разбить за два хода — личинок не будет вовсе.
+    // Кладка не нападает: щетинится иглами и зреет, на третий ход лопается — на её месте встают две личинки, а сама она
+    // исчезает (до v0.53.0 оставалась и вылупляла новых каждые два хода без конца). Успеешь разбить за два хода — личинок не будет вовсе.
     actions: [
       act('bristle', 'Щетина', [{ type: 'thorns', amount: 3 }], noThorns),
       act('pulse', 'Пульсация', [{ type: 'none' }]),
-      act('hatch', 'Вылупление', [{ type: 'summon', enemyId: 'larva', count: 2 }], hasRoom),
+      act('hatch', 'Вылупление', [{ type: 'summon', enemyId: 'larva', count: 2, replace: true }]),
     ],
     ai: { type: 'cycle', order: ['bristle', 'pulse', 'hatch'] },
     sprite: blob('#1a1020', '#c0b0d0', '#8070a0', '#402060', 14),
