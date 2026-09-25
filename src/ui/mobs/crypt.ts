@@ -520,9 +520,8 @@ export const boneGolem: Model = {
             const eye = hurt > 0.4 ? '' : wind > 0.4 || strike > 0.4 ? '#e8ffff' : SOUL;
             skull(p, M.skull, 'head', open * 0.6, eye, 0.35 + 0.25 * pulse + 0.2 * wind);
             p.line(4, -9, 7, -4, '#5a4a3e');
-            // Челюсть и зубы в крови — жрёт, хоть ему и нечем глотать.
-            p.pose({ rot: 0.06 * open * 0.6, px: 4, py: 5 }, () => p.poly([-9, 8 + open * 0.6, -1, 9 + open * 0.6, 3, 11, -2, 13 + open * 0.6, -7, 13 + open * 0.6], M.blood, { part: 'headJaw', paint: true }));
-            p.ellipse(-4.5, 8, 4.5, 1.6, M.blood, { part: 'head', paint: true });
+            // Подтёк крови у передних зубов нижней челюсти — след, а не кровавая пасть.
+            p.pose({ rot: 0.06 * open * 0.6, px: 4, py: 5 }, () => p.poly([-8, 9 + open * 0.6, -4.5, 9 + open * 0.6, -5, 12 + open * 0.6, -7.5, 11.5 + open * 0.6], M.blood, { part: 'headJaw', paint: true }));
           });
           p.chain([[44, 30, 5], [36, 20, 4.4], [24, 18, 3.6], [18, 26, 2.8], [22, 34, 2], [28, 34, 1.2]], M.horn, { part: 'horn' });
         });
@@ -551,9 +550,9 @@ export const boneGolem: Model = {
           p.poly([90, 106 + up, 100, 106 + up, 100, 144 + up, 90, 144 + up], M.blood, { part: 'fistSpike', paint: true });
           for (let k = 0; k < 3; k++) p.ellipse(117, 106 + up, 11, 6, M.gore, { part: `arm${k}`, paint: true });
         });
-        // Кровь капает с кулака и челюсти (только в покое и не в первом кадре — им же кончаются клипы).
+        // Кровь капает с кулака (только в покое и не в первом кадре — им же кончаются клипы).
         if (p.clip === 'idle') {
-          for (const [x, y0, y1, ph] of [[106, 140, G - 4, 0.2], [114, 138, G - 4, 0.65], [42, 60, 104, 0.45]] as const) {
+          for (const [x, y0, y1, ph] of [[106, 140, G - 4, 0.2], [114, 138, G - 4, 0.65]] as const) {
             const f = (p.t * 1.5 + ph) % 1;
             if (p.t > 0.04 && f < 0.8) p.px(x, y0 + (y1 - y0) * (f / 0.8) + up, f < 0.4 ? '#9a1e20' : '#7a1418');
           }
