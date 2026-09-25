@@ -968,24 +968,23 @@ export class App {
     let longest = 0;
     const done = new Set<string>();
     const after = (fx: AfterFx) => {
-      const key = `${fx.kind}:${fx.target}`;
+      // Один эффект вида на бойца за розыгрыш; статусы различаются своим рисунком — кровь и горение на одной цели играют оба.
+      const key = `${fx.kind}:${fx.status ?? ''}:${fx.target}`;
       if (done.has(key)) return;
       done.add(key);
-      // Глоток сам подсвечивает героя, лепка приёма (рёв) рисует себя вместо свечения статуса.
-      if (fx.kind === 'drink') done.add('glow:hero');
-      if (fx.kind === 'sculpt') done.add(`glow:${fx.target}`);
+      // Глоток сам подсвечивает героя (и за лечение зелья тоже), лепка приёма (рёв) рисует себя вместо свечения статуса.
+      if (fx.kind === 'drink') done.add('glow::hero').add('heal::hero');
+      if (fx.kind === 'sculpt') done.add(`glow::${fx.target}`);
       playAfter(this.root, fx);
     };
-    // Разбитая склянка сама даёт облако — статусное поверх него не нужно.
-    for (const s of plan?.shots ?? []) if (s.kind === 'flask') done.add(`cloud:${s.to}`);
     for (const a of plan?.after ?? []) after(a);
     for (const ev of events) {
       if (ev.type === 'log') continue;
       const wrap = this.spriteWrap(ev.target);
       if (!wrap) continue;
       const fx = eventFx(ev);
-      // Латы и облако видны у всех, свечение — только у героя, элит и боссов.
-      if (fx && (fx.kind !== 'glow' || this.glows(ev.target))) after({ kind: fx.kind, color: fx.color, target: ev.target });
+      // Латы, статусы, лечение и облако видны у всех, свечение — только у героя, элит и боссов.
+      if (fx && (fx.kind !== 'glow' || this.glows(ev.target))) after({ ...fx, target: ev.target });
       const key = String(ev.target);
       const n = counters.get(key) ?? 0;
       counters.set(key, n + 1);

@@ -1,5 +1,5 @@
 import type { EventTarget } from '../../engine/types';
-import { CELL, type FxFrame } from './bake';
+import { CELL, rng, type FxFrame } from './bake';
 import { fighterMask, maskBounds, type FieldRect, type Mask } from './mask';
 
 /**
@@ -243,25 +243,64 @@ export interface Particle {
   floor?: number;
   /** Две клетки в ширину. */
   size?: number;
+  /** Крестик из пяти клеток (снежинка, искра лечения), пока частица молода. */
+  plus?: boolean;
+  /** Покачивание по x, клетки: снежинка и искра не летят по линейке. */
+  sway?: number;
 }
 
-/** Пачка частиц с момента `at`: искры, угли, осколки, камешки. */
-export function particles(L: PxLayer, at: number, list: Particle[]): void {
+/**
+ * Пачка частиц с момента `at`: искры, угли, осколки, камешки, капли. Долетев до пола `floor`, частица гаснет, а с
+ * `splat` — ложится брызгом цвета `splat`, мигает и пропадает (кровь на полу).
+ */
+export function particles(L: PxLayer, at: number, list: Particle[], splat?: string): void {
   if (!list.length) return;
-  const dur = Math.max(...list.map((p) => p.born + p.life));
+  const dur = Math.max(...list.map((p) => p.born + p.life)) + (splat ? 420 : 0);
   L.cells({
     at, dur,
     draw: (put, t) => {
       for (const p of list) {
         const age = (t - p.born) / 1000;
-        if (age < 0 || age * 1000 > p.life) continue;
-        const x = p.x + p.vx * age;
-        let y = p.y + p.vy * age + 0.5 * (p.g ?? 0) * age * age;
-        if (p.floor !== undefined && y > p.floor) y = p.floor;
-        const c = p.colors[Math.min(p.colors.length - 1, Math.floor(((age * 1000) / p.life) * p.colors.length))];
+        if (age < 0) continue;
+        const g = p.g ?? 0;
+        const x = p.x + p.vx * age + (p.sway ? Math.sin(age * 9 + p.x) * p.sway : 0);
+        const y = p.y + p.vy * age + 0.5 * g * age * age;
+        if (p.floor !== undefined && y >= p.floor) {
+          if (!splat) continue;
+          // Момент касания пола — из уравнения полёта; брызг держится 0.42 с и под конец мигает.
+          const hit = g ? (-p.vy + Math.sqrt(Math.max(0, p.vy * p.vy + 2 * g * (p.floor - p.y)))) / g : age;
+          const since = age - hit;
+          if (since > 0.42 || (since > 0.3 && Math.floor(since * 24) % 2)) continue;
+          const sx = p.x + p.vx * hit;
+          put(sx - 1, p.floor, splat);
+          put(sx, p.floor, splat);
+          if (since < 0.1) put(sx + 1, p.floor - 1, splat);
+          continue;
+        }
+        if (age * 1000 > p.life) continue;
+        const k = (age * 1000) / p.life;
+        const c = p.colors[Math.min(p.colors.length - 1, Math.floor(k * p.colors.length))];
         put(x, y, c);
         if (p.size && p.size > 1) put(x + 1, y, c);
+        if (p.plus && k < 0.7) {
+          put(x - 1, y, c, 0.6);
+          put(x + 1, y, c, 0.6);
+          put(x, y - 1, c, 0.6);
+          put(x, y + 1, c, 0.6);
+        }
       }
     },
   });
+}
+
+/** Искры удара: белые и цвета приёма, разлетаются от точки попадания в сторону `dir` (+1 — вправо) и гаснут. */
+export function sparks(L: PxLayer, at: number, x: number, y: number, color: string, n: number, seed: number, dir = 1): void {
+  const r = rng(seed);
+  const list: Particle[] = [];
+  for (let i = 0; i < n; i++) {
+    const ang = (r() - 0.5) * 2.4 + (dir > 0 ? -0.3 : Math.PI + 0.3);
+    const v = 50 + r() * 70;
+    list.push({ x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v - 25, g: 160, life: 160 + r() * 140, born: r() * 40, colors: ['#ffffff', color, color] });
+  }
+  particles(L, at, list);
 }

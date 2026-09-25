@@ -281,7 +281,7 @@ export const WEAPON_BASES: Base[] = [
   },
   {
     id: 'sling',
-    fx: { kind: 'orb', color: '#9aa0a6' },
+    fx: { kind: 'orb', color: '#9aa0a6', sculpt: 'stone' },
     heft: 'light',
     name: 'праща',
     g: 1,

@@ -260,6 +260,13 @@ function strikesTarget(state: BattleState, action: PlayerAction): boolean {
   return effects.some((e) => 'target' in e && e.target === 'enemy' && ['attack', 'spell', 'detonate', 'scorch', 'breakBlock', 'finisher', 'chain', 'blockStrike'].includes(e.type));
 }
 
+/** Страж, который перехватит это действие героя (первый удар за ход по тому, кто стоит за ним), или null. */
+export function interceptor(state: BattleState, action: PlayerAction): EnemyState | null {
+  if ((action.type !== 'attack' && action.type !== 'artifact') || action.target === undefined || !strikesTarget(state, action)) return null;
+  const target = findEnemy(state, action.target);
+  return target ? coveringGuard(state, target) : null;
+}
+
 /** Кого достаёт удар такой дальности: ближний — первого в ряду, любой и удар по ряду — всех. */
 export function reachableEnemies(state: BattleState, reach: WeaponReach): EnemyState[] {
   return reach === 'melee' ? state.enemies.slice(0, 1) : state.enemies.slice();
@@ -1566,14 +1573,11 @@ export function performAction(state: BattleState, action: PlayerAction, rng: Rng
   beginStep(state, 'H');
   // Страж (v0.46): первый удар за ход по тому, кто стоит за ним, достаётся ему самому.
   let cover = '';
-  if ((action.type === 'attack' || action.type === 'artifact') && action.target !== undefined && strikesTarget(state, action)) {
-    const target = findEnemy(state, action.target);
-    const guard = target && coveringGuard(state, target);
-    if (target && guard) {
-      guard.covered = true;
-      cover = `${guard.name} заслоняет ${target.name}`;
-      action = { ...action, target: guard.uid };
-    }
+  const guard = interceptor(state, action);
+  if (guard && (action.type === 'attack' || action.type === 'artifact')) {
+    guard.covered = true;
+    cover = `${guard.name} заслоняет ${findEnemy(state, action.target ?? -1)?.name}`;
+    action = { ...action, target: guard.uid };
   }
   // Весь урон этого действия — его: удар, приём со взрывом ран, зелье (dealtBy, v0.42).
   state.source = action.type === 'artifact' ? action.artifactId : action.type;
