@@ -380,10 +380,18 @@ const skeletonArcherBase: Model = {
 
 // ─── Костяной голем ─────────────────────────────────────────────────────────
 
+/**
+ * Кость голема — в крови тех, из кого он собран: тени уходят в бурый, а не в серый; свет остаётся костяным,
+ * иначе голем станет мясом, а не костями.
+ */
+const GOLEM_BONE_RAMP = ['#382626', '#624840', '#8a6e5c', '#aa9076', '#c8b294'];
 const BGOLEM = {
-  bone: { base: '#a8977c', ramp: ['#342c2a', '#5e5246', '#85745e', '#a8967a', '#c8b89c'], tex: { kind: 'noise', scale: 2.5, amp: 0.1 } } as Mat,
+  bone: { base: '#a8907a', ramp: GOLEM_BONE_RAMP, tex: { kind: 'noise', scale: 2.5, amp: 0.1 } } as Mat,
   /** Длинные кости связок: волокна вдоль кости, а не рябь камня. */
-  boneLong: { base: '#a8977c', ramp: ['#342c2a', '#5e5246', '#85745e', '#a8967a', '#c8b89c'], tex: { kind: 'stripes', scale: 1.6, amp: 0.1, angle: 0 } } as Mat,
+  boneLong: { base: '#a8907a', ramp: GOLEM_BONE_RAMP, tex: { kind: 'stripes', scale: 1.6, amp: 0.1, angle: 0 } } as Mat,
+  /** Свежая кровь — тёмно-алая, мокро блестит; запёкшаяся — бурая, матовая, пятнами. */
+  blood: { base: '#7a1418', shine: 0.6, dither: 0, ramp: ['#3a080a', '#5a0e12', '#7a1418', '#9a1e20', '#b8302c'] } as Mat,
+  gore: { base: '#5a1c18', tex: { kind: 'noise', scale: 1.6, amp: 0.25 }, ramp: ['#2e0e0c', '#461612', '#5a1c18', '#6e2620', '#843228'] } as Mat,
   skull: { base: '#c8b898', ramp: SKULL_RAMP, tex: { kind: 'noise', scale: 2, amp: 0.1 } } as Mat,
   hollow: { base: '#1c1618', dither: 0 } as Mat,
   horn: { base: '#5a4c40', tex: { kind: 'stripes', scale: 1.6, amp: 0.2, angle: 0.5 } } as Mat,
@@ -437,6 +445,9 @@ export const boneGolem: Model = {
 
     p.pose({ dx: -5 * strike + 2 * wind + 4 * hurt, rot: 0.03 * wind - 0.05 * strike + 0.04 * hurt, px: 80, py: G }, () => {
       p.shadow(80, 54, 4.5);
+      // Под кулаком натекла лужица крови.
+      p.line(106, G - 0.5, 124, G - 0.5, '#5a0c0ec0');
+      p.line(110, G - 1.5, 120, G - 1.5, '#5a0c0e90');
       // Ноги — связки берцовых костей, стопы — плиты из лопаток; дальняя выставлена к герою.
       bundle(66, 110, 52, 132, 9, 3, 'far', -0.14);
       bundle(52, 132, 50, 150, 8, 3, 'far', -0.16);
@@ -468,10 +479,17 @@ export const boneGolem: Model = {
         spike(94, 28, 96, 4, 5);
         spike(108, 30, 116, 8, 4.5);
         spike(118, 38, 132, 24, 4);
+        // Острия двух шипов в крови — на них кого-то насадило; кровь стекает к основанию.
+        p.poly([93.5, 16 + up, 96, 4 + up, 98.5, 16 + up], M.blood, { part: 'spikes', paint: true });
+        p.poly([112, 20 + up, 116, 8 + up, 114.5, 22 + up], M.blood, { part: 'spikes', paint: true });
+        p.line(95, 16 + up, 94.5, 22 + up, '#5a0e12');
+        p.line(113.5, 21 + up, 112.5, 26 + up, '#5a0e12');
         // Горб сложен из черепов: пустые глазницы смотрят во все стороны, в двух ещё тлеет огонь.
         for (const [x, y, sc, lit] of [[88, 36, 0.7, 0], [104, 34, 0.75, 1], [116, 46, 0.65, 0], [96, 50, 0.7, 0], [82, 50, 0.6, 1]] as const) {
           p.scope(sc, x, y + up, () => skull(p, M.skull, `hump${x}`, 0, lit && hurt < 0.4 ? SOUL : '', 0.15));
         }
+        // По одному черепу в горбе стекла запёкшаяся кровь.
+        p.scope(0.7, 96, 50 + up, () => p.poly([-9, 2, -2, 0, 6, 3, 4, 12, -6, 12], M.gore, { part: 'hump96', paint: true }));
 
         // Грудная клетка — огромные рёбра вокруг тёмного нутра, внутри горит огонь души.
         p.ellipse(76, 72 + up, 25, 23, M.hollow, { part: 'chest' });
@@ -486,6 +504,10 @@ export const boneGolem: Model = {
           p.chain([[98, y - 2, 2], [88, y - 6 * w, 2.2], [72, y - 4 * w, 2], [58, y + 1, 1.8], [54 + k, y + 6, 1.4]], M.bone, { part: `rib${k}`, tone: -0.03 * k });
         }
         p.limb(60, 52 + up, 3, 62, 92, 2.4, M.bone, { part: 'sternum', tone: 0.04 });
+        // Рёбра спереди, грудина и таз — в запёкшейся крови пятнами, как будто голем прижимал жертв к груди.
+        for (const k of [1, 2, 4]) p.ellipse(62 + k, 50 + k * 7 + up * (1 - k / 8), 7, 3, M.gore, { part: `rib${k}`, paint: true });
+        p.limb(60, 70 + up, 2.6, 62, 88, 2.2, M.gore, { part: 'sternum', paint: true });
+        p.ellipse(70, 106, 9, 5, M.gore, { part: 'pelvis', paint: true });
         // Цепи, что держат рёбра вместе.
         p.chain([[56, 60 + up, 1.1], [70, 66 + up, 1.1], [86, 64 + up, 1.1], [98, 58 + up, 1.1]], M.iron, { part: 'chain' });
 
@@ -498,6 +520,9 @@ export const boneGolem: Model = {
             const eye = hurt > 0.4 ? '' : wind > 0.4 || strike > 0.4 ? '#e8ffff' : SOUL;
             skull(p, M.skull, 'head', open * 0.6, eye, 0.35 + 0.25 * pulse + 0.2 * wind);
             p.line(4, -9, 7, -4, '#5a4a3e');
+            // Челюсть и зубы в крови — жрёт, хоть ему и нечем глотать.
+            p.pose({ rot: 0.06 * open * 0.6, px: 4, py: 5 }, () => p.poly([-9, 8 + open * 0.6, -1, 9 + open * 0.6, 3, 11, -2, 13 + open * 0.6, -7, 13 + open * 0.6], M.blood, { part: 'headJaw', paint: true }));
+            p.ellipse(-4.5, 8, 4.5, 1.6, M.blood, { part: 'head', paint: true });
           });
           p.chain([[44, 30, 5], [36, 20, 4.4], [24, 18, 3.6], [18, 26, 2.8], [22, 34, 2], [28, 34, 1.2]], M.horn, { part: 'horn' });
         });
@@ -519,7 +544,20 @@ export const boneGolem: Model = {
           for (const [x, y, tx, ty] of [[102, 114, 94, 110], [100, 124, 91, 124], [102, 134, 94, 140]]) p.poly([x, y - 2.5 + up, tx, ty + up, x, y + 2.5 + up], M.bone, { part: 'fistSpike', bevel: 1 });
           p.line(114, 116 + up, 126, 122 + up, '#4a3e36');
           p.line(116, 128 + up, 128, 130 + up, '#4a3e36');
+          // Кулак — в свежей крови: костяшки, шипы и ударная сторона; выше, на запястье, кровь уже запеклась.
+          p.ellipse(108, 128 + up, 9, 8, M.blood, { part: 'fist', paint: true });
+          p.ellipse(114, 134 + up, 8, 4, M.blood, { part: 'fist', paint: true });
+          p.poly([100, 112 + up, 110, 112 + up, 116, 138 + up, 100, 138 + up], M.blood, { part: 'knuckle', paint: true });
+          p.poly([90, 106 + up, 100, 106 + up, 100, 144 + up, 90, 144 + up], M.blood, { part: 'fistSpike', paint: true });
+          for (let k = 0; k < 3; k++) p.ellipse(117, 106 + up, 11, 6, M.gore, { part: `arm${k}`, paint: true });
         });
+        // Кровь капает с кулака и челюсти (только в покое и не в первом кадре — им же кончаются клипы).
+        if (p.clip === 'idle') {
+          for (const [x, y0, y1, ph] of [[106, 140, G - 4, 0.2], [114, 138, G - 4, 0.65], [42, 60, 104, 0.45]] as const) {
+            const f = (p.t * 1.5 + ph) % 1;
+            if (p.t > 0.04 && f < 0.8) p.px(x, y0 + (y1 - y0) * (f / 0.8) + up, f < 0.4 ? '#9a1e20' : '#7a1418');
+          }
+        }
         // Обломки костей и голубые искры от удара кулака.
         if (strike > 0.6) {
           const c = Math.cos(phi), sn = Math.sin(phi);
@@ -794,24 +832,27 @@ const ghoulBase: Model = {
     const drip = p.clip === 'idle' ? (p.t * 2) % 1 : -1;
     const sway = p.wave(1, 0.4) + 2 * hurt;
     // Задние лапы: бедро вперёд-вниз к колену, голень назад к скакательному суставу, стопа вперёд — сложены под тазом.
+    // Лапа — одна часть от бедра до пальцев: стопа, колено и кисть не отделены чертой, а бедро и плечо
+    // вливаются в тело без линии (noLine) — зверь целый, а не собран из кусков.
     const hind = (hip: [number, number], knee: [number, number], hock: [number, number], toe: number, part: string, tone: number): void => {
-      p.chain([[hip[0], hip[1], 7], [knee[0], knee[1], 4], [hock[0], hock[1], 2.8]], M.skin, { part, tone });
+      p.limb(hip[0], hip[1], 7, knee[0], knee[1], 4, M.skin, { part, tone, noLine: true });
+      p.limb(knee[0], knee[1], 4, hock[0], hock[1], 2.8, M.skin, { part, tone });
       p.limb(hip[0] - 1, hip[1] + 1, 5, knee[0] + 2, knee[1] - 2, 2.6, M.muscle, { part, paint: true, tone });
-      p.ellipse(knee[0], knee[1], 4, 3.6, M.skin, { part, tone, lift: 1 });
-      p.poly([hock[0] + 2, hock[1] - 2, hock[0] + 3, G, toe, G, toe + 2, G - 3.5], M.skin, { part: `${part}Foot`, tone: tone - 0.04, bevel: 1.2 });
+      p.ellipse(knee[0], knee[1], 4, 3.6, M.skin, { part, tone, lift: 0.4 });
+      p.poly([hock[0] + 2, hock[1] - 2, hock[0] + 3, G, toe, G, toe + 2, G - 3.5], M.skin, { part, tone: tone - 0.04, bevel: 1.2 });
       for (const x of [toe, toe + 4]) p.line(x, G - 1, x - 2, G, '#2a2420');
     };
     // Передняя лапа, что стоит на земле: плечо — локоть — запястье, ладонь плашмя, когти веером вперёд по полу.
     const front = (sx: number, sy: number, a1: number, a2: number, part: string, tone: number, cuffSway: number): { hx: number; hy: number } => {
       const { ex, ey, hx, hy } = limb2(sx, sy, a1, 20, a2, 20);
-      p.limb(sx, sy, 5, ex, ey, 3.6, M.skin, { part, tone });
+      p.limb(sx, sy, 5, ex, ey, 3.6, M.skin, { part, tone, noLine: true });
       p.limb(ex, ey, 3.6, hx, hy, 2.8, M.skin, { part, tone });
       p.limb(ex, ey, 2.8, hx, hy, 2.2, M.muscle, { part, paint: true, tone });
-      p.ellipse(sx, sy, 5.4, 5, M.skin, { part, tone, lift: 1 });
-      p.ellipse(ex, ey, 3.4, 3.2, M.skin, { part, tone, lift: 1 });
+      p.ellipse(sx, sy, 5.4, 5, M.skin, { part, tone, noLine: true });
+      p.ellipse(ex, ey, 3.4, 3.2, M.skin, { part, tone, lift: 0.4 });
+      p.ellipse(hx - 1, hy + 1, 4, 2.6, M.skin, { part, tone });
       const [cx, cy] = at(hx, hy, a2 + 180, 4);
       shackle(p, cx, cy, a2, 3.4, M, cuffSway, `${part}Cuff`, tone);
-      p.ellipse(hx - 1, hy + 1, 4, 2.6, M.skin, { part: `${part}Hand`, tone });
       return { hx: hx - 2, hy: hy + 1 };
     };
 
@@ -846,12 +887,13 @@ const ghoulBase: Model = {
 
       // Голова на жилистой шее опущена ниже плеч и вытянута к герою: череп, обтянутый кожей, гребень шипов,
       // носа нет — две щели, огромная пасть с частоколом клыков; глаза горят из-под надбровий.
-      p.limb(46, 32 + up, 5.4, 34, 37 + up, 4.6, M.skin, { part: 'neck', tone: -0.05 });
+      // Шея — продолжение тела, без черты на стыке.
+      p.limb(46, 32 + up, 5.4, 34, 37 + up, 4.6, M.skin, { tone: -0.05 });
       const open = 4 + 3 * wind + 5 * strike + 5 * hurt + (p.clip === 'idle' ? 0.8 * p.wave(1) : 0);
       p.pose({ dx: p.snap(-3 * strike + 2 * hurt - sniff), dy: up + p.snap(-3 * wind - 2 * hurt), rot: 0.16 * wind - 0.08 * strike + 0.32 * hurt, px: 36, py: 38 }, () => {
         // Космы на затылке и заострённое ухо.
-        p.chain([[30, 30, 1.4], [38, 32, 1.1], [42, 38, 0.6]], M.hair, { part: 'hair' });
-        p.poly([30, 32, 40 + 2 * hurt, 26 + hurt, 33, 37], M.skin, { part: 'ear', bevel: 1.4, tone: -0.1 });
+        p.chain([[30, 30, 1.4], [38, 32, 1.1], [42, 38, 0.6]], M.hair, { part: 'hair', noLine: true });
+        p.poly([30, 32, 40 + 2 * hurt, 26 + hurt, 33, 37], M.skin, { part: 'ear', bevel: 1.4, tone: -0.1, noLine: true });
         // Нижняя челюсть — длинная, отвисшая.
         p.pose({ rot: 0.04 * open, px: 30, py: 42 }, () => {
           p.poly([10, 43 + open * 0.6, 20, 44 + open, 30, 42, 29, 47 + open * 0.5, 20, 50 + open, 12, 48 + open], M.skin, { part: 'jaw', tone: -0.1, bevel: 1.6 });
