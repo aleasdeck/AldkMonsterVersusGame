@@ -41,7 +41,7 @@ describe('испытания: данные и порог', () => {
   it('без испытаний (тесты движка) забег идёт как раньше; с испытаниями в клетку не войти до выбора', () => {
     const off = newRun('warrior', 5);
     expect(awaitsTrial(off)).toBe(false);
-    const run = newRun('warrior', 5, 0, undefined, undefined, { trials: true });
+    const run = newRun('warrior', 5, 0, undefined, undefined, { difficulty: 'hard' });
     expect(awaitsTrial(run)).toBe(true);
     expect(run.trialOffer.length).toBe(2);
     for (const id of run.trialOffer) expect(TRIALS[id].location).toBe(run.locations[0]);
@@ -59,7 +59,7 @@ describe('испытания: данные и порог', () => {
   });
 
   it('новая локация — новое предложение, испытание сброшено; запись в статистике', () => {
-    const run = newRun('warrior', 5, 0, undefined, undefined, { trials: true });
+    const run = newRun('warrior', 5, 0, undefined, undefined, { difficulty: 'hard' });
     chooseTrial(run, run.trialOffer[0]);
     run.roomIndex = 9;
     advanceRoom(run);
@@ -72,19 +72,19 @@ describe('испытания: данные и порог', () => {
   });
 
   it('бот выбирает испытание по сборке и проходит забег с испытаниями', () => {
-    const run = newRun('mage', 11, 0, undefined, undefined, { trials: true });
+    const run = newRun('mage', 11, 0, undefined, undefined, { difficulty: 'hard' });
     run.hero.armor.slots = [{ id: 'heat_ward', tier: 1 }];
     // Жаропрочность гасит Зной и Огненную кровь.
     expect(trialCost(run, 'heat')).toBeLessThan(trialCost(run, 'hot_armor') + 2);
     expect(trialCost(run, 'fire_blood')).toBe(0);
-    const outcome = playRun(newRun('warrior', 3, 0, undefined, undefined, { trials: true }));
+    const outcome = playRun(newRun('warrior', 3, 0, undefined, undefined, { difficulty: 'hard' }));
     expect(['victory', 'defeat', 'stall']).toContain(outcome);
   });
 });
 
 describe('испытания: правила в бою', () => {
   it('Стая и Кладка — лишний враг в обычном бою', () => {
-    const run = newRun('warrior', 5, 0, undefined, undefined, { trials: true });
+    const run = newRun('warrior', 5, 0, undefined, undefined, { difficulty: 'hard' });
     run.trial = 'pack';
     run.trialOffer = [];
     enterRoom(run);

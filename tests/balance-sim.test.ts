@@ -3,7 +3,7 @@
  * Запуск: SIM=1 npx vitest run tests/balance-sim.test.ts  (по умолчанию пропускается)
  * SIM_HERO=berserk — один герой, SIM_N=300 — число забегов, SIM_LOCS=caves,caves,caves — локации по актам,
  * SIM_SIG=2 — второй персональный артефакт у всех героев (1 — первый, по умолчанию), SIM_POOL=base — стартовый пул новичка без закрытых мастерством вещей,
- * SIM_TRIALS=0 — без испытаний локаций.
+ * SIM_DIFF=easy|normal|hard — сложность (по умолчанию hard — испытания; SIM_TRIALS=0 — то же, что normal).
  * Сам бот — в tests/sim/bot.ts: планирует ход перебором на копии состояния, вне боя считает ценность предметов.
  */
 import { it } from 'vitest';
@@ -12,7 +12,7 @@ import { POTION_IDS } from '../src/data/potions';
 import { heroStats, newRun } from '../src/engine/run';
 import { LOCKED } from '../src/data/mastery';
 import { USES, playRun } from './sim/bot';
-import type { RunState } from '../src/engine/types';
+import type { Difficulty, RunState } from '../src/engine/types';
 
 // без @types/node: читаем переменные окружения через globalThis
 const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env ?? {};
@@ -25,8 +25,11 @@ const LOCS = env.SIM_LOCS?.split(',').filter(Boolean) as RunState['locations'] |
 const SIG = env.SIM_SIG === '2' ? 1 : 0;
 /** SIM_POOL=base — стартовый пул новичка (v0.45): все закрытые мастерством артефакты закрыты. По умолчанию — полный пул. */
 const LOCKED_POOL = env.SIM_POOL === 'base' ? Object.keys(LOCKED) : [];
-/** SIM_TRIALS=0 — без испытаний локаций (v0.48); по умолчанию бот выбирает их, как игрок. */
-const TRIALS = env.SIM_TRIALS !== '0';
+/**
+ * SIM_DIFF=easy|normal|hard — сложность забега: по умолчанию «Сложный» (испытания, v0.48), бот выбирает их, как игрок;
+ * «Лёгкий» — благословения. SIM_TRIALS=0 — прежнее имя «Среднего».
+ */
+const DIFF: Difficulty = env.SIM_DIFF === 'easy' || env.SIM_DIFF === 'normal' ? env.SIM_DIFF : env.SIM_TRIALS === '0' ? 'normal' : 'hard';
 
 for (const hero of HERO_LIST) {
   // Отдельный it на героя: между ними vitest успевает отчитаться воркеру, иначе долгий прогон падает по таймауту RPC.
@@ -41,7 +44,7 @@ for (const hero of HERO_LIST) {
     const byLoc: Record<string, number> = {};
     const bossHp: number[][] = [[], [], []];
     for (let seed = 1; seed <= N; seed++) {
-      const run = newRun(hero.id, seed * 7919, undefined, hero.signatures[SIG], undefined, { locked: LOCKED_POOL, trials: TRIALS });
+      const run = newRun(hero.id, seed * 7919, undefined, hero.signatures[SIG], undefined, { locked: LOCKED_POOL, difficulty: DIFF });
       if (LOCS) run.locations = LOCS;
       const outcome = playRun(run, (r) => bossHp[r.locationIndex].push(r.hero.hp / heroStats(r).maxHp));
       if (outcome === 'victory') wins++;

@@ -31,8 +31,10 @@ import {
   altarPray,
   altarSacrifice,
   altarSacrificeCost,
+  awaitsBoon,
   awaitsFocus,
   awaitsTrial,
+  chooseBoon,
   chooseTrial,
   chooseRewardFocus,
   currentAct,
@@ -1145,6 +1147,66 @@ function chooseTrialFor(run: RunState): void {
   chooseTrial(run, best);
 }
 
+/**
+ * Ценность благословения (лёгкая сложность) для сборки героя — в тех же грубых «HP за локацию», что и цена испытания:
+ * бот берёт то, что больше помогает ему. Числа растут с актом, как сами благословения.
+ */
+export function boonValue(run: RunState, id: string): number {
+  const s = heroStats(run);
+  const arts = heldArts(run);
+  const has = (pred: (d: ReturnType<typeof artifactDef>) => boolean) => arts.some((a) => pred(artifactDef(a.id)));
+  const aoe = s.sweep > 0 || has((d) => (d.effects?.(3) ?? []).some((e) => 'target' in e && e.target === 'allEnemies'));
+  const magic = hasMagicActive(run.hero);
+  const heals = s.regen * 4 + s.lifesteal * s.sta * 3 + (has((d) => (d.effects?.(3) ?? []).some((e) => e.type === 'heal' || (e.type === 'spell' && !!e.drain))) ? 10 : 0);
+  const grow = 1 + run.locationIndex * 0.5;
+  switch (id) {
+    case 'wolf_friend':
+      return 9 * grow;
+    case 'tracker':
+      return 3 + s.sta + (aoe ? 2 : 0);
+    case 'herbs':
+      return 8 * grow - heals * 0.2;
+    case 'miasma':
+      return 6 * grow + (s.poisonWeaken > 0 ? 3 : 0);
+    case 'hummock':
+      return 5 + (s.sta >= 4 ? 1 : 0);
+    case 'wisp_guide':
+      return 6 * grow;
+    case 'soul_harvest':
+      return 5 * grow + (aoe ? 2 : 0);
+    case 'shroud':
+      return 7 * grow;
+    case 'holy_water':
+      return 1 + heals * 0.5;
+    case 'chitin':
+      return 5 * grow + (s.thorns > 0 ? 2 : 0);
+    case 'royal_jelly':
+      return 5 * grow;
+    case 'stinger':
+      return 3 + Math.max(0, s.critDmg - 100) / 25;
+    case 'forge_heat':
+      return 5 * grow + (s.burnSpread > 0 ? 3 : 0);
+    case 'lava_veins':
+      return 6 * grow - (aoe ? 2 : 0);
+    case 'tempered':
+      return 1 + defendBlock(s) * 0.6;
+    case 'tailwind':
+      return s.maxMp > 0 ? 3 + (magic ? 5 : 0) : 0;
+    case 'plunder':
+      return 4 + s.sta * 0.5;
+    case 'broadside':
+      return 6;
+    default:
+      return 5;
+  }
+}
+
+/** Благословение с наибольшей ценностью для этой сборки. */
+function chooseBoonFor(run: RunState): void {
+  const best = run.boonOffer.reduce((m, id) => (boonValue(run, id) > boonValue(run, m) ? id : m), run.boonOffer[0]);
+  chooseBoon(run, best);
+}
+
 export function playRun(run: RunState, onBoss?: (run: RunState) => void): RunOutcome {
   let guard = 0;
   while (!isRunOver(run) && guard++ < 800) {
@@ -1156,6 +1218,10 @@ export function playRun(run: RunState, onBoss?: (run: RunState) => void): RunOut
       case 'map':
         if (awaitsTrial(run)) {
           chooseTrialFor(run);
+          break;
+        }
+        if (awaitsBoon(run)) {
+          chooseBoonFor(run);
           break;
         }
         if (currentRoomKind(run) === 'boss') onBoss?.(run);

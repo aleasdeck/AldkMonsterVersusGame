@@ -46,8 +46,12 @@ export interface RunReport {
   locked: number;
   /** База стартового оружия (v0.45): родная или вариант мастерства. */
   start: string;
+  /** Сложность забега: easy | normal | hard. У забегов до выбора сложности колонки нет — они шли на «Сложном» (с испытаниями). */
+  difficulty: string;
   /** Испытания локаций по порядку (v0.48), через запятую: «pack,acid,cannonade»; пусто — без испытаний. */
   trials: string;
+  /** Благословения локаций по порядку (лёгкая сложность), через запятую: «herbs,shroud,broadside»; пусто — без них. */
+  boons: string;
   seed: number;
   /** Фаза в момент записи: у победы и гибели — они же, у брошенного — где бросили (map, battle, shop…). */
   phase: RunPhase;
@@ -147,7 +151,9 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     heroLevel: ctx.heroLevel ?? 0,
     locked: run.hero.locked?.length ?? 0,
     start: run.hero.start ?? '',
+    difficulty: run.difficulty,
     trials: (run.trialLog ?? []).join(','),
+    boons: (run.boonLog ?? []).join(','),
     seed: run.seed,
     phase: run.phase,
     act: run.locationIndex + 1,

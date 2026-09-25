@@ -1,5 +1,5 @@
 import { h } from './dom';
-import type { EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RewardFocus, RunState } from '../engine/types';
+import type { Difficulty, EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RewardFocus, RunState } from '../engine/types';
 import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { ENEMY_LIST, enemyDef } from '../data/enemies';
@@ -13,6 +13,7 @@ import {
   loadProfile,
   loadRun,
   lockedForRun,
+  pickedDifficulty,
   pickedSignature,
   pickedStart,
   pickedTrait,
@@ -20,6 +21,7 @@ import {
   recordEnemies,
   recordFinds,
   recordResult,
+  saveDifficulty,
   saveRun,
   savePick,
   saveSignaturePick,
@@ -169,7 +171,7 @@ export class App {
     this.settleArmed();
     this.aim = null;
     // Выбор пула награды (v0.39) — тоже смена экрана: «Выбрать» стоит там же, где потом «Надеть», второй клик двойного не должен брать предмет.
-    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0]), r ? R.awaitsTrial(r) : false].join('|');
+    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0]), r ? R.awaitsThreshold(r) : false].join('|');
     if (key !== this.screenKey) {
       this.screenKey = key;
       this.screenChangedAt = performance.now();
@@ -443,6 +445,12 @@ export class App {
     this.render();
   }
 
+  /** Сложность следующего забега на экране выбора героя: общая для всех героев, живёт в профиле. */
+  selectDifficulty(d: Difficulty): void {
+    this.profile = saveDifficulty(d);
+    this.render();
+  }
+
   /** Стартовое оружие на экране выбора (v0.45): вариант открывается мастерством 5. */
   selectStart(heroId: string, base: string): void {
     if (!startUnlocked(this.profile, heroDef(heroId), base)) return;
@@ -515,14 +523,19 @@ export class App {
   /**
    * `debug` — забег начат отладочным параметром URL: в статистику уйдёт с пометкой. `signature` — персональный артефакт
    * (отладочный `&sig=`, мимо открытия); без него — выбор из профиля, если открыт, иначе первый из пары.
+   * `difficulty` — отладочный `&diff=`; без него — сложность, выбранная на экране героя.
    */
-  newRun(heroId: string, seed?: number, debug = false, signature?: string): void {
+  newRun(heroId: string, seed?: number, debug = false, signature?: string, difficulty?: Difficulty): void {
     this.dropRun();
     const def = heroDef(heroId);
     // Чужой или опечатанный id из URL — молча первый из пары, а не сломанная страница.
     const sig = signature && def.signatures.includes(signature) ? signature : pickedSignature(this.profile, def);
     // Мастерство (v0.45): черта, стартовое оружие и закрытые артефакты — из профиля. Отладочный забег открыт весь.
-    this.run = R.newRun(heroId, seed, Date.now(), sig, pickedTrait(this.profile, def), { start: pickedStart(this.profile, def), locked: debug ? [] : lockedForRun(this.profile), trials: true });
+    this.run = R.newRun(heroId, seed, Date.now(), sig, pickedTrait(this.profile, def), {
+      start: pickedStart(this.profile, def),
+      locked: debug ? [] : lockedForRun(this.profile),
+      difficulty: difficulty ?? pickedDifficulty(this.profile),
+    });
     this.run.debug = debug;
     this.armed = null;
     this.resultRecorded = false;
@@ -781,13 +794,19 @@ export class App {
     if (R.rerollReward(this.run)) this.commit();
   }
 
-  /** Пул награды за бой: «Нападение» или «Защита» (v0.39), после выбора катятся три карточки. */
   /** Испытание локации (v0.48): выбор из двух предложенных перед первой клеткой. */
   chooseTrial(id: string): void {
     if (!this.run) return;
     if (R.chooseTrial(this.run, id)) this.commit();
   }
 
+  /** Благословение локации (лёгкая сложность): выбор из двух предложенных перед первой клеткой. */
+  chooseBoon(id: string): void {
+    if (!this.run) return;
+    if (R.chooseBoon(this.run, id)) this.commit();
+  }
+
+  /** Пул награды за бой: «Нападение» или «Защита» (v0.39), после выбора катятся три карточки. */
   chooseRewardFocus(focus: RewardFocus): void {
     if (!this.run) return;
     if (R.chooseRewardFocus(this.run, focus)) this.commit();

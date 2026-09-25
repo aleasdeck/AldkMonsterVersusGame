@@ -2,8 +2,9 @@ import { App } from './ui/app';
 import { createRng, next } from './engine/rng';
 import type { RunsFeed } from './engine/globalStats';
 import { EVENT_WEIGHTS, LOCATION_BY_ID, ROOMS_PER_LOCATION } from './data/locations';
-import { offerTrials, startEvent } from './engine/run';
+import { offerThreshold, startEvent } from './engine/run';
 import { TRIALS } from './data/trials';
+import { BOONS, isDifficulty } from './data/boons';
 import { createBattle } from './engine/combat';
 import { HERO_LIST, heroDef } from './data/heroes';
 import type { EventKind, LocationId } from './engine/types';
@@ -79,7 +80,9 @@ if (heroParam) {
   const seedRaw = params.get('seed');
   // Третий аргумент — пометка debug: такой забег уйдёт в статистику как отладочный.
   // &sig=riposte — начать с указанным персональным артефактом героя, открыт он или нет.
-  app.newRun(heroParam, seedRaw ? Number(seedRaw) >>> 0 : undefined, true, params.get('sig') ?? undefined);
+  // &diff=easy|normal|hard — сложность забега; без него — выбранная на экране героя.
+  const diffParam = params.get('diff');
+  app.newRun(heroParam, seedRaw ? Number(seedRaw) >>> 0 : undefined, true, params.get('sig') ?? undefined, isDifficulty(diffParam) ? diffParam : undefined);
   const run = app.run!;
   // &art=id1,id2@3 — досыпать артефакты в оружие (для отладки интерфейса), тир через @ (по умолчанию 1); сокеты под них
   // универсальные, тип артефакта не важен
@@ -113,15 +116,24 @@ if (heroParam) {
   // &loc=1 — начать с указанного акта (0..2)
   const locParam = params.get('loc');
   if (locParam) run.locationIndex = Math.max(0, Math.min(2, Number(locParam) || 0));
-  // Испытания (v0.48): предложение — под локацию после &locs/&loc; &trial=pack — сразу выбрать заданное; отладочный вход
-  // в клетку (&enter/&phase/&room/&gauntlet) без &trial= идёт без испытания, чтобы старые адреса скриншотов не менялись.
-  if (locs.length || locParam) offerTrials(run);
+  // Порог локации (испытания v0.48, благословения): предложение — под локацию после &locs/&loc; &trial=pack или &boon=herbs —
+  // сразу выбрать заданное, при любой сложности; отладочный вход в клетку (&enter/&phase/&room/&gauntlet) без них идёт без
+  // выбора, чтобы старые адреса скриншотов не менялись.
+  if (locs.length || locParam) offerThreshold(run);
   const trialParam = params.get('trial');
+  const boonParam = params.get('boon');
   if (trialParam && trialParam in TRIALS) {
     run.trial = trialParam;
-    run.trialOffer = [];
     run.trialLog.push(trialParam);
-  } else if (params.get('enter') || params.get('phase') || params.get('room') || params.get('gauntlet')) run.trialOffer = [];
+  }
+  if (boonParam && boonParam in BOONS) {
+    run.boon = boonParam;
+    run.boonLog.push(boonParam);
+  }
+  if (run.trial || run.boon || params.get('enter') || params.get('phase') || params.get('room') || params.get('gauntlet')) {
+    run.trialOffer = [];
+    run.boonOffer = [];
+  }
   // &room=9 — начать с указанной клетки этажа (0..9): &room=9&phase=reward — трофей босса с подписью о лечении
   const roomParam = params.get('room');
   if (roomParam) run.roomIndex = Math.max(0, Math.min(ROOMS_PER_LOCATION - 1, Number(roomParam) || 0));
@@ -184,7 +196,7 @@ if (heroParam) {
     // &foes=goblin_shaman,goblin — заменить врагов боя заданными (ряд всё равно строится по ролям, v0.46)
     const foes = (params.get('foes') ?? '').split(',').filter((id) => ENEMY_LIST.some((e) => e.id === id));
     if (foes.length && run.battle) {
-      run.battle = createBattle(heroDef(run.hero.defId), run.hero, foes, run.rng, run.locationIndex);
+      run.battle = createBattle(heroDef(run.hero.defId), run.hero, foes, run.rng, run.locationIndex, run.trial, run.boon);
       app.render();
     }
     // &foeblock=8 — всем врагам блок на старте (латы блока на врагах, v0.52.7)

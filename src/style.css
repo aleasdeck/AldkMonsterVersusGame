@@ -494,12 +494,24 @@ p {
 .trial-card button {
   align-self: flex-start;
 }
+/* Благословение (лёгкая сложность) — та же карточка, зелёная. */
+.trial-card.boon {
+  border-color: #3f7a52;
+}
+.trial-card.boon .trial-glyph,
+.trial-card.boon .trial-name {
+  color: var(--good);
+}
 .trial-chip {
   margin-left: 6px;
   padding: 0 6px;
   border: 1px solid #55557a;
   color: var(--accent);
   cursor: help;
+}
+.trial-chip.boon {
+  color: var(--good);
+  border-color: #3f7a52;
 }
 
 /* ─── Панель героя ───────────────────────────────────────────────────── */
@@ -4115,6 +4127,39 @@ p {
 .hs-start {
   margin-left: auto;
   flex: none;
+}
+/* Сложность забега: три кнопки слева от старта, выбранная — рамкой и текстом своего цвета (--diff). */
+.hs-diff {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.hs-diff-label {
+  font-size: 18px;
+  margin-right: 4px;
+}
+.hs-diff-btn {
+  font: inherit;
+  font-size: 19px;
+  color: var(--dim);
+  background: #0d0d18;
+  border: 2px solid var(--border);
+  padding: 2px 8px 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.hs-diff-btn:hover {
+  color: var(--text);
+}
+.hs-diff-btn.active {
+  color: var(--diff);
+  border-color: var(--diff);
+  background: color-mix(in srgb, var(--diff) 14%, #0d0d18);
+}
+.hs-diff-glyph {
+  font-size: 16px;
 }
 /* Вкладка «Герой»: статы плитками и владение в той же сетке. */
 .hs-hero-tab {

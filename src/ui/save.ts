@@ -1,6 +1,7 @@
 import type { RunState } from '../engine/types';
 import { SAVE_VERSION } from '../engine/types';
-import type { HeroDef } from '../engine/types';
+import type { Difficulty, HeroDef } from '../engine/types';
+import { DEFAULT_DIFFICULTY, isDifficulty } from '../data/boons';
 import { HEROES, HERO_LIST, defaultSignature } from '../data/heroes';
 import { migrateFinds } from '../data/collection';
 import { HERO_MASTERY, LOCKED, UNLOCK_LEVEL, achievementKey, legacyXp, lockedArtifacts, masteryLevel, runXp, type MasteryState } from '../data/mastery';
@@ -52,6 +53,8 @@ export interface Profile {
   startPick: Record<string, string>;
   /** Отладка `mv.unlockAll()`: открыто всё мастерство — черты, старты, закрытые артефакты. */
   allUnlocked?: boolean;
+  /** Сложность последнего забега: с неё начинается следующий выбор на экране героя. Нет — «Средний». */
+  difficulty?: Difficulty;
 }
 
 function emptyProfile(): Profile {
@@ -77,6 +80,18 @@ function emptyProfile(): Profile {
     traitPick: {},
     startPick: {},
   };
+}
+
+/** С какой сложностью пойдёт следующий забег: выбор из профиля, иначе «Средний». */
+export function pickedDifficulty(p: Profile): Difficulty {
+  return isDifficulty(p.difficulty) ? p.difficulty : DEFAULT_DIFFICULTY;
+}
+
+/** Запомнить выбор сложности: он общий для всех героев. */
+export function saveDifficulty(d: Difficulty): Profile {
+  const p = loadProfile();
+  p.difficulty = d;
+  return saveProfile(p);
 }
 
 // ─── Мастерство (v0.45) ─────────────────────────────────────────────────────

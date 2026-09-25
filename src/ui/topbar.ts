@@ -1,4 +1,5 @@
 import { trialDef } from '../data/trials';
+import { boonDef, type BoonDef } from '../data/boons';
 import { button, h } from './dom';
 import { ACTS_PER_RUN, EVENT_NAMES, ROOM_KINDS, ROOM_NAMES } from '../data/locations';
 import { artifactDef } from '../data/artifacts';
@@ -71,12 +72,26 @@ export function trialTip(t: TrialDef, act: number): TipFn {
   ];
 }
 
-/** Чип испытания локации (v0.48): значок и подсказка с правилом — действует до конца локации. */
+/** Подсказка благословения: как у испытания, только зелёная шапка и совет — кому помогает. */
+export function boonTip(b: BoonDef, act: number): TipFn {
+  return () => [
+    tipHead({ icon: { glyph: b.glyph }, title: b.name, color: '#80ed99', sub: ['благословение локации', 'до конца локации'] }),
+    tipText(b.desc(act)),
+    tipNote(b.hint, 'bulb'),
+  ];
+}
+
+/** Чип испытания или благословения локации: значок и подсказка с правилом — действует до конца локации. */
 function trialChip(app: App): HTMLElement | null {
-  const id = app.run?.trial;
+  const run = app.run;
+  if (run?.boon) {
+    const b = boonDef(run.boon);
+    return h('span', { class: 'trial-chip boon', tip: boonTip(b, run.locationIndex) }, b.glyph);
+  }
+  const id = run?.trial;
   if (!id) return null;
   const t = trialDef(id);
-  return h('span', { class: 'trial-chip', tip: trialTip(t, app.run!.locationIndex) }, t.glyph);
+  return h('span', { class: 'trial-chip', tip: trialTip(t, run.locationIndex) }, t.glyph);
 }
 
 export function topbar(app: App): HTMLElement {
