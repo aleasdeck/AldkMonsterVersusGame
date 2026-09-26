@@ -101,6 +101,7 @@ export function newRun(
     boon: null,
     boonOffer: [],
     boonLog: [],
+    encounters: [],
   };
   offerThreshold(run);
   return run;
@@ -242,7 +243,14 @@ function startBattle(run: RunState, kind: 'fight' | 'elite' | 'boss'): void {
       : kind === 'elite'
         ? loc.encounters.elite
         : loc.encounters.boss;
-  let ids = pick(run.rng, table);
+  // Встреча не повторяется в локации, пока в таблице есть несыгранные (v0.53.1). Выбор с возвратом давал второй бой, как
+  // первый, в каждой шестой локации, а хоть один повтор за локацию — почти в каждой второй. Сыгранное — в `run.encounters`;
+  // у босса вариант один, и когда таблица кончилась, выбор идёт из всей.
+  const played = (run.encounters ??= []);
+  const keyOf = (enc: string[]) => `${run.locationIndex}:${enc.join(',')}`;
+  const fresh = table.filter((enc) => !played.includes(keyOf(enc)));
+  let ids = pick(run.rng, fresh.length ? fresh : table);
+  played.push(keyOf(ids));
   // «Стая» и «Кладка» (v0.48): лишний противник в каждом бою, кроме босса.
   const extra = run.trial === 'pack' ? 'wolf' : run.trial === 'clutch' ? 'egg_cluster' : null;
   if (extra && kind !== 'boss' && ids.length < MAX_ENEMIES) ids = [...ids, extra];
