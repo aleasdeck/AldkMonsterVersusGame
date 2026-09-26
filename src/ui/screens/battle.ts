@@ -5,10 +5,10 @@ import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ART_TIER_COLORS, SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, effectiveCost, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
-import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, PlayerAction, WeaponReach } from '../../engine/types';
+import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, HeroBattle, PlayerAction, WeaponReach } from '../../engine/types';
 import { MAX_ALLIES } from '../../engine/types';
 import { actionPartLines, bar, coin, hpTip, statusIcons } from '../components';
 import { heroSprite } from '../heroSprite';
@@ -267,7 +267,8 @@ export interface TileSpec {
   dir?: number;
   /** Тир артефакта: рамка плитки цветом той же шкалы, что у карточки (со второго тира; удар и защита — без тира). */
   tier?: ArtTier;
-  cost: { kind: 'sta' | 'mp' | 'none'; text: string };
+  /** Цена по ресурсам: стамина и мана — отдельными частями (Молот света и Лечение платят обоими); бесплатный — пусто. */
+  cost: { kind: 'sta' | 'mp'; text: string }[];
   /** Причина недоступности приёма как такового: стамина, перезарядка, лимит; для приёма с целью — по лучшей из целей. */
   err: string | null;
   cooldown?: { left: number; total: number };
@@ -306,7 +307,7 @@ function tile(app: App, spec: TileSpec, busy: boolean, index: number): HTMLEleme
     cd ? h('div', { class: 'cd-fill', style: `height:${pct}%` }) : null,
     cd ? h('div', { class: 'cd-num' }, uiIcon('cd', 14), `${cd.left}`) : null,
     // Цена — пиксельным значком ресурса и числом, как ячейка «цена» на карточке и полоски STA/MP в консоли.
-    spec.cost.kind !== 'none' ? h('span', { class: `tile-cost cost-${spec.cost.kind}` }, uiIcon(spec.cost.kind, 12), spec.cost.text) : null,
+    spec.cost.length ? h('span', { class: 'tile-cost' }, ...spec.cost.map((c) => h('span', { class: `cost-${c.kind}` }, uiIcon(c.kind, 12), c.text))) : null,
     index < 9 ? h('span', { class: 'tile-key' }, `${index + 1}`) : null,
     h('div', { class: 'tile-glyph' }, spec.glyph),
     h('div', { class: `tile-value ${spec.dir ? (spec.dir > 0 ? 'up' : 'dn') : ''}`.trim() }, ...spec.value),
@@ -315,14 +316,17 @@ function tile(app: App, spec: TileSpec, busy: boolean, index: number): HTMLEleme
   return bindPreview(app, el, () => ({ ...spec.preview(), err: busy ? 'Ход врагов' : spec.err }));
 }
 
-/** Короткая цена для ярлыка: «1», «2», «вся» и её ресурс. */
-function costBadge(def: ArtifactDef, tier: ArtTier): TileSpec['cost'] {
-  const c = typeof def.cost === 'function' ? def.cost(tier) : def.cost;
-  if (!c) return { kind: 'none', text: '' };
-  if (c.sta === 'all') return { kind: 'sta', text: 'вся' };
-  if (c.sta) return { kind: 'sta', text: `${c.sta}` };
-  if (c.mp) return { kind: 'mp', text: `${c.mp}` };
-  return { kind: 'none', text: '' };
+/**
+ * Короткая цена для ярлыка: «1», «2», «вся» — отдельно на каждый ресурс, как чипы цены на карточках «Старта». Цена — та, что спишется
+ * сейчас (`effectiveCost`: «Перегрев» Мага удешевляет заклинания после первого).
+ */
+function costBadge(hero: HeroBattle, def: ArtifactDef, tier: ArtTier): TileSpec['cost'] {
+  const c = effectiveCost(hero, def, tier);
+  const out: TileSpec['cost'] = [];
+  if (c.sta === 'all') out.push({ kind: 'sta', text: 'вся' });
+  else if (c.sta) out.push({ kind: 'sta', text: `${c.sta}` });
+  if (c.mp) out.push({ kind: 'mp', text: `${c.mp}` });
+  return out;
 }
 
 /**
@@ -447,7 +451,7 @@ export function actionSpecs(app: App): TileSpec[] {
     name: atkName,
     value: [rangeText(atkRange), sweep ? h('small', null, 'всем') : null],
     dir: dirOf(atkRange, atkBase),
-    cost: { kind: 'sta', text: '1' },
+    cost: [{ kind: 'sta', text: '1' }],
     err: tileErr(atkAction, true),
     targeted: true,
     action: atkAction,
@@ -473,7 +477,7 @@ export function actionSpecs(app: App): TileSpec[] {
     glyph: '⛨',
     name: 'Защита',
     value: [`+${blk}`],
-    cost: { kind: 'sta', text: '1' },
+    cost: [{ kind: 'sta', text: '1' }],
     err: tileErr(defAction, false),
     targeted: false,
     action: defAction,
@@ -578,7 +582,7 @@ export function actionSpecs(app: App): TileSpec[] {
       value: err === 'Рядом нет места' ? [h('small', null, 'нет места')] : effectValue(effects, range, b.hero.stats),
       dir: dirOf(range, base),
       tier: inst.tier,
-      cost: costBadge(ad, inst.tier),
+      cost: costBadge(b.hero, ad, inst.tier),
       err,
       cooldown: cd > 0 ? { left: cd, total: Math.max(total, cd) } : undefined,
       targeted,

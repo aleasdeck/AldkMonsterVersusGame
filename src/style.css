@@ -1679,6 +1679,15 @@ p {
   border: 1px solid #2c2c44;
   z-index: 1;
 }
+/* Приём, который стоит и стамину, и ману (Молот света, Лечение), — две части подряд: значок и число каждого ресурса. */
+.tile-cost > span {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.tile-cost > span + span {
+  margin-left: 2px;
+}
 .cost-sta {
   color: var(--sta);
 }
