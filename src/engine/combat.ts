@@ -67,7 +67,7 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   bleed: 'N урона в начале хода, игнорирует блок. Складывается: новое наложение добавляет силу',
   burn: 'N урона в начале хода, игнорирует блок. Складывается: новое наложение добавляет силу',
   stun: 'Пропускает следующее действие; удары героя по оглушённому — всегда крит',
-  exhaust: '−1 стамины на следующем ходу',
+  exhaust: 'В начале своего хода −N стамины. До конца этого хода висит на герое: снять его (Глухая оборона, Противоядие) — вернуть стамину',
   dodge: 'Следующая атака не наносит урона',
   thorns: 'Атакующий получает N урона',
   regen: '+N HP в начале хода',
@@ -1449,8 +1449,15 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     case 'cleanse': {
       const bad: StatusId[] = eff.statuses ?? ['bleed', 'burn', 'poison', 'weak', 'exhaust', 'vulnerable'];
       const had = h.statuses.filter((s) => bad.includes(s.id)).map((s) => STATUS_NAMES[s.id]);
+      // Изнурение срезает стамину в начале хода и висит до его конца (v0.53.1): снять его в этот ход — вернуть отнятое.
+      const lost = bad.includes('exhaust') && getStatus(h, 'exhaust') ? (h.uses[EXHAUST_TAKEN] ?? 0) : 0;
       for (const id of bad) removeStatus(h, id);
       log(state, had.length ? `Снято: ${had.join(', ')}` : 'Снимать нечего');
+      if (lost > 0) {
+        h.sta += lost;
+        h.uses[EXHAUST_TAKEN] = 0;
+        log(state, `Изнурение снято: +${lost} STA`);
+      }
       break;
     }
     case 'summon':
@@ -1787,6 +1794,8 @@ const CROSS_STA = '_cross_sta';
 const CROSS_MP = '_cross_mp';
 /** Ключ заряда «Цепной атаки» в `hero.uses`: 1 — приём взвёл её, 0 или нет — нечем бить вдогонку. */
 const CHAIN_READY = '_chain_ready';
+/** Ключ в `hero.uses`: сколько стамины Изнурение срезало в начале этого хода — столько вернёт его снятие. */
+const EXHAUST_TAKEN = '_exhaust';
 
 function startPlayerTurn(state: BattleState): void {
   const h = state.hero;
@@ -1807,9 +1816,16 @@ function startPlayerTurn(state: BattleState): void {
   h.takenLast = h.takenNow;
   h.takenNow = 0;
   h.healedTurn = 0;
+  // Изнурение (v0.53.1): стамину срезает сразу, но само висит на герое до конца хода — его видно, и снять его в этот ход
+  // (Глухая оборона, Противоядие, отвар) значит вернуть отнятое. До v0.53.1 оно снималось здесь же, и чистить было нечего.
+  // Изнурение, наложенное уже в этом ходу (Адреналин, хватка щупальца), кладёт срок 2 и доживает до следующего хода.
   const ex = getStatus(h, 'exhaust');
-  h.sta = Math.max(0, h.maxSta - (ex?.value ?? 0));
-  if (ex) removeStatus(h, 'exhaust');
+  const taken = Math.min(h.maxSta, ex?.value ?? 0);
+  h.sta = h.maxSta - taken;
+  if (ex) {
+    ex.turns = 1;
+    h.uses[EXHAUST_TAKEN] = taken;
+  }
   // «Боевой транс»: раненому — лишнее очко в начале хода (проверка до ран этого хода, как и Сила — по HP на момент начала).
   if (h.stats.lowHpSta > 0 && inTrance(h)) {
     h.sta += h.stats.lowHpSta;

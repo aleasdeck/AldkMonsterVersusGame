@@ -353,16 +353,20 @@ const list: EnemyDef[] = [
     location: 'crypt',
     rank: 'normal',
     role: 'caster',
+    // v0.53.1 (жалоба с плейтеста: «бесит — Слабость и щит бесконечно, щит на первых актах не пробить»): был круг из двух —
+    // Касание со Слабостью на 2 хода и щит 30, то есть герой слаб всегда, а через ход бьёт в стену больше HP призрака.
+    // Теперь круг из четырёх ходов: Слабость на 1 ход, щит 20 раз в круг, а между ними Вопль с замахом — окно, чтобы добить.
     actions: [
       act('touch', 'Касание', [
         { type: 'attack', amount: 7 },
-        { type: 'debuff', status: 'weak', value: 1, turns: 2 },
+        { type: 'debuff', status: 'weak', value: 1, turns: 1 },
       ]),
-      act('vanish', 'Исчезновение', [{ type: 'block', amount: 30 }]),
+      act('vanish', 'Исчезновение', [{ type: 'block', amount: 20 }]),
+      ...windup('gather', 'Сгущается', act('wail', 'Вопль', [{ type: 'attack', amount: 12 }])),
       // Мёртвые видят в темноте: против игры из тени.
       listen('Холод могилы', 7),
     ],
-    ai: priority([when('listen', heroHidden)], ['touch', 'vanish']),
+    ai: priority([when('listen', heroHidden)], ['touch', 'vanish', 'gather']),
     sprite: blob('#3a4a6b', '#c9d6ff', '#8fa3d6', '#1b1f3a'),
   },
   {
@@ -1397,7 +1401,8 @@ const list: EnemyDef[] = [
       name: 'Предсмертный захват',
       effects: [
         { type: 'attack', amount: 6 },
-        { type: 'debuff', status: 'exhaust', value: 1, turns: 1 },
+        // Срок 2, как у Адреналина: щупальце гибнет обычно в ход героя, и тик конца хода снял бы срок 1 до следующего.
+        { type: 'debuff', status: 'exhaust', value: 1, turns: 2 },
       ],
     },
     sprite: blob('#0a1020', '#6a2a5a', '#401a3a', '#ffd166', 20),

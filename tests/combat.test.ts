@@ -540,6 +540,28 @@ describe('новые механики врагов', () => {
     expect(getStatus(h, 'bleed')).toBeDefined();
   });
 
+  it('Изнурение режет стамину в начале хода и висит до его конца: Глухая оборона снимает его и возвращает стамину (v0.53.1)', () => {
+    const { state, rng } = mkBattle('warrior', ['spider'], { extra: [{ id: 'deaf_defense', tier: 1 }] });
+    const h = state.hero;
+    pass(state, rng, 2); // укус, потом Паутина
+    expect(getStatus(h, 'exhaust')?.value).toBe(1);
+    expect(h.sta).toBe(h.maxSta - 1);
+    performAction(state, { type: 'artifact', artifactId: 'deaf_defense' }, rng);
+    expect(getStatus(h, 'exhaust')).toBeUndefined();
+    expect(h.sta).toBe(h.maxSta - 1); // оборона стоит 1, отнятая 1 вернулась
+    expect(state.log).toContain('Изнурение снято: +1 STA');
+  });
+
+  it('неснятое Изнурение уходит с концом хода и не режет стамину дважды', () => {
+    const { state, rng } = mkBattle('warrior', ['spider']);
+    const h = state.hero;
+    pass(state, rng, 2);
+    expect(h.sta).toBe(h.maxSta - 1);
+    pass(state, rng); // снова укус
+    expect(getStatus(h, 'exhaust')).toBeUndefined();
+    expect(h.sta).toBe(h.maxSta);
+  });
+
   it('бронные пассивки v0.31.1 работают как перки брони: удар слабее, первая атака мимо', () => {
     const { state } = mkBattle('warrior', ['spider'], {
       extra: [
@@ -576,6 +598,9 @@ describe('новые механики врагов', () => {
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(state.hero.hp).toBe(hp0 - 5); // захват 6, Кольца кольчуги гасят 1
     expect(getStatus(state.hero, 'exhaust')).toBeTruthy();
+    // Захват приходит в ход героя — изнурение доживает до следующего хода и срезает стамину там (до v0.53.1 сгорало впустую).
+    pass(state, rng);
+    expect(state.hero.sta).toBe(state.hero.maxSta - 1);
   });
 
   it('порох мартышки рвётся, если убить её до Подрыва, и только один раз, если она подорвалась сама', () => {

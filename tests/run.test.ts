@@ -404,6 +404,33 @@ describe('забег', () => {
     expect(FIGHTS_PER_RUN).toBe(21);
   });
 
+  it('бой не повторяет встречу своей локации, пока в таблице есть несыгранные (v0.53.1)', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const run = newRun('warrior', seed, 0);
+      for (let loc = 0; loc < 3; loc++) {
+        run.locationIndex = loc;
+        for (const room of [0, 1, 3, 4, 6]) {
+          run.roomIndex = room;
+          run.phase = 'map';
+          run.battle = null;
+          enterRoom(run);
+          expect(run.phase).toBe('battle');
+        }
+        const here = run.encounters!.filter((k) => k.startsWith(`${loc}:`));
+        expect(here).toHaveLength(5);
+        expect(new Set(here).size).toBe(5);
+      }
+    }
+  });
+
+  it('забег, сохранённый без списка встреч, продолжается: список появляется с первым боем', () => {
+    const run = newRun('warrior', 3, 0);
+    delete run.encounters;
+    enterRoom(run);
+    expect(run.phase).toBe('battle');
+    expect(run.encounters).toHaveLength(1);
+  });
+
   it('событие выпадает по весам: на 3000 бросках доли близки к 10/5/25/25/25/10', () => {
     const rng = createRng(7);
     const counts: Record<string, number> = {};
