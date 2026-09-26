@@ -1397,7 +1397,8 @@ const list: EnemyDef[] = [
       name: 'Предсмертный захват',
       effects: [
         { type: 'attack', amount: 6 },
-        { type: 'debuff', status: 'exhaust', value: 1, turns: 1 },
+        // Срок 2, как у Адреналина: щупальце гибнет обычно в ход героя, и тик конца хода снял бы срок 1 до следующего.
+        { type: 'debuff', status: 'exhaust', value: 1, turns: 2 },
       ],
     },
     sprite: blob('#0a1020', '#6a2a5a', '#401a3a', '#ffd166', 20),
