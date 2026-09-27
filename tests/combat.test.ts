@@ -1651,15 +1651,23 @@ describe('v0.38: связки', () => {
     expect(state.log.some((l) => l.includes('гниль = 6'))).toBe(true);
   });
 
-  it('Заражение: яд с цели копируется на остальных с той же силой и сроком', () => {
+  it('Заражение: сначала свой Яд на цель, потом весь Яд цели копируется на остальных с той же силой', () => {
     const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], { extra: [{ id: 'poison_vial', tier: 1 }, { id: 'contagion', tier: 1 }] });
     const [a, b] = state.enemies;
     performAction(state, { type: 'artifact', artifactId: 'poison_vial', target: b.uid }, rng);
     performAction(state, { type: 'artifact', artifactId: 'contagion', target: b.uid }, rng);
-    // Флакон 3 (v0.54) + набор «Яд» 2 (Флакон и Заражение, v0.47) 1; у Яда нет срока.
-    expect(getStatus(a, 'poison')).toEqual({ id: 'poison', value: 4, turns: -1 });
-    expect(getStatus(b, 'poison')).toEqual({ id: 'poison', value: 4, turns: -1 });
+    // Флакон 3 (v0.54) + Заражение 1, к каждому +1 набора «Яд» 2 (Флакон и Заражение, v0.47) — 6; у Яда нет срока.
+    expect(getStatus(b, 'poison')).toEqual({ id: 'poison', value: 6, turns: -1 });
+    expect(getStatus(a, 'poison')).toEqual({ id: 'poison', value: 6, turns: -1 });
     expect(state.hero.sta).toBe(0);
+  });
+
+  it('Заражение против одиночки: приём не пустой — кладёт свой Яд по тиру', () => {
+    const { state, rng } = mkBattle('warrior', ['boar'], { extra: [{ id: 'contagion', tier: 3 }] });
+    const boar = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'contagion', target: boar.uid }, rng);
+    expect(getStatus(boar, 'poison')).toEqual({ id: 'poison', value: 3, turns: -1 });
+    expect(state.log.some((l) => l.includes('Заражать нечем'))).toBe(false);
   });
 
   it('Взрыв пламени: горение снимается со всех и суммой бьёт каждого', () => {

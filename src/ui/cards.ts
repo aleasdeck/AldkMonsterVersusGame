@@ -166,6 +166,7 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
       case 'cleanse':
         return 'снимает раны';
       case 'status':
+        if (def.effects?.(inst.tier).some((x) => x.type === 'spread')) continue;
         return e.target === 'self' ? 'бафф' : 'дебафф';
       case 'pull':
         return 'в первый ряд';
