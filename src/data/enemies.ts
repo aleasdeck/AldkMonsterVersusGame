@@ -1055,7 +1055,7 @@ const list: EnemyDef[] = [
       ]),
       act('call', 'Зов пиявок', [{ type: 'summon', enemyId: 'leech', count: 2 }]),
       act('rot', 'Гниль', [{ type: 'debuff', status: 'bleed', value: 2, turns: 3 }]),
-      act('rot2', 'Трупный яд', [{ type: 'debuff', status: 'poison', value: 4, turns: 3 }]),
+      act('rot2', 'Болотный яд', [{ type: 'debuff', status: 'poison', value: 4, turns: 3 }]),
       act('submerge', 'Погружение', [{ type: 'block', amount: 10 }]),
       act('devour', 'Пожирание', [{ type: 'attack', amount: 8, drain: true }]),
     ],
