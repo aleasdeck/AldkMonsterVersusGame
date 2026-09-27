@@ -46,6 +46,8 @@ import {
   shopReroll,
   skipReward,
   startEvent,
+  chestClosed,
+  openChest,
   takeChest,
   takeReward,
   awaitsFocus,
@@ -125,7 +127,10 @@ function playRun(run: RunState, immortal = false): void {
         else takeReward(run, 0);
         break;
       case 'event':
-        if (run.event?.kind === 'chest') takeChest(run);
+        if (run.event?.kind === 'chest') {
+          openChest(run);
+          takeChest(run);
+        }
         else if (run.event?.kind === 'altar') altarPray(run);
         else leaveEvent(run);
         break;
@@ -741,12 +746,18 @@ describe('забег', () => {
     expect(run3.roomIndex).toBe(3);
   });
 
-  it('сундук: экипировка надевается сразу, можно оставить', () => {
+  it('сундук: стоит закрытым, из открытого экипировка надевается сразу, можно оставить', () => {
     const run = newRun('warrior', 9);
     run.roomIndex = 2;
     startEvent(run, 'chest');
     expect(run.event?.kind).toBe('chest');
+    expect(chestClosed(run)).toBe(true);
     const gear = run.event?.kind === 'chest' ? run.event.gear : null;
+    // Из закрытого не взять: сначала «Открыть».
+    takeChest(run);
+    expect(run.phase).toBe('event');
+    openChest(run);
+    expect(chestClosed(run)).toBe(false);
     takeChest(run);
     if (run.pending) resolvePending(run);
     expect(gearOf(run.hero, gear!.kind).name).toBe(gear!.name);
@@ -756,6 +767,7 @@ describe('забег', () => {
     run2.roomIndex = 2;
     startEvent(run2, 'chest');
     const before = run2.hero.weapon.name + run2.hero.armor.name;
+    // Пройти мимо можно, не открывая.
     leaveEvent(run2);
     expect(run2.hero.weapon.name + run2.hero.armor.name).toBe(before);
     expect(run2.phase).toBe('map');

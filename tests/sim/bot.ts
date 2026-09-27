@@ -73,6 +73,7 @@ import {
   shopHealAmount,
   shopReroll,
   skipReward,
+  openChest,
   takeChest,
   takeReward,
 } from '../../src/engine/run';
@@ -724,10 +725,13 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         per += stock * e.mult * (e.pooled ? 1.8 * 1.5 : e.target === 'allEnemies' ? 1.8 : 1) * W.enemyHp;
         break;
       }
-      case 'spread':
+      case 'spread': {
         // Заражение и Кровавая баня: рана с одной цели на остальных полторы — при заводке; баня — долей силы.
-        per += 9 * 1.5 * (e.pct ?? 1) * W.enemyHp * src(e.statuses);
+        // Заражение само кладёт Яд перед разносом: его копия уходит всем и без заводки в руках.
+        const own = (def.effects?.(inst.tier) ?? []).reduce((sum, o) => sum + (o.type === 'status' && e.statuses.includes(o.status) ? o.value : 0), 0);
+        per += (9 * src(e.statuses) + own) * 1.5 * (e.pct ?? 1) * W.enemyHp;
         break;
+      }
       case 'scorch':
         // Испепеление: Горение цели × mult разом, огонь остаётся — при заводке Горение на цели около шести.
         per += (applies.has('burn') ? 6 : 1) * e.mult * W.enemyHp;
@@ -1020,7 +1024,11 @@ export function chooseEventRoom(run: RunState): void {
   const ev = run.event;
   if (!ev) return;
   if (ev.kind === 'chest') {
-    if (gearGain(run, ev.gear) > 0) takeChest(run);
+    // Содержимое боту видно и в закрытом сундуке — открывает только то, что возьмёт.
+    if (gearGain(run, ev.gear) > 0) {
+      openChest(run);
+      takeChest(run);
+    }
     else leaveEvent(run);
     return;
   }

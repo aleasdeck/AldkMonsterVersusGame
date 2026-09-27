@@ -699,15 +699,26 @@ export function bossHealAmount(run: RunState): number {
   return healAmount(run, BOSS_HEAL_PCT);
 }
 
-/** Уйти из события ни с чем: захлопнуть сундук, пройти мимо алтаря или кузнеца. */
+/** Уйти из события ни с чем: пройти мимо сундука (закрытого или открытого), алтаря или кузнеца. */
 export function leaveEvent(run: RunState): void {
   if (run.phase !== 'event' || run.pending) return;
   advanceRoom(run);
 }
 
-/** Сундук: экипировка надевается сразу, старый предмет пропадает, лишние артефакты ждут выбора слота. */
+/** Сундук стоит закрытым: что внутри, видно только после «Открыть». Пройти мимо можно и не открывая. */
+export function chestClosed(run: RunState): boolean {
+  return run.phase === 'event' && run.event?.kind === 'chest' && !run.event.opened;
+}
+
+/** Открыть сундук: показать предмет. Надеть или оставить — следующим выбором. */
+export function openChest(run: RunState): void {
+  if (!chestClosed(run) || run.event?.kind !== 'chest') return;
+  run.event.opened = true;
+}
+
+/** Сундук: экипировка надевается сразу, старый предмет пропадает, лишние артефакты ждут выбора слота. Только из открытого. */
 export function takeChest(run: RunState): void {
-  if (run.phase !== 'event' || run.event?.kind !== 'chest' || run.pending) return;
+  if (run.phase !== 'event' || run.event?.kind !== 'chest' || !run.event.opened || run.pending) return;
   giveGear(run, { kind: 'gear', gear: run.event.gear });
   if (!run.pending) advanceRoom(run);
 }
