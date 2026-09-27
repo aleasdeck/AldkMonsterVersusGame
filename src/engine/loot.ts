@@ -186,9 +186,10 @@ function artifactStatuses(id: string): ArtifactStatuses {
 /** Что герой уже вешает на врагов: аффиксы и перки снаряжения (они лежат в статах) плюс эффекты вставленных артефактов. */
 function heroApplies(hero: HeroPersistent, s: DerivedStats): Set<StatusId> {
   const out = new Set<StatusId>();
-  if (s.onHitBleed > 0) out.add('bleed');
-  if (s.onHitBurn > 0) out.add('burn');
-  if (s.onHitPoison > 0) out.add('poison');
+  // Стихийный аффикс (v0.54 — с первой атаки хода) — тоже заводка своей раны.
+  if (s.onHitBleed > 0 || s.affBleed > 0) out.add('bleed');
+  if (s.onHitBurn > 0 || s.affBurn > 0) out.add('burn');
+  if (s.onHitPoison > 0 || s.affPoison > 0) out.add('poison');
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
   if (s.onHitCold > 0) out.add('cold');

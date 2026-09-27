@@ -576,6 +576,9 @@ interface AffixDef {
   values: ByTier;
 }
 
+/** Доля урона атаки по HP, которую возвращает единица вампиризма (v0.54): Вампирский клык 1 / 2 / 3 — 5 / 10 / 15 %, аффикс 1–2 — 5–10 %. */
+export const VAMP_PCT = 0.05;
+
 const WEAPON_AFFIXES: AffixDef[] = [
   { stat: 'str', values: [1, 1, 1, 2, 2] },
   { stat: 'crit', values: [0.04, 0.06, 0.08, 0.1, 0.12] },
@@ -603,6 +606,23 @@ export function rollAffix(rng: Rng, kind: GearKind, tier: GearTier): GearAffix {
   return { stat: a.stat, value: a.values[tier - 1] };
 }
 
+/** Что делает аффикс, если из имени не видно (v0.54): стихийные — рана с первой атаки хода, вампиризм — доля урона. */
+export function affixHint(affix: GearAffix): string | null {
+  const v = affix.value;
+  switch (affix.stat) {
+    case 'onHitBleed':
+      return `Первая атака хода вешает Кровотечение ${v} на 2 хода`;
+    case 'onHitBurn':
+      return `Первая атака хода вешает Горение ${v}`;
+    case 'onHitPoison':
+      return `Первая атака хода вешает Яд ${v}`;
+    case 'lifesteal':
+      return `Базовая атака лечит на ${Math.round(v * VAMP_PCT * 100)} % урона по HP`;
+    default:
+      return null;
+  }
+}
+
 export function affixText(affix: GearAffix): string {
   const v = affix.value;
   switch (affix.stat) {
@@ -613,7 +633,7 @@ export function affixText(affix: GearAffix): string {
     case 'critDmg':
       return `+${v} % крит. урон`;
     case 'lifesteal':
-      return `+${v} вампиризм`;
+      return `+${Math.round(v * VAMP_PCT * 100)} % вампиризма`;
     case 'spellPower':
       return `+${v} к заклинаниям`;
     // Коротко, как остальные аффиксы (решение пользователя): что делает стихия — в подсказке ключевого слова и в листе персонажа.
@@ -640,8 +660,15 @@ export function affixText(affix: GearAffix): string {
   }
 }
 
+/**
+ * Стихийный аффикс кладёт рану только первой атакой хода (v0.54, ADR 0005): в статы он идёт своим статом, а не общим
+ * «рана с удара» — иначе движок не отличит его от Зазубренного лезвия, которое бьёт каждым ударом.
+ */
+const AFFIX_WOUND: Partial<Record<keyof DerivedStats, keyof DerivedStats>> = { onHitBleed: 'affBleed', onHitBurn: 'affBurn', onHitPoison: 'affPoison' };
+
 export function affixMods(gear: GearInstance): StatMods {
-  return gear.affix ? { [gear.affix.stat]: gear.affix.value } : {};
+  if (!gear.affix) return {};
+  return { [AFFIX_WOUND[gear.affix.stat] ?? gear.affix.stat]: gear.affix.value };
 }
 
 // ─── Генерация ─────────────────────────────────────────────────────────────

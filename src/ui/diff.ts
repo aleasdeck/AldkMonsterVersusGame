@@ -2,21 +2,26 @@ import type { DerivedStats, GearInstance, RunState } from '../engine/types';
 import { heroDef } from '../data/heroes';
 import { artifactDef } from '../data/artifacts';
 import { previewGearSwap } from '../engine/stats';
+import { VAMP_PCT } from '../engine/combat';
 
 // ─── Сравнение с надетым (v0.50) ───────────────────────────────────────────
 // Таблица карточки экипировки «надето → эта»: считает previewGearSwap на копии героя, поэтому владение, перки и аффиксы
 // обеих вещей уже учтены. Сокеты не пишутся — их видно в подвале карточки; потерянные артефакты — отдельной строкой.
 
 /** Статы, которые попадают в сравнение, если меняются (урон у оружия и DEF/HP у брони — всегда). */
-const EXTRA: { key: keyof DerivedStats; name: string; pct?: boolean }[] = [
+const EXTRA: { key: keyof DerivedStats; name: string; pct?: boolean; fmt?: (v: number) => string }[] = [
   { key: 'crit', name: 'крит', pct: true },
   { key: 'critDmg', name: '% крит. урона' },
   { key: 'spellPower', name: 'к заклинаниям' },
   { key: 'str', name: 'Сила' },
-  { key: 'lifesteal', name: 'вампиризм' },
+  // Вампиризм v0.54 — доля урона: единица стата — VAMP_PCT (5 %).
+  { key: 'lifesteal', name: 'вампиризм', fmt: (v) => `${Math.round(v * VAMP_PCT * 100)} %` },
   { key: 'onHitBleed', name: 'кровь с удара' },
   { key: 'onHitBurn', name: 'горение с удара' },
   { key: 'onHitPoison', name: 'яд с удара' },
+  { key: 'affBleed', name: 'кровь с первой атаки' },
+  { key: 'affBurn', name: 'горение с первой атаки' },
+  { key: 'affPoison', name: 'яд с первой атаки' },
   { key: 'thorns', name: 'шипы' },
   { key: 'regen', name: 'реген' },
   { key: 'maxMp', name: 'MP' },
@@ -62,6 +67,6 @@ export function gearCompare(run: RunState, gear: GearInstance): GearCompare {
   }
   num('def', 'DEF', b.def, a.def, undefined, gear.kind === 'armor');
   num('hp', 'HP', b.maxHp, a.maxHp, undefined, gear.kind === 'armor');
-  for (const x of EXTRA) num(x.key, x.name, b[x.key], a[x.key], x.pct ? (v) => `${Math.round(v * 100)} %` : undefined);
+  for (const x of EXTRA) num(x.key, x.name, b[x.key], a[x.key], x.fmt ?? (x.pct ? (v) => `${Math.round(v * 100)} %` : undefined));
   return { rows, overflow: p.overflow.map((x) => artifactDef(x.id).name) };
 }

@@ -55,9 +55,9 @@ const list: PotionDef[] = [
     // Раздуть) и бьёт мимо блока второй половиной. Суммарно 5 + 3 × 2 = 11 на каждого против прежних 8 разом.
     effects: [
       { type: 'spell', amount: 5, target: 'allEnemies' },
-      { type: 'status', target: 'allEnemies', status: 'burn', value: 3, turns: 2 },
+      { type: 'status', target: 'allEnemies', status: 'burn', value: 4, turns: 2 },
     ],
-    describe: '5 урона заклинанием всем врагам и Горение 3 на 2 хода. Выводит из скрытности.',
+    describe: '5 урона заклинанием всем врагам и Горение 4. Выводит из скрытности.',
   },
   {
     id: 'antidote',

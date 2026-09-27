@@ -8,7 +8,7 @@ import { ART_TIER_COLORS, GEAR_TIERS, REACH_NAMES, weaponReach } from '../data/g
 import { type Collectible, type FoundState } from '../data/collection';
 import type { HeroDef } from '../engine/types';
 import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, canPlaceArtifact, findSameArtifact, gearOf, slotAccepts, slotKindAt, socketRefs } from '../engine/equipment';
-import { STATUS_NAMES, freezeAt, onDeathInfo, type ActionPart, type IntentKind } from '../engine/combat';
+import { STATUS_NAMES, freezeAt, onDeathInfo, statusRemaining, type ActionPart, type IntentKind } from '../engine/combat';
 import type { App } from './app';
 import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
 import type { ArchetypeId } from '../engine/types';
@@ -388,7 +388,10 @@ export function statusTip(s: Status, enemy?: EnemyState): TipFn {
     // Холод на враге (v0.51.1): «накоплено/порог» — сколько осталось до Оцепенения; порог у каждого врага свой (лёд крепчает).
     const coldCap = s.id === 'cold' && enemy ? freezeAt(enemy) : 0;
     const sub: Child[] = [];
-    if (s.turns > 0) sub.push(h('span', null, uiIcon('cd', 12), `ещё ${s.turns} ${turnsWord(s.turns)}`));
+    // Раны v0.54: у Яда и Горения срока нет — вместо «до конца боя» пишем, как рана угасает.
+    if (s.id === 'poison') sub.push('слабеет на 1 за ход');
+    else if (s.id === 'burn') sub.push(s.hold ? 'раздуто: в этот тик не погаснет' : 'гаснет вдвое за ход');
+    else if (s.turns > 0) sub.push(h('span', null, uiIcon('cd', 12), `ещё ${s.turns} ${turnsWord(s.turns)}`));
     else if (s.turns < 0 && s.id !== 'doom') sub.push('до конца боя');
     if (s.element) sub.push(h('span', null, 'стихия ', statusIcon(s.element, 12), ` ${STATUS_NAMES[s.element]}`));
     const val = coldCap ? `${s.value}/${coldCap}` : showValue ? `${s.value}` : '';
@@ -402,13 +405,18 @@ export function statusTip(s: Status, enemy?: EnemyState): TipFn {
       out.push(tipText(`Погибнув, враг напоследок применит «${doom.name}»:`));
       out.push(actionPartLines(doom.parts));
     } else out.push(tipText(statusHint(s.id, showValue ? s.value : null)));
+    // Остаток раны (v0.54): сколько она ещё нанесёт, если её не трогать, — это же вскрывают выплаты; у Кровотечения — порции.
+    if (s.id === 'bleed' || s.id === 'burn' || s.id === 'poison') {
+      if (s.parts && s.parts.length > 1) out.push(tipNote(`Порции: ${s.parts.map((p) => `${p.v}${p.t > 0 ? ` (ещё ${p.t} ${turnsWord(p.t)})` : ''}`).join(' + ')}`));
+      out.push(tipNote(`Нанесёт ещё ${statusRemaining(s)}, если не трогать`));
+    }
     return out;
   };
 }
 
 /**
  * Статусы бойца. Для врага передаётся он сам: «Предсмертие» тогда расписывает в подсказке
- * его onDeath с числами под акт («Вспышка: Атака 6, Горение 3 на 2 хода»).
+ * его onDeath с числами под акт («Вспышка: Атака 6, Горение 3»).
  */
 export function statusIcons(c: Combatant, enemy?: EnemyState): HTMLElement {
   return h(

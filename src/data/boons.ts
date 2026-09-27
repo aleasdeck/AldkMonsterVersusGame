@@ -1,5 +1,9 @@
 import type { Difficulty, LocationId } from '../engine/types';
-import { trialValue } from './trials';
+import { byAct, trialValue } from './trials';
+
+/** Раны благословений по акту (v0.54): Яд и Горение без срока, первые два тика — как прежние «N на T ходов» (ADR 0005). */
+export const MIASMA_POISON = [3, 4, 4];
+export const FORGE_HEAT_BURN = [3, 4, 5];
 
 // ─── Сложность забега и благословения локаций ─────────────────────────────
 // Сложность выбирается перед забегом (решение пользователя): «Сложный» — испытание перед каждой локацией (v0.48, trials.ts),
@@ -61,7 +65,7 @@ const list: BoonDef[] = [
   { id: 'tracker', location: 'forest', name: 'Следопыт', glyph: '➶', desc: () => 'В первый ход боя все враги Уязвимы', hint: 'Помогает Серии, Тени и площади — тем, кто решает бой первым ходом' },
   { id: 'herbs', location: 'forest', name: 'Целебные травы', glyph: '✿', desc: (act) => `После каждого выигранного боя герой лечится на ${trialValue(4, act)} HP`, hint: 'Помогает тем, кому нечем лечиться в бою' },
   // ═══ Болота ═══
-  { id: 'miasma', location: 'swamp', name: 'Болотный смрад', glyph: '☣', desc: (act) => `Все враги начинают бой с Ядом ${trialValue(2, act)} на 3 хода`, hint: 'Помогает Яду и долгим боям' },
+  { id: 'miasma', location: 'swamp', name: 'Болотный смрад', glyph: '☣', desc: (act) => `Все враги начинают бой с Ядом ${byAct(MIASMA_POISON, act)}`, hint: 'Помогает Яду и долгим боям' },
   { id: 'hummock', location: 'swamp', name: 'Кочки', glyph: '≋', desc: () => 'В первый ход боя +1 STA', hint: 'Помогает ударам оружием и Серии: лишнее действие в самый нужный ход' },
   { id: 'wisp_guide', location: 'swamp', name: 'Добрые огни', glyph: '✧', desc: () => 'Герой начинает каждый бой с Уклонением от одной атаки', hint: 'Помогает хрупким: первый удар врага уйдёт мимо' },
   // ═══ Склеп ═══
@@ -73,7 +77,7 @@ const list: BoonDef[] = [
   { id: 'royal_jelly', location: 'hive', name: 'Маточное молочко', glyph: '◌', desc: (act) => `Герой начинает бой с Регенерацией ${trialValue(1, act)} до конца боя`, hint: 'Помогает долгим боям и тем, кто пережидает за блоком' },
   { id: 'stinger', location: 'hive', name: 'Жало', glyph: '⚚', desc: () => 'Первый удар героя в каждом бою — наверняка критический', hint: 'Помогает крит-сборкам и тяжёлому оружию' },
   // ═══ Пещеры огня ═══
-  { id: 'forge_heat', location: 'caves', name: 'Жар горна', glyph: '☀', desc: (act) => `Все враги начинают бой с Горением ${trialValue(2, act)} на 2 хода`, hint: 'Помогает Огню: горящие враги — повод для выплат' },
+  { id: 'forge_heat', location: 'caves', name: 'Жар горна', glyph: '☀', desc: (act) => `Все враги начинают бой с Горением ${byAct(FORGE_HEAT_BURN, act)}`, hint: 'Помогает Огню: горящие враги — повод для выплат' },
   { id: 'lava_veins', location: 'caves', name: 'Лавовые жилы', glyph: '♨', desc: (act) => `Каждый убитый враг опаляет живых: ${trialValue(3, act)} урона мимо блока (не добивает)`, hint: 'Помогает тем, кто убивает по одному: каждая смерть бьёт остальных' },
   { id: 'tempered', location: 'caves', name: 'Закалка', glyph: '▣', desc: () => '«Защититься» даёт на 30 % больше блока', hint: 'Помогает Щиту и тем, кто защищается' },
   // ═══ Корабль ═══

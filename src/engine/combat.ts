@@ -27,11 +27,12 @@ import { chance, int, pick, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef, PHASE_SHIFT } from '../data/enemies';
 import { enemyScale, locationDef, type EnemyMults } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
-import { SWEEP_MULT } from '../data/gear';
+import { SWEEP_MULT, VAMP_PCT } from '../data/gear';
+export { VAMP_PCT };
 import { potionDef } from '../data/potions';
 import { computeStats, innateOf, socketedArtifacts, statCtxOf } from './stats';
-import { ACID_BLOCK_MULT, CANNONADE_PCT, CRYPT_CURSE_MULT, HOT_ARMOR_MULT, trialValue } from '../data/trials';
-import { BROADSIDE_PCT, HOLY_WATER_MULT, TEMPERED_MULT, wolfFriendHp } from '../data/boons';
+import { ACID_BLOCK_MULT, CANNONADE_PCT, CRYPT_CURSE_MULT, FIRE_BLOOD_BURN, HEAT_BURN, HOT_ARMOR_MULT, MIRE_POISON, byAct, trialValue } from '../data/trials';
+import { BROADSIDE_PCT, FORGE_HEAT_BURN, HOLY_WATER_MULT, MIASMA_POISON, TEMPERED_MULT, wolfFriendHp } from '../data/boons';
 
 export const STATUS_NAMES: Record<StatusId, string> = {
   strength: 'Сила',
@@ -58,27 +59,29 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   frozen: 'Оцепенение',
   focus: 'Верный глаз',
   taunt: 'Насмешка',
+  decay: 'Распад',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
   // Срок у Силы свой у каждого источника (клич — на два хода, ярость — на ход, баф врага — до конца боя): подсказка статуса пишет его отдельно.
   strength: '+N к урону атак, пока держится',
   weak: 'Урон атак −25 %',
-  bleed: 'N урона в начале хода, игнорирует блок. Складывается: новое наложение добавляет силу',
-  burn: 'N урона в начале хода, игнорирует блок. Складывается: новое наложение добавляет силу',
+  // Правила ран v0.54 (ADR 0005): у каждой свой ход — Кровотечение порциями, Горение вспышкой, Яд медленно.
+  bleed: 'N урона в начале хода, игнорирует блок. Каждое наложение — своя порция со своим сроком: «3 на 2 хода» — ровно 6 урона',
+  burn: 'N урона в начале хода, игнорирует блок, потом Горение гаснет вдвое. Наложения складываются: Горение 8 — это 8 + 4 + 2 + 1',
   stun: 'Пропускает следующее действие; удары героя по оглушённому — всегда крит',
   exhaust: 'В начале своего хода −N стамины. До конца этого хода висит на герое: снять его (Глухая оборона, Противоядие) — вернуть стамину',
   dodge: 'Следующая атака не наносит урона',
   thorns: 'Атакующий получает N урона',
   regen: '+N HP в начале хода',
   invuln: 'Не получает урона',
-  poison: 'N урона в начале хода, игнорирует блок. Складывается: новое наложение добавляет силу',
+  poison: 'N урона в начале хода, игнорирует блок, потом Яд слабеет на 1. Наложения складываются: Яд 5 — это 5 + 4 + 3 + 2 + 1',
   stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит мимо блока врага, снимает скрытность',
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
   echo: 'Следующий удар оружием в этом ходу повторяется: атака, удары приёма, Финишер, Таран, Пролом щита и Цепная атака бьют дважды, усталость считает их одной атакой. Заклинания эхо не повторяет',
-  enchant: 'Каждый удар героя вешает на цель рану своей стихии силой N на 2 хода',
+  enchant: 'Каждый удар героя вешает на цель рану своей стихии силой N (Кровотечение — на 2 хода)',
   charge: 'Заряды заклинаний: обычный удар тратит все и бьёт сильнее за каждый',
   rage: 'Накопленный урон: набрав треть максимума HP, Берсерк впадает в Неистовство',
   fury: '+1 STA в начале хода и удары без усталости до конца хода',
@@ -86,13 +89,14 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   frozen: 'Скован льдом: пропускает свой ход. Считается оглушением — удары героя по нему всегда крит',
   focus: 'Следующий удар оружием — крит наверняка',
   taunt: 'В ход врагов Шипы и Ответный удар в полтора раза сильнее, враги бьют героя, а не союзника',
+  decay: 'Любое лечение вдвое слабее — приёмы, вампиризм, регенерация. Повтор обновляет срок',
 };
 
 /** Стихии заточки: какую рану может получить оружие. */
 export const ENCHANT_ELEMENTS: StatusId[] = ['burn', 'poison', 'bleed'];
 
 /** Проклятия на враге, которые считает «Резонанс»: всё, что герой навесил ему во вред. */
-export const DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen'];
+export const DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen', 'decay'];
 
 /** «Насмешка» (v0.47): во столько раз сильнее Шипы и Ответный удар героя в ход врагов (2 → 1.5 в v0.49). */
 export const TAUNT_MULT = 1.5;
@@ -119,11 +123,51 @@ export function debuffCount(c: Combatant): number {
   return c.statuses.filter((s) => DEBUFFS.includes(s.id)).length;
 }
 
-/** Урон, который ещё нанесут раны: сила × оставшиеся ходы (бессрочная — как три). Его и взрывает `detonate`. */
+/**
+ * Урон, который ещё нанесут раны, если их не трогать (v0.54): Кровотечение — порции × их сроки, Горение — тики с делением
+ * пополам (8 → 8 + 4 + 2 + 1), Яд — с убыванием на 1 (5 → 15). Его вскрывает `detonate` и показывает подсказка значка.
+ */
 export function remainingDot(c: Combatant, statuses: StatusId[]): number {
   let total = 0;
-  for (const st of c.statuses) if (statuses.includes(st.id)) total += st.value * (st.turns === -1 ? 3 : st.turns);
+  for (const st of c.statuses) if (statuses.includes(st.id)) total += statusRemaining(st);
   return total;
+}
+
+/** Остаток одной раны (бессрочная порция Кровотечения — как три тика). */
+export function statusRemaining(st: Status): number {
+  if (st.id === 'burn') {
+    let sum = st.hold ? st.value : 0;
+    for (let v = st.value; v > 0; v = Math.floor(v / 2)) sum += v;
+    return sum;
+  }
+  if (st.id === 'poison') return (st.value * (st.value + 1)) / 2;
+  if (st.parts) return st.parts.reduce((a, p) => a + p.v * (p.t === -1 ? 3 : p.t), 0);
+  return st.value * (st.turns === -1 ? 3 : st.turns);
+}
+
+/**
+ * Раны после тика (v0.54): Яд слабеет на 1 (у «Токсиколога» — `keepPoison` — нет), Горение гаснет вдвое; раздутое
+ * заклинанием («Раздуть») пропускает одно деление. Кровотечение тут не трогается — его порции истекают в `tickDurations`.
+ */
+function fadeDots(state: BattleState, c: Combatant, ref: EventTarget, keepPoison: boolean): void {
+  const notes: string[] = [];
+  const p = getStatus(c, 'poison');
+  if (p && !keepPoison) {
+    notes.push(`Яд ${p.value} → ${p.value - 1}`);
+    p.value -= 1;
+    if (p.value <= 0) removeStatus(c, 'poison');
+  }
+  const b = getStatus(c, 'burn');
+  if (b?.hold) {
+    b.hold = false;
+    notes.push(`Горение ${b.value} не гаснет (раздуто)`);
+  } else if (b) {
+    const next = Math.floor(b.value / 2);
+    notes.push(`Горение ${b.value} → ${next}`);
+    b.value = next;
+    if (next <= 0) removeStatus(c, 'burn');
+  }
+  if (notes.length) log(state, `${nameOf(state, ref)}: ${notes.join(', ')}`);
 }
 
 /**
@@ -340,6 +384,20 @@ const STACKING: StatusId[] = ['strength', 'thorns', 'regen', 'bleed', 'burn', 'p
  */
 const STACKING_TURNS: StatusId[] = ['stealth'];
 
+/**
+ * Раны v0.54 (ADR 0005, решение пользователя «разные правила для разных ран»): у Яда и Горения нет срока — после тика
+ * Яд слабеет на 1, Горение гаснет вдвое (`fadeDots`). Кровотечение ложится порциями со своим сроком (`Status.parts`).
+ * До v0.54 сила ран складывалась, а срок при каждом наложении обновлялся: рана, которую клали каждый ход, не кончалась
+ * никогда, стопка росла без предела, и выплаты (Вскрытие, Взрыв пламени) были не нужны. Правило одно для героя и врагов.
+ */
+const FADING: StatusId[] = ['poison', 'burn'];
+
+/** Ключ в `hero.uses`: Пиявка уже пила в этот ход врагов (`uses` обнуляет `startPlayerTurn`). */
+const LEECH_USED = '_leech';
+/** Ключ в `hero.uses`: «Жажда крови» уже лечила в этот ход. */
+const CRIT_HEALED = '_crit_heal';
+
+
 function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: StatusId, value: number, turns: number, element?: StatusId): void {
   // «Жаропрочность» (v0.43): огонь на герое не держится — ни от врага, ни от взрыва.
   if (ref === 'hero' && id === 'burn' && state.hero.stats.burnImmune > 0) {
@@ -348,17 +406,19 @@ function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: Statu
   }
   // Скованный льдом Холод не копит: иначе он оттаивал бы сразу в новое Оцепенение.
   if (id === 'cold' && getStatus(c, 'frozen')) return;
+  if (FADING.includes(id)) turns = -1;
   const ex = getStatus(c, id);
   if (ex) {
     // Новая заточка поверх старой меняет стихию: оружие держит одну.
     if (element) ex.element = element;
+    if (id === 'bleed') (ex.parts ??= [{ v: ex.value, t: ex.turns }]).push({ v: value, t: turns });
     if (STACKING.includes(id)) ex.value += value;
     else ex.value = Math.max(ex.value, value);
     if (ex.turns === -1 || turns === -1) ex.turns = -1;
     else if (STACKING_TURNS.includes(id)) ex.turns += turns;
     else ex.turns = Math.max(ex.turns, turns);
   } else {
-    c.statuses.push(element ? { id, value, turns, element } : { id, value, turns });
+    c.statuses.push(element ? { id, value, turns, element } : id === 'bleed' ? { id, value, turns, parts: [{ v: value, t: turns }] } : { id, value, turns });
   }
   state.events.push({ type: 'status', target: ref, status: id, value });
   const amount = STACKING.includes(id) || id === 'exhaust' || id === 'enchant' ? ` ${value}` : '';
@@ -366,7 +426,8 @@ function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: Statu
   // Бессрочное оглушение держится не до конца боя, а до своего хода: враг пропускает одно действие (v0.51.1).
   // Холод на враге (v0.51.1) пишет, сколько накоплено до Оцепенения, — тот же счётчик, что на значке.
   const cold = id === 'cold' && ref !== 'hero' ? getStatus(c, 'cold') : undefined;
-  const until = id === 'stun' && turns === -1 ? '— пропустит ход' : cold ? `— ${cold.value}/${freezeAt(c as EnemyState)} до Оцепенения` : turnsText(turns);
+  const fade = id === 'poison' ? '— слабеет на 1 за ход' : id === 'burn' ? '— гаснет вдвое за ход' : '';
+  const until = id === 'stun' && turns === -1 ? '— пропустит ход' : cold ? `— ${cold.value}/${freezeAt(c as EnemyState)} до Оцепенения` : fade || turnsText(turns);
   log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount}${flavor} ${until}`);
   if (id === 'cold' && ref !== 'hero') checkFreeze(state, c, ref);
 }
@@ -424,6 +485,13 @@ const OPPONENT_PHASE: StatusId[] = ['stealth', 'invuln', 'taunt'];
 function tickDurations(c: Combatant, when: 'start' | 'end'): void {
   for (const s of c.statuses) {
     if ((OPPONENT_PHASE.includes(s.id) ? 'start' : 'end') !== when) continue;
+    if (s.parts) {
+      for (const p of s.parts) if (p.t > 0) p.t--;
+      s.parts = s.parts.filter((p) => p.t !== 0);
+      s.value = s.parts.reduce((a, p) => a + p.v, 0);
+      s.turns = s.parts.length === 0 ? 0 : s.parts.some((p) => p.t === -1) ? -1 : Math.max(...s.parts.map((p) => p.t));
+      continue;
+    }
     if (s.turns > 0) s.turns--;
   }
   c.statuses = c.statuses.filter((s) => s.turns !== 0);
@@ -725,6 +793,15 @@ function healHero(state: BattleState, amount: number, why?: string): void {
   if (amount <= 0) return;
   // «Искупление» Паладина (v0.45): в первый ход боя лечение сильнее.
   if (state.turn === 1 && h.stats.firstTurnHeal > 0) amount = Math.round(amount * (1 + h.stats.firstTurnHeal));
+  // Распад (v0.54): любое лечение вдвое слабее — приёмы, вампиризм, регенерация, зелья.
+  if (getStatus(h, 'decay')) {
+    amount = Math.floor(amount / 2);
+    why = why ? `${why}, распад` : 'распад';
+    if (amount <= 0) {
+      log(state, `Герой: лечение сгнило (${why})`);
+      return;
+    }
+  }
   h.healedTurn += amount;
   const healed = Math.max(0, Math.min(amount, h.maxHp - h.hp));
   if (healed > 0) {
@@ -824,6 +901,12 @@ function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
 }
 
 function healEnemy(state: BattleState, e: EnemyState, amount: number, why?: string): void {
+  // Распад и «Гниль» (v0.54): под Распадом или отравленный при Гнили врага лечение вдвое слабее — одно деление, не два.
+  const rot = getStatus(e, 'decay') ? 'распад' : state.hero.stats.poisonRot > 0 && getStatus(e, 'poison') ? 'гниль' : '';
+  if (rot) {
+    amount = Math.floor(amount / 2);
+    why = why ? `${why}, ${rot}` : rot;
+  }
   const healed = Math.min(amount, e.maxHp - e.hp);
   if (healed <= 0) return;
   e.hp += healed;
@@ -880,7 +963,7 @@ function cleanupDead(state: BattleState, rng: Rng): void {
       addStatus(state, state.hero, 'hero', 'strength', 1, -1);
     }
     // «Огненная кровь» (v0.48): павший поджигает героя.
-    if (state.trial === 'fire_blood' && state.hero.hp > 0) addStatus(state, state.hero, 'hero', 'burn', trialValue(2, state.act ?? 0), 2);
+    if (state.trial === 'fire_blood' && state.hero.hp > 0) addStatus(state, state.hero, 'hero', 'burn', byAct(FIRE_BLOOD_BURN, state.act ?? 0), -1);
     // Благословения: «Жатва душ» — глоток жизни за павшего, «Абордажный азарт» — Сила за павшего.
     if (state.boon === 'soul_harvest' && state.hero.hp > 0) healHero(state, trialValue(2, state.act ?? 0), 'жатва душ');
     if (state.boon === 'plunder' && state.hero.hp > 0) addStatus(state, state.hero, 'hero', 'strength', 1, -1);
@@ -1154,10 +1237,17 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
   if (dealt > 0 && e.hp > 0) {
     // Праща: оглушает только критом, и то не каждым — бросок делается лишь после крита, чтобы не тратить RNG на обычных ударах.
     if (h.stats.stunOnCrit > 0 && crit && !getStatus(e, 'stun') && chance(rng, h.stats.stunOnCrit)) addStatus(state, e, e.uid, 'stun', 1, -1);
-    if (h.stats.onHitBleed > 0) heroInflict(state, e, 'bleed', h.stats.onHitBleed, 2);
-    // Стихийные аффиксы оружия (v0.38.11): заводка ран приходит с клинком, а не только из пула артефактов.
-    if (h.stats.onHitBurn > 0) heroInflict(state, e, 'burn', h.stats.onHitBurn, 2);
-    if (h.stats.onHitPoison > 0) heroInflict(state, e, 'poison', h.stats.onHitPoison, 3);
+    // Раны с удара: артефакты — с каждого удара, стихийный аффикс оружия (v0.38.11) — только первой атакой хода (v0.54).
+    // Всё, что кладёт один удар, — одно наложение: сумма источников, потом набор и ключевая вещь (heroInflict).
+    const first = h.attacks === 0;
+    const bleed = h.stats.onHitBleed + (first ? h.stats.affBleed : 0);
+    const burn = h.stats.onHitBurn + (first ? h.stats.affBurn : 0);
+    const poison = h.stats.onHitPoison + (first ? h.stats.affPoison : 0);
+    if (bleed > 0) heroInflict(state, e, 'bleed', bleed, 2);
+    if (burn > 0) heroInflict(state, e, 'burn', burn, 2);
+    if (poison > 0) heroInflict(state, e, 'poison', poison, 3);
+    // «Трупный яд» (v0.54): первая атака хода вешает Распад.
+    if (first && h.stats.decayOnHit > 0) addStatus(state, e, e.uid, 'decay', 1, h.stats.decayOnHit);
     // «Стихийная заточка»: рана стихии с каждого удара, пока заточка держится.
     const ench = getStatus(h, 'enchant');
     if (ench?.element) heroInflict(state, e, ench.element, ench.value, 2);
@@ -1165,6 +1255,8 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
     if (h.stats.markOnHit > 0 && h.attacks === 0) addStatus(state, e, e.uid, 'vulnerable', 1, h.stats.markOnHit);
     // «Отравитель» Ассасина (v0.44): удар из тени оставляет яд.
     if (fromShadow && h.stats.backstabPoison > 0) heroInflict(state, e, 'poison', h.stats.backstabPoison, 3);
+    // «Отравитель» (v0.54): удар из тени ещё и гноит рану — Распад на цели.
+    if (fromShadow && h.stats.backstabDecay > 0) addStatus(state, e, e.uid, 'decay', 1, h.stats.backstabDecay);
     // «Ледяной клинок» (v0.47): первые N ударов хода вешают Холод — лимит, чтобы серия не морозила каждый ход.
     if (h.stats.onHitCold > 0 && (h.uses['_cold_hits'] ?? 0) < h.stats.onHitCold && !getStatus(e, 'frozen')) {
       h.uses['_cold_hits'] = (h.uses['_cold_hits'] ?? 0) + 1;
@@ -1174,7 +1266,11 @@ function heroStrike(state: BattleState, rng: Rng, e: EnemyState, opts: StrikeOpt
   // «Азарт» копит шанс с каждого промаха мимо крита, крит обнуляет счётчик; «Жажда крови» лечит за крит.
   if (crit) {
     h.critStack = 0;
-    if (h.stats.critHeal > 0) healHero(state, h.stats.critHeal, 'жажда крови');
+    // «Жажда крови» — за первый крит хода (v0.54): за каждый она лечила крит-сборку больше, чем по ней били.
+    if (h.stats.critHeal > 0 && !h.uses[CRIT_HEALED]) {
+      h.uses[CRIT_HEALED] = 1;
+      healHero(state, h.stats.critHeal, 'жажда крови');
+    }
   } else if (h.stats.critRamp > 0) {
     h.critStack = Math.min(1, h.critStack + h.stats.critRamp);
     log(state, `Азарт: шанс крита +${Math.round(h.stats.critRamp * 100)} % (всего +${Math.round(h.critStack * 100)} %)`);
@@ -1385,9 +1481,10 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
         const dealt = damageEnemy(state, e, amount, 'spell', { detail, rng });
         const notes = [why, burn ? `раздуть ×${1 + h.stats.spellVsBurn}` : '', weak > 1 ? `по слабому ×${weak}` : ''].filter(Boolean).join(', ');
         log(state, `Заклинание по ${e.name}: ${amount}${notes ? ` (${notes})` : ''}${hitTail(amount, dealt, detail)}`);
-        if (burn && burn.turns > 0 && e.hp > 0) {
-          burn.turns += 1;
-          log(state, `${e.name}: Горение продлено на ход`);
+        if (burn && e.hp > 0 && !burn.hold) {
+          // «Раздуть» (v0.54): срока у Горения больше нет — раздутое пропускает ближайшее деление пополам.
+          burn.hold = true;
+          log(state, `${e.name}: Горение раздуто — в ближайший тик не погаснет`);
         }
       }
       const amount = base;
@@ -1413,6 +1510,11 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
         if (!st) continue;
         const before = st.value;
         st.value = Math.max(before + 1, Math.round(before * eff.mult));
+        if (st.parts) {
+          const k = st.value / before;
+          for (const p of st.parts) p.v = Math.round(p.v * k);
+          st.parts[st.parts.length - 1].v += st.value - st.parts.reduce((a, p) => a + p.v, 0);
+        }
         state.events.push({ type: 'status', target: e.uid, status: eff.status, value: st.value });
         log(state, `${e.name}: ${STATUS_NAMES[eff.status]} ${before} → ${st.value}`);
       }
@@ -1513,7 +1615,11 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       const pct = eff.pct ?? 1;
       for (const e of state.enemies) {
         if (e === src || e.hp <= 0) continue;
-        for (const st of found) addStatus(state, e, e.uid, st.id, Math.max(1, Math.round(st.value * pct)), st.turns);
+        for (const st of found) {
+          // Порции Кровотечения копируются каждая со своим сроком (v0.54), иначе копия жила бы сроком самой долгой.
+          if (st.parts) for (const p of st.parts) addStatus(state, e, e.uid, st.id, Math.max(1, Math.round(p.v * pct)), p.t);
+          else addStatus(state, e, e.uid, st.id, Math.max(1, Math.round(st.value * pct)), st.turns);
+        }
       }
       break;
     }
@@ -1633,6 +1739,7 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
       }
       extra = [];
     };
+    const dealtBefore = state.stats.damageDealt;
     swing(findEnemy(state, action.target)!);
     // «Эхо удара»: та же атака ещё раз, с той же усталостью — счётчик атак растёт один раз.
     if (getStatus(h, 'echo')) {
@@ -1650,7 +1757,13 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
       h.sta += 1;
       log(state, 'Серия: третий удар без стамины');
     }
-    if (h.stats.lifesteal > 0) healHero(state, h.stats.lifesteal, 'вампиризм');
+    // Вампиризм (v0.54): доля урона атаки по HP — удар в блок не лечит, слабый удар лечит мало (но хоть на 1: иначе Клык
+    // первого тира на старте с уроном 3–8 не лечил бы вовсе). До v0.54 — фиксированные N за атаку при любом исходе, и
+    // сборка с Яростью или «Серией» возвращала больше, чем по ней били (ADR 0005).
+    if (h.stats.lifesteal > 0) {
+      const heal = Math.ceil((state.stats.damageDealt - dealtBefore) * h.stats.lifesteal * VAMP_PCT);
+      if (heal > 0) healHero(state, heal, 'вампиризм');
+    }
     breakStealth(state);
   } else if (action.type === 'defend') {
     h.sta -= 1;
@@ -1888,6 +2001,7 @@ function startPlayerTurn(state: BattleState): void {
     log(state, soothed > 0 ? `Герой теряет ${left} HP от ран (${dot} − мазь ${soothed})` : `Герой теряет ${dot} HP от ран`);
     if (left > 0) damageHero(state, left, 'dot');
   }
+  fadeDots(state, h, 'hero', false);
 }
 
 export function endTurn(state: BattleState): void {
@@ -2003,6 +2117,8 @@ function spawnEnemy(state: BattleState, defId: string, rng: Rng, announce: boole
   placeEnemy(state, e, announce);
   // Процентный уворот вора: висит статусом, чтобы игрок видел текущий шанс промаха прямо на плитке врага.
   if (def.evade) addStatus(state, e, e.uid, 'evade', def.evade, -1);
+  // Стартовая регенерация (v0.54): растёт с актом, как лечение врага.
+  if (def.regen) addStatus(state, e, e.uid, 'regen', scaled(e.hpMult, def.regen), -1);
   // Стартовый состав выбирает намерения, когда встал весь ряд (createBattle): правила смотрят на соседей и «остался один».
   if (announce) chooseIntent(state, e, rng);
   if (announce) {
@@ -2269,12 +2385,20 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     else {
       log(state, `${e.name} теряет ${dot} HP от ран`);
       damageEnemy(state, e, dot, 'dot');
-      // «Пиявка»: кровь и яд врага питают героя с каждого тика — за каждую рану отдельно (v0.40.2: на отравленном и кровоточащем пьётся вдвое).
+      // «Пиявка»: кровь и яд врага питают героя — на отравленном и кровоточащем вдвое (v0.40.2); раз за ход врагов (v0.54):
+      // до этого пила с каждого тика каждого врага, и три раненых врага лечили героя втрое.
       const leeched = state.hero.stats.dotLeech > 0 ? [statusValue(e, 'bleed') > 0, statusValue(e, 'poison') > 0].filter(Boolean).length : 0;
-      if (leeched > 0) healHero(state, state.hero.stats.dotLeech * leeched, leeched > 1 ? 'пиявка: кровь и яд' : 'пиявка');
+      if (leeched > 0 && !state.hero.uses[LEECH_USED]) {
+        state.hero.uses[LEECH_USED] = 1;
+        healHero(state, state.hero.stats.dotLeech * leeched, leeched > 1 ? 'пиявка: кровь и яд' : 'пиявка');
+      }
       if (e.hp <= 0) return;
     }
   }
+  fadeDots(state, e, e.uid, state.hero.stats.poisonNoDecay > 0);
+  // Стартовая регенерация врага (v0.54): после ран — раны успевают добить раньше, чем он подлечится.
+  const regen = statusValue(e, 'regen');
+  if (regen > 0) healEnemy(state, e, regen, 'регенерация');
   // Неуязвимость отработала ход героя — снимаем её до действия, а не после.
   tickDurations(e, 'start');
   beginStep(state, 'E');
@@ -2352,7 +2476,10 @@ export function enemyStep(state: BattleState, rng: Rng): void {
       ticked = true;
       log(state, `${e.name} истекает кровью: ${bleed} (набор «Кровь»)`);
       damageEnemy(state, e, bleed, 'dot');
-      if (state.hero.stats.dotLeech > 0) healHero(state, state.hero.stats.dotLeech, 'пиявка');
+      if (state.hero.stats.dotLeech > 0 && !state.hero.uses[LEECH_USED]) {
+        state.hero.uses[LEECH_USED] = 1;
+        healHero(state, state.hero.stats.dotLeech, 'пиявка');
+      }
     }
     if (ticked) {
       cleanupDead(state, rng);
@@ -2441,8 +2568,8 @@ export function createBattle(
     if (trial === 'hive_thorns') addStatus(state, e, e.uid, 'thorns', trialValue(1, tAct), -1);
     // Благословения на врагах: Уязвимость на первый ход, Яд, Горение и Слабость с начала боя.
     if (boon === 'tracker') addStatus(state, e, e.uid, 'vulnerable', 1, 1);
-    if (boon === 'miasma') addStatus(state, e, e.uid, 'poison', trialValue(2, tAct), 3);
-    if (boon === 'forge_heat') addStatus(state, e, e.uid, 'burn', trialValue(2, tAct), 2);
+    if (boon === 'miasma') addStatus(state, e, e.uid, 'poison', byAct(MIASMA_POISON, tAct), -1);
+    if (boon === 'forge_heat') addStatus(state, e, e.uid, 'burn', byAct(FORGE_HEAT_BURN, tAct), -1);
     if (boon === 'shroud') addStatus(state, e, e.uid, 'weak', 1, 2);
   }
   // «Волчий друг»: волк встаёт рядом с героем до выбора намерений — враги сразу видят, кого бить первым.
@@ -2463,8 +2590,8 @@ export function createBattle(
   startPlayerTurn(state);
   // Испытания на герое — после старта хода: иначе тик начала хода съел бы их первый ход.
   const h = state.hero;
-  if (trial === 'mire') addStatus(state, h, 'hero', 'poison', trialValue(1, tAct), 3);
-  if (trial === 'heat') addStatus(state, h, 'hero', 'burn', 1, 3);
+  if (trial === 'mire') addStatus(state, h, 'hero', 'poison', byAct(MIRE_POISON, tAct), -1);
+  if (trial === 'heat') addStatus(state, h, 'hero', 'burn', HEAT_BURN, -1);
   if (trial === 'grave_chill') addStatus(state, h, 'hero', 'weak', 1, 2);
   if (trial === 'bog' || trial === 'rolling') {
     h.sta = Math.max(0, h.sta - 1);
@@ -2659,7 +2786,8 @@ export function describeAction(def: EnemyDef, a: { name: string; effects: EnemyE
         kinds.push('debuff');
         break;
       case 'debuff': {
-        const dur = eff.turns > 0 ? ` на ${eff.turns} ход(а)` : '';
+        // У Яда и Горения срока нет (v0.54): «Горение 3», а не «Горение 3 на 2 хода».
+        const dur = eff.turns > 0 && !FADING.includes(eff.status) ? ` на ${eff.turns} ход(а)` : '';
         const val = isDot(eff.status) ? ` ${scaled(s.dmgMult, eff.value)}` : '';
         parts.push(`${STATUS_NAMES[eff.status]}${val}${dur}`, 'debuff', eff.status);
         kinds.push('debuff');

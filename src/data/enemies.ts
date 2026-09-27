@@ -59,6 +59,11 @@ const neighborHurt = cond('сосед ниже половины HP', (ctx) => {
 });
 /** Сам ниже половины HP. */
 const selfHalf = cond('сам ниже половины HP', (ctx) => ctx.self.hp * 2 < ctx.self.maxHp);
+/**
+ * Герой за этот круг вылечился на 15 % максимума HP и больше (v0.54) — ответ врага на вампиризм и лечение: Порча.
+ * Смотрится, когда враг выбирает следующий приём, — то есть по лечению хода героя, который только что закончился.
+ */
+const heroHealed = cond('герой вылечился на 15 % HP', (ctx) => ctx.hero.healedTurn * 100 >= 15 * ctx.hero.maxHp);
 
 /** Правило реакции: приём, условие и ограничения. Подпись условия уходит в подсказку. */
 const when = (action: string, c: Cond, opts: { cooldown?: number; maxUses?: number } = {}): PriorityRule => ({ action, when: c, hint: c.label, ...opts });
@@ -80,6 +85,8 @@ const crack = (name: string, amount: number): EnemyAction => act('crack', name, 
 const listen = (name: string, amount: number): EnemyAction => act('listen', name, [{ type: 'reveal' }, { type: 'attack', amount }]);
 /** Добивание раненого героя. */
 const finish = (name: string, amount: number): EnemyAction => act('finish', name, [{ type: 'attack', amount }]);
+/** Порча (v0.54) — удар и Распад на герое на 2 хода: лечение героя вдвое слабее. Ответ на вампиризм и частое лечение. */
+const rot = (name: string, amount: number): EnemyAction => act('rot', name, [{ type: 'attack', amount }, { type: 'debuff', status: 'decay', value: 1, turns: 2 }]);
 /** Ярость последнего: остался один — Сила себе. */
 const lastStand = (name: string, amount: number): EnemyAction => act('last', name, [{ type: 'buffStr', amount, target: 'self' }]);
 
@@ -163,15 +170,16 @@ const list: EnemyDef[] = [
     rank: 'normal',
     role: 'caster',
     actions: [
+      rot('Гнилой укус', 4),
       act('bite', 'Ядовитый укус', [
         { type: 'attack', amount: 4 },
-        { type: 'debuff', status: 'poison', value: 1, turns: 3 },
+        { type: 'debuff', status: 'poison', value: 2, turns: 3 },
       ]),
       act('web', 'Паутина', [{ type: 'debuff', status: 'exhaust', value: 1, turns: 1 }]),
       // Нити дрожат под невидимым шагом: против игры из тени.
       listen('Чуткие нити', 4),
     ],
-    ai: priority([when('listen', heroHidden)], ['bite', 'web', 'bite']),
+    ai: priority([when('listen', heroHidden), when('rot', heroHealed, { cooldown: 3 })], ['bite', 'web', 'bite']),
     sprite: blob('#0a0a0a', '#2a2a2a', '#1a1a1a', '#ff3b3b'),
   },
   {
@@ -245,6 +253,7 @@ const list: EnemyDef[] = [
     rank: 'elite',
     role: 'brute',
     actions: [
+      act('lick', 'Зализать раны', [{ type: 'cleanse' }, { type: 'heal', amount: 8, target: 'self' }]),
       act('paw', 'Лапа', [{ type: 'attack', amount: 9 }]),
       act('roar', 'Рёв', [
         { type: 'buffStr', amount: 3, target: 'self' },
@@ -254,13 +263,14 @@ const list: EnemyDef[] = [
       // Проверка сборки: сорвать щит — против игры через блок.
       crack('Сорвать щит', 9),
     ],
-    ai: priority([when('crack', heroBlock(8), { cooldown: 2 })], ['paw', 'roar', 'paw', 'rear']),
+    ai: priority([when('lick', selfHalf, { maxUses: 1 }), when('crack', heroBlock(8), { cooldown: 2 })], ['paw', 'roar', 'paw', 'rear']),
     sprite: blob('#14100c', '#5b3a1e', '#3b2613', '#ffe8a3', 20),
   },
   {
     id: 'troll',
     name: 'Тролль',
     hp: 42,
+    regen: 2,
     location: 'forest',
     rank: 'elite',
     role: 'brute',
@@ -377,6 +387,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     role: 'brute',
     actions: [
+      rot('Трупная хватка', 6),
       act('bite', 'Укус', [
         { type: 'attack', amount: 8 },
         { type: 'heal', amount: 4, target: 'self' },
@@ -384,7 +395,7 @@ const list: EnemyDef[] = [
       act('claws', 'Когти', [{ type: 'attack', amount: 5, hits: 2 }]),
       lick('Сожрать гниль', 6),
     ],
-    ai: priority([when('lick', selfDots(4), { maxUses: 1 })], ['bite', 'claws']),
+    ai: priority([when('rot', heroHealed, { cooldown: 3 }), when('lick', selfDots(4), { maxUses: 1 })], ['bite', 'claws']),
     sprite: blob('#14200f', '#7a9a5a', '#4d6b36', '#ff5555'),
   },
   {
@@ -497,6 +508,7 @@ const list: EnemyDef[] = [
     rank: 'elite',
     role: 'caster',
     actions: [
+      act('soul', 'Поглотить душу', [{ type: 'heal', amount: 9, target: 'self' }]),
       withFx({ kind: 'orb', color: '#7a3fb0' }, act('bolt', 'Тёмная стрела', [{ type: 'attack', amount: 10 }])),
       act('raise', 'Поднять скелета', [{ type: 'summon', enemyId: 'skeleton_warrior', count: 1 }], (ctx) => hasRoom(ctx) && countKind(ctx, 'skeleton_warrior') < 2),
       act('curse', 'Проклятие', [
@@ -509,7 +521,7 @@ const list: EnemyDef[] = [
         { type: 'attack', amount: 6 },
       ])),
     ],
-    ai: priority([when('sip', heroMana(6), { cooldown: 3 })], ['bolt', 'raise', 'curse']),
+    ai: priority([when('soul', selfHalf, { cooldown: 3 }), when('sip', heroMana(6), { cooldown: 3 })], ['bolt', 'raise', 'curse']),
     sprite: humanoid('hood', { o: '#1b1b2a', e: '#111111', s: '#cdbde0', h: '#2d1b4e', b: '#1e1433', l: '#120b22', w: '#7cf0a0' }),
   },
   {
@@ -603,7 +615,7 @@ const list: EnemyDef[] = [
       act('spit', 'Огненный плевок', [
         { type: 'attack', amount: 7 },
         // v0.49: Горение 3 → 2 — три Импа жгли по 9 за ход.
-        { type: 'debuff', status: 'burn', value: 2, turns: 3 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 3 },
       ]),
       act('mischief', 'Проказа', [
         { type: 'debuff', status: 'weak', value: 1, turns: 2 },
@@ -624,9 +636,9 @@ const list: EnemyDef[] = [
     actions: [
       act('ignite', 'Поджог', [
         { type: 'attack', amount: 6 },
-        { type: 'debuff', status: 'burn', value: 3, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 4, turns: 2 },
       ]),
-      act('boom', 'Самоподрыв', [{ type: 'selfDestruct', amount: 18, burn: 3 }]),
+      act('boom', 'Самоподрыв', [{ type: 'selfDestruct', amount: 18, burn: 4 }]),
     ],
     ai: { type: 'cycle', order: ['ignite', 'boom'] },
     sprite: blob('#2a0a0a', '#ff5a36', '#c02a10', '#ffff88', 14),
@@ -641,7 +653,7 @@ const list: EnemyDef[] = [
     actions: [
       act('bite', 'Укус', [
         { type: 'attack', amount: 8 },
-        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 2 },
       ]),
       act('flutter', 'Порхание', [{ type: 'dodge', value: 1 }], noDodge),
     ],
@@ -658,7 +670,7 @@ const list: EnemyDef[] = [
     actions: [
       act('breath', 'Огненное дыхание', [
         { type: 'attack', amount: 12 },
-        { type: 'debuff', status: 'burn', value: 3, turns: 3 },
+        { type: 'debuff', status: 'burn', value: 4, turns: 3 },
       ]),
       act('curl', 'Свернуться', [{ type: 'block', amount: 12 }]),
       lick('Сбросить кожу', 10),
@@ -670,13 +682,14 @@ const list: EnemyDef[] = [
     id: 'lava_slime',
     name: 'Лавовый слизень',
     hp: 52,
+    regen: 3,
     location: 'caves',
     rank: 'normal',
     role: 'guard',
     actions: [
       act('spit', 'Лавовый плевок', [
         { type: 'attack', amount: 9 },
-        { type: 'debuff', status: 'burn', value: 3, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 4, turns: 2 },
       ]),
       act('heat', 'Раскалиться', [{ type: 'block', amount: 10 }]),
       crack('Расплавить щит', 9),
@@ -686,7 +699,7 @@ const list: EnemyDef[] = [
       name: 'Взрыв',
       effects: [
         { type: 'attack', amount: 8 },
-        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 2 },
       ],
     },
     sprite: blob('#3a0a00', '#ff7b00', '#c04000', '#fff2a8'),
@@ -715,6 +728,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     role: 'support',
     actions: [
+      rot('Скверна', 6),
       act('dagger', 'Ритуальный кинжал', [{ type: 'attack', amount: 8 }]),
       act('sacrifice', 'Жертва', [
         { type: 'buffStr', amount: 2, target: 'neighbors' },
@@ -722,7 +736,7 @@ const list: EnemyDef[] = [
       ]),
       act('prayer', 'Молитва', [{ type: 'heal', amount: 10, target: 'neighbors' }]),
     ],
-    ai: priority([when('prayer', neighborHurt, { cooldown: 2 })], ['dagger', 'sacrifice']),
+    ai: priority([when('rot', heroHealed, { cooldown: 3 }), when('prayer', neighborHurt, { cooldown: 2 })], ['dagger', 'sacrifice']),
     sprite: humanoid('hood', { o: '#1b1b2a', e: '#111111', s: '#e0b48a', h: '#5a0f1a', b: '#7a1a2a', l: '#2a0a10', w: '#c0c0c0' }),
   },
   {
@@ -790,7 +804,7 @@ const list: EnemyDef[] = [
     actions: [
       withFx({ kind: 'orb', color: '#ff7b00', sculpt: 'fire' }, act('flame', 'Пламя', [
         { type: 'attack', amount: 14 },
-        { type: 'debuff', status: 'burn', value: 4, turns: 3 },
+        { type: 'debuff', status: 'burn', value: 5, turns: 3 },
       ])),
       act('fire_shield', 'Огненный щит', [
         { type: 'block', amount: 12 },
@@ -811,6 +825,7 @@ const list: EnemyDef[] = [
     rank: 'elite',
     role: 'brute',
     actions: [
+      act('breath', 'Второе дыхание', [{ type: 'heal', amount: 20, target: 'self' }]),
       withFx({ kind: 'melee', color: '#c9ccd1' }, act('axe', 'Секира', [{ type: 'attack', amount: 18 }])),
       { ...act('windup', 'Замах', [{ type: 'block', amount: 12 }]), next: 'smash' },
       withFx({ kind: 'melee', color: '#c9ccd1' }, act('smash', 'Сокрушительный удар', [{ type: 'attack', amount: 30 }])),
@@ -818,7 +833,7 @@ const list: EnemyDef[] = [
       // Проверка сборки: рога в щит — против игры через блок.
       withFx({ kind: 'melee', color: '#c9ccd1' }, crack('Рога в щит', 16)),
     ],
-    ai: priority([when('crack', heroBlock(10), { cooldown: 2 })], ['axe', 'windup', 'roar']),
+    ai: priority([when('breath', selfHalf, { maxUses: 1 }), when('crack', heroBlock(10), { cooldown: 2 })], ['axe', 'windup', 'roar']),
     sprite: humanoid('horns', { s: '#7a5230', h: '#4e3320', b: '#5b3a1e', l: '#3a2613', w: '#ede0d4' }),
   },
   {
@@ -830,11 +845,11 @@ const list: EnemyDef[] = [
     actions: [
       withFx({ kind: 'orb', color: '#ff5a1f', sculpt: 'fire' }, act('breath', 'Дыхание', [
         { type: 'attack', amount: 18 },
-        { type: 'debuff', status: 'burn', value: 4, turns: 3 },
+        { type: 'debuff', status: 'burn', value: 5, turns: 3 },
       ])),
       withFx({ kind: 'orb', color: '#ff5a1f', sculpt: 'fire' }, act('breath2', 'Пламенное дыхание', [
         { type: 'attack', amount: 18 },
-        { type: 'debuff', status: 'burn', value: 5, turns: 3 },
+        { type: 'debuff', status: 'burn', value: 7, turns: 3 },
       ])),
       act('claw', 'Коготь', [{ type: 'attack', amount: 10, hits: 2 }]),
       act('tail', 'Хвост', [
@@ -923,7 +938,7 @@ const list: EnemyDef[] = [
     actions: [
       act('scorch', 'Опаление', [
         { type: 'attack', amount: 3 },
-        { type: 'debuff', status: 'burn', value: 1, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
       ]),
       act('flicker', 'Мерцание', [{ type: 'dodge', value: 1 }], noDodge),
       act('sip', 'Выпить свет', [{ type: 'drainMp', amount: 2 }, { type: 'attack', amount: 2 }]),
@@ -939,6 +954,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     role: 'support',
     actions: [
+      rot('Болотная порча', 4),
       act('morok', 'Морок', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 2 }]),
       act('scratch', 'Царапины', [{ type: 'attack', amount: 4, hits: 2 }]),
       act('cackle', 'Хохот', [
@@ -947,7 +963,7 @@ const list: EnemyDef[] = [
       ]),
       listen('Морок видит', 4),
     ],
-    ai: priority([when('listen', heroHidden), when('cackle', neighborHurt, { cooldown: 2 })], ['morok', 'scratch']),
+    ai: priority([when('listen', heroHidden), when('rot', heroHealed, { cooldown: 3 }), when('cackle', neighborHurt, { cooldown: 2 })], ['morok', 'scratch']),
     sprite: humanoid('hood', { s: '#7a9a6a', h: '#2a3a20', b: '#3a4a2a', l: '#1a2a14', w: '#a0c090' }),
   },
   {
@@ -988,6 +1004,7 @@ const list: EnemyDef[] = [
     id: 'hydra',
     name: 'Гидра',
     hp: 40,
+    regen: 2,
     location: 'swamp',
     rank: 'elite',
     role: 'brute',
@@ -997,7 +1014,7 @@ const list: EnemyDef[] = [
         { type: 'heal', amount: 6, target: 'self' },
         { type: 'block', amount: 6 },
       ]),
-      act('miasma', 'Ядовитое облако', [{ type: 'debuff', status: 'poison', value: 2, turns: 3 }]),
+      act('miasma', 'Ядовитое облако', [{ type: 'debuff', status: 'poison', value: 3, turns: 3 }]),
       // Проверка сборки: сбросить кожу — против ран.
       lick('Сбросить кожу', 6),
     ],
@@ -1038,7 +1055,7 @@ const list: EnemyDef[] = [
       ]),
       act('call', 'Зов пиявок', [{ type: 'summon', enemyId: 'leech', count: 2 }]),
       act('rot', 'Гниль', [{ type: 'debuff', status: 'bleed', value: 2, turns: 3 }]),
-      act('rot2', 'Трупный яд', [{ type: 'debuff', status: 'poison', value: 3, turns: 3 }]),
+      act('rot2', 'Трупный яд', [{ type: 'debuff', status: 'poison', value: 4, turns: 3 }]),
       act('submerge', 'Погружение', [{ type: 'block', amount: 10 }]),
       act('devour', 'Пожирание', [{ type: 'attack', amount: 8, drain: true }]),
     ],
@@ -1078,7 +1095,7 @@ const list: EnemyDef[] = [
       act('mandibles', 'Жвалы', [{ type: 'attack', amount: 7 }]),
       act('acid', 'Кислота', [
         { type: 'attack', amount: 4 },
-        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 2 },
       ]),
       lick('Сбросить хитин', 4),
     ],
@@ -1140,18 +1157,19 @@ const list: EnemyDef[] = [
     rank: 'normal',
     role: 'caster',
     actions: [
+      rot('Гнилые споры', 5),
       act('spores', 'Споры', [
         { type: 'debuff', status: 'vulnerable', value: 1, turns: 2 },
         { type: 'drainMp', amount: 1 },
       ]),
       act('burst', 'Лопнуть', [
         { type: 'attack', amount: 6 },
-        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 2 },
       ]),
       // Споры оседают на невидимке: против игры из тени.
       listen('Облако спор', 4),
     ],
-    ai: priority([when('listen', heroHidden)], ['spores', 'burst']),
+    ai: priority([when('listen', heroHidden), when('rot', heroHealed, { cooldown: 3 })], ['spores', 'burst']),
     // Лопнувший споровик выдыхает всё, что копил: облако оседает на том, кто его вскрыл.
     onDeath: { name: 'Облако спор', effects: [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 2 }] },
     sprite: blob('#1a1020', '#8a5aa0', '#5a3a70', '#e0ffa0'),
@@ -1204,6 +1222,7 @@ const list: EnemyDef[] = [
     rank: 'elite',
     role: 'support',
     actions: [
+      act('feed', 'Кормление', [{ type: 'heal', amount: 8, target: 'neighbors' }]),
       act('sting', 'Жало', [
         { type: 'attack', amount: 9 },
         { type: 'debuff', status: 'bleed', value: 2, turns: 2 },
@@ -1216,13 +1235,15 @@ const list: EnemyDef[] = [
       // Проверка сборки: маточное молочко снимает раны — против Крови, Огня и Яда.
       lick('Маточное молочко', 8),
     ],
-    ai: priority([when('lick', selfDots(4), { maxUses: 1 })], ['sting', 'command', 'pheromones']),
+    ai: priority([when('lick', selfDots(4), { maxUses: 1 }), when('feed', neighborHurt, { cooldown: 3 })], ['sting', 'command', 'pheromones']),
     sprite: blob('#1a1020', '#e0b030', '#9a7010', '#ff3050', 22),
   },
   {
     id: 'hive_heart',
     name: 'Сердце улья',
     hp: 85,
+    // v0.54: 4 первым боссом забега давало вдвое больше гибелей на Улье первого акта (бот 134 → 65 гибелей на 1800 забегов с 2).
+    regen: 2,
     location: 'hive',
     rank: 'boss',
     actions: [
@@ -1230,7 +1251,7 @@ const list: EnemyDef[] = [
       withFx({ kind: 'flask', color: '#b5e61d' }, act('acid_rain', 'Кислотный дождь', [
         { type: 'attack', amount: 6 },
         // Горение 3 → 2 в v0.34.1: девять урона мимо блока с одной атаки были самым скрытым уроном босса (см. GDD §13).
-        { type: 'debuff', status: 'burn', value: 2, turns: 3 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 3 },
       ])),
       act('brood', 'Выводок', [{ type: 'summon', enemyId: 'larva', count: 2 }]),
       act('brood2', 'Рой ос', [{ type: 'summon', enemyId: 'wasp', count: 1 }]),
@@ -1341,10 +1362,10 @@ const list: EnemyDef[] = [
     actions: [
       act('throw', 'Бросок бочонка', [
         { type: 'attack', amount: 8 },
-        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 2 },
       ]),
       // v0.49: Подрыв 20 → 16 — «Крыса + Пират + Мартышка» убивала бота в первом и втором акте чаще любой рядовой встречи.
-      act('boom', 'Подрыв', [{ type: 'selfDestruct', amount: 16, burn: 3 }]),
+      act('boom', 'Подрыв', [{ type: 'selfDestruct', amount: 16, burn: 4 }]),
     ],
     // Фитиль на два хода (v0.34.2): два броска, потом Подрыв — на 22 HP есть два хода, а не один. С одним броском
     // в третьем акте пара мартышек рвалась на 64 за ход, и убить обеих ближним оружием было нельзя.
@@ -1355,7 +1376,7 @@ const list: EnemyDef[] = [
       name: 'Порох рвётся',
       effects: [
         { type: 'attack', amount: 6 },
-        { type: 'debuff', status: 'burn', value: 2, turns: 2 },
+        { type: 'debuff', status: 'burn', value: 3, turns: 2 },
       ],
     },
     sprite: blob('#1a1008', '#7a5a3a', '#4a3a20', '#ffe066', 14),
@@ -1368,6 +1389,7 @@ const list: EnemyDef[] = [
     rank: 'normal',
     role: 'caster',
     actions: [
+      rot('Гнилая песнь', 8),
       act('song', 'Песнь', [
         { type: 'debuff', status: 'vulnerable', value: 1, turns: 2 },
         { type: 'drainMp', amount: 3 },
@@ -1376,13 +1398,14 @@ const list: EnemyDef[] = [
       act('claws', 'Когти', [{ type: 'attack', amount: 10 }]),
       listen('Зов песни', 8),
     ],
-    ai: priority([when('listen', heroHidden), when('song', heroMana(6), { cooldown: 2 })], ['claws', 'song', 'claws']),
+    ai: priority([when('listen', heroHidden), when('rot', heroHealed, { cooldown: 3 }), when('song', heroMana(6), { cooldown: 2 })], ['claws', 'song', 'claws']),
     sprite: humanoid('bare', { s: '#7ad0c0', h: '#20706a', b: '#2a8a80', l: '#1a5a55', w: '#c0f0e0' }),
   },
   {
     id: 'tentacle',
     name: 'Щупальце кракена',
     hp: 60,
+    regen: 3,
     location: 'ship',
     rank: 'normal',
     role: 'guard',
@@ -1415,6 +1438,7 @@ const list: EnemyDef[] = [
     rank: 'elite',
     role: 'brute',
     actions: [
+      act('rum', 'Ром', [{ type: 'heal', amount: 18, target: 'self' }]),
       withFx({ kind: 'melee', color: '#dcdcdc' }, act('twin_blades', 'Два клинка', [{ type: 'attack', amount: 9, hits: 2 }])),
       act('parry', 'Парирование', [
         { type: 'block', amount: 14 },
@@ -1425,7 +1449,7 @@ const list: EnemyDef[] = [
       withFx({ kind: 'melee', color: '#dcdcdc' }, listen('Нюх на крыс', 12)),
       withFx({ kind: 'melee', color: '#dcdcdc' }, finish('Абордаж', 20)),
     ],
-    ai: priority([when('listen', heroHidden), when('finish', heroLow, { cooldown: 2 })], ['twin_blades', 'parry', 'lunge']),
+    ai: priority([when('listen', heroHidden), when('rum', selfHalf, { maxUses: 1 }), when('finish', heroLow, { cooldown: 2 })], ['twin_blades', 'parry', 'lunge']),
     sprite: humanoid('hood', { s: '#d9a06b', h: '#1a1a2a', b: '#2a2a4a', l: '#1a1a2a', w: '#e0e0e0' }),
   },
   {

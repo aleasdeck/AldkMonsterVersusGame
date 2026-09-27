@@ -20,6 +20,7 @@ import {
   previewOnTarget,
   resolveEnemyTurn,
   riposteDamage,
+  statusRemaining,
   sureCritOn,
 } from '../src/engine/combat';
 import type { ArtifactInstance, BattleState, GearTier, HeroPersistent } from '../src/engine/types';
@@ -340,11 +341,25 @@ describe('статусы', () => {
     expect(state.hero.hp).toBe(hp0 - 1);
   });
 
-  it('вампирский клык лечит при базовой атаке', () => {
+  it('вампирский клык лечит при базовой атаке — долей урона по HP, хоть на 1; удар в блок не лечит (v0.54)', () => {
     const { state, rng } = mkBattle('berserk', ['boar'], { extra: [{ id: 'vampire_fang', tier: 1 }] });
+    const boar = first(state);
     state.hero.hp = state.hero.maxHp - 10;
-    performAction(state, { type: 'attack', target: first(state).uid }, rng);
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    // 5 % от удара меньше 20 — округление вверх: 1.
     expect(state.hero.hp).toBe(state.hero.maxHp - 9);
+    // Весь удар ушёл в блок — лечить нечем.
+    boar.block = 99;
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    expect(state.hero.hp).toBe(state.hero.maxHp - 9);
+    // Клык 3 + вампиризм 2 = 25 % от удара 40 — 10.
+    const big = mkBattle('berserk', ['bear'], { extra: [{ id: 'vampire_fang', tier: 3 }] });
+    big.state.hero.stats.lifesteal = 5;
+    big.state.hero.stats.dmgMin = 40;
+    big.state.hero.stats.dmgMax = 40;
+    big.state.hero.hp = 10;
+    performAction(big.state, { type: 'attack', target: first(big.state).uid }, big.rng);
+    expect(big.state.hero.hp).toBe(10 + Math.ceil((big.state.stats.damageDealt) * 0.25));
   });
 });
 
@@ -400,7 +415,8 @@ describe('новые механики врагов', () => {
     performAction(state, { type: 'attack', target: first(state).uid }, rng);
     expect(state.phase).toBe('won');
     expect(state.hero.hp).toBe(hp0 - 7); // взрыв 8, Кольца кольчуги гасят 1
-    expect(getStatus(state.hero, 'burn')?.value).toBe(2);
+    // v0.54: взрыв слизня — Горение 3 (было «2 на 2 хода»: первые два тика те же).
+    expect(getStatus(state.hero, 'burn')?.value).toBe(3);
   });
 
   it('враг не копит уклонение поверх непотраченного заряда', () => {
@@ -467,10 +483,11 @@ describe('новые механики врагов', () => {
     first(state).intent = 'bite';
     const hp0 = state.hero.hp;
     pass(state, rng);
+    // v0.54: укус вешает Яд 2 (было «1 на 3 хода»); яд капнул в начале хода героя и ослаб на 1.
     expect(getStatus(state.hero, 'poison')?.value).toBe(1);
     expect(getStatus(state.hero, 'weak')).toBeUndefined();
     // Яд капает в начале хода героя и идёт мимо блока.
-    expect(state.hero.hp).toBe(hp0 - 3 - 1); // укус 4, Кольца кольчуги гасят 1, затем яд 1
+    expect(state.hero.hp).toBe(hp0 - 3 - 2); // укус 4, Кольца кольчуги гасят 1, затем яд 2
   });
 
   it('проклятие мумии портит урон, а не пускает кровь', () => {
@@ -486,7 +503,9 @@ describe('новые механики врагов', () => {
     first(state).intent = 'spit';
     pass(state, rng);
     // v0.49: Горение плевка 3 → 2 — три импа жгли по 9 за ход (главный убийца пещер в первом акте).
-    expect(getStatus(state.hero, 'burn')?.value).toBe(2);
+    // v0.54: Горение 3 без срока (первые два тика — те же 2 + 2 ≈ 3 + 1); в начале хода героя тикнуло и погасло вдвое.
+    expect(getStatus(state.hero, 'burn')?.value).toBe(1);
+    expect(state.log).toContain('Герой: Горение 3 → 1');
   });
 
   it('приём «блок + шипы» читается щитом с числом, шипы уходят вторым бейджем', () => {
@@ -509,7 +528,8 @@ describe('новые механики врагов', () => {
     const { state, rng } = mkBattle('warrior', ['troll']);
     const t = first(state);
     pass(state, rng);
-    t.hp = 20;
+    // 18 + 2 стартовой регенерации (v0.54) — всё ещё ниже половины из 42.
+    t.hp = 18;
     pass(state, rng);
     const intent = computeIntent(t, state);
     expect(intent.notes).toContain('Реакция: сам ниже половины HP');
@@ -662,13 +682,16 @@ describe('новые механики врагов', () => {
     pass(state, rng);
     // здоров — круг идёт дальше
     expect(t.intent).toBe('club');
-    t.hp = 20;
+    // v0.54: у Тролля стартовая Регенерация 2 — в начале своего хода он подлечивается и без реакции.
+    expect(getStatus(t, 'regen')?.value).toBe(2);
+    t.hp = 18;
     pass(state, rng);
+    expect(t.hp).toBe(20);
     expect(t.intent).toBe('regen');
     expect(computeIntent(t).text).toContain('Реакция: сам ниже половины HP');
     pass(state, rng);
-    // 20 + 7 — уже выше половины: круг продолжается с того же места
-    expect(t.hp).toBe(27);
+    // 20 + 2 регенерации + 7 реакции — уже выше половины: круг продолжается с того же места
+    expect(t.hp).toBe(29);
     expect(t.intent).toBe('stomp');
   });
 
@@ -689,9 +712,9 @@ describe('мана и артефакты', () => {
     // 5 маны + 2 Резерв посоха
     expect(state.hero.mp).toBe(7);
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid }, rng);
-    // 3 по тиру (v0.43) + 1 магический посох; Горение 3 на 3 хода
+    // 3 по тиру (v0.43) + 1 магический посох; Горение 6 (v0.54: без срока, гаснет вдвое — 6 + 3 + 1, как прежние «3 на 3 хода»)
     expect(boar.hp).toBe(18 - 4);
-    expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 3, turns: 3 });
+    expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 6, turns: -1 });
     expect(state.hero.mp).toBe(5);
     expect(canUseAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid })).toMatch(/Перезарядка/);
     pass(state, rng);
@@ -1127,11 +1150,13 @@ describe('ассасин: скрытность', () => {
     const { state, rng } = mkBattle('assassin', ['bear']);
     const bear = first(state);
     performAction(state, { type: 'artifact', artifactId: 'poison_vial', target: bear.uid }, rng);
-    expect(getStatus(bear, 'poison')).toMatchObject({ value: 2, turns: 4 });
+    // v0.54: Флакон — Яд 3 без срока (было «2 на 4 хода»).
+    expect(getStatus(bear, 'poison')).toMatchObject({ value: 3, turns: -1 });
     expect(getStatus(state.hero, 'stealth')).toBeDefined();
     const hp = state.hero.hp;
     pass(state, rng);
-    expect(bear.hp).toBe(35 - 2);
+    expect(bear.hp).toBe(35 - 3);
+    expect(getStatus(bear, 'poison')?.value).toBe(2);
     expect(state.hero.hp).toBe(hp);
   });
 
@@ -1185,10 +1210,10 @@ describe('зелья', () => {
     const hp = state.enemies.map((e) => e.hp);
     expect(getStatus(state.hero, 'stealth')).toBeTruthy();
     performAction(state, { type: 'potion' }, rng);
-    // v0.40.5: 5 урона в лоб вместо 8, зато Горение 3 на 2 хода каждому — ещё 6 мимо блока.
+    // v0.40.5: 5 урона в лоб вместо 8, зато Горение каждому; v0.54 — Горение 4 без срока (4 + 2 + 1 мимо блока).
     for (const [i, e] of state.enemies.entries()) {
       expect(e.hp).toBe(Math.max(0, hp[i] - 5));
-      expect(getStatus(e, 'burn')).toEqual({ id: 'burn', value: 3, turns: 2 });
+      expect(getStatus(e, 'burn')).toEqual({ id: 'burn', value: 4, turns: -1 });
     }
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
 
@@ -1324,10 +1349,10 @@ describe('v0.33: вторые персональные артефакты', () =
     performAction(state, { type: 'artifact', artifactId: 'fire_wave' }, rng);
     expect(state.hero.mp).toBe(7 - 2); // 5 маны Мага + 2 посоха
     expect(state.hero.cooldowns.fire_wave).toBe(1);
-    // 2 урона + 1 сила заклинаний посоха, Горение 1 на 2 хода — каждому; с Огненным шаром это набор «Огонь» 2/3: Горение +1.
+    // 2 урона + 1 сила заклинаний посоха, Горение 2 (v0.54) — каждому; с Огненным шаром это набор «Огонь» 2/3: Горение +1.
     for (const e of state.enemies) {
       expect(e.hp).toBe(35 - 3);
-      expect(getStatus(e, 'burn')).toEqual({ id: 'burn', value: 2, turns: 2 });
+      expect(getStatus(e, 'burn')).toEqual({ id: 'burn', value: 3, turns: -1 });
     }
     expect(canUseAction(state, { type: 'artifact', artifactId: 'fire_wave' })).toBe('Перезарядка: 1');
   });
@@ -1631,20 +1656,20 @@ describe('v0.38: связки', () => {
     const [a, b] = state.enemies;
     performAction(state, { type: 'artifact', artifactId: 'poison_vial', target: b.uid }, rng);
     performAction(state, { type: 'artifact', artifactId: 'contagion', target: b.uid }, rng);
-    // Флакон 2 + набор «Яд» 2 (Флакон и Заражение, v0.47) 1.
-    expect(getStatus(a, 'poison')).toEqual({ id: 'poison', value: 3, turns: 4 });
-    expect(getStatus(b, 'poison')).toEqual({ id: 'poison', value: 3, turns: 4 });
+    // Флакон 3 (v0.54) + набор «Яд» 2 (Флакон и Заражение, v0.47) 1; у Яда нет срока.
+    expect(getStatus(a, 'poison')).toEqual({ id: 'poison', value: 4, turns: -1 });
+    expect(getStatus(b, 'poison')).toEqual({ id: 'poison', value: 4, turns: -1 });
     expect(state.hero.sta).toBe(0);
   });
 
   it('Взрыв пламени: горение снимается со всех и суммой бьёт каждого', () => {
     const { state, rng } = mkBattle('mage', ['wolf', 'wolf'], { extra: [{ id: 'flame_burst', tier: 1 }] });
     const [a, b] = state.enemies;
-    a.statuses.push({ id: 'burn', value: 2, turns: 2 });
+    a.statuses.push({ id: 'burn', value: 2, turns: -1 });
     performAction(state, { type: 'artifact', artifactId: 'flame_burst', target: a.uid }, rng);
-    // 2 × 2 хода = 4 каждому, блок и уязвимость не участвуют
-    expect(a.hp).toBe(12 - 4);
-    expect(b.hp).toBe(12 - 4);
+    // Остаток Горения 2 (v0.54: гаснет вдвое) — 2 + 1 = 3 каждому, блок и уязвимость не участвуют
+    expect(a.hp).toBe(12 - 3);
+    expect(b.hp).toBe(12 - 3);
     expect(getStatus(a, 'burn')).toBeUndefined();
     expect(state.hero.mp).toBe(7 - 2);
   });
@@ -1652,22 +1677,27 @@ describe('v0.38: связки', () => {
   it('Взрыв пламени третьего тира: пул умножается на 1.5, а не на 2 (v0.40.5)', () => {
     const { state, rng } = mkBattle('mage', ['boar', 'boar'], { extra: [{ id: 'flame_burst', tier: 3 }] });
     const [a, b] = state.enemies;
-    a.statuses.push({ id: 'burn', value: 2, turns: 2 });
-    // Горение 2 × 2 хода = пул 4, ×1.5 = 6 каждому (до нерфа было 8).
+    a.statuses.push({ id: 'burn', value: 4, turns: -1 });
+    // Остаток Горения 4 — 4 + 2 + 1 = 7, ×1.5 = 10 каждому (×2 до нерфа дал бы 14).
     performAction(state, { type: 'artifact', artifactId: 'flame_burst', target: a.uid }, rng);
-    expect(a.hp).toBe(18 - 6);
-    expect(b.hp).toBe(18 - 6);
+    expect(a.hp).toBe(18 - 10);
+    expect(b.hp).toBe(18 - 10);
   });
 
-  it('Раздуть: заклинание по горящей цели сильнее и продлевает горение', () => {
+  it('Раздуть: заклинание по горящей цели сильнее, и её Горение в ближайший тик не гаснет вдвое (v0.54)', () => {
     const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'fan_flames', tier: 1 }] });
     const boar = first(state);
-    boar.statuses.push({ id: 'burn', value: 2, turns: 1 });
+    boar.statuses.push({ id: 'burn', value: 2, turns: -1 });
     performAction(state, { type: 'artifact', artifactId: 'fireball', target: boar.uid }, rng);
-    // (3 + 1 посох) × 1.3 = 5.2 → 5; горение продлено на ход (1 → 2), потом сложилось с новым:
-    // 3 шара + 1 набора «Огонь» 2/3 (шар и Раздуть — оба Огонь), срок — больший из 2 и 3.
+    // (3 + 1 посох) × 1.3 = 5.2 → 5; Горение раздуто и сложилось с новым: 6 шара + 1 набора «Огонь» 2/3 (шар и Раздуть — оба Огонь).
     expect(boar.hp).toBe(18 - 5);
-    expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 6, turns: 3 });
+    expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 9, turns: -1, hold: true });
+    boar.intent = 'bristle';
+    pass(state, rng);
+    // Тик 9 — и раздутое Горение не погасло; следующий тик уже делит пополам.
+    expect(boar.hp).toBe(18 - 5 - 9);
+    expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 9, turns: -1, hold: false });
+    expect(state.log).toContain('Кабан: Горение 9 не гаснет (раздуто)');
   });
 
   it('Ледяной осколок (v0.47): урон и Холод; четыре Холода — Оцепенение, враг пропускает ход', () => {
@@ -1830,7 +1860,8 @@ describe('v0.38: связки', () => {
     expect(['burn', 'poison', 'bleed']).toContain(ench!.element);
     expect(ench!.value).toBe(2);
     performAction(state, { type: 'attack', target: boar.uid }, rng);
-    expect(getStatus(boar, ench!.element!)).toEqual({ id: ench!.element, value: 2, turns: 2 });
+    // v0.54: Кровотечение — порция на 2 хода, у Яда и Горения срока нет.
+    expect(getStatus(boar, ench!.element!)).toMatchObject({ id: ench!.element, value: 2, turns: ench!.element === 'bleed' ? 2 : -1 });
     performAction(state, { type: 'attack', target: boar.uid }, rng);
     expect(getStatus(boar, ench!.element!)?.value).toBe(4);
     // Второй ход заточка ещё держится, на третьем спадает
@@ -1859,17 +1890,38 @@ describe('v0.38: связки', () => {
     expect(boar.hp).toBe(18 - 3);
   });
 
-  it('стихийные аффиксы оружия: Горящий и Ядовитый вешают рану с каждого удара, включая удары приёмов', () => {
+  it('раны с удара от артефактов (Тлеющий, Отравленный клинок) — с каждого удара, включая удары приёмов', () => {
     const { state, rng } = mkBattle('warrior', ['boar']);
     const boar = first(state);
     state.hero.stats.onHitBurn = 2;
     state.hero.stats.onHitPoison = 1;
     performAction(state, { type: 'attack', target: boar.uid }, rng);
-    expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 2, turns: 2 });
-    expect(getStatus(boar, 'poison')).toEqual({ id: 'poison', value: 1, turns: 3 });
+    expect(getStatus(boar, 'burn')).toEqual({ id: 'burn', value: 2, turns: -1 });
+    expect(getStatus(boar, 'poison')).toEqual({ id: 'poison', value: 1, turns: -1 });
     performAction(state, { type: 'artifact', artifactId: 'crippling_shot', target: boar.uid }, rng);
     expect(getStatus(boar, 'burn')?.value).toBe(4);
     expect(getStatus(boar, 'poison')?.value).toBe(2);
+  });
+
+  it('стихийные аффиксы оружия (v0.54): рана только с первой атаки хода, в одном наложении с артефактом', () => {
+    const { state, rng } = mkBattle('warrior', ['bear']);
+    const boar = first(state); // медведь: 35 HP — три удара его не добивают
+    state.hero.stats.affBurn = 2;
+    state.hero.stats.onHitBleed = 1;
+    state.hero.stats.affBleed = 2;
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    // Первая атака: Горящий 2 и Кровотечение 1 клинка + 2 Кровавого — одной порцией 3.
+    expect(getStatus(boar, 'burn')?.value).toBe(2);
+    expect(getStatus(boar, 'bleed')?.parts).toEqual([{ v: 3, t: 2 }]);
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    // Вторая: только клинок — аффикс молчит.
+    expect(getStatus(boar, 'burn')?.value).toBe(2);
+    expect(getStatus(boar, 'bleed')?.parts).toEqual([{ v: 3, t: 2 }, { v: 1, t: 2 }]);
+    // Новый ход — аффикс снова работает.
+    pass(state, rng);
+    performAction(state, { type: 'attack', target: boar.uid }, rng);
+    // Горение 2 тикнуло и погасло вдвое — 1, плюс Горящий 2.
+    expect(getStatus(boar, 'burn')?.value).toBe(1 + 2);
   });
 
   it('Оглушающий удар: оглушает, и удар по оглушённому — крит', () => {
@@ -1937,5 +1989,148 @@ describe('урон по источникам (v0.42)', () => {
     endTurn(state);
     resolveEnemyTurn(state, rng);
     expect(state.dealtBy.riposte).toBe(riposteDamage(state.hero));
+  });
+});
+
+describe('v0.54: реворк статусов', () => {
+  it('Кровотечение ложится порциями: каждая истекает своим сроком, остаток — порции × сроки', () => {
+    const { state, rng } = mkBattle('warrior', ['bear']);
+    const bear = first(state);
+    bear.intent = 'paw';
+    // Две порции: 3 на 2 хода и 5 на 1 ход — сила 8, срок 2, остаток 3·2 + 5·1 = 11.
+    state.hero.stats.onHitBleed = 3;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    const bleed = getStatus(bear, 'bleed')!;
+    bleed.parts!.push({ v: 5, t: 1 });
+    bleed.value += 5;
+    expect(statusRemaining(bleed)).toBe(3 * 2 + 5 * 1);
+    const hp = bear.hp;
+    pass(state, rng);
+    // Тик 8, потом короткая порция истекла — осталась 3 на ещё 1 ход.
+    expect(bear.hp).toBe(hp - 8);
+    expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 3, turns: 1, parts: [{ v: 3, t: 1 }] });
+    bear.intent = 'paw';
+    pass(state, rng);
+    expect(getStatus(bear, 'bleed')).toBeUndefined();
+  });
+
+  it('Яд тикает силой и слабеет на 1; «Токсиколог» — не слабеет', () => {
+    const { state, rng } = mkBattle('warrior', ['bear']);
+    const bear = first(state);
+    bear.statuses.push({ id: 'poison', value: 3, turns: -1 });
+    expect(statusRemaining(getStatus(bear, 'poison')!)).toBe(3 + 2 + 1);
+    const hp = bear.hp;
+    bear.intent = 'paw';
+    pass(state, rng);
+    expect(bear.hp).toBe(hp - 3);
+    expect(getStatus(bear, 'poison')?.value).toBe(2);
+    expect(state.log).toContain('Медведь: Яд 3 → 2');
+    state.hero.stats = { ...state.hero.stats, poisonNoDecay: 1 };
+    bear.intent = 'paw';
+    pass(state, rng);
+    expect(getStatus(bear, 'poison')?.value).toBe(2);
+  });
+
+  it('Горение тикает силой и гаснет вдвое; остаток — сумма тиков (8 → 15)', () => {
+    const { state, rng } = mkBattle('warrior', ['bear']);
+    const bear = first(state);
+    bear.statuses.push({ id: 'burn', value: 8, turns: -1 });
+    expect(statusRemaining(getStatus(bear, 'burn')!)).toBe(8 + 4 + 2 + 1);
+    const hp = bear.hp;
+    bear.intent = 'paw';
+    pass(state, rng);
+    expect(bear.hp).toBe(hp - 8);
+    expect(getStatus(bear, 'burn')?.value).toBe(4);
+    // Новое наложение прибавляется к силе, срока по-прежнему нет.
+    performAction(state, { type: 'artifact', artifactId: 'crippling_shot', target: bear.uid }, rng);
+    state.hero.stats = { ...state.hero.stats, onHitBurn: 3 };
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(getStatus(bear, 'burn')).toEqual({ id: 'burn', value: 7, turns: -1 });
+  });
+
+  it('одно правило для героя и врагов: Горение врага на герое тоже гаснет вдвое', () => {
+    const { state, rng } = mkBattle('warrior', ['imp']);
+    first(state).intent = 'spit';
+    pass(state, rng);
+    expect(getStatus(state.hero, 'burn')?.value).toBe(1);
+    first(state).intent = 'mischief';
+    pass(state, rng);
+    expect(getStatus(state.hero, 'burn')).toBeUndefined();
+  });
+
+  it('Распад: лечение героя вдвое слабее; у врага — Распад или Гниль по отравленному, одно деление', () => {
+    // Лечение у Паладина уже в классической паре — вторая копия собрала бы Свет 2/3.
+    const { state, rng } = mkBattle('paladin', ['ghoul']);
+    state.hero.hp = 10;
+    state.hero.statuses.push({ id: 'decay', value: 1, turns: 2 });
+    state.hero.mp = 9;
+    performAction(state, { type: 'artifact', artifactId: 'heal' }, rng);
+    // Лечение 5 → 2 под Распадом.
+    expect(state.hero.hp).toBe(12);
+    expect(state.log.some((l) => l.includes('лечение, распад'))).toBe(true);
+    // Гуль лечится укусом: под Распадом вдвое, с Гнилью по отравленному — тоже вдвое, но не вчетверо.
+    const g = mkBattle('warrior', ['ghoul']);
+    const ghoul = first(g.state);
+    ghoul.hp = 10;
+    ghoul.statuses.push({ id: 'decay', value: 1, turns: 2 }, { id: 'poison', value: 1, turns: -1 });
+    g.state.hero.stats = { ...g.state.hero.stats, poisonRot: 1 };
+    ghoul.intent = 'bite';
+    g.state.hero.hp = 999;
+    const before = ghoul.hp;
+    pass(g.state, g.rng);
+    // Яд 1 тикнул, укус лечит 4 → 2.
+    expect(ghoul.hp).toBe(before - 1 + 2);
+  });
+
+  it('Трупный яд: первая атака хода вешает Распад, «Отравитель» — удар в спину', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'corpse_poison', tier: 2 }] });
+    const bear = first(state);
+    expect(state.hero.stats.decayOnHit).toBe(2);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(getStatus(bear, 'decay')).toEqual({ id: 'decay', value: 1, turns: 2 });
+    bear.statuses = bear.statuses.filter((s) => s.id !== 'decay');
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(getStatus(bear, 'decay')).toBeUndefined();
+  });
+
+  it('стартовая регенерация врага: лечит в начале его хода после ран, Распад режет вдвое', () => {
+    const { state, rng } = mkBattle('warrior', ['troll']);
+    const troll = first(state);
+    expect(getStatus(troll, 'regen')?.value).toBe(2);
+    troll.hp = 30;
+    troll.statuses.push({ id: 'decay', value: 1, turns: 3 });
+    pass(state, rng);
+    expect(troll.hp).toBe(31);
+    expect(state.log.some((l) => l.includes('регенерация, распад'))).toBe(true);
+  });
+
+  it('Порча: враг отвечает на лечение героя ударом и Распадом на герое', () => {
+    const { state, rng } = mkBattle('warrior', ['spider']);
+    const spider = first(state);
+    spider.intent = 'web';
+    // Герой за ход вылечился на 15 % максимума — паук выбирает Порчу.
+    state.hero.healedTurn = Math.ceil(state.hero.maxHp * 0.15);
+    endTurn(state);
+    state.hero.healedTurn = Math.ceil(state.hero.maxHp * 0.15);
+    resolveEnemyTurn(state, rng);
+    expect(spider.intent).toBe('rot');
+    expect(computeIntent(spider, state).text).toContain('Реакция: герой вылечился на 15 % HP');
+    pass(state, rng);
+    expect(getStatus(state.hero, 'decay')?.turns).toBe(2);
+  });
+
+  it('Жажда крови — за первый крит хода; Пиявка — раз за ход врагов', () => {
+    const { state, rng } = mkBattle('assassin', ['bear'], { extra: [{ id: 'blood_thirst', tier: 1 }] });
+    const bear = first(state);
+    state.hero.stats = { ...state.hero.stats, crit: 1 };
+    state.hero.hp = 10;
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(state.log.filter((l) => l.includes('(жажда крови)')).length).toBe(1);
+    const lee = mkBattle('warrior', ['wolf', 'wolf', 'wolf'], { extra: [{ id: 'leech_charm', tier: 1 }] });
+    for (const w of lee.state.enemies) w.statuses.push({ id: 'poison', value: 1, turns: -1 });
+    lee.state.hero.hp = 10;
+    pass(lee.state, lee.rng);
+    expect(lee.state.log.filter((l) => l.includes('(пиявка')).length).toBe(1);
   });
 });

@@ -6,6 +6,7 @@ import { enemySprite as spriteImg } from '../enemySprite';
 import { enemySize } from '../characterSize';
 import type { EnemyDef, LocationId } from '../../engine/types';
 import { paramTip } from '../tips';
+import { statusIcon } from '../icons';
 import type { TipFn } from '../dom';
 import type { App } from '../app';
 
@@ -134,6 +135,8 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
       ),
     ),
     roleLine(def),
+    // Стартовая регенерация (v0.54): «прикол» врага с начала боя, числом первого акта.
+    def.regen ? h('div', { class: 'beast-role' }, statusIcon('regen', 14), h('span', null, ` Регенерация ${Math.max(1, Math.round(def.regen * firstActScale(def).hpMult))}`), h('span', { class: 'dim' }, ' — с начала боя лечится в начале каждого своего хода; Распад режет вдвое')) : null,
     h('h3', null, 'Приёмы'),
     h('div', { class: 'beast-actions' }, ...def.actions.map((a) => actionRow(def, a, conditional(a)))),
     patternLine(def),

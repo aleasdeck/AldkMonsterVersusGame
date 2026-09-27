@@ -74,7 +74,8 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     tags: ['light'],
     mods: (tier) => ({ lifesteal: t(1, 2, 3)(tier) }),
-    describe: (tier) => `Базовая атака лечит на ${t(1, 2, 3)(tier)}`,
+    // v0.54: доля урона по HP вместо фиксированных 1/2/3 за атаку — удар в блок не лечит, слабый удар лечит мало (ADR 0005).
+    describe: (tier) => `Базовая атака лечит на ${t(5, 10, 15)(tier)} % урона по HP`,
   },
   {
     id: 'regen_amulet',
@@ -125,7 +126,8 @@ const list: ArtifactDef[] = [
     slot: 'armor',
     tags: ['shadow'],
     mods: (tier) => ({ critHeal: t(3, 4, 5)(tier) }),
-    describe: (tier) => `+${t(3, 4, 5)(tier)} HP за каждый критический удар`,
+    // v0.54: за первый крит хода, а не за каждый — крит-сборка отлечивала больше, чем по ней били.
+    describe: (tier) => `+${t(3, 4, 5)(tier)} HP за первый критический удар хода`,
   },
 
   {
@@ -214,7 +216,8 @@ const list: ArtifactDef[] = [
     tags: ['blood', 'poison'],
     mods: (tier) => ({ dotLeech: t(1, 2, 3)(tier) }),
     // v0.40.2: считается по каждой ране, а не по факту «есть хоть одна» — с кровью и ядом на одном враге пьётся вдвое.
-    describe: (tier) => `Тик Кровотечения или Яда на враге лечит героя на ${t(1, 2, 3)(tier)}; обе раны на одной цели — вдвое`,
+    // v0.54: раз за ход врагов — с каждого тика каждого врага три раненых врага лечили героя втрое.
+    describe: (tier) => `Раз за ход врагов тик Кровотечения или Яда лечит героя на ${t(1, 2, 3)(tier)}; обе раны на одной цели — вдвое`,
   },
   {
     id: 'rot',
@@ -223,8 +226,19 @@ const list: ArtifactDef[] = [
     kind: 'passive',
     slot: 'weapon',
     tags: ['poison'],
-    mods: (tier) => ({ poisonVuln: t(0.15, 0.25, 0.35)(tier) }),
-    describe: (tier) => `Отравленный враг получает на ${t(15, 25, 35)(tier)} % больше урона от ударов и заклинаний`,
+    // v0.54: Яд — ответ на лечащихся врагов: отравленный лечится вдвое слабее, как под Распадом.
+    mods: (tier) => ({ poisonVuln: t(0.15, 0.25, 0.35)(tier), poisonRot: 1 }),
+    describe: (tier) => `Отравленный враг получает на ${t(15, 25, 35)(tier)} % больше урона от ударов и заклинаний и лечится вдвое слабее`,
+  },
+  {
+    // v0.54: Распад в руки любой сборке — ответ на регенерацию и лечение врагов (ADR 0005). Общая вещь, без архетипа.
+    id: 'corpse_poison',
+    name: 'Трупный яд',
+    glyph: '⚰',
+    kind: 'passive',
+    slot: 'weapon',
+    mods: (tier) => ({ decayOnHit: t(1, 2, 3)(tier) }),
+    describe: (tier) => `Первая атака хода вешает Распад на ${t(1, 2, 3)(tier)} ${t(1, 2, 3)(tier) === 1 ? 'ход' : 'хода'}`,
   },
   {
     id: 'fan_flames',
@@ -234,7 +248,8 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     tags: ['fire'],
     mods: (tier) => ({ spellVsBurn: t(0.3, 0.4, 0.5)(tier) }),
-    describe: (tier) => `Заклинания по горящей цели на ${t(30, 40, 50)(tier)} % сильнее и продлевают Горение на ход`,
+    // v0.54: у Горения нет срока — раздутое пропускает ближайшее деление пополам.
+    describe: (tier) => `Заклинания по горящей цели на ${t(30, 40, 50)(tier)} % сильнее, и её Горение не гаснет вдвое в ближайший тик`,
   },
   {
     id: 'resonance',
@@ -481,8 +496,8 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     // Склянка летит через ряд: достаёт любого, даже в руках ближнего бойца.
     reach: 'any',
-    effects: (tier) => [{ type: 'status', target: 'enemy', status: 'poison', value: t(2, 3, 4)(tier), turns: 4 }],
-    describe: (tier) => `Яд ${t(2, 3, 4)(tier)} на 4 хода; бросок не снимает скрытность`,
+    effects: (tier) => [{ type: 'status', target: 'enemy', status: 'poison', value: t(3, 4, 5)(tier), turns: 4 }],
+    describe: (tier) => `Яд ${t(3, 4, 5)(tier)}; бросок не снимает скрытность`,
   },
   {
     id: 'double_lunge',
@@ -678,7 +693,7 @@ const list: ArtifactDef[] = [
     target: 'enemy',
     reach: 'any',
     effects: () => [{ type: 'spread', statuses: ['poison'], target: 'enemy' }],
-    describe: () => `Яд с цели копируется на всех остальных врагов (сила и срок те же)`,
+    describe: () => `Яд с цели копируется на всех остальных врагов с той же силой`,
   },
   {
     id: 'shield_break',
@@ -779,9 +794,9 @@ const list: ArtifactDef[] = [
     // v0.43: 3/4/5 и Горение 3/4/5 на 3 хода — крупный прямой урон уходит в выплаты (Испепеление, Взрыв), шар — заводка (ADR 0003).
     effects: (tier) => [
       { type: 'spell', amount: t(3, 4, 5)(tier), target: 'enemy' },
-      { type: 'status', target: 'enemy', status: 'burn', value: t(3, 4, 5)(tier), turns: 3 },
+      { type: 'status', target: 'enemy', status: 'burn', value: t(6, 7, 8)(tier), turns: 3 },
     ],
-    describe: (tier) => `${t(3, 4, 5)(tier)} урона и Горение ${t(3, 4, 5)(tier)} на 3 хода`,
+    describe: (tier) => `${t(3, 4, 5)(tier)} урона и Горение ${t(6, 7, 8)(tier)}`,
   },
   {
     id: 'ice_shard',
@@ -917,9 +932,9 @@ const list: ArtifactDef[] = [
     // Второй персональный Мага (v0.33): урон по площади и по времени против Волшебной стрелы-«пулемёта».
     effects: (tier) => [
       { type: 'spell', amount: t(2, 3, 4)(tier), target: 'allEnemies' },
-      { type: 'status', target: 'allEnemies', status: 'burn', value: t(1, 1, 2)(tier), turns: 2 },
+      { type: 'status', target: 'allEnemies', status: 'burn', value: t(2, 2, 3)(tier), turns: 2 },
     ],
-    describe: (tier) => `${t(2, 3, 4)(tier)} урона и Горение ${t(1, 1, 2)(tier)} на 2 хода всем врагам`,
+    describe: (tier) => `${t(2, 3, 4)(tier)} урона и Горение ${t(2, 2, 3)(tier)} всем врагам`,
   },
   {
     id: 'hex',
@@ -1048,7 +1063,7 @@ const list: ArtifactDef[] = [
     tags: ['fire'],
     // Огонь для тех, кто бьёт оружием: удар поджигает, выплаты — Испепеление и Взрыв — берут с этого.
     mods: (tier) => ({ onHitBurn: t(1, 1, 2)(tier) }),
-    describe: (tier) => `Каждый удар оружием вешает Горение ${t(1, 1, 2)(tier)} на 2 хода`,
+    describe: (tier) => `Каждый удар оружием вешает Горение ${t(1, 1, 2)(tier)}`,
   },
   {
     id: 'incinerate',
@@ -1086,7 +1101,7 @@ const list: ArtifactDef[] = [
     keystone: true,
     // Ключевая вещь Огня: удар оружием вдвое слабее, зато каждое заклинание — пожар по всем.
     mods: (tier) => ({ strikeMult: -0.5, spellIgniteAll: t(1, 1, 2)(tier) }),
-    describe: (tier) => `Каждое заклинание: Горение ${t(1, 1, 2)(tier)} на 2 хода всем врагам; удары оружием слабее вдвое`,
+    describe: (tier) => `Каждое заклинание: Горение ${t(1, 1, 2)(tier)} всем врагам; удары оружием слабее вдвое`,
   },
   // ─── Архетипы (v0.47): Яд, Щит, Возмездие, Свет, Серия, Тень, Холод ─────
   // docs/plan-reworka.md §2.2. Числа — первый проход; ключевые вещи бронные, с минусом, тиром 1 и вдвое реже.
@@ -1098,7 +1113,7 @@ const list: ArtifactDef[] = [
     slot: 'weapon',
     tags: ['poison'],
     mods: (tier) => ({ onHitPoison: t(1, 2, 2)(tier) }),
-    describe: (tier) => `Каждый удар оружием вешает Яд ${t(1, 2, 2)(tier)} на 3 хода`,
+    describe: (tier) => `Каждый удар оружием вешает Яд ${t(1, 2, 2)(tier)}`,
   },
   {
     id: 'poison_cloud',
@@ -1113,8 +1128,8 @@ const list: ArtifactDef[] = [
     cooldown: () => 3,
     target: 'allEnemies',
     // Бронная заводка яда: набор собирается и в 2 + 2 сокета.
-    effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'poison', value: t(3, 4, 5)(tier), turns: 4 }],
-    describe: (tier) => `Яд ${t(3, 4, 5)(tier)} на 4 хода всем врагам`,
+    effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'poison', value: t(4, 5, 6)(tier), turns: 4 }],
+    describe: (tier) => `Яд ${t(4, 5, 6)(tier)} всем врагам`,
   },
   {
     id: 'catalyst',
@@ -1142,7 +1157,7 @@ const list: ArtifactDef[] = [
     tags: ['poison'],
     keystone: true,
     mods: () => ({ poisonNoDecay: 1, strikeMult: -0.25 }),
-    describe: () => 'Ваш Яд не спадает по сроку; удары оружием слабее на 25 %',
+    describe: () => 'Ваш Яд не слабеет со временем; удары оружием слабее на 25 %',
   },
   {
     id: 'shield_slam',
