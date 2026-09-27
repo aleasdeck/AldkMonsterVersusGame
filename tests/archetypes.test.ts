@@ -67,7 +67,8 @@ describe('архетипы и наборы (v0.43)', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], [a('bleed_cut'), a('blood_trail')]);
     const bear = state.enemies[0];
     performAction(state, { type: 'artifact', artifactId: 'bleed_cut', target: bear.uid }, rng);
-    expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 4, turns: 3 });
+    // v0.54: Кровотечение — порциями; одно наложение — одна порция.
+    expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 4, turns: 3, parts: [{ v: 4, t: 3 }] });
   });
 
   it('Кровь 3/3: кровь тикает ещё раз перед ходом героя', () => {
@@ -85,7 +86,7 @@ describe('архетипы и наборы (v0.43)', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], [a('jagged_edge')]);
     const bear = state.enemies[0];
     performAction(state, { type: 'attack', target: bear.uid }, rng);
-    expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 1, turns: 2 });
+    expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 1, turns: 2, parts: [{ v: 1, t: 2 }] });
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(getStatus(bear, 'bleed')?.value).toBe(2);
   });
@@ -107,9 +108,9 @@ describe('архетипы и наборы (v0.43)', () => {
     const [x, y, z] = state.enemies;
     x.statuses.push({ id: 'bleed', value: 5, turns: 3 });
     performAction(state, { type: 'artifact', artifactId: 'blood_bath', target: x.uid }, rng);
-    // 50 % от 5 = 2.5 → 3 (округление к ближнему), срок тот же.
-    expect(getStatus(y, 'bleed')).toEqual({ id: 'bleed', value: 3, turns: 3 });
-    expect(getStatus(z, 'bleed')).toEqual({ id: 'bleed', value: 3, turns: 3 });
+    // 50 % от 5 = 2.5 → 3 (округление к ближнему), срок тот же — одной порцией.
+    expect(getStatus(y, 'bleed')).toMatchObject({ id: 'bleed', value: 3, turns: 3 });
+    expect(getStatus(z, 'bleed')).toMatchObject({ id: 'bleed', value: 3, turns: 3 });
     expect(getStatus(x, 'bleed')?.value).toBe(5);
   });
 
@@ -117,7 +118,8 @@ describe('архетипы и наборы (v0.43)', () => {
     const { state, rng } = mkBattle('warrior', ['bear'], [a('smoldering_blade'), a('fan_flames')]);
     const bear = state.enemies[0];
     performAction(state, { type: 'attack', target: bear.uid }, rng);
-    expect(getStatus(bear, 'burn')).toEqual({ id: 'burn', value: 2, turns: 2 });
+    // v0.54: у Горения нет срока — гаснет вдвое после каждого тика.
+    expect(getStatus(bear, 'burn')).toEqual({ id: 'burn', value: 2, turns: -1 });
   });
 
   it('Испепеление: только по горящей, Горение × mult мимо блока, огонь остаётся', () => {
@@ -136,7 +138,8 @@ describe('архетипы и наборы (v0.43)', () => {
   it('Жаропрочность: Горение на герое не держится, блок за каждого горящего врага', () => {
     const { state, rng } = mkBattle('warrior', ['wolf', 'wolf'], [a('heat_ward', 2)]);
     for (const e of state.enemies) {
-      e.statuses.push({ id: 'burn', value: 1, turns: 3 });
+      // v0.54: Горение 4 после тика гаснет до 2 — враги ещё горят к ходу героя (Горение 1 погасло бы в ноль).
+      e.statuses.push({ id: 'burn', value: 4, turns: -1 });
       e.intent = 'howl';
     }
     pass(state, rng);
@@ -235,6 +238,8 @@ describe('архетипы фазы 6 (v0.47)', () => {
     const general = [
       'troll_heart', 'mana_crystal', 'stamina_ring', 'second_wind', 'herbal_brew', 'healer_salve', 'evasion_amulet', 'dodge',
       'blood_token', 'cross_current', 'wolf_whistle', 'shield_break', 'chain_lightning', 'resonance', 'elemental_edge', 'magic_missile',
+      // v0.54: Распад для любой сборки.
+      'corpse_poison',
     ];
     const untagged = Object.values(ARTIFACTS).filter((d) => !d.tags?.length).map((d) => d.id);
     expect(untagged.sort()).toEqual(general.sort());
@@ -254,7 +259,7 @@ describe('архетипы фазы 6 (v0.47)', () => {
     expect(state.hero.stats.poisonWeaken).toBeCloseTo(0.25);
     wolf.hp = 99;
     performAction(state, { type: 'attack', target: wolf.uid }, rng);
-    expect(getStatus(wolf, 'poison')).toEqual({ id: 'poison', value: 2, turns: 3 });
+    expect(getStatus(wolf, 'poison')).toEqual({ id: 'poison', value: 2, turns: -1 });
     wolf.intent = 'bite';
     const hp = state.hero.hp;
     pass(state, rng);

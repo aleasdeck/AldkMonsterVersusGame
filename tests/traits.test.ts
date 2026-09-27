@@ -77,12 +77,13 @@ describe('черты героев (v0.44)', () => {
     expect(chargeBonus(state.hero)).toBe(0);
   });
 
-  it('Ассасин «Отравитель»: удар в спину вешает Яд 2', () => {
+  it('Ассасин «Отравитель»: удар в спину вешает Яд 3 и Распад на 2 хода (v0.54)', () => {
     const { state, rng } = mkBattle('assassin', ['bear']);
     // Тёмный покров даёт тень на старте боя — первый удар из тени.
     expect(getStatus(state.hero, 'stealth')).toBeDefined();
     performAction(state, { type: 'attack', target: state.enemies[0].uid }, rng);
-    expect(getStatus(state.enemies[0], 'poison')).toEqual({ id: 'poison', value: 2, turns: 3 });
+    expect(getStatus(state.enemies[0], 'poison')).toEqual({ id: 'poison', value: 3, turns: -1 });
+    expect(getStatus(state.enemies[0], 'decay')).toEqual({ id: 'decay', value: 1, turns: 2 });
   });
 
   it('Паладин «Вера»: 30 % лечения сверх максимума — блок (v0.49: было 50 %)', () => {

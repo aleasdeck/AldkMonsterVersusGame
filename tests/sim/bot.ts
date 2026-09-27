@@ -6,9 +6,9 @@
  *
  * Дайсов бот не видит: варианты оцениваются на своём генераторе, реальный ход бросает свои кубики.
  */
-import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RewardFocus, RunState, StatMods, StatusId } from '../../src/engine/types';
+import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
 import { createRng, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
+import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { archetypeCounts, setMods } from '../../src/data/archetypes';
 import { innateOf } from '../../src/engine/stats';
@@ -164,7 +164,7 @@ function baseThreat(defId: string): number {
     for (const eff of a.effects) {
       if (eff.type === 'attack') total += eff.amount * (eff.hits ?? 1);
       else if (eff.type === 'selfDestruct') total += eff.amount;
-      else if (eff.type === 'debuff') total += eff.value * Math.max(1, eff.turns) * 0.5;
+      else if (eff.type === 'debuff') total += dotWorth(eff.status, eff.value, eff.turns) * 0.5;
       else if (eff.type === 'heal') total += eff.amount * (eff.target === 'allies' ? 1 : 0.5);
       else if (eff.type === 'block') total += eff.amount * (eff.target === 'allies' ? 0.5 : 0.2);
       else if (eff.type === 'buffStr') total += eff.amount * (eff.target === 'self' ? 2 : 4);
@@ -236,9 +236,9 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
           }
           hit += rest;
         }
-        if (eff.type === 'selfDestruct' && eff.burn && !hidden) dot += scaled(e.dmgMult, eff.burn) * 3;
+        if (eff.type === 'selfDestruct' && eff.burn && !hidden) dot += dotWorth('burn', scaled(e.dmgMult, eff.burn), -1);
       } else if (eff.type === 'debuff' && !hidden) {
-        if (eff.status === 'bleed' || eff.status === 'burn' || eff.status === 'poison') dot += scaled(e.dmgMult, eff.value) * eff.turns;
+        if (eff.status === 'bleed' || eff.status === 'burn' || eff.status === 'poison') dot += dotWorth(eff.status, scaled(e.dmgMult, eff.value), eff.turns);
         else if (eff.status === 'weak' || eff.status === 'exhaust') hit += 2;
       } else if (eff.type === 'drainMp' && !hidden) {
         hit += Math.min(h.mp, eff.amount) * W.mp;
@@ -256,10 +256,19 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
   return { hit, dot };
 }
 
-function dotTotal(c: { statuses: { id: string; value: number; turns: number }[] }): number {
+function dotTotal(c: { statuses: Status[] }): number {
   let t = 0;
-  for (const s of c.statuses) if (s.id === 'bleed' || s.id === 'burn' || s.id === 'poison') t += s.value * (s.turns === -1 ? 4 : s.turns);
+  for (const s of c.statuses) if (s.id === 'bleed' || s.id === 'burn' || s.id === 'poison') t += statusRemaining(s);
   return t;
+}
+
+/**
+ * Сколько урона принесёт наложение раны силой v (v0.54): Кровотечение — v × срок, Горение и Яд срока не имеют —
+ * тот же остаток, что считает движок (`statusRemaining`). Прочие статусы — по-старому, сила × срок.
+ */
+function dotWorth(status: StatusId, v: number, turns: number): number {
+  if (status === 'burn' || status === 'poison') return statusRemaining({ id: status, value: v, turns: -1 });
+  return v * Math.max(1, turns === -1 ? 3 : turns);
 }
 
 /** Ценность состояния для героя в HP: чем больше, тем лучше. Смерть — провал, победа — приз. */
@@ -489,9 +498,9 @@ function setGain(run: RunState, inst: ArtifactInstance): number {
 function heroApplies(run: RunState, except?: string): Set<StatusId> {
   const out = new Set<StatusId>();
   const s = heroStats(run);
-  if (s.onHitBleed > 0) out.add('bleed');
-  if (s.onHitBurn > 0) out.add('burn');
-  if (s.onHitPoison > 0) out.add('poison');
+  if (s.onHitBleed > 0 || s.affBleed > 0) out.add('bleed');
+  if (s.onHitBurn > 0 || s.affBurn > 0) out.add('burn');
+  if (s.onHitPoison > 0 || s.affPoison > 0) out.add('poison');
   if (s.markOnHit > 0) out.add('vulnerable');
   if (s.stunOnCrit > 0) out.add('stun');
   if (s.spellIgniteAll > 0) out.add('burn');
@@ -569,7 +578,8 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.mpRegen ?? 0) * (magic ? 4 : 0.3);
     v += (m.firstTurnSta ?? 0) * 3;
     v += (m.thorns ?? 0) * 2;
-    v += (m.lifesteal ?? 0) * 3;
+    // Вампиризм v0.54 — доля урона по HP: единица — около половины HP за атаку, вдвое дешевле прежних «+1 за атаку».
+    v += (m.lifesteal ?? 0) * 1.5;
     v += (m.regen ?? 0) * 5;
     // Крит-статы в «HP врага»: шанс стоит ровно столько, сколько даёт крит. урон сверх обычного, и наоборот.
     v += (m.crit ?? 0) * avg * (s.critDmg / 100 - 1) * 12;
@@ -577,7 +587,8 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     // «Азарт» копится весь бой: в среднем работает как половина накопленного шанса на каждом ударе.
     v += (m.critRamp ?? 0) * avg * (s.critDmg / 100 - 1) * 30;
     v += (m.executeCrit ?? 0) * avg * (s.critDmg / 100 - 1) * 3;
-    v += (m.critHeal ?? 0) * s.crit * 6;
+    // «Жажда крови» v0.54 — за первый крит хода: шанс, что за ход он случится, три хода боя.
+    v += (m.critHeal ?? 0) * Math.min(1, s.crit * s.sta) * 3;
     v += (m.spellPower ?? 0) * (magic ? 4 : 0);
     v += (m.dmgMax ?? 0) * 2;
     v += (m.onKillHeal ?? 0) * 3;
@@ -619,6 +630,9 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.dotLeech ?? 0) * 3 * Math.max(src('bleed'), src('poison'));
     // «Гниль»: доля урона всех ударов по отравленному — два хода из трёх.
     v += (m.poisonVuln ?? 0) * avg * s.sta * W.enemyHp * 2 * src('poison');
+    // Распад (v0.54): лечение врага вдвое — у лечащихся врагов это несколько HP за бой; Гниль — только по отравленному.
+    v += (m.decayOnHit ?? 0) * 1.5;
+    v += (m.poisonRot ?? 0) * 2 * src('poison');
     // «Раздуть»: заклинание в ход по горящей цели.
     v += (m.spellVsBurn ?? 0) * 6 * W.enemyHp * 3 * (magic ? src('burn') : 0);
     // «Резонанс»: за каждое проклятие, которое герой умеет вешать, — примерно две трети ходов оно на цели.
@@ -645,7 +659,7 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.thornsAll ?? 0) * (s.thorns + 1) * 2 * 0.8;
     // «Мученик»: Сила копится с каждого пропущенного удара — к середине боя около +2.
     v += (m.hitStr ?? 0) * 4 * 2;
-    const healPerFight = s.regen * 4 + s.lifesteal * s.sta * 3 + 6;
+    const healPerFight = s.regen * 4 + s.lifesteal * s.sta * 1.5 + 6;
     v -= (m.noHeal ?? 0) * healPerFight;
     v += (m.healAdd ?? 0) * (2 + (s.regen > 0 ? 4 : 0) + (s.lifesteal > 0 ? s.sta * 3 : 0));
     v += (m.healMult ?? 0) * healPerFight;
@@ -793,7 +807,7 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           else if (e.status === 'weak') per += turns * 2 * many;
           // Холод: каждые три — пропущенный ход врага (около шести HP героя).
           else if (e.status === 'cold') per += (e.value / 3) * 6 * many;
-          else per += e.value * turns * W.enemyHp * many;
+          else per += dotWorth(e.status, e.value, turns) * W.enemyHp * many;
         }
         break;
       }
@@ -1097,7 +1111,7 @@ export function trialCost(run: RunState, id: string): number {
   const has = (pred: (d: ReturnType<typeof artifactDef>) => boolean) => arts.some((a) => pred(artifactDef(a.id)));
   const aoe = s.sweep > 0 || has((d) => (d.effects?.(3) ?? []).some((e) => 'target' in e && e.target === 'allEnemies'));
   const magic = hasMagicActive(run.hero);
-  const heals = s.regen * 4 + s.lifesteal * s.sta * 3 + (has((d) => (d.effects?.(3) ?? []).some((e) => e.type === 'heal' || (e.type === 'spell' && !!e.drain))) ? 10 : 0);
+  const heals = s.regen * 4 + s.lifesteal * s.sta * 1.5 + (has((d) => (d.effects?.(3) ?? []).some((e) => e.type === 'heal' || (e.type === 'spell' && !!e.drain))) ? 10 : 0);
   const act = run.locationIndex;
   switch (id) {
     case 'pack':
@@ -1157,7 +1171,7 @@ export function boonValue(run: RunState, id: string): number {
   const has = (pred: (d: ReturnType<typeof artifactDef>) => boolean) => arts.some((a) => pred(artifactDef(a.id)));
   const aoe = s.sweep > 0 || has((d) => (d.effects?.(3) ?? []).some((e) => 'target' in e && e.target === 'allEnemies'));
   const magic = hasMagicActive(run.hero);
-  const heals = s.regen * 4 + s.lifesteal * s.sta * 3 + (has((d) => (d.effects?.(3) ?? []).some((e) => e.type === 'heal' || (e.type === 'spell' && !!e.drain))) ? 10 : 0);
+  const heals = s.regen * 4 + s.lifesteal * s.sta * 1.5 + (has((d) => (d.effects?.(3) ?? []).some((e) => e.type === 'heal' || (e.type === 'spell' && !!e.drain))) ? 10 : 0);
   const grow = 1 + run.locationIndex * 0.5;
   switch (id) {
     case 'wolf_friend':

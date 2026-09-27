@@ -3,7 +3,7 @@ import { createRng } from '../src/engine/rng';
 import { heroDef } from '../src/data/heroes';
 import { makeStartingGear } from '../src/data/gear';
 import { LOCATIONS } from '../src/data/locations';
-import { TRIALS, TRIAL_LIST, trialValue, trialsOf } from '../src/data/trials';
+import { FIRE_BLOOD_BURN, HEAT_BURN, MIRE_POISON, TRIALS, TRIAL_LIST, trialValue, trialsOf } from '../src/data/trials';
 import { computeIntent, createBattle, endTurn, getStatus, heroDefendGain, performAction, resolveEnemyTurn } from '../src/engine/combat';
 import { advanceRoom, awaitsTrial, canChooseTrial, chooseTrial, enterRoom, newRun } from '../src/engine/run';
 import { runReport } from '../src/engine/report';
@@ -105,8 +105,9 @@ describe('испытания: правила в бою', () => {
   });
 
   it('Трясина, Зной, Могильный холод, Топь и Качка — на герое в начале боя', () => {
-    expect(getStatus(mkBattle(['wolf'], 'mire', 'warrior', 2).state.hero, 'poison')).toEqual({ id: 'poison', value: trialValue(1, 2), turns: 3 });
-    expect(getStatus(mkBattle(['wolf'], 'heat').state.hero, 'burn')?.value).toBe(1);
+    // v0.54: Яд и Горение без срока — числа по акту в MIRE_POISON и HEAT_BURN.
+    expect(getStatus(mkBattle(['wolf'], 'mire', 'warrior', 2).state.hero, 'poison')).toEqual({ id: 'poison', value: MIRE_POISON[2], turns: -1 });
+    expect(getStatus(mkBattle(['wolf'], 'heat').state.hero, 'burn')?.value).toBe(HEAT_BURN);
     expect(getStatus(mkBattle(['wolf'], 'grave_chill').state.hero, 'weak')?.turns).toBe(2);
     const bog = mkBattle(['wolf'], 'bog').state;
     expect(bog.hero.sta).toBe(bog.hero.maxSta - 1);
@@ -119,7 +120,9 @@ describe('испытания: правила в бою', () => {
     state.enemies[0].statuses.push({ id: 'stun', value: 1, turns: -1 });
     const hp = state.hero.hp;
     pass(state, rng);
-    expect(state.hero.hp).toBe(hp - 2);
+    // Горение 2 + 1 Зноя.
+    expect(state.hero.hp).toBe(hp - 3);
+    expect(getStatus(state.hero, 'burn')?.value).toBe(1);
   });
 
   it('Болотные огни и Рой — на врагах с начала боя', () => {
@@ -158,7 +161,7 @@ describe('испытания: правила в бою', () => {
     const fire = mkBattle(['rat', 'rat'], 'fire_blood');
     fire.state.enemies[0].hp = 1;
     performAction(fire.state, { type: 'attack', target: fire.state.enemies[0].uid }, fire.rng);
-    expect(getStatus(fire.state.hero, 'burn')?.value).toBe(2);
+    expect(getStatus(fire.state.hero, 'burn')?.value).toBe(FIRE_BLOOD_BURN[0]);
     const board = mkBattle(['rat', 'rat'], 'boarding');
     board.state.enemies[0].hp = 1;
     performAction(board.state, { type: 'attack', target: board.state.enemies[0].uid }, board.rng);

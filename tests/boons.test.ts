@@ -4,7 +4,7 @@ import { heroDef } from '../src/data/heroes';
 import { makeStartingGear } from '../src/data/gear';
 import { LOCATIONS } from '../src/data/locations';
 import { enemyDef } from '../src/data/enemies';
-import { BOONS, BOON_LIST, DIFFICULTY_LIST, boonsOf, wolfFriendHp } from '../src/data/boons';
+import { BOONS, BOON_LIST, DIFFICULTY_LIST, FORGE_HEAT_BURN, MIASMA_POISON, boonsOf, wolfFriendHp } from '../src/data/boons';
 import { trialValue } from '../src/data/trials';
 import { createBattle, endTurn, getStatus, heroDefendGain, performAction, resolveEnemyTurn } from '../src/engine/combat';
 import { advanceRoom, awaitsBoon, awaitsThreshold, awaitsTrial, canChooseBoon, chooseBoon, enterRoom, finishBattle, newRun, startEvent } from '../src/engine/run';
@@ -118,8 +118,9 @@ describe('благословения: правила в бою', () => {
 
   it('Следопыт, Болотный смрад, Жар горна и Саван — на врагах с начала боя', () => {
     expect(getStatus(mkBattle(['rat'], 'tracker').state.enemies[0], 'vulnerable')?.turns).toBe(1);
-    expect(getStatus(mkBattle(['rat'], 'miasma', 'warrior', 2).state.enemies[0], 'poison')).toEqual({ id: 'poison', value: trialValue(2, 2), turns: 3 });
-    expect(getStatus(mkBattle(['rat'], 'forge_heat', 'warrior', 1).state.enemies[0], 'burn')).toEqual({ id: 'burn', value: trialValue(2, 1), turns: 2 });
+    // v0.54: Яд и Горение без срока, числа по акту — MIASMA_POISON и FORGE_HEAT_BURN.
+    expect(getStatus(mkBattle(['rat'], 'miasma', 'warrior', 2).state.enemies[0], 'poison')).toEqual({ id: 'poison', value: MIASMA_POISON[2], turns: -1 });
+    expect(getStatus(mkBattle(['rat'], 'forge_heat', 'warrior', 1).state.enemies[0], 'burn')).toEqual({ id: 'burn', value: FORGE_HEAT_BURN[1], turns: -1 });
     expect(getStatus(mkBattle(['rat'], 'shroud').state.enemies[0], 'weak')?.turns).toBe(2);
   });
 

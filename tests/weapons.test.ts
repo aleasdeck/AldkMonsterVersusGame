@@ -197,7 +197,7 @@ describe('перки баз в бою', () => {
     const { state, rng } = mkBattle('archer', ['bear'], weapon('darts', 5));
     const bear = state.enemies[0];
     performAction(state, { type: 'attack', target: bear.uid }, rng);
-    expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 1, turns: 2 });
+    expect(getStatus(bear, 'bleed')).toEqual({ id: 'bleed', value: 1, turns: 2, parts: [{ v: 1, t: 2 }] });
   });
 
   it('праща оглушает только критом и с шансом 30 %: без крита ни одного стана, на 400 критах от 80 до 170', () => {

@@ -252,6 +252,17 @@ const TEMPLATES: Record<StatusId, string[]> = {
     '..####..',
     '...##...',
   ],
+  // Распад (v0.54): треснувшее сердце — лечение вдвое слабее.
+  decay: [
+    '.##..##.',
+    '########',
+    '###.####',
+    '####.###',
+    '.##.###.',
+    '..#.##..',
+    '...##...',
+    '........',
+  ],
 };
 
 /**
@@ -423,6 +434,7 @@ export const STATUS_COLORS: Record<StatusId, string> = {
   frozen: '#bfefff',
   focus: '#b388ff',
   taunt: '#c9ccd1',
+  decay: '#9a8f3c',
 };
 
 const OUTLINE = '#0b0b12';

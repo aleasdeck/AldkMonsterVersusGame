@@ -68,6 +68,7 @@ const STATUS_STEMS: Record<StatusId, string> = {
   frozen: 'оцепен[а-яё]*',
   focus: 'верн(?:ый|ого|ым) глаз(?:а|ом)?',
   taunt: 'насмешк[а-яё]*',
+  decay: 'распад[а-яё]*',
 };
 
 const KEYWORDS: Keyword[] = [

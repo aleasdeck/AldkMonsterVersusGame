@@ -3,7 +3,7 @@ import type { ArmorType, ArtTier, ArtifactInstance, DerivedStats, Effect, GearIn
 import { artifactCost, artifactCostText, artifactDef } from '../data/artifacts';
 import { potionDef } from '../data/potions';
 import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
-import { ARMOR_TYPE_NAMES, ART_TIER_COLORS, GEAR_TIERS, UNSKILLED_DICE_MULT, WEAPON_TYPE_NAMES, affixText, armorType, baseOf, canWearArmor, canWieldWeapon, hasPerk, weaponDice, weaponReach, weaponType, weaponTypeHint, weaponTypeText } from '../data/gear';
+import { ARMOR_TYPE_NAMES, ART_TIER_COLORS, GEAR_TIERS, UNSKILLED_DICE_MULT, WEAPON_TYPE_NAMES, affixHint, affixText, armorType, baseOf, canWearArmor, canWieldWeapon, hasPerk, weaponDice, weaponReach, weaponType, weaponTypeHint, weaponTypeText } from '../data/gear';
 import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
 import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, findSameArtifact, slotKindAt } from '../engine/equipment';
 import { innateOf, socketedArtifacts } from '../engine/stats';
@@ -578,6 +578,10 @@ const COMPARE_ICONS: Record<string, UiIconId | { status: StatusId }> = {
   onHitBleed: { status: 'bleed' },
   onHitBurn: { status: 'burn' },
   onHitPoison: { status: 'poison' },
+  affBleed: { status: 'bleed' },
+  affBurn: { status: 'burn' },
+  affPoison: { status: 'poison' },
+  decayOnHit: { status: 'decay' },
   thorns: { status: 'thorns' },
   regen: { status: 'regen' },
   maxMp: 'mp',
@@ -723,7 +727,8 @@ function tileStatsRow(gear: GearInstance, def: HeroDef): HTMLElement {
   }
   if (gear.affix) {
     const text = affixText(gear.affix);
-    parts.push(h('span', { class: 'tile-stat affix', tip: paramTip('affix', 'Аффикс', cap(text), { sub: ['случайный бонус предмета'] }) }, uiIcon('affix', 14), ...markKeywords(text, { numbers: true })));
+    const hint = affixHint(gear.affix);
+    parts.push(h('span', { class: 'tile-stat affix', tip: paramTip('affix', 'Аффикс', hint ? `${cap(text)}: ${hint.toLowerCase()}` : cap(text), { sub: ['случайный бонус предмета'] }) }, uiIcon('affix', 14), ...markKeywords(text, { numbers: true })));
   }
   return h('div', { class: 'tile-stats' }, ...dotted(parts));
 }

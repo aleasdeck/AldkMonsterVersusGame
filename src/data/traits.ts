@@ -38,8 +38,9 @@ const list: TraitDef[] = [
     id: 'poisoner',
     hero: 'assassin',
     name: 'Отравитель',
-    describe: () => 'Удар в спину вешает Яд 2 на 3 хода',
-    mods: () => ({ backstabPoison: 2 }),
+    // v0.54: Яд без срока — 3 вместо «2 на 3 хода» (тот же урон), и Распад: цель, по которой бьют из тени, не отлечится.
+    describe: () => 'Удар в спину вешает Яд 3 и Распад на 2 хода',
+    mods: () => ({ backstabPoison: 3, backstabDecay: 2 }),
   },
   {
     id: 'faith',

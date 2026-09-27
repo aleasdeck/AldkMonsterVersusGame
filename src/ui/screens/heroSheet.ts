@@ -1,7 +1,7 @@
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { potionDef } from '../../data/potions';
-import { defendBlock, rangeText, restAttackRange } from '../../engine/combat';
+import { VAMP_PCT, defendBlock, rangeText, restAttackRange } from '../../engine/combat';
 import { heroStats } from '../../engine/run';
 import type { DerivedStats, HeroDef, HeroPersistent } from '../../engine/types';
 import { artifactTip, bar, hpTip, potionChip, setCounters } from '../components';
@@ -49,14 +49,20 @@ function statRows(s: DerivedStats): HTMLElement[] {
   const rows: (HTMLElement | null)[] = [
     s.critRamp ? row('Азарт', `+${pct(s.critRamp)}`, 'Столько шанса крита копится с каждого удара без крита; крит сбрасывает') : null,
     s.executeCrit ? row('Добивание', `+${pct(s.executeCrit)}`, 'Прибавка к шансу крита по врагу ниже 20 % HP') : null,
-    s.critHeal ? row('Крит лечит', `${s.critHeal}`, 'HP за каждый критический удар') : null,
+    s.critHeal ? row('Крит лечит', `${s.critHeal}`, 'HP за первый критический удар хода') : null,
     s.firstHit ? row('Первый удар', `+${s.firstHit}`, 'Бонус урона первого удара в ходу') : null,
     s.spellPower ? row('Сила заклинаний', `+${s.spellPower}`, 'Бонус к урону заклинаний') : null,
     s.thorns ? row('Шипы', `${s.thorns}`, 'Урон атакующему врагу') : null,
-    s.lifesteal ? row('Вампиризм', `${s.lifesteal}`, 'Лечение при базовой атаке') : null,
+    s.lifesteal ? row('Вампиризм', `${Math.round(s.lifesteal * VAMP_PCT * 100)} %`, 'Базовая атака лечит на столько процентов урона по HP; удар в блок не лечит') : null,
     s.onHitBleed ? row('Кровь с удара', `${s.onHitBleed}`, 'Кровотечение с каждого удара на 2 хода') : null,
-    s.onHitBurn ? row('Горение с удара', `${s.onHitBurn}`, 'Горение с каждого удара на 2 хода') : null,
-    s.onHitPoison ? row('Яд с удара', `${s.onHitPoison}`, 'Яд с каждого удара на 3 хода') : null,
+    s.onHitBurn ? row('Горение с удара', `${s.onHitBurn}`, 'Горение с каждого удара') : null,
+    s.onHitPoison ? row('Яд с удара', `${s.onHitPoison}`, 'Яд с каждого удара') : null,
+    // Стихийные аффиксы оружия (v0.54): рана только с первой атаки хода.
+    s.affBleed ? row('Кровавый', `${s.affBleed}`, 'Аффикс оружия: Кровотечение с первой атаки хода на 2 хода') : null,
+    s.affBurn ? row('Горящий', `${s.affBurn}`, 'Аффикс оружия: Горение с первой атаки хода') : null,
+    s.affPoison ? row('Ядовитый', `${s.affPoison}`, 'Аффикс оружия: Яд с первой атаки хода') : null,
+    s.decayOnHit ? row('Распад с удара', `${s.decayOnHit} х.`, '«Трупный яд»: первая атака хода вешает Распад на столько ходов — лечение цели вдвое слабее') : null,
+    s.poisonRot ? row('Гниль', 'да', 'Отравленный враг лечится вдвое слабее') : null,
     s.regen ? row('Регенерация', `${s.regen}`, 'HP в начале хода') : null,
     s.hitReduce ? row('Гашение удара', `−${s.hitReduce}`, 'На столько слабее каждый удар врага по герою, до блока') : null,
     s.dotReduce ? row('Гашение ран', `−${s.dotReduce}`, 'На столько слабее общий тик Кровотечения, Горения и Яда на герое за ход; сами раны остаются висеть') : null,
@@ -72,11 +78,11 @@ function statRows(s: DerivedStats): HTMLElement[] {
     s.bleedTwice ? row('Кровь тикает', 'дважды', 'Набор «Кровь» 3/3: Кровотечение на врагах тикает в их ход и ещё раз перед вашим') : null,
     s.burnAdd ? row('Сила огня', `+${s.burnAdd}`, 'Каждое Горение, которое вешает герой, сильнее: набор «Огонь»') : null,
     s.burnSpread ? row('Пожар', 'да', 'Набор «Огонь» 3/3: погибший горящий враг поджигает остальных своим Горением') : null,
-    s.spellIgniteAll ? row('Заклинания жгут', `${s.spellIgniteAll}`, '«Пироман»: каждое заклинание вешает Горение всем врагам на 2 хода') : null,
+    s.spellIgniteAll ? row('Заклинания жгут', `${s.spellIgniteAll}`, '«Пироман»: каждое заклинание вешает Горение всем врагам') : null,
     s.burnImmune || s.blockPerBurning ? row('Жаропрочность', s.blockPerBurning ? `+${s.blockPerBurning} блока` : 'да', 'Горение на вас не держится; блок в начале хода за каждого горящего врага') : null,
     // Архетипы v0.47: бонусы наборов и ключевые вещи.
     s.poisonAdd ? row('Сила яда', `+${s.poisonAdd}`, 'Каждый Яд, который вешает герой, сильнее: набор «Яд»') : null,
-    s.poisonNoDecay ? row('Яд бессрочный', 'да', '«Токсиколог»: ваш Яд не спадает по сроку') : null,
+    s.poisonNoDecay ? row('Яд не слабеет', 'да', '«Токсиколог»: ваш Яд не убывает со временем') : null,
     s.poisonWeaken ? row('Яд ослабляет', `−${pct(s.poisonWeaken)}`, 'Набор «Яд» 3/3: отравленный враг бьёт настолько слабее') : null,
     s.blockSkillAdd ? row('Блок приёмов', `+${s.blockSkillAdd}`, 'Набор «Щит»: «Защититься» и каждый приём с блоком дают больше') : null,
     s.blockToDmg ? row('Удар щитом', `+${pct(s.blockToDmg)} блока`, 'Набор «Щит» 3/3: удар оружием сильнее на долю текущего Блока') : null,
