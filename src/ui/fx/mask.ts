@@ -137,7 +137,11 @@ export function fighterMask(el: HTMLElement, r: FieldRect): Mask | null {
 
 // ─── Кольца вокруг силуэта ──────────────────────────────────────────────────
 
-interface Rings { P: number; W: number; H: number; out: Uint8Array; inn: Uint8Array; nx: Float32Array; ny: Float32Array }
+interface Rings {
+  P: number; W: number; H: number; out: Uint8Array; inn: Uint8Array; nx: Float32Array; ny: Float32Array;
+  /** Клетки снаружи силуэта не дальше N от контура (индексы по строкам), по N: латам нужны только два кольца. */
+  near: Map<number, Int32Array>;
+}
 const rings = new WeakMap<Uint8Array, Rings>();
 /** Поле вокруг силуэта, клеток: дальше латы и жар не расходятся. */
 const PAD = 7;
@@ -181,7 +185,7 @@ function ringsOf(M: Mask): Rings {
       ny[k] = gy / l;
     }
   }
-  const r: Rings = { P, W, H, out, inn, nx, ny };
+  const r: Rings = { P, W, H, out, inn, nx, ny, near: new Map() };
   rings.set(M.m, r);
   return r;
 }
@@ -189,15 +193,26 @@ function ringsOf(M: Mask): Rings {
 /**
  * Обход клеток вокруг силуэта: клетка холста, расстояние наружу (`dOut`, 0 — фигура) и внутрь (`dIn`),
  * освещённость −1..1 (свет сверху слева, как у лепки) и нормаль наружу по x — с какой стороны клетка.
+ * `maxOut` — только клетки снаружи не дальше этого от контура (1..maxOut): латы стоят каждый кадр, пока у бойца
+ * есть блок, и обход всего поля вокруг силуэта (тысячи клеток на бойца) ради двух колец съедал кадр на слабых машинах.
  */
-export function eachRing(M: Mask, fn: (x: number, y: number, dOut: number, dIn: number, lit: number, nx: number) => void): void {
+export function eachRing(M: Mask, fn: (x: number, y: number, dOut: number, dIn: number, lit: number, nx: number) => void, maxOut?: number): void {
   const R = ringsOf(M);
-  for (let j = 0; j < R.H; j++) {
-    for (let i = 0; i < R.W; i++) {
-      const k = j * R.W + i;
-      fn(M.x0 - R.P + i, M.y0 - R.P + j, R.out[k], R.inn[k], R.nx[k] * -0.55 + R.ny[k] * -0.83, R.nx[k]);
-    }
+  const call = (k: number): void => {
+    const i = k % R.W, j = (k / R.W) | 0;
+    fn(M.x0 - R.P + i, M.y0 - R.P + j, R.out[k], R.inn[k], R.nx[k] * -0.55 + R.ny[k] * -0.83, R.nx[k]);
+  };
+  if (maxOut === undefined) {
+    for (let k = 0; k < R.W * R.H; k++) call(k);
+    return;
   }
+  let list = R.near.get(maxOut);
+  if (!list) {
+    const idx: number[] = [];
+    for (let k = 0; k < R.W * R.H; k++) if (R.out[k] >= 1 && R.out[k] <= maxOut) idx.push(k);
+    R.near.set(maxOut, (list = Int32Array.from(idx)));
+  }
+  for (const k of list) call(k);
 }
 
 /** Рамка фигуры в клетках холста: где у силуэта ноги, макушка и бока. */

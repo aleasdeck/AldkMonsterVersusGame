@@ -1333,12 +1333,25 @@ p {
     background-position-x: calc(var(--w) * -1 * (var(--n) - 1));
   }
 }
+/* Тот же клип подряд (второй удар по тому же врагу) перезапускается сменой имени анимации — класс `alt` через раз
+   (mobs/index.ts): прежний перезапуск через чтение offsetWidth пересчитывал раскладку всего экрана в миг попадания. */
+.mob-sheet.once.alt {
+  animation-name: mob-once-alt;
+}
+@keyframes mob-once-alt {
+  to {
+    background-position-x: calc(var(--w) * -1 * (var(--n) - 1));
+  }
+}
 /* Аура второй фазы тоже анимирует спрайт: у лепки обе анимации идут вместе. */
 .enemy.aura .sprite-wrap .mob-sheet {
   animation: mob-loop var(--dur) steps(var(--n)) var(--delay, 0ms) infinite, aura-glow 2.2s ease-in-out infinite;
 }
 .enemy.aura .sprite-wrap .mob-sheet.once {
   animation: mob-once var(--dur) steps(var(--n), jump-none) var(--delay, 0ms) forwards, aura-glow 2.2s ease-in-out infinite;
+}
+.enemy.aura .sprite-wrap .mob-sheet.once.alt {
+  animation-name: mob-once-alt, aura-glow;
 }
 /* Лепка смотрит влево, на героя; союзник (волк из Волчьего свистка) стоит рядом с героем и смотрит на врагов. */
 .ally .mob-sheet {
@@ -1400,7 +1413,8 @@ p {
 /* Герой пиксельной лепкой (heroes/index.ts): клип — своя картинка в ряд кадров (--n), кадр --fw × --fh рисуется
    ::before поверх квадрата --box со сдвигом --fx/--fy: середина фигуры в покое — по середине квадрата, земля — по низу.
    Покой крутится hero-loop, клип — одноразовый hero-once (смерть замирает на последнем кадре); --delay отрицательный,
-   поэтому перерисовка экрана продолжает идущий клип с той же точки. `restart` перезапускает тот же клип подряд. */
+   поэтому перерисовка экрана продолжает идущий клип с той же точки. Тот же клип подряд перезапускается сменой имени
+   анимации (класс `alt` через раз), без чтения раскладки. */
 .hero-sheet {
   flex: none;
   position: relative;
@@ -1422,8 +1436,8 @@ p {
 .hero-sheet.once::before {
   animation: hero-once var(--dur) steps(var(--n), jump-none) var(--delay, 0ms) forwards;
 }
-.hero-sheet.restart::before {
-  animation: none;
+.hero-sheet.once.alt::before {
+  animation-name: hero-once-alt;
 }
 @keyframes hero-loop {
   to {
@@ -1431,6 +1445,11 @@ p {
   }
 }
 @keyframes hero-once {
+  to {
+    background-position-x: calc(var(--fw) * -1 * (var(--n) - 1));
+  }
+}
+@keyframes hero-once-alt {
   to {
     background-position-x: calc(var(--fw) * -1 * (var(--n) - 1));
   }

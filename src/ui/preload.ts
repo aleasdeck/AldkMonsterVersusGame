@@ -32,3 +32,19 @@ export function warmImages(...urls: string[]): void {
     img.src = url;
   }
 }
+
+/**
+ * Картинка холста короткой ссылкой `blob:` вместо `data:`. Листы лепки (враги, герои) и аватарки стоят в CSS-переменных
+ * (`--sheet`, `--pic`), и на каждом новом элементе браузер разбирает адрес целиком и ищет картинку по нему в кэше:
+ * `data:` в 30–70 КБ стоил около 1,7 мс на спрайт (у героя ещё раз в `::before`), а `render()` пересоздаёт спрайты
+ * на каждое действие боя — выбор приёма и попадание тормозили на слабых машинах. Blob — около 0,1 мс. Листы
+ * кэшируются до конца страницы, поэтому ссылки не освобождаются.
+ */
+export function canvasUrl(canvas: HTMLCanvasElement): string {
+  const data = canvas.toDataURL();
+  if (typeof URL.createObjectURL !== 'function' || typeof Blob === 'undefined') return data;
+  const bin = atob(data.slice(data.indexOf(',') + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
+}

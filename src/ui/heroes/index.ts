@@ -4,10 +4,11 @@ import { renderAvatar } from './avatar';
 import { clipMs, contactMs, HERO_CLIPS, HERO_STYLE, renderHeroClip, type SculptClip } from './clips';
 import { modelClip, modelClips, type HeroModel } from './model';
 import { warriorModel } from './warrior';
+import { canvasUrl } from '../preload';
 
 /**
  * Герои пиксельной лепкой в игре (Воин первым; остальные пока рисованными листами — heroSprite.ts).
- * Каждый клип — своя картинка в ряд кадров (data URL): клипов у героя одиннадцать, и рисовать их все разом —
+ * Каждый клип — своя картинка в ряд кадров (blob-ссылка, `canvasUrl`): клипов у героя одиннадцать, и рисовать их все разом —
  * больше секунды, поэтому они запекаются по одному (`warmHero` — очередью из `App.warmArt()`, покой первым),
  * а клип, которого ещё нет, — сразу, когда понадобился. Кадры листает CSS (`.hero-sheet::before` в style.css).
  *
@@ -59,7 +60,7 @@ function pack(sh: ReturnType<typeof renderHeroClip>): BakedClip {
   canvas.height = sh.h;
   const ctx = canvas.getContext('2d');
   if (ctx) sh.frames.forEach((f, i) => ctx.putImageData(new ImageData(new Uint8ClampedArray(f), sh.w, sh.h), i * sh.w, 0));
-  const url = canvas.toDataURL();
+  const url = canvasUrl(canvas);
   // Картинку раскодировать заранее: иначе первый показ клипа мигает пустым кадром, пока браузер её разбирает.
   const img = new Image();
   img.src = url;
@@ -103,7 +104,7 @@ export function avatarCells(px: number): number {
   return px >= 64 ? Math.round(px / 2) : 44;
 }
 
-/** Аватарка героя-лепки в data URL — рисуется при первом показе этого размера (≈10 мс) и дальше берётся готовой. */
+/** Аватарка героя-лепки ссылкой `blob:` (`canvasUrl`) — рисуется при первом показе этого размера (≈10 мс) и дальше берётся готовой. */
 export function heroAvatarUrl(id: string, px: number): string {
   const n = avatarCells(px);
   const key = `${id}:${n}`;
@@ -112,7 +113,7 @@ export function heroAvatarUrl(id: string, px: number): string {
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = n;
     canvas.getContext('2d')?.putImageData(new ImageData(renderAvatar(HERO_MODELS[id], n), n, n), 0, 0);
-    url = canvas.toDataURL();
+    url = canvasUrl(canvas);
     avatars.set(key, url);
   }
   return url;
@@ -198,7 +199,7 @@ export function heroSheetSprite(id: string, px: number, base: 'idle' | 'death' =
   byEl.set(el, info);
   apply(el, performance.now());
   el.addEventListener('animationend', (e) => {
-    if (e.animationName !== 'hero-once') return;
+    if (e.animationName !== 'hero-once' && e.animationName !== 'hero-once-alt') return;
     const st = stateOf(id);
     if (st.run?.clip === 'death') return;
     endClip(st);
@@ -220,10 +221,9 @@ export function playHeroSculptClip(root: HTMLElement, id: string, want: SculptCl
   st.run = { clip, started: performance.now() - from };
   const el = root.querySelector<HTMLElement>('.hero-zone .hero-sheet');
   if (el && byEl.has(el)) {
-    // Тот же одноразовый клип подряд иначе не начнётся заново: снимаем анимацию и возвращаем.
-    el.classList.add('restart');
-    void el.offsetWidth;
-    el.classList.remove('restart');
+    // Тот же одноразовый клип подряд иначе не начнётся заново: меняем имя анимации (класс `alt` в style.css), а не
+    // читаем offsetWidth — чтение пересчитывало раскладку всего экрана на старте удара.
+    el.classList.toggle('alt');
     apply(el, performance.now());
   }
   return true;

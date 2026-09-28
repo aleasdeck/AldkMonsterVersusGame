@@ -8,10 +8,11 @@ import { CAVES_MODELS } from './caves';
 import { CRYPT_MODELS } from './crypt';
 import { enemyDef } from '../../data/enemies';
 import type { EventTarget } from '../../engine/types';
+import { canvasUrl } from '../preload';
 
 /**
  * Враги пиксельной лепки в игре: Лес (v0.52), Болота (v0.52.2), Осквернённый улей (v0.52.3), Пиратский корабль (v0.52.4) и Пещеры огня (v0.52.5). Лист врага — три ряда кадров (покой, удар, урон),
- * рисуется один раз, лежит одной картинкой в data URL; ряды и кадры листает CSS (`.mob-sheet` в style.css).
+ * рисуется один раз, лежит одной картинкой (ссылка `blob:` — `canvasUrl` в preload.ts); ряды и кадры листает CSS (`.mob-sheet` в style.css).
  * Клип удара запускает `playMobAction` (из `playEnemyAction`, до перерисовки поля), клип урона — `playMobClip`
  * (из `playEnemyClip` на событии урона). Идущий клип переживает `App.render()`: состояние живёт на экземпляре врага.
  */
@@ -74,7 +75,7 @@ function bake(id: string): Baked {
     }
   }
   const out: Baked = {
-    url: canvas.toDataURL(), cols, w: idle.w, h: idle.h, d: idle.d,
+    url: canvasUrl(canvas), cols, w: idle.w, h: idle.h, d: idle.d,
     n: { idle: idle.frames.length, attack: rows.attack.frames.length, hurt: rows.hurt.frames.length },
     masks: {
       idle: idle.frames.map((f) => packMask(f, idle.w, idle.h)),
@@ -191,7 +192,7 @@ export function mobSprite(id: string, px: number, cls = '', instance?: object): 
   const state = st;
   apply(el, state, performance.now());
   el.addEventListener('animationend', (e) => {
-    if (e.animationName !== 'mob-once') return;
+    if (e.animationName !== 'mob-once' && e.animationName !== 'mob-once-alt') return;
     endClip(state);
     apply(el, state, performance.now());
   });
@@ -237,10 +238,9 @@ export function playMobClip(root: HTMLElement, target: EventTarget, clip: ActCli
   const st = el ? byEl.get(el) : undefined;
   if (!el || !st) return false;
   st.run = { clip, started: performance.now() - from };
-  // Тот же клип подряд (второй удар по нему же) иначе не начнётся заново: снимаем анимацию и возвращаем.
-  el.style.animationName = 'none';
-  void el.offsetWidth;
-  el.style.animationName = '';
+  // Тот же клип подряд (второй удар по нему же) иначе не начнётся заново: меняем имя анимации (класс `alt` в style.css).
+  // Не через чтение offsetWidth — оно сразу после render() пересчитывало раскладку всего экрана в миг попадания.
+  el.classList.toggle('alt');
   apply(el, st, performance.now());
   return true;
 }
