@@ -27,6 +27,13 @@ function at(x: number, y: number, a: number, len: number): [number, number] {
 
 export type WarriorLookId = 'A' | 'B' | 'C';
 export type WeaponKind = 'sword' | 'axe' | 'mace';
+/**
+ * Шлем: `great` — горшок A, `tslit` — круглый горшок B с Т-прорезью (отвергнут: «круглый не нравится»), `nasal` — C.
+ * Угловатые для Чёрного рыцаря: `flat` — ведро с плоским верхом, `sugarloaf` — «сахарная голова» с острым верхом,
+ * `faceted` — гранёный с ребром посреди лица, `hounskull` — бацинет с забралом-клювом («собачья морда»).
+ */
+export type HelmKind = 'great' | 'tslit' | 'nasal' | 'flat' | 'sugarloaf' | 'faceted' | 'hounskull';
+export const ANGULAR_HELMS: HelmKind[] = ['flat', 'sugarloaf', 'faceted', 'hounskull'];
 
 export interface WarriorLook {
   id: WarriorLookId;
@@ -44,7 +51,7 @@ export interface WarriorLook {
   leather: Mat;
   /** Длина плаща 0..1: у A — нет (только шарф), у B — длинный рваный плащ. */
   cape: number;
-  helmKind: 'great' | 'tslit' | 'nasal';
+  helmKind: HelmKind;
   /** Гребень шлема (B): рваная грива цвета ткани. */
   crest?: Mat;
   /** Лицевая пластина шлема (B): рамп светлее шлема — лицо в тени сцены иначе сливается с прорезью. */
@@ -100,7 +107,8 @@ export const WARRIOR_LOOKS: Record<WarriorLookId, WarriorLook> = {
     cloth: { base: '#6a161d', ramp: ['#22060a', '#420d13', '#68161d', '#8a2228', '#a83a34'], shag: 0.26, tex: { kind: 'stripes', scale: 2.2, amp: 0.16, angle: 1.5 } },
     leather: { base: '#2e2118' },
     cape: 1,
-    helmKind: 'tslit',
+    // Круглый горшок (tslit) отвергнут пользователем — по умолчанию гранёный.
+    helmKind: 'faceted',
     face: { base: '#8e8488', ramp: ['#40383e', '#6c6268', '#8e8488', '#ada3a4', '#d2c8c0'], dither: 0.3, tex: { kind: 'spots', scale: 2.2, amp: 0.16, density: 0.12 } },
     crest: { base: '#7a1a22', ramp: ['#2a070c', '#4c0f16', '#7a1a22', '#9e2a2e', '#bc4038'], shag: 0.3, tex: { kind: 'stripes', scale: 1.6, amp: 0.18, angle: 0.5 } },
     shieldKind: 'heater',
@@ -186,8 +194,90 @@ const WEAPONS: Record<WeaponKind, typeof sword> = { sword, axe, mace };
  * Горшок с круглым верхом; лицевая пластина — справа, она выступает к врагам. Свет сверху слева, поэтому
  * верх и затылок светлые, лицо в полутени, прорезь — чёрная черта поперёк лица.
  */
+/** Кольчуга бармицы у бацинета — мелкие кольца. */
+const MAIL: Mat = { base: '#4e484c', ramp: ['#161316', '#2c272b', '#4c464a', '#746c70', '#a49a9a'], dither: 0.2, tex: { kind: 'spots', scale: 1.4, amp: 0.4, density: 0.6 } };
+
+/**
+ * Угловатые шлемы Чёрного рыцаря: силуэт — многоугольник с фаской (плоские грани, а не купол), грани разведены
+ * светлотой краской по части: верх и бок к свету светлее, лицо — светлая плоскость (`L.face`) с чёрной прорезью,
+ * дальняя грань к врагам темнее. Гребень — своей формы у каждого шлема, рисуется раньше и уходит назад.
+ */
+function angularHelm(p: Painter, L: WarriorLook): void {
+  const M = L.helm, F = L.face ?? M;
+  const slit = solid(SLIT);
+  const o = { part: 'helm', paint: true };
+  switch (L.helmKind) {
+    case 'flat': {
+      // Ведро с плоским верхом: гребень — рваный намёт с затылка на плечи.
+      if (L.crest) p.poly([-5, -12.5, -11.5, -10, -15.5, -3, -19, 6, -15.5, 3.5, -14, 9, -10.5, 3, -9, -4], L.crest, { part: 'crest', bevel: 2 });
+      p.poly([-11.5, 10.5, -11.5, -10, -9.5, -13, 11, -13.5, 13, -11.5, 13.5, 11, 4.5, 13, -9, 12.5], M, { part: 'helm', bevel: 4.5 });
+      // Крышка видна чуть сверху — светлая полоса; лицо — светлая плоскость; Т-прорезь с усилением-крестом.
+      p.poly([-9.5, -13, 11, -13.5, 12.5, -11.5, -10.5, -10.3], M, { ...o, tone: 0.28 });
+      p.poly([4, -10.5, 12.8, -11, 13.3, 11, 4.8, 12.6], F, o);
+      p.poly([-1, -2.6, 13.5, -3, 13.5, 0.8, -1, 0.8], slit, o);
+      p.poly([7.4, 0.8, 10, 0.8, 9.8, 10.6, 7.6, 10.6], slit, o);
+      stroke(p, [4, -10.2, 4.8, 12.6], SEAM, 'helm');
+      stroke(p, [-10.5, -11, 11.5, -11.8], EDGE, 'helm');
+      stroke(p, [-10.5, 11.5, 4, 12.8], SEAM, 'helm');
+      for (const [x, y] of [[-8, -6], [-4, -6.2], [0, -6.4], [11.5, 4], [11.5, 8]]) p.px(x, y, '#9a9094');
+      return;
+    }
+    case 'sugarloaf': {
+      // «Сахарная голова»: стрельчатый верх с ребром от острия вниз по лицу, кисть гребня на острие.
+      if (L.crest) p.poly([0, -16.5, -3, -21.5, -5, -18.5, -9.5, -20.5, -8.5, -16, -13, -15, -8, -12, -3, -13.5], L.crest, { part: 'crest', bevel: 2 });
+      p.poly([-11, 10.5, -11.5, -1, -10, -7, -6, -12, 0.5, -17.5, 5.5, -13, 10, -7, 13, -1, 13.5, 11, 4.5, 13, -9, 12.5], M, { part: 'helm', bevel: 5 });
+      // Скат к свету — светлее, лицо — светлая плоскость под ребром.
+      p.poly([-11.5, -1, -10, -7, -6, -12, 0.5, -17.5, -1, -8, -9, -2], M, { ...o, tone: 0.18 });
+      p.poly([4.5, -8, 10, -7, 13, -1, 13.3, 11, 5, 12.6], F, o);
+      p.poly([-1, -2.6, 13.5, -3, 13.5, 0.8, -1, 0.8], slit, o);
+      for (const [x, y] of [[8, 4], [10, 4], [8, 6.5], [10, 6.5], [8, 9], [10, 9]]) p.px(x, y, SLIT);
+      stroke(p, [0.8, -16.5, 4.8, -8, 5, 12.4], EDGE, 'helm');
+      stroke(p, [-10.5, 11.5, 4, 12.8], SEAM, 'helm');
+      return;
+    }
+    case 'faceted': {
+      // Гранёный: двускатный верх с острым коньком, ребро от конька вниз посреди лица делит его на светлую и тёмную
+      // половины («клюв»), прорезь поперёк обеих. Фаска узкая — грани острые. Гребень — грива по коньку назад.
+      if (L.crest) p.poly([2, -16, -1, -20, -4, -17, -8, -19, -9, -14, -13.5, -12.5, -16, -7, -20, -3, -16.5, -2.5, -14, 0, -11, -5, -6, -11, 0, -14.5], L.crest, { part: 'crest', bevel: 2 });
+      p.poly([-11, 9, -12, -5, -6, -13, 2, -16.5, 10, -12.5, 13.5, -4, 15.5, 2, 13, 11, 6, 14, -8, 13], M, { part: 'helm', bevel: 1.6 });
+      p.poly([-12, -5, -6, -13, 2, -16.5, 2.5, -7, -9, -3.5], M, { ...o, tone: 0.3 });
+      p.poly([2.5, -7, 2, -16.5, 9, -8, 9.5, 14, 3, 13], F, o);
+      p.poly([9, -8, 2, -16.5, 10, -12.5, 13.5, -4, 15.5, 2, 13, 11, 9.5, 14], M, { ...o, tone: -0.14 });
+      p.poly([-1, -2.2, 15.5, -1.4, 15.5, 1.2, -1, 0.8], slit, o);
+      for (const [x, y] of [[5.5, 5], [5.5, 7.5], [5.5, 10], [12, 5], [12, 7.5]]) p.px(x, y, SLIT);
+      stroke(p, [2.2, -16, 9, -8, 9.5, 13.6], EDGE, 'helm');
+      stroke(p, [-11.5, -5, -6, -12.8, 2, -16.2], EDGE, 'helm');
+      stroke(p, [2.5, -7, 3, 12.8], SEAM, 'helm');
+      stroke(p, [-9, -3.5, 2.5, -7], SEAM, 'helm');
+      stroke(p, [-10.5, 10.5, 6, 13.5], SEAM, 'helm');
+      return;
+    }
+    case 'hounskull': {
+      // Бацинет с забралом-клювом: купол стрелой назад-вверх, клюв вперёд к врагам со щелью глаз и дыхальцами,
+      // кольчужная бармица на плечи. Гребень — по куполу.
+      if (L.crest) p.poly([1, -14, -2, -18.5, -5, -15.5, -8.5, -17, -9.5, -12, -14, -10, -16, -4, -19.5, 1, -15.5, 0, -12, -5, -7, -10, -1, -12.5], L.crest, { part: 'crest', bevel: 2 });
+      p.poly([-12.5, 4, -12.5, 14.5, -2, 16.5, 8, 14.5, 9, 8, -4, 6], MAIL, { part: 'aventail', bevel: 3 });
+      p.poly([-11, 6, -12, -3, -8.5, -11, -2, -15.5, 4, -13, 8, -7, 7, 2, -2, 6], M, { part: 'helm', bevel: 4.5 });
+      p.poly([-12, -3, -8.5, -11, -2, -15.5, -2.5, -7, -9, -1], M, { ...o, tone: 0.2 });
+      // Забрало — отдельная часть: клюв светлее, щель глаз поперёк, дыхальца на нижнем скате.
+      p.poly([2.5, -7.5, 9.5, -6.5, 19, 1.5, 9.5, 9, 2.5, 10, 0.5, 1], F, { part: 'visor', bevel: 3 });
+      p.poly([3, -7.2, 9.5, -6.2, 19, 1.5, 3, 1.5], F, { part: 'visor', paint: true, tone: 0.15 });
+      p.poly([3, -3.8, 14, -1.3, 14, 0.2, 3, -2.2], slit, { part: 'visor', paint: true });
+      for (const [x, y] of [[8, 3.5], [10.5, 3.5], [13, 3], [8, 6], [10.5, 5.8]]) p.px(x, y, SLIT);
+      stroke(p, [9.5, -6.4, 18.5, 1.5], EDGE, 'visor');
+      p.px(2, -1, '#b0a6a6');
+      return;
+    }
+    default:
+  }
+}
+
 function helm(p: Painter, L: WarriorLook): void {
   const M = L.helm;
+  if (ANGULAR_HELMS.includes(L.helmKind)) {
+    angularHelm(p, L);
+    return;
+  }
   if (L.helmKind === 'nasal') {
     // Бармица — кольчужный капюшон вокруг лица, на плечи; лицо открыто со стороны врагов.
     p.ellipse(-3, 3, 9.5, 11, L.limb, { part: 'coif' });
@@ -356,8 +446,8 @@ function arcStroke(p: Painter, cx: number, cy: number, rx: number, ry: number, a
 const SEAM = '#140f13';
 const EDGE = '#b6aaa6';
 
-function warriorBase(look: WarriorLookId, weapon: WeaponKind): Model {
-  const L = WARRIOR_LOOKS[look];
+function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKind): Model {
+  const L = helmKind ? { ...WARRIOR_LOOKS[look], helmKind } : WARRIOR_LOOKS[look];
   const plate = look !== 'C';
   const lit = L.trim?.lit ?? EDGE;
   const dim = L.trim?.dark ?? '#3a3236';
@@ -366,7 +456,7 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind): Model {
   /** Голени и башмаки — у C кожаные сапоги. */
   const boot = plate ? L.limb : L.leather;
   return {
-    id: `warrior_${look}_${weapon}`,
+    id: `warrior_${look}_${weapon}_${L.helmKind}`,
     w: 128,
     h: 136,
     ground: G,
@@ -498,6 +588,6 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind): Model {
 }
 
 /** Воин облика `look` с оружием `weapon`; рост в покое — `HERO_BODY_HEIGHT.warrior` (128). */
-export function warriorModel(look: WarriorLookId, weapon: WeaponKind = 'sword'): Model {
-  return warriorBase(look, weapon);
+export function warriorModel(look: WarriorLookId, weapon: WeaponKind = 'sword', helmKind?: HelmKind): Model {
+  return warriorBase(look, weapon, helmKind);
 }

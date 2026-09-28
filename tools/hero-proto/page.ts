@@ -7,7 +7,7 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { warriorModel, type WarriorLookId, type WeaponKind } from './warrior';
+import { warriorModel, type HelmKind, type WarriorLookId, type WeaponKind } from './warrior';
 
 type Loc = 'forest' | 'crypt' | 'caves';
 
@@ -76,11 +76,13 @@ type Look = 'ref' | WarriorLookId;
 const figs = new Map<string, Fig>();
 let REF: Fig;
 
-function heroFig(look: Look, pixel: Pixel, weapon: WeaponKind = 'sword'): Fig {
+/** Шлем выбирается только у Чёрного рыцаря (B): у A и C — свой. */
+function heroFig(look: Look, pixel: Pixel, weapon: WeaponKind = 'sword', helm?: HelmKind): Fig {
   if (look === 'ref') return REF;
-  const key = `${look}-${pixel}-${weapon}`;
+  const h = look === 'B' ? helm : undefined;
+  const key = `${look}-${pixel}-${weapon}-${h ?? ''}`;
   let f = figs.get(key);
-  if (!f) figs.set(key, (f = still(warriorModel(look, weapon), { ...MOB_STYLE, d: pixel })));
+  if (!f) figs.set(key, (f = still(warriorModel(look, weapon, h), { ...MOB_STYLE, d: pixel })));
   return f;
 }
 
@@ -166,23 +168,28 @@ function start(): void {
   let look: Look = 'B';
   let pixel: Pixel = 1.5;
   let loc: Loc = 'forest';
+  // Шлем Чёрного рыцаря: круглый отвергнут («круглый не нравится»), по умолчанию — рекомендованный гранёный.
+  let helm: HelmKind = 'faceted';
+  const helmGroups = [...document.querySelectorAll<HTMLElement>('[data-helm-group]')];
   const lookGroup = document.getElementById('scene-look')!;
   const pixGroups = [...document.querySelectorAll<HTMLElement>('[data-pixel-group]')];
   const locGroup = document.getElementById('scene-loc')!;
   const stage = document.getElementById('scene')!;
   const drawScene = (): void => {
-    fitStage(stage, field(loc, heroFig(look, pixel), true));
+    fitStage(stage, field(loc, heroFig(look, pixel, 'sword', helm), true));
     toggle(lookGroup, look);
     toggle(locGroup, loc);
   };
-  // Плитки: `data-tile` — облик (A, B, C, ref) и оружие; `data-pixel` — свой размер пикселя, иначе общий.
+  // Плитки: `data-tile` — облик (A, B, C, ref) и оружие; `data-pixel` и `data-helm` — свои, иначе общие.
   const drawTiles = (): void => {
     for (const el of document.querySelectorAll<HTMLElement>('[data-tile]')) {
       const [l, weapon] = el.dataset.tile!.split(':') as [Look, WeaponKind | undefined];
       const px = el.dataset.pixel ? (Number(el.dataset.pixel) as Pixel) : pixel;
-      tile(el, loc, heroFig(l, px, weapon ?? 'sword'), 2);
+      tile(el, loc, heroFig(l, px, weapon ?? 'sword', (el.dataset.helm as HelmKind | undefined) ?? helm), 2);
     }
     for (const g of pixGroups) toggle(g, String(pixel));
+    for (const g of helmGroups) toggle(g, helm);
+    for (const el of document.querySelectorAll<HTMLElement>('[data-helm-card]')) el.classList.toggle('current', el.dataset.helmCard === helm);
     for (const el of document.querySelectorAll<HTMLElement>('[data-pixlabel]')) el.textContent = `пиксель ${String(pixel).replace('.', ',')}`;
   };
   const pick = (e: Event): string | undefined => (e.target as HTMLElement).closest('button')?.dataset.v;
@@ -194,6 +201,20 @@ function start(): void {
     g.addEventListener('click', (e) => {
       const v = pick(e);
       if (v) { pixel = Number(v) as Pixel; drawScene(); drawTiles(); }
+    });
+  }
+  for (const g of helmGroups) {
+    g.addEventListener('click', (e) => {
+      const v = pick(e) as HelmKind | undefined;
+      if (v) { helm = v; drawScene(); drawTiles(); }
+    });
+  }
+  for (const card of document.querySelectorAll<HTMLElement>('[data-helm-card]')) {
+    card.addEventListener('click', () => {
+      helm = card.dataset.helmCard as HelmKind;
+      look = 'B';
+      drawScene();
+      drawTiles();
     });
   }
   locGroup.addEventListener('click', (e) => {

@@ -95,6 +95,15 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .look h3 em { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--brass-ink); background: var(--brass); padding: 1px 6px; border-radius: 3px; }
 .look .fix { font-size: 13px; color: var(--muted); border-left: 2px solid var(--brass); padding-left: 8px; }
 .look .fix b { color: var(--text); font-weight: 500; }
+.helms { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 12px; }
+.helm-card { display: grid; gap: 6px; justify-items: center; align-content: start; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
+.helm-card:hover { border-color: var(--faint); }
+.helm-card.current { border-color: var(--brass); }
+.helm-card > [data-tile] { width: 100%; }
+.helm-name { width: 100%; max-width: 300px; font-weight: 600; font-size: 15px; display: flex; gap: 8px; align-items: baseline; }
+.helm-name i { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
+.helm-card.current .helm-name::after { content: 'в бою'; margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--brass-ink); background: var(--brass); padding: 1px 6px; border-radius: 3px; }
+.helm-desc { width: 100%; max-width: 300px; font-size: 13px; color: var(--muted); line-height: 1.45; }
 
 .scroll { overflow-x: auto; margin: 10px 0 18px; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
@@ -130,6 +139,13 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
           <button type="button" data-v="2">2</button>
           <button type="button" data-v="1.5">1,5</button>
           <button type="button" data-v="1">1</button>
+        </span>
+        <span class="tog" data-helm-group role="group" aria-label="Шлем Чёрного рыцаря"><span class="tog-label">Шлем B</span>
+          <button type="button" data-v="tslit">круглый</button>
+          <button type="button" data-v="flat">ведро</button>
+          <button type="button" data-v="sugarloaf">сахарная голова</button>
+          <button type="button" data-v="faceted">гранёный</button>
+          <button type="button" data-v="hounskull">собачья морда</button>
         </span>
         <span class="tog" id="scene-loc" role="group" aria-label="Локация"><span class="tog-label">Локация</span>
           <button type="button" data-v="forest">Лес</button>
@@ -188,7 +204,7 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         <h3>B <span>Чёрный рыцарь</span><em>выбран</em></h3>
         <div data-tile="B"></div>
         <p>Мрачнее: воронёная побитая сталь без латуни, шлем с Т-прорезью, длинный рваный плащ, щит-«утюг» с багровой перевязью.</p>
-        <p class="fix"><b>После отзыва:</b> ближний наплечник меньше на пятую часть; шлем на ступень светлее лат — горшок-цилиндр с плоским светлым лицом, чёрной Т-прорезью и рваным багровым гребнем; щит светлее, со светлым ободом и яркой перевязью.</p>
+        <p class="fix"><b>После отзывов:</b> ближний наплечник меньше на пятую часть; шлем на ступень светлее лат, с плоским светлым лицом, чёрной прорезью и багровым гребнем, а вместо круглого — угловатый (выбор ниже); щит светлее, со светлым ободом и яркой перевязью.</p>
         <ul class="pros"><li class="plus">самый «дарк фэнтези», в тон врагам</li><li class="plus">без креста — не спорит с Паладином</li><li class="plus">голова и щит читаются на тёмных фонах</li></ul>
         <button type="button" class="pick">Показать в бою</button>
       </article>
@@ -199,6 +215,18 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         <ul class="pros"><li class="plus">живое лицо, отличается от Паладина</li><li class="plus">совпадает со стартовой «Кольчугой»</li><li class="minus">дальше всех от листа, лицо в пикселе 2 почти не читается</li></ul>
         <button type="button" class="pick">Показать в бою</button>
       </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="helm-h">
+    <h2 id="helm-h">Шлем Чёрного рыцаря</h2>
+    <p class="prose">Круглый горшок не понравился. Четыре угловатых силуэта: грани — плоские многоугольники с узкой фаской, а не купол; лицо — светлая плоскость с чёрной прорезью; багровый гребень у каждого своей формы. Клик по плитке ставит шлем в бой выше; размер пикселя — переключатель в «Обликах».</p>
+    <div class="helms">
+      <button type="button" class="helm-card" data-helm-card="tslit"><div data-tile="B" data-helm="tslit"></div><span class="helm-name">Круглый <i>было</i></span><span class="helm-desc">горшок с куполом и Т-прорезью</span></button>
+      <button type="button" class="helm-card" data-helm-card="flat"><div data-tile="B" data-helm="flat"></div><span class="helm-name">Ведро</span><span class="helm-desc">плоский верх, Т-прорезь с крестовиной, намёт с затылка; ближе всех к шлему Паладина</span></button>
+      <button type="button" class="helm-card" data-helm-card="sugarloaf"><div data-tile="B" data-helm="sugarloaf"></div><span class="helm-name">Сахарная голова</span><span class="helm-desc">стрельчатый верх с ребром до лица, кисть гребня на острие, дыхальца</span></button>
+      <button type="button" class="helm-card" data-helm-card="faceted"><div data-tile="B" data-helm="faceted"></div><span class="helm-name">Гранёный</span><span class="helm-desc">двускатный верх, ребро посреди лица — светлая и тёмная половины, грива по коньку</span></button>
+      <button type="button" class="helm-card" data-helm-card="hounskull"><div data-tile="B" data-helm="hounskull"></div><span class="helm-name">Собачья морда</span><span class="helm-desc">бацинет с забралом-клювом к врагам, щель глаз, кольчужная бармица</span></button>
     </div>
   </section>
 
@@ -231,6 +259,16 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
           <li><b>A</b>Рыцарь — как на листе</li>
           <li class="chosen"><b>B</b>Чёрный рыцарь — мрачнее, без латуни, с плащом</li>
           <li><b>C</b>Ветеран — кольчуга, лицо с бородой</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Шлем Чёрного рыцаря</h3>
+        <p>Ведро и сахарная голова — родня большому шлему Паладина. Гранёный и собачья морда у героев больше не встречаются.</p>
+        <ul class="opts">
+          <li><b>Ведро</b>плоский верх, крестовина</li>
+          <li><b>Сахарная голова</b>острый верх, кисть на острие</li>
+          <li class="rec"><b>Гранёный</b>острые грани и ребро посреди лица — самый «чёрный рыцарь», читается в масштабе игры</li>
+          <li><b>Собачья морда</b>самый необычный силуэт — клюв к врагам виден издалека</li>
         </ul>
       </div>
       <div class="q">

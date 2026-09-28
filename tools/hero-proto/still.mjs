@@ -1,5 +1,6 @@
 // Первый кадр покоя черновых моделей в PNG в пикселях поля (1 : 1): сравнение с референсом и между обликами.
 //   node tools/hero-proto/still.mjs --look A,B,C --d 2,1 --out hero-preview/still
+//   node tools/hero-proto/still.mjs --look B --d 1.5 --scale 2 --helm flat,sugarloaf,faceted,hounskull
 import { build } from 'esbuild';
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -14,6 +15,7 @@ const OUT = resolve(opt('out', join(ROOT, 'hero-preview/still')));
 const LOOKS = opt('look', 'A,B,C').split(',');
 const DS = opt('d', '2').split(',').map(Number);
 const WEAPON = opt('weapon', 'sword');
+const HELMS = opt('helm', '').split(',').filter(Boolean);
 const FRAME = Number(opt('frame', 0));
 // Во сколько раз крупнее поля: 2 — как кадр 960 × 540 на экране FullHD (пиксель 1.5 даёт ровно 3 точки экрана).
 const SCALE = Number(opt('scale', 1));
@@ -34,9 +36,9 @@ function png(w, h, rgba) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
 }
 mkdirSync(OUT, { recursive: true });
-for (const look of LOOKS) for (const d of DS) {
+for (const look of LOOKS) for (const d of DS) for (const helmKind of HELMS.length ? HELMS : [undefined]) {
   const style = { ...MOB_STYLE, d };
-  const sh = renderHeroClip(warriorModel(look, WEAPON), 'idle', style);
+  const sh = renderHeroClip(warriorModel(look, WEAPON, helmKind), 'idle', style);
   const f = sh.frames[FRAME];
   // В пиксели поля: каждый пиксель рисунка — d×d.
   const k = d * SCALE;
@@ -45,7 +47,7 @@ for (const look of LOOKS) for (const d of DS) {
     const s = (Math.min(sh.h - 1, Math.floor(j / k)) * sh.w + Math.min(sh.w - 1, Math.floor(i / k))) * 4, t = (j * W + i) * 4;
     out[t] = f[s]; out[t + 1] = f[s + 1]; out[t + 2] = f[s + 2]; out[t + 3] = f[s + 3];
   }
-  const file = join(OUT, `${look}-d${String(d).replace('.', '_')}${SCALE === 1 ? '' : `-x${SCALE}`}${WEAPON === 'sword' ? '' : '-' + WEAPON}.png`);
+  const file = join(OUT, `${look}-d${String(d).replace('.', '_')}${SCALE === 1 ? '' : `-x${SCALE}`}${WEAPON === 'sword' ? '' : '-' + WEAPON}${helmKind ? '-' + helmKind : ''}.png`);
   writeFileSync(file, png(W, H, out));
   console.log(`${file} ${W}×${H}, земля ${Math.round(H - sh.foot * k)}, верх ${Math.round(sh.top * k)}`);
 }
