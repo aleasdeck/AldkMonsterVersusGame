@@ -1046,8 +1046,13 @@ export function chooseEventRoom(run: RunState): void {
   if (!ev) return;
   if (ev.kind === 'chest') {
     // Сундук (v0.54.1): открыть всегда — золото. Вещи по одной, по ценности, как у торговца без цены; после вещи с выбором
-    // слота цикл забега вернётся сюда же, пока в сундуке что-то лежит. С v0.54.2 — взломом, засечки по долям (`botLock`).
+    // слота цикл забега вернётся сюда же, пока в сундуке что-то лежит. С v0.54.2 — взломом, засечки по долям (`botLock`), срыв — без сундука.
     if (!ev.opened) openChest(run, botLock(run));
+    // Сорвал — сундук заклинило, вещей нет: дальше.
+    if (ev.jammed) {
+      leaveEvent(run);
+      return;
+    }
     if (ev.gear && gearGain(run, ev.gear) > 0) takeChestItem(run, 'gear');
     else if (ev.artifact && artifactGain(run, ev.artifact) > 0) takeChestItem(run, 'artifact');
     else if (ev.potion && potionGain(run, ev.potion) > 0) takeChestItem(run, 'potion');

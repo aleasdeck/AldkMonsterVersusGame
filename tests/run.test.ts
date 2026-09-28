@@ -832,7 +832,7 @@ describe('забег', () => {
     expect(counts[3] / total).toBeLessThan(0.09);
   });
 
-  it('взлом сундука: штифтов — сколько вещей, отличная засечка — золото акта, срыв — игла, вещи остаются', () => {
+  it('взлом сундука: штифтов — сколько вещей, отличная засечка — золото акта, срыв — сундук заклинило и игла', () => {
     const chest = (seed: number, loc = 0) => {
       const run = newRun('warrior', seed);
       run.locationIndex = loc;
@@ -850,6 +850,7 @@ describe('забег', () => {
     const gold = a.run.gold;
     const hp = a.run.hero.hp;
     openChest(a.run, ['great', 'great']);
+    expect(a.ev.opened).toBe(true);
     expect(a.ev.lock).toEqual(['great', 'great']);
     expect(a.ev.lockGold).toBe(2 * CHEST_GREAT_GOLD[0]);
     expect(a.run.gold).toBe(gold + 5 + 2 * CHEST_GREAT_GOLD[0]);
@@ -857,17 +858,28 @@ describe('забег', () => {
     expect(a.ev.needle).toBeUndefined();
     expect(a.run.lockLog).toEqual(['GG']);
 
-    // Срыв на первом штифте: взлом кончается, игла по акту, вещи на месте. Засечки после срыва отбрасываются.
+    // Срыв (попытка одна): сундук заклинило — не открыт, ни золота, ни вещей, игла по акту, взломать снова нельзя, только уйти.
+    // Засечки после срыва отбрасываются; отличная до срыва золота не даёт.
     const b = chest(9, 2);
     const hpB = b.run.hero.hp;
-    openChest(b.run, ['miss', 'great']);
-    expect(b.ev.lock).toEqual(['miss']);
-    expect(b.ev.lockGold).toBe(0);
+    const goldB = b.run.gold;
+    openChest(b.run, ['great', 'miss', 'great']);
+    expect(b.ev.lock).toEqual(['great', 'miss']);
+    expect(b.ev.jammed).toBe(true);
+    expect(b.ev.opened).toBeUndefined();
+    expect(chestClosed(b.run)).toBe(false);
+    expect(b.run.gold).toBe(goldB);
     expect(b.ev.needle).toBe(CHEST_NEEDLE_HP[2]);
     expect(b.run.hero.hp).toBe(hpB - CHEST_NEEDLE_HP[2]);
-    expect(b.ev.gear).not.toBeNull();
-    expect(takeChestItem(b.run, 'artifact')).toBe(true);
-    expect(b.run.lockLog).toEqual(['x']);
+    expect(takeChestItem(b.run, 'gear')).toBe(false);
+    expect(takeChestItem(b.run, 'artifact')).toBe(false);
+    openChest(b.run, ['great', 'great']);
+    expect(b.ev.opened).toBeUndefined();
+    openChest(b.run);
+    expect(b.run.gold).toBe(goldB);
+    expect(b.run.lockLog).toEqual(['Gx']);
+    leaveEvent(b.run);
+    expect(b.run.phase).toBe('map');
 
     // Игла не убивает; недостающие засечки без срыва — «хорошо», лишние отбрасываются.
     const c = chest(9);
@@ -878,6 +890,7 @@ describe('забег', () => {
     const d = chest(9);
     openChest(d.run, ['great']);
     expect(d.ev.lock).toEqual(['great', 'good']);
+    expect(d.ev.opened).toBe(true);
     const e = chest(9);
     openChest(e.run, ['good', 'good', 'great']);
     expect(e.ev.lock).toEqual(['good', 'good']);
