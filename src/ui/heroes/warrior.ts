@@ -216,6 +216,8 @@ export interface WarriorPose extends Record<string, number> {
   drop: number;
   /** Свечение на острие (приём, клич), пыль у острия (сильный удар), искры о кромку щита. */
   glow: number; dust: number; spark: number;
+  /** Меч поверх ближнего наплечника, кулак — поверх рукояти (1): портрет с клинком на плече. В клипах 0 — меч под рукой. */
+  front: number;
 }
 
 const REST: WarriorPose = {
@@ -224,7 +226,7 @@ const REST: WarriorPose = {
   nh: 0, hx: M.armN.hand[0], hy: M.armN.hand[1],
   f1: ARM_F.a1, f2: ARM_F.a2, sh: 0, shx: 0, shy: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
-  cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0,
+  cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0, front: 0,
 };
 
 /**
@@ -385,10 +387,11 @@ function tipGlow(p: Painter, x: number, y: number, a: number, glow: number): voi
 }
 
 /**
- * Поза портрета: меч поднят в салюте — клинок вверх слева от шлема, щит подтянут к телу справа внизу, шлем прямо.
- * В покое меч опущен к бедру и в кадр бюста не попадает.
+ * Поза портрета: меч на плече — кулак перед грудью держит рукоять под гардой, клинок чистой диагональю лежит на
+ * ближнем наплечнике и уходит за край кадра; щит подтянут к телу справа внизу, шлем прямо. В покое меч у бедра
+ * срезался кадром бюста, а отвесный клинок в салюте прятал гарду под наплечником и на пикселе 1,5 ломался ступенькой.
  */
-const PORTRAIT: WarriorPose = { ...REST, nh: 1, hx: 44, hy: 58, sw: -100, f1: 85, f2: 70, shx: -4, shy: -13 };
+const PORTRAIT: WarriorPose = { ...REST, nh: 1, hx: 52, hy: 66, sw: -128, f1: 85, f2: 70, shx: -2, shy: -11, front: 1 };
 
 /**
  * Аватарка: бюст от гребня до пояса, щит у правого края, ореол за шлемом; багровый фон и силуэт замка —
@@ -580,8 +583,10 @@ function drawWarrior(p: Painter, P: WarriorPose): void {
         });
       });
 
-      // Ближняя рука с мечом — поверх туловища; меч выпадает из руки при смерти.
-      if (P.drop < 0.05) {
+      // Ближняя рука с мечом — поверх туловища; меч выпадает из руки при смерти. На портрете клинок лежит на
+      // наплечнике — тогда меч и кулак рисуются после наплечника (ниже), иначе он закрыл бы гарду.
+      const front = P.front > 0.5 && P.drop < 0.05;
+      if (P.drop < 0.05 && !front) {
         sword(p, near.hx, near.hy, P.sw);
         tipGlow(p, near.hx, near.hy, P.sw, P.glow);
       }
@@ -601,8 +606,11 @@ function drawWarrior(p: Painter, P: WarriorPose): void {
       // Раструб латной перчатки и кулак.
       const [cfx, cfy] = at(near.hx, near.hy, near.a2, -3.5);
       p.ellipse(cfx, cfy, 6.8, 5, LIMB, { part: 'cuff', rot: (near.a2 + 90) * DEG, tone: 0.02 });
-      p.ellipse(near.hx, near.hy, 6, 5.6, LIMB, { part: 'fist', tone: -0.04 });
-      stroke(p, [near.hx - 3, near.hy - 1, near.hx + 3, near.hy + 2], SEAM, 'fist');
+      const fist = (): void => {
+        p.ellipse(near.hx, near.hy, 6, 5.6, LIMB, { part: 'fist', tone: -0.04 });
+        stroke(p, [near.hx - 3, near.hy - 1, near.hx + 3, near.hy + 2], SEAM, 'fist');
+      };
+      if (!front) fist();
       // Ближний наплечник — купол и нижний ряд пластин одной частью, стыки и кромка; уменьшен до 0.78 —
       // «огромный» (отзыв пользователя).
       const pb = 0.78;
@@ -611,6 +619,10 @@ function drawWarrior(p: Painter, P: WarriorPose): void {
       arcStroke(p, 34, 43, 14 * pb, 10.5 * pb, 30, 165, SEAM, 'pauldron');
       arcStroke(p, 35, 42, 14.8 * pb, 11.8 * pb, 35, 160, EDGE, 'pauldron');
       arcStroke(p, 31, 42 + 9 * pb, 11 * pb, 5.4 * pb, 30, 160, DIM, 'pauldron');
+      if (front) {
+        sword(p, near.hx, near.hy, P.sw);
+        fist();
+      }
     });
 
     // Выпавший меч: соскальзывает из руки и ложится на землю перед телом.
