@@ -92,6 +92,12 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .card-desc { font-size: 14px; color: var(--muted); }
 .card-desc b { color: var(--text); font-weight: 500; }
 
+/* ─── Поправлено по отзыву ─── */
+.fix { border-left: 2px solid var(--brass); padding: 4px 0 4px 14px; max-width: 76ch; margin-top: 8px; }
+.fix h3 { font-size: 15px; color: var(--brass); margin-bottom: 4px; }
+.fix .list { font-size: 15px; margin: 0; }
+.fix b { font-weight: 600; }
+
 /* ─── Вопросы ─── */
 .qs { display: grid; gap: 14px; margin-top: 16px; counter-reset: q; }
 .q { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px 16px; }
@@ -132,6 +138,15 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <h1>Лепка Паладина</h1>
     <p class="lead">Паладин — второй герой на пиксельную лепку, по рецепту Воина. Здесь шаги 2 и 3: модель в стойке по меркам прежнего листа и варианты облика, шлема и оружия. Клипы, аватарка и игра — после выбора.</p>
     <div class="meta"><span>Рост в бою <b>132</b></span><span>Пиксель <b>1,5</b> — 88 точек роста</span><span>Модель <b>src/ui/heroes/paladin.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
+    <div class="fix">
+      <h3>Поправлено по отзыву</h3>
+      <ul class="list">
+        <li><b>Наплечники</b> больше не шары. Колпак — раковина из пластин: стыки идут ступенями параллельно кромке, золото обходит внешний край и низ уголком, под колпаком одна лямка. Размер — по мерке листа, 25 × 24 вместо 30 × 24.</li>
+        <li><b>Набедренник за молотом</b> не шире бедра: торчал влево на 8 единиц за линию тела.</li>
+        <li><b>Шлем</b> собран заново. Основа объёмная — цилиндр со скруглённым верхом, по нему ложатся свет и блик металла. Лицо — киль с золотым крестом, прорезь вдвое шире, царапины, заклёпки, пятно блика. Шлем мельче и сидит в горжете.</li>
+        <li><b>Варианты шлема</b> новые: топхельм, топхельм с венцом, барбют. Ведро, «сахарная голова» и плюмаж убраны.</li>
+      </ul>
+    </div>
   </header>
 
   <section aria-labelledby="battle-h">
@@ -146,9 +161,9 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
           <button type="button" data-v="ref">Лист (было)</button>
         </span>
         <span class="tog" id="scene-helm" role="group" aria-label="Шлем"><span class="tog-label">Шлем</span>
-          <button type="button" data-v="bucket">Ведро</button>
-          <button type="button" data-v="sugarloaf">Сахарная голова</button>
-          <button type="button" data-v="plume">С плюмажем</button>
+          <button type="button" data-v="great">Топхельм</button>
+          <button type="button" data-v="crown">С венцом</button>
+          <button type="button" data-v="barbute">Барбют</button>
         </span>
         <span class="tog" id="scene-weapon" role="group" aria-label="Оружие"><span class="tog-label">Оружие</span>
           <button type="button" data-v="hammer">Молот</button>
@@ -194,11 +209,11 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
       <article class="look" data-look-card="C">
         <h3>C <span>Светоносец</span></h3>
         <div data-tile="C:*:*"></div>
-        <p>Белое и золото: зеркальная сталь, золочёные наплечники, наколенники и раструбы, белый плащ. Единственный цвет — красный крест.</p>
+        <p>Белое и золото: зеркальная сталь, золочёные лямки наплечников и наколенники, белый плащ. Единственный цвет — красный крест.</p>
         <ul class="pros">
           <li class="plus">самый «святой»: сразу видно, кто здесь лечит</li>
           <li class="plus">отличается от листа, но остаётся паладином</li>
-          <li class="minus">золотые купола наплечников выглядят игрушечно</li>
+          <li class="minus">белый плащ сливается с табардом — силуэт светлым пятном</li>
           <li class="minus">ярче всех: спорит с эффектами приёмов</li>
         </ul>
         <button type="button" class="pick" data-show-look="C">Показать в бою</button>
@@ -208,11 +223,11 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
 
   <section aria-labelledby="helm-h">
     <h2 id="helm-h">Шлем</h2>
-    <p class="prose">Все три угловатые: круглый купол у Воина читался «кастрюлей». Лицевая пластина занимает больше половины шлема, по ней идёт золотой крест: вертикаль от макушки до низа и бровь над прорезью. Глаза не светятся — прорезь почти чёрная. Клик по плитке ставит шлем в сцену; облик плиток — <b data-look-name>B</b>, как в сцене.</p>
+    <p class="prose">У всех трёх объёмная основа, а не плоский многоугольник: по ней ложатся свет и блик металла, поверх — зерно стали, царапины и заклёпки. Низ шлема уходит в золочёный горжет. Глаза не светятся, прорезь почти чёрная. Клик по плитке ставит шлем в сцену; облик плиток — <b data-look-name>B</b>, как в сцене.</p>
     <div class="cards three">
-      <button type="button" class="card-btn" data-helm-card="bucket"><div data-tile="*:bucket:*"></div><span class="card-name">Ведро</span><span class="card-desc">Как на листе. Плоский верх со скруглённой кромкой, золотое ребро по верху сходится в крест.</span></button>
-      <button type="button" class="card-btn" data-helm-card="sugarloaf"><div data-tile="*:sugarloaf:*"></div><span class="card-name">Сахарная голова</span><span class="card-desc">Стрельчатый верх с ребром, крест начинается с самого острия. Строже и на три единицы выше.</span></button>
-      <button type="button" class="card-btn" data-helm-card="plume"><div data-tile="*:plume:*"></div><span class="card-name">С плюмажем</span><span class="card-desc">То же ведро и плюмаж цвета плаща, колышется вместе с ним. Плюмаж был у процедурного спрайта Паладина.</span></button>
+      <button type="button" class="card-btn" data-helm-card="great"><div data-tile="*:great:*"></div><span class="card-name">Топхельм</span><span class="card-desc">Как на листе. Цилиндр со скруглённым верхом, лицо — киль к врагам: левая плоскость на свету, правая в тени. Золотой крест по килю, ребро по макушке, бровь над прорезью.</span></button>
+      <button type="button" class="card-btn" data-helm-card="crown"><div data-tile="*:crown:*"></div><span class="card-name">С венцом</span><span class="card-desc">Тот же топхельм и золотой обруч по макушке с зубцами: орденский знак, силуэт на четыре единицы выше.</span></button>
+      <button type="button" class="card-btn" data-helm-card="barbute"><div data-tile="*:barbute:*"></div><span class="card-name">Барбют</span><span class="card-desc">Купол и колокол затылка. Крестом читается сам Т-вырез в золочёной кромке, лицо в нём — в глубокой тени. Самый компактный.</span></button>
     </div>
   </section>
 
@@ -236,8 +251,8 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
       <table>
         <thead><tr><th>Что</th><th>На листе, точки</th><th>В лепке, единицы поля</th></tr></thead>
         <tbody>
-          <tr><td>Шлем</td><td class="n">центр (101, 25), 35 × 43</td><td class="n">центр (70, 21), 26 × 31 — четверть роста</td></tr>
-          <tr><td>Ближний наплечник</td><td class="n">центр (57, 42), 33 × 34</td><td class="n">центр (38, 32), ≈ 26</td></tr>
+          <tr><td>Шлем</td><td class="n">центр (101, 25), 35 × 43</td><td class="n">≈ 22 × 29, низ в горжете</td></tr>
+          <tr><td>Ближний наплечник</td><td class="n">x 41…74, y 25…59</td><td class="n">колпак x 26…51, y 18…42</td></tr>
           <tr><td>Кулак, навершие, боёк</td><td class="n">(32, 101), (17, 94), (73, 127)</td><td class="n">(20, 75), (9, 70), (49, 89)</td></tr>
           <tr><td>Щит: верхние углы, острие</td><td class="n">(128, 71), (156, 51), (168, 141)</td><td class="n">(90, 53), (111, 38), (119, 104)</td></tr>
           <tr><td>Колени</td><td class="n">(56, 134), (140, 131)</td><td class="n">(37, 99), (99, 97)</td></tr>
@@ -247,8 +262,8 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     </div>
     <h3>Что взято с листа</h3>
     <ul class="list prose">
-      <li>Ведро-шлем с золотым крестом в четверть роста сидит низко, в золочёном горжете.</li>
-      <li>Круглые наплечники с толстой золотой каймой. Ближний — самая широкая форма слева, дальний виден между шлемом и щитом.</li>
+      <li>Топхельм с золотым крестом сидит низко, в золочёном горжете.</li>
+      <li>Наплечники с толстой золотой каймой по нижнему краю и лямкой ступенью ниже. Ближний — самая широкая форма слева, дальний виден между шлемом и щитом.</li>
       <li>Белый табард: алый крест на груди, длинное полотнище между ног с алой каймой и рваным подолом.</li>
       <li>Молот у бедра: навершие за кулаком, золотая обмотка древка, боёк у ближнего колена.</li>
       <li>Щит-«утюг» с крестом от плеча до колена, верхняя кромка поднимается к врагам.</li>
@@ -259,6 +274,7 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
       <li>Лист нарисован с мелочью: блики полосками, чеканка, мелкие заклёпки. Лепка — крупные формы: сталь из материала <code>metal</code>, как у Воина, золотые каймы — краской по пластинам.</li>
       <li>В пикселе 1,5 у фигуры 88 точек роста против 180 на листе. Чеканка уходит, остаются каймы, крест и прорезь шлема.</li>
       <li>Табард на груди — своя плоская ткань поверх кирасы. Краской по кирасе белое уходило в тень её купола.</li>
+      <li>Колпак наплечника — пластина со ступенями стыков, а не купол: гладкий купол читался шаром.</li>
     </ul>
   </section>
 
@@ -276,11 +292,11 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
       </div>
       <div class="q">
         <h3>Шлем</h3>
-        <p>Крест на лице у всех; различается верх.</p>
+        <p>Крест у всех: золотой по килю у топхельмов, Т-вырезом у барбюта.</p>
         <ul class="opts">
-          <li class="rec"><b>Ведро</b>как на листе, узнаётся сразу</li>
-          <li><b>Сахарная голова</b>строже и выше</li>
-          <li><b>С плюмажем</b>ведро и живое пятно цвета плаща над головой</li>
+          <li class="rec"><b>Топхельм</b>как на листе, узнаётся сразу</li>
+          <li><b>С венцом</b>топхельм и золотой орденский знак над головой</li>
+          <li><b>Барбют</b>другой силуэт: компактнее, крест — сам вырез</li>
         </ul>
       </div>
       <div class="q">

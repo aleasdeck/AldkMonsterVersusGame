@@ -27,8 +27,12 @@ import { arcStroke, at, DEG, ease, ik, lerp, limb2, reachFoot, solid, stroke } f
 // ─── Облики ─────────────────────────────────────────────────────────────────
 
 export type PaladinLookId = 'A' | 'B' | 'C';
-/** Шлем: `bucket` — ведро с золотым крестом (как на листе), `sugarloaf` — «сахарная голова», `plume` — ведро с плюмажем. */
-export type PaladinHelm = 'bucket' | 'sugarloaf' | 'plume';
+/**
+ * Шлем: `great` — топхельм с золотым крестом на лице (как на листе), `crown` — он же с золотым венцом, `barbute` —
+ * барбют с Т-вырезом, кромка которого золочёная и читается крестом. Первые варианты — ведро, «сахарная голова»,
+ * ведро с плюмажем — отвергнуты: «огромный квадратный», «не хватает текстурности».
+ */
+export type PaladinHelm = 'great' | 'crown' | 'barbute';
 /** Оружие: `hammer` — молот с листа, `mace` — булава (стартовое оружие Паладина в игре). */
 export type PaladinWeapon = 'hammer' | 'mace';
 
@@ -40,7 +44,10 @@ export interface PaladinLook {
   chest: Mat;
   helm: Mat;
   head: Mat;
-  /** Золочёные наплечники, наколенники и раструбы перчаток (C); иначе — сталь с золотой кромкой. */
+  /**
+   * Золочёные лямки наплечников и наколенники (C); иначе — сталь с золотой кромкой. Колпаки наплечников стальные
+   * у всех: золотой колпак целиком читался шаром.
+   */
   gilt: boolean;
   gold: Mat;
   /** Золотая кромка на свету и в тени. */
@@ -54,7 +61,6 @@ export interface PaladinLook {
   cape: Mat;
   /** Складка плаща. */
   capeFold: string;
-  plume: Mat;
   shieldFace: Mat;
   leather: Mat;
   wood: Mat;
@@ -89,7 +95,6 @@ export const PALADIN_LOOKS: Record<PaladinLookId, PaladinLook> = {
     red: { base: '#8e242c', ramp: ['#2a0a0e', '#521419', '#7e1f27', '#a53236', '#c84a44'], dither: 0 },
     cape: { base: '#7e1f27', ramp: ['#24080c', '#4a1218', '#761c24', '#9a2a30', '#b8423e'], shag: 0.2, tex: { kind: 'stripes', scale: 2.4, amp: 0.14, angle: 1.5 } },
     capeFold: '#3a0c12',
-    plume: { base: '#a53236', ramp: ['#2a0a0e', '#5a161c', '#8e242c', '#b43a3a', '#d0584c'], shag: 0.35, tex: { kind: 'stripes', scale: 1.4, amp: 0.2, angle: 0.4 } },
     shieldFace: { base: '#e2d0c2', ramp: ['#5a4a44', '#9a8680', '#c8b4a8', '#e6d6c8', '#f8eee4'], tex: { kind: 'noise', scale: 2.4, amp: 0.1 } },
     leather: { base: '#5a3a26' },
     wood: { base: '#4e3222', tex: { kind: 'stripes', scale: 2, amp: 0.14, angle: 0 } },
@@ -109,7 +114,6 @@ export const PALADIN_LOOKS: Record<PaladinLookId, PaladinLook> = {
     red: { base: '#6e1a20', ramp: ['#200709', '#3e0e12', '#62171c', '#842428', '#a0383a'], dither: 0 },
     cape: { base: '#5e161c', ramp: ['#1c0609', '#380c11', '#5c151b', '#7e2026', '#9a3432'], shag: 0.3, tex: { kind: 'stripes', scale: 2.2, amp: 0.16, angle: 1.5 } },
     capeFold: '#24070b',
-    plume: { base: '#6e1a20', ramp: ['#200709', '#420f14', '#6a181e', '#8c2628', '#a83c38'], shag: 0.4, tex: { kind: 'stripes', scale: 1.4, amp: 0.2, angle: 0.4 } },
     shieldFace: { base: '#b2a290', ramp: ['#3e342e', '#6e6056', '#9c8c7c', '#c0b09c', '#dccdb6'], tex: { kind: 'noise', scale: 2, amp: 0.2 } },
     leather: { base: '#3e2a1e' },
     wood: { base: '#3a281c', tex: { kind: 'stripes', scale: 2, amp: 0.14, angle: 0 } },
@@ -129,7 +133,6 @@ export const PALADIN_LOOKS: Record<PaladinLookId, PaladinLook> = {
     red: { base: '#9a262e', ramp: ['#2c0a0e', '#56141a', '#86222a', '#ac3438', '#cc4c46'], dither: 0 },
     cape: { base: '#d8cabc', ramp: ['#4e443e', '#8c7e74', '#bcaea0', '#dccec0', '#f4ece0'], shag: 0.18, tex: { kind: 'stripes', scale: 2.4, amp: 0.12, angle: 1.5 } },
     capeFold: '#8c7e74',
-    plume: { base: '#e2d6c8', ramp: ['#5a504a', '#968a80', '#c6b8aa', '#e4d8ca', '#faf4ea'], shag: 0.35, tex: { kind: 'stripes', scale: 1.4, amp: 0.2, angle: 0.4 } },
     shieldFace: { base: '#e8dccc', ramp: ['#5e5248', '#a09284', '#cec0b0', '#ece0d0', '#fcf6ec'], tex: { kind: 'noise', scale: 2.4, amp: 0.08 } },
     leather: { base: '#5e3e28' },
     wood: { base: '#553824', tex: { kind: 'stripes', scale: 2, amp: 0.14, angle: 0 } },
@@ -138,9 +141,8 @@ export const PALADIN_LOOKS: Record<PaladinLookId, PaladinLook> = {
 };
 
 const SLIT = '#0b080b';
-/** Лицевая плоскость шлема светлее на полступени, верх — ещё светлее: голову выделяет форма, а не другой материал. */
+/** Лицевая плоскость шлема к свету светлее на полступени: голову выделяет форма, а не другой материал. */
 const FACE_TONE = 0.08;
-const TOP_TONE = 0.14;
 
 // ─── Мерки ──────────────────────────────────────────────────────────────────
 
@@ -149,11 +151,13 @@ const TOP_TONE = 0.14;
  * Перевод с листа: x = 5 + (px − 12)·k, y = 136 − (184 − py)·k, k = 132 / 180. Ближнее — слева, дальнее — справа.
  */
 const G = 136;
+/** Масштаб шлема: ведро в мерку листа (1) читалось «огромным»; купол и киль мельче и объёмнее. */
+const HELM_SCALE = 0.95;
 /** Сутулость меньше, чем у Воина: Паладин на листе стоит прямее, голова подана вперёд горжетом, а не наклоном. */
 const HUNCH = 5 * DEG;
 const M = {
   /** Центр шлема и шея (опора наклона головы); шлем ≈ 26 × 31 — четверть роста. */
-  helm: [66, 22],
+  helm: [66, 20],
   neck: [65, 37],
   legN: { hip: [55, 77], knee: [37, 99], ank: [28, 123], toe: 180 },
   legF: { hip: [79, 77], knee: [99, 97], ank: [103, 122], toe: 0 },
@@ -197,51 +201,100 @@ function rimBand(p: Painter, cx: number, cy: number, rx: number, ry: number, w: 
   p.poly(pts, mat, { part, paint: true });
 }
 
+/**
+ * Золотая кромка вдоль ломаной `pts` (нижний край пластины, слева направо) шириной `w` внутрь пластины — краской по части.
+ */
+function edgeBand(p: Painter, pts: number[], w: number, mat: Mat, part: string): void {
+  const inner: number[] = [];
+  const n = pts.length / 2;
+  for (let k = 0; k < n; k++) {
+    const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1);
+    const tx = pts[b * 2] - pts[a * 2], ty = pts[b * 2 + 1] - pts[a * 2 + 1], l = Math.hypot(tx, ty) || 1;
+    inner.push(pts[k * 2] + (ty / l) * w, pts[k * 2 + 1] - (tx / l) * w);
+  }
+  const out = pts.map((v, k) => v + (k % 2 === 0 ? 0 : 0.6));
+  for (let k = n - 1; k >= 0; k--) out.push(inner[k * 2], inner[k * 2 + 1]);
+  p.poly(out, mat, { part, paint: true });
+}
+
 // ─── Шлем ───────────────────────────────────────────────────────────────────
 
 /**
- * Шлем в своих координатах: центр (0, 0), лицо к врагам (вправо). Все три — угловатые (круглый купол у Воина читался
- * «кастрюлей»): бок — основная плоскость, верх светлее, лицевая пластина справа на полступени светлее, прорезь почти
- * чёрная, поверх — золотой крест: вертикаль посреди лица и бровь над прорезью. `fl` — плюмаж относит назад.
+ * Шлем в своих координатах: центр (0, 0), лицо к врагам (вправо). Первое ведро было плоским многоугольником — «огромный
+ * квадратный», без фактуры; теперь основа объёмная: у топхельма — вертикальный цилиндр со скруглённым верхом (свет
+ * и блик металла ложатся по объёму, как на листе), у барбюта — купол с колоколом затылка. Лицо — киль к врагам:
+ * две плоскости, левая на свету, правая в тени, золотая вертикаль креста по ребру, бровь над прорезью.
+ * Фактура — зерно материала, царапины и заклёпки; низ шлема уходит в горжет (горжет рисуется после шлема).
  */
-function helm(p: Painter, L: PaladinLook, kind: PaladinHelm, fl: number): void {
+function helm(p: Painter, L: PaladinLook, kind: PaladinHelm): void {
+  const H = L.helm;
   const o = { part: 'helm', paint: true };
   const slit = solid(SLIT);
-  if (kind === 'plume') {
-    // Плюмаж: из-за верха назад и вниз, рваный конец; на выпаде и в покое чуть колышется.
-    const b = fl * 4;
-    p.poly([1, -14.5, -1.5, -20.5, -7, -23.5 - b * 0.3, -14 - b, -22.5 - b * 0.4, -20 - b * 1.4, -18, -25 - b * 1.8, -11, -27 - b * 2, -3, -24 - b * 1.6, 3, -21.5 - b, -3, -18.5 - b * 0.6, 2, -16.5 - b * 0.4, -7, -12.5, -12.5, -6, -15.5], L.plume, { part: 'plume', bevel: 2.5 });
+  if (kind === 'crown') {
+    // Зубцы венца на дальней стороне — за шлемом, торчат над макушкой.
+    for (const a of [230, 270, 310]) crownTooth(p, L, a, 'crownBack');
   }
-  // Лицевая пластина — справа от ребра (x ≈ −1), больше половины ширины: к врагам шлем повёрнут лицом.
-  // Золотая вертикаль креста — посреди лица от макушки до низа, бровь — над прорезью; прорезь вертикаль делит надвое.
-  if (kind === 'sugarloaf') {
-    // «Сахарная голова»: стрельчатый верх, ребро от острия к лицу, золотая вертикаль креста — от самого острия.
-    p.poly([-11.5, 14.5, -12.5, -3, -11, -9.5, -6, -15, 2, -21.5, 8, -15.5, 12, -10, 13.5, -3, 13.5, 13.5, 6, 15.5, -5, 15.5], L.helm, { part: 'helm', bevel: 1.8 });
-    p.poly([-12.5, -3, -11, -9.5, -6, -15, 2, -21.5, -1, -8.5, -12, -2], L.helm, { ...o, tone: TOP_TONE });
-    p.poly([2, -21.5, 8, -15.5, 12, -10, 13.5, -3, 13.5, 13.5, 6, 15.5, -1, 15, -1, -8.5], L.helm, { ...o, tone: FACE_TONE });
-    p.poly([-1, -2, 13.5, -2.4, 13.5, 1, -1, 1.2], slit, o);
-    p.poly([1.2, -20.6, 3.2, -21, 8.4, -10, 8.9, 15.4, 5.1, 15.6, 4.8, -10.5], L.gold, o);
-    p.poly([-1, -4.8, 13.5, -5.2, 13.5, -2.4, -1, -2], L.gold, o);
-    stroke(p, [2, -21, -1, -8.5, -1, 14.6], L.edge, 'helm');
-    stroke(p, [-10.8, -9.4, -6, -14.6, 1.2, -20.6], L.glint, 'helm');
-    stroke(p, [-8.5, -6.5, -5, -10], L.glintDim, 'helm');
-  } else {
-    // Ведро с листа: верх скруглён узкой фаской (купол Воина читался «кастрюлей»), по верху — золотое ребро к кресту.
-    p.poly([-11.5, 14.5, -12.5, -4, -11.5, -11, -7.5, -15, 0, -16, 8, -15, 12, -11, 13.5, -4, 13.5, 13.5, 6, 15.5, -5, 15.5], L.helm, { part: 'helm', bevel: 2.2 });
-    p.poly([-11.5, -11, -7.5, -15, 0, -16, 8, -15, 12, -11, 5, -9.5, -1, -9, -10.5, -8.5], L.helm, { ...o, tone: TOP_TONE });
-    p.poly([-1, -9, 5, -9.5, 12, -11, 13.5, -4, 13.5, 13.5, 6, 15.5, -1, 15], L.helm, { ...o, tone: FACE_TONE });
-    p.poly([-1, -2, 13.5, -2.4, 13.5, 1, -1, 1.2], slit, o);
-    p.poly([4.6, -15.8, 8.4, -15.4, 8.9, 15.4, 5.1, 15.6], L.gold, o);
-    p.poly([-1, -4.8, 13.5, -5.2, 13.5, -2.4, -1, -2], L.gold, o);
-    stroke(p, [-6.5, -15.2, 0, -15.8, 4.4, -15.6], L.goldLit, 'helm');
-    stroke(p, [-1, -9, -1, 14.6], L.edge, 'helm');
-    stroke(p, [-11, -10.4, -7.4, -14.4, -1, -15.4], L.glint, 'helm');
-    stroke(p, [-8, -11.6, -4, -12.4], L.glintDim, 'helm');
+  if (kind === 'barbute') {
+    // Барбют: купол черепа и щёки одной частью, затылок расходится колоколом к шее.
+    p.ellipse(-0.5, -3.5, 11.5, 11.5, H, { part: 'helm', lift: 1 });
+    p.poly([-11.8, -3, -13.2, 8, -12, 14.5, -4, 16, 5, 15.5, 10.5, 13, 11.8, 3, 11, -5], H, { part: 'helm', bevel: 4 });
+    // Ребро по черепу от макушки к вырезу — светлой чертой, щека — в тени.
+    stroke(p, [-2.5, -14.6, 2.5, -12, 5.6, -5.5], L.edge, 'helm');
+    p.poly([8.6, -3.5, 11.8, -3.5, 11.8, 3, 10.5, 13, 8.6, 14], H, { ...o, tone: -0.14 });
+    // Т-вырез: глаза поперёк, прорезь вниз — лицо в глубокой тени; золочёная кромка обводит крест.
+    p.poly([-0.5, -6.6, 12.4, -6.6, 12.4, -3.2, 12, -2.4, 8.4, -2.2, 8.4, 15, 4.6, 15.2, 4.6, -2.2, -0.5, -2.2], L.gold, o);
+    p.poly([0.9, -5.4, 11.8, -5.4, 11.8, -3.6, 7.2, -3.4, 7.2, 14.6, 5.8, 14.6, 5.8, -3.4, 0.9, -3.4], solid('#140e12'), o);
+    stroke(p, [-0.4, -6.6, 12, -6.6], L.goldLit, 'helm');
+    stroke(p, [4.6, -2, 4.6, 14.8], L.goldLit, 'helm');
+    // Блик по куполу, царапины, заклёпки по краю щеки.
+    stroke(p, [-8.5, -9.5, -5.5, -12.4, -1.5, -13.6], L.glint, 'helm');
+    stroke(p, [-10.2, -4.5, -10.4, 1.5], L.glintDim, 'helm');
+    stroke(p, [-7, 3, -5, 4.6], L.dim, 'helm');
+    for (const [x, y] of [[-10.5, 11], [-7, 13.5], [-3.5, 14.5]]) p.px(x, y, L.glintDim);
+    return;
   }
-  // Общее: отблеск на боку к свету, стык по нижнему краю, заклёпки.
-  stroke(p, [-11.2, -1, -11, 6], L.glintDim, 'helm');
-  stroke(p, [-10.5, 13.4, 4, 14.8], L.seam, 'helm');
-  for (const x of [-8, -4, 0]) p.px(x, 11.5, L.glintDim);
+  // Топхельм: цилиндр со скруглённым верхом, лицевая пластина выступает к врагам; киль — на трёх пятых ширины, как на листе.
+  p.limb(-1, -3, 10.8, -0.5, 6.5, 10.4, H, { part: 'helm' });
+  p.poly([-2.5, -11, 3, -13.6, 9.5, -10.4, 12, -3.6, 12, 9, 9.4, 14, 3.2, 15.4, -2.5, 14], H, { part: 'helm', lift: 10, bevel: 2 });
+  // Плоскости киля: левая к свету светлее, правая в тени; на свету — пятно блика.
+  p.poly([-2.5, -11, 3, -13.6, 3.3, 15.4, -2.5, 14], H, { ...o, tone: FACE_TONE });
+  p.poly([3, -13.6, 9.5, -10.4, 12, -3.6, 12, 9, 9.4, 14, 3.3, 15.4], H, { ...o, tone: -0.16 });
+  p.poly([-1.5, -9.6, 1.6, -11, 1.8, -6.4, -1.5, -5.8], H, { ...o, tone: 0.2 });
+  p.poly([-2.5, -2.4, 12, -2.8, 12, 1.4, -2.5, 1.8], slit, o);
+  // Золотой крест: ребро по верху от затылка, вертикаль по килю, бровь над прорезью.
+  p.poly([-6.2, -11.6, -1.5, -14, 2, -14.4, 4.4, -13.8, 4.4, -11.6, -0.8, -11.8, -5.6, -9.4], L.gold, o);
+  p.poly([2, -14, 4.6, -13.6, 4.8, 15.2, 2.2, 15.4], L.gold, o);
+  p.poly([-2.5, -5, 11.8, -5.4, 11.8, -2.8, -2.5, -2.4], L.gold, o);
+  stroke(p, [-5.6, -12, -1.5, -14, 2, -14.2], L.goldLit, 'helm');
+  stroke(p, [2.2, -12.5, 2.4, 14.6], L.goldLit, 'helm');
+  stroke(p, [-2.5, -4.6, 1.8, -4.8], L.goldLit, 'helm');
+  // Кромка между боком и лицом, блики по объёму, царапины, пояс заклёпок внизу.
+  stroke(p, [-2.7, -10.6, -2.7, 13.6], L.edge, 'helm');
+  stroke(p, [-9, -8.5, -6.6, -11.6, -3.5, -13], L.glint, 'helm');
+  stroke(p, [-9.8, -3.5, -10, 3.5], L.glintDim, 'helm');
+  stroke(p, [-8, 5, -6.2, 6.6], L.dim, 'helm');
+  stroke(p, [-6, -6.8, -4.6, -5.4], L.dim, 'helm');
+  stroke(p, [7.4, 5, 8.6, 7.5], L.dim, 'helm');
+  for (const x of [-9.8, -7, -4.2]) p.px(x, 11.5, L.glintDim);
+  if (kind === 'crown') {
+    // Венец: золотой обруч вокруг макушки (передняя половина — поверх шлема) и зубцы-кресты над ним.
+    const cx = -0.5, cy = -10.5, rx = 11, ry = 2.8;
+    const band: number[] = [];
+    for (let a = 0; a <= 180; a += 15) band.push(cx + rx * Math.cos(a * DEG), cy + ry * Math.sin(a * DEG) + 0.6);
+    for (let a = 180; a >= 0; a -= 15) band.push(cx + rx * Math.cos(a * DEG), cy + ry * Math.sin(a * DEG) - 2.6);
+    p.poly(band, L.gold, o);
+    arcStroke(p, cx, cy - 2.4, rx, ry, 20, 160, L.goldLit, 'helm');
+    for (const a of [20, 60, 100, 140]) crownTooth(p, L, a, 'crown');
+  }
+}
+
+/** Зубец венца — узкий шип с золотым шариком над обручем в точке угла `a` (передние — поверх шлема, дальние — за ним). */
+function crownTooth(p: Painter, L: PaladinLook, a: number, part: string): void {
+  const x = -0.5 + 11 * Math.cos(a * DEG), y = -10.5 + 2.8 * Math.sin(a * DEG) - 2.2;
+  const w = 1.2 * (0.5 + 0.5 * Math.abs(Math.sin(a * DEG)));
+  const back = part === 'crownBack';
+  p.poly([x - w, y, x, y - 3.6, x + w, y], L.gold, { part, bevel: 0.6, tone: back ? -0.15 : 0 });
+  p.ellipse(x, y - 4.2, 1.1, 1.1, L.gold, { part, tone: back ? -0.15 : 0.05 });
 }
 
 // ─── Щит ────────────────────────────────────────────────────────────────────
@@ -423,7 +476,7 @@ const AVATAR: AvatarSpec = {
 };
 
 /** Паладин в облике `look`; рост в покое — `HERO_BODY_HEIGHT.paladin` (132) в пикселе `HERO_PIXEL`. */
-export function paladinModel(look: PaladinLookId = 'B', helmKind: PaladinHelm = 'bucket', weapon: PaladinWeapon = 'hammer'): HeroModel {
+export function paladinModel(look: PaladinLookId = 'B', helmKind: PaladinHelm = 'great', weapon: PaladinWeapon = 'hammer'): HeroModel {
   const L = PALADIN_LOOKS[look];
   return {
     id: 'paladin',
@@ -473,7 +526,7 @@ function drawPaladin(p: Painter, P: PaladinPose, L: PaladinLook, helmKind: Palad
     if (fall < 0.6) {
       p.pose(up, () => {
         const fl = P.cape, keep = 1 - fall / 0.6;
-        const pts = [52, 30, 38, 33, 27, 43, 18, 64, 12, 86, 9, 106, 15, 102, 19, 110, 24, 101, 30, 108, 36, 102, 44, 114, 52, 110, 58, 120, 64, 113, 70, 121, 76, 114, 83, 119, 88, 108, 87, 78, 82, 48, 72, 32];
+        const pts = [52, 30, 38, 33, 28, 44, 21, 64, 15, 86, 12, 105, 17, 101, 20, 109, 25, 101, 30, 108, 36, 102, 44, 114, 52, 110, 58, 120, 64, 113, 70, 121, 76, 114, 83, 119, 88, 108, 87, 78, 82, 48, 72, 32];
         for (let k = 0; k < pts.length; k += 2) {
           const t = Math.max(0, (pts[k + 1] - 30) / 92);
           pts[k + 1] = 30 + (pts[k + 1] - 30) * keep - fl * 34 * t * t;
@@ -562,10 +615,11 @@ function drawPaladin(p: Painter, P: PaladinPose, L: PaladinLook, helmKind: Palad
       p.ellipse(86, 68, 3.8, 4.6, L.leather, { part: 'pouchF', tone: -0.12 });
 
       // Набедренники по обе стороны полотнища, с золотой кромкой.
-      p.ellipse(47, 74, 12, 7, L.limb, { part: 'tassetN', rot: 0.35, lift: 1 });
-      p.ellipse(43, 82, 10.5, 6, L.limb, { part: 'tassetN', rot: 0.5 });
-      rimBand(p, 47, 74, 12, 7, 1.8, 20, 160, L.gold, 'tassetN', 0.35);
-      rimBand(p, 43, 82, 10.5, 6, 1.8, 20, 160, L.gold, 'tassetN', 0.5);
+      // Ближние — не шире бедра: широкие торчали за молотом «слишком широким доспехом».
+      p.poly([45, 68.5, 57, 68, 58, 74, 54, 79, 46.5, 79.5, 43.5, 75], L.limb, { part: 'tassetN', bevel: 2.4 });
+      edgeBand(p, [43.8, 75.5, 46.5, 79.5, 54, 79, 58, 74.2], 1.8, L.gold, 'tassetN');
+      p.poly([44.5, 78.5, 54, 79.5, 53, 84.5, 47.5, 86, 44, 83], L.limb, { part: 'tassetN2', bevel: 2, tone: -0.04 });
+      edgeBand(p, [44.2, 83.2, 47.5, 86, 53, 84.5], 1.6, L.gold, 'tassetN2');
       p.ellipse(84, 74, 8.5, 6, L.limb, { part: 'tassetF', rot: -0.3, tone: -0.1 });
       arcStroke(p, 84, 74, 7.9, 5.4, 20, 160, L.goldDark, 'tassetF');
 
@@ -577,20 +631,29 @@ function drawPaladin(p: Painter, P: PaladinPose, L: PaladinLook, helmKind: Palad
       stroke(p, [67, 70, 66.5 - tf * 0.8, 100], L.fold, 'tabard');
       stroke(p, [71.5, 70, 72 - tf * 0.8, 96], L.fold, 'tabard');
 
-      // Горжет под шлемом — стальное кольцо с толстой золотой кромкой.
-      p.ellipse(67, 37, 14, 6.5, L.chest, { part: 'gorget', lift: 1 });
-      rimBand(p, 67, 37, 14, 6.5, 2.6, 10, 170, L.gold, 'gorget');
-      arcStroke(p, 67, 37, 13.6, 6.1, 30, 150, L.goldLit, 'gorget');
+      // Тень шеи в вороте — за шлемом.
+      p.ellipse(66, 34, 10, 5, solid('#1a1418'), { part: 'neck', tone: -0.3 });
 
       // Дальний наплечник — висит сбоку, темнее, с золотой кромкой к зрителю.
-      p.ellipse(92, 36, 9, 11, plate(L.limb), { part: 'farPauldron', tone: -0.08, lift: 1 });
-      rimBand(p, 92, 36, 9, 11, 2.4, 70, 250, L.gold, 'farPauldron');
-      stroke(p, [86, 29, 90, 26], L.glintDim, 'farPauldron');
+      // Дальний наплечник — та же пластина в профиль, темнее; лямка под ним, золото — к зрителю.
+      p.poly([86.5, 40, 92.5, 41.5, 98.5, 39.5, 99.5, 44.5, 95, 48.5, 88.5, 47.5], plate(L.limb), { part: 'fLame', bevel: 2, tone: -0.12 });
+      edgeBand(p, [86.8, 46.8, 88.5, 47.6, 95, 48.4, 99.3, 44.6], 1.8, L.gold, 'fLame');
+      p.poly([84.5, 31, 86.5, 24.5, 91.5, 21, 97, 22.5, 100, 28.5, 99.5, 36, 96, 41, 89.5, 41.5, 85.5, 37.5], L.limb, { part: 'farPauldron', bevel: 4.5, lift: 1, tone: -0.08 });
+      edgeBand(p, [84.8, 31.5, 85.8, 37.6, 89.5, 41.2, 96, 40.8, 99.3, 36.2], 2.2, L.gold, 'farPauldron');
+      stroke(p, [87, 25.5, 91.5, 22.2], L.glintDim, 'farPauldron');
+      stroke(p, [88, 23, 87.6, 31, 90.5, 36.5, 96, 36.6, 99.6, 32], L.seam, 'farPauldron');
+      stroke(p, [87, 23.8, 86.8, 31.4, 89.8, 37.4, 96, 37.6], L.dim, 'farPauldron');
 
       // Шлем на шее: раз за цикл поворачивается к врагам.
       p.pose({ rot: 0.05 * turn + P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => {
-        p.scope(1, M.helm[0], M.helm[1], () => helm(p, L, helmKind, P.cape));
+        p.scope(HELM_SCALE, M.helm[0], M.helm[1], () => helm(p, L, helmKind));
       });
+
+      // Горжет — после шлема: низ шлема уходит в золочёный ворот, как на листе.
+      p.ellipse(67, 38.5, 14, 5.8, L.chest, { part: 'gorget', lift: 1 });
+      rimBand(p, 67, 38.5, 14, 5.8, 2.6, 5, 175, L.gold, 'gorget');
+      arcStroke(p, 67, 38.5, 13.6, 5.4, 30, 150, L.goldLit, 'gorget');
+      arcStroke(p, 67, 38.5, 13.2, 5.2, 200, 340, L.goldDark, 'gorget');
 
       // Щит — перед туловищем, от кисти дальней руки.
       const cx = far.hx + (M.armF.shield[0] - M.armF.hand[0]) + P.shx, cy = far.hy + (M.armF.shield[1] - M.armF.hand[1]) + P.shy;
@@ -631,12 +694,24 @@ function drawPaladin(p: Painter, P: PaladinPose, L: PaladinLook, helmKind: Palad
       };
       if (!front) fist();
       // Ближний наплечник — купол и нижняя пластина одной частью, золотая кромка по нижнему краю купола и пластины.
-      p.ellipse(30, 43, 11, 6, plate(L.limb), { part: 'pauldron', rot: 0.5, flat: 0.4 });
-      p.ellipse(37, 33, 13, 12, plate(L.limb), { part: 'pauldron', lift: 2, flat: 0.25 });
-      rimBand(p, 30, 43, 11, 6, 2, 30, 190, L.gold, 'pauldron', 0.5);
-      rimBand(p, 37, 33, 13, 12, 2.6, 60, 205, L.gold, 'pauldron');
-      arcStroke(p, 37, 33, 12.6, 11.6, 200, 250, L.goldLit, 'pauldron');
-      stroke(p, [29, 27, 35, 23], L.glint, 'pauldron');
+      // Ближний наплечник по мерке листа (≈ 25 × 24): колпак-раковина раскрыт вниз и наружу — золотая кромка обходит
+      // его внешний край и низ уголком, под ним ступенью одна лямка. Купол-эллипс читался шаром, пластина крупнее
+      // мерки с кромкой только снизу — шляпкой гриба.
+      p.poly([19, 44, 22.5, 40, 28.5, 38.5, 34, 40.5, 35, 44.5, 31, 48.5, 24.5, 49.5, 19.5, 48.5], plate(L.limb), { part: 'pLame', bevel: 2, tone: -0.05 });
+      edgeBand(p, [19.2, 44.6, 19.6, 48.4, 24.5, 49.4, 31, 48.4, 34.8, 44.6], 2.2, L.gold, 'pLame');
+      stroke(p, [21.5, 41.5, 27.5, 39.4], L.glintDim, 'pLame');
+      p.poly([26.5, 31, 28, 24.5, 33, 19.5, 40, 17.5, 46.5, 19, 50.5, 23.5, 51.5, 30, 49.5, 36, 44, 40.5, 36, 42, 29.5, 39.5], L.limb, { part: 'pauldron', bevel: 5, lift: 2 });
+      p.poly([30, 25.5, 34, 20.8, 39.5, 19.2, 41.5, 21.5, 36.5, 24, 32.5, 28.5], L.limb, { part: 'pauldron', paint: true, tone: 0.32 });
+      p.poly([34, 37.8, 41, 37.6, 47, 34.5, 50.6, 30, 49.5, 36, 44, 40.5, 36, 42], L.limb, { part: 'pauldron', paint: true, tone: -0.22 });
+      // Ступени пластин по колпаку параллельно кромке: тёмный стык и светлый край нижней пластины под ним.
+      stroke(p, [31, 21.6, 30.4, 29, 33.4, 35, 39.6, 36.8, 46.4, 34.6, 50.8, 29.6], L.seam, 'pauldron');
+      stroke(p, [30, 22.6, 29.4, 29.4, 32.6, 35.8, 39.4, 37.8, 46.6, 35.6], L.edge, 'pauldron');
+      stroke(p, [35.5, 18.6, 35.2, 25.6, 38.6, 30.2, 44, 30.8, 48.8, 27.4, 51, 23.4], L.seam, 'pauldron');
+      stroke(p, [34.4, 19.4, 34.2, 26, 37.8, 31.2, 44, 31.8, 49.2, 28.4], L.edge, 'pauldron');
+      edgeBand(p, [28.2, 24, 26.2, 31, 29.5, 39.6, 36, 42, 44, 40.6, 49.6, 36], 2.8, L.gold, 'pauldron');
+      stroke(p, [26.8, 31.4, 29.8, 40.2, 36, 42.5], L.goldLit, 'pauldron');
+      stroke(p, [29.5, 26.5, 33.5, 21.6, 39, 19.6], L.glint, 'pauldron');
+      stroke(p, [45.5, 21.5, 49.2, 25.5], L.glintDim, 'pauldron');
       if (front) {
         drawWeapon(near.hx, near.hy, P.sw);
         fist();
