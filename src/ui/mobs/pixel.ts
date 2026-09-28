@@ -237,6 +237,11 @@ export interface Mat {
   noOutline?: boolean;
   /** Рваный край: доля клеток силуэта, из которых торчит прядь (шерсть, мох, лохмотья). Вниз и назад чаще. */
   shag?: number;
+  /**
+   * Полированный металл 0..1 (латы героев): контраст сильнее и блик шире, чем у `shine`.
+   * Без него сталь на крупной фигуре читается матовой резиной. Враги этим не пользуются — их рисунок не меняется.
+   */
+  metal?: number;
 }
 
 interface RMat {
@@ -963,6 +968,12 @@ export class Painter {
     }
     v += this.toneAt[k];
     if (mat.tex && st.texture > 0) v += texture(mat.tex, this.lxAt[k], this.lyAt[k], this.seedAt[k]) * (mat.tex.amp ?? 0.15) * st.texture;
+    if (mat.metal && !mat.glow) {
+      const m = mat.metal;
+      v = 0.42 + (v - 0.42) * (1 + 0.5 * m);
+      const sp = Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]) ** 20;
+      if (sp * m > 0.55) v = 1.2;
+    }
     if (mat.shine && !mat.glow) {
       const sp = Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]) ** 24;
       if (sp * mat.shine > 0.35) v = 1.2;

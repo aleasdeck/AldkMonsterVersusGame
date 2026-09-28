@@ -1,0 +1,265 @@
+<title>Лепка Воина</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Tiny5&display=swap">
+<style>
+/* Одна тёмная сцена под игру: страница нарочно без светлой темы — пиксель-арт сверяется на тёмном. */
+:root {
+  color-scheme: dark;
+  --ink: #121016;
+  --panel: #1b181f;
+  --panel-2: #231f28;
+  --line: #2f2a35;
+  --text: #e8e2d6;
+  --muted: #a59dab;
+  --faint: #6f6877;
+  --brass: #d6a050;
+  --brass-ink: #1e1408;
+  --crimson: #ae3440;
+  --display: 'Tiny5', 'IBM Plex Mono', ui-monospace, monospace;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+body { background: var(--ink); color: var(--text); font: 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 64px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+.prose { max-width: 70ch; }
+h1, h2 { font-family: var(--display); font-weight: 400; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.05; margin: 40px 0 12px; color: var(--brass); }
+h2 { font-size: clamp(24px, 3.4vw, 30px); line-height: 1.15; margin: 60px 0 12px; }
+h3 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+p { margin: 0 0 12px; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.lead { font-size: 18px; max-width: 68ch; }
+.meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 20px; }
+.meta b { color: var(--text); font-weight: 500; }
+.note { color: var(--muted); font-size: 14px; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+.tog { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tog-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.tog button, .pick { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 14px; line-height: 1.3; }
+.tog button:hover, .pick:hover { border-color: var(--faint); }
+.tog button[aria-pressed="true"] { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-bottom: 10px; }
+
+/* ─── Поле ─── */
+.bench { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px; }
+.stage { position: relative; width: 100%; overflow: hidden; border-radius: 4px; background: #0b0a0e; }
+.field { position: absolute; left: 0; top: 0; width: 960px; height: 320px; transform-origin: 0 0; overflow: hidden; }
+.field .bg { position: absolute; inset: 0; width: 960px; height: 320px; max-width: none; image-rendering: pixelated; }
+.fig { position: absolute; max-width: none; image-rendering: pixelated; }
+.fig.smooth { image-rendering: auto; }
+.tint-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.caption { font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+
+/* ─── Крупные планы ─── */
+.tiles { display: grid; gap: 16px; }
+.tiles.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tile { min-width: 0; }
+.tile-win { position: relative; overflow: hidden; border-radius: 4px; background: #0b0a0e; margin: 0 auto; }
+.tile-win .field { transform-origin: 0 0; }
+.tile-label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.tile-label b { color: var(--text); font-weight: 500; }
+
+.looks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+.look { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 12px; display: grid; gap: 10px; align-content: start; }
+.look h3 { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--brass); margin: 0; display: flex; gap: 10px; align-items: baseline; }
+.look h3 span { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.look p { font-size: 14px; margin: 0; }
+.pros { list-style: none; padding: 0; margin: 0; font-size: 14px; display: grid; gap: 4px; }
+.pros li { padding-left: 18px; position: relative; }
+.pros li::before { position: absolute; left: 0; font-family: var(--mono); }
+.pros .plus::before { content: '+'; color: #8fd06a; }
+.pros .minus::before { content: '−'; color: #e07a6a; }
+
+.list { padding-left: 1.2em; margin: 0 0 12px; }
+.list li { margin: 4px 0; }
+
+.qs { display: grid; gap: 14px; margin-top: 16px; counter-reset: q; }
+.q { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px 16px; }
+.q h3 { display: flex; gap: 10px; align-items: baseline; }
+.q h3::before { counter-increment: q; content: 'В' counter(q); font-family: var(--mono); font-size: 12px; color: var(--brass); font-weight: 500; }
+.q > p { font-size: 14px; color: var(--muted); }
+.opts { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.opts li { margin: 0; padding: 6px 10px; border-radius: 4px; background: var(--panel-2); font-size: 14px; }
+.opts li b { font-family: var(--mono); font-weight: 500; margin-right: 6px; }
+.opts li.rec { outline: 1px solid var(--brass); }
+.opts li.rec::after { content: 'рекомендую'; float: right; font-size: 11px; font-family: var(--mono); color: var(--brass); letter-spacing: 0.05em; margin-left: 10px; }
+
+.scroll { overflow-x: auto; margin: 10px 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+
+@media (max-width: 760px) {
+  .tiles.three, .looks { grid-template-columns: 1fr; }
+  body { font-size: 15px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Лепка Воина</h1>
+    <p class="lead">Враги с v0.52 слеплены кодом, герои пока — рисованные листы из генератора. Пробуем Воина той же лепкой: тот же движок, свет и сцена, что у врагов, референс — нынешний лист. Анимации отложены: сначала договариваемся о модели в стойке.</p>
+    <div class="meta"><span>Рост в бою <b>128</b></span><span>Референс <b>src/assets/heroes/warrior.png</b></span><span>Черновик <b>tools/hero-proto/warrior.ts</b></span><span>Инструкция <b>docs/lepka-geroev.md</b></span></div>
+  </header>
+
+  <section aria-labelledby="battle-h">
+    <h2 id="battle-h">В бою</h2>
+    <p class="prose">Кадр поля 960 × 320, как в игре: фон локации, её тонировка, враги-лепка в пикселе 2. Переключайте героя — нынешний лист или лепка одного из обликов в пикселе 2 или 1.</p>
+    <div class="bench">
+      <div class="controls">
+        <span class="tog" id="scene-hero" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
+          <button type="button" data-v="ref">Лист (сейчас)</button>
+          <button type="button" data-v="A2">A · 2</button>
+          <button type="button" data-v="A1">A · 1</button>
+          <button type="button" data-v="B2">B · 2</button>
+          <button type="button" data-v="B1">B · 1</button>
+          <button type="button" data-v="C2">C · 2</button>
+          <button type="button" data-v="C1">C · 1</button>
+        </span>
+        <span class="tog" id="scene-loc" role="group" aria-label="Локация"><span class="tog-label">Локация</span>
+          <button type="button" data-v="forest">Лес</button>
+          <button type="button" data-v="crypt">Склеп</button>
+          <button type="button" data-v="caves">Пещеры</button>
+        </span>
+      </div>
+      <div class="stage" id="scene"></div>
+      <p class="caption">Цифра после буквы — размер пикселя рисунка в пикселях поля: 2 — как у врагов и фонов, 1 — вдвое подробнее.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="ref-h">
+    <h2 id="ref-h">Рядом с референсом</h2>
+    <p class="prose">Один кусок поля вокруг героя, целым увеличением. Мерки сняты с листа в долях рамки фигуры (она почти квадратная — ширина равна росту) и переведены в единицы поля.</p>
+    <div class="tiles three">
+      <div class="tile"><div data-tile="ref"></div><div class="tile-label"><b>Лист</b><span>генератор, сглаживание</span></div></div>
+      <div class="tile"><div data-tile="A2"></div><div class="tile-label"><b>Облик A</b><span>пиксель 2 · 64 точки роста</span></div></div>
+      <div class="tile"><div data-tile="A1"></div><div class="tile-label"><b>Облик A</b><span>пиксель 1 · 128 точек роста</span></div></div>
+    </div>
+    <h3 style="margin-top:22px">Что взято с листа</h3>
+    <ul class="list prose">
+      <li>Шлем-горшок в четверть роста, сидит низко между плечами и подан к врагам; прорезь — чёрная черта поперёк лица.</li>
+      <li>Ближний наплечник — самая широкая форма силуэта; верх ссутулен к врагам на 7°.</li>
+      <li>Длинный широкий меч — от кулака у бедра наискось почти до земли у передней стопы.</li>
+      <li>Щит-капля в перспективе занимает правую треть от плеча до колена; ноги короткие, колени широко и низко.</li>
+      <li>Палитра: тёплая сталь, латунная кромка, багровые шарф и табард.</li>
+    </ul>
+    <h3>Чего лепке не хватает до листа</h3>
+    <ul class="list prose">
+      <li>Лист нарисован с мелочью: десятки пластин, царапины, блики полосками. Лепка — крупные гладкие формы; сталь без правки выходила резиновой, поэтому в движок добавлен материал <code>metal</code> (сильнее контраст, шире блик — только для героев, враги не меняются) и тонкие стыки и кромки краской по пластинам.</li>
+      <li>В пикселе 2 фигура — 64 точки роста против ~107 у листа: прорезь шлема, кромки и стыки упрощаются. В пикселе 1 — 128 точек, подробнее листа.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="looks-h">
+    <h2 id="looks-h">Облики</h2>
+    <p class="prose">Одна лепка и одна стойка — разные шлем, щит и материалы. Анимации у обликов будут общими, поэтому выбор облика ничего не стоит в работе.</p>
+    <div class="controls">
+      <span class="tog" id="pixel" role="group" aria-label="Размер пикселя"><span class="tog-label">Пиксель</span>
+        <button type="button" data-v="2">2 — как враги</button>
+        <button type="button" data-v="1">1 — вдвое подробнее</button>
+      </span>
+    </div>
+    <div class="looks">
+      <article class="look" data-look="A">
+        <h3>A <span>Рыцарь</span></h3>
+        <div data-tile="A" data-zoom="2"></div>
+        <p>Как на листе: закрытый шлем с прорезью и латунной кромкой, багровые шарф и табард, щит-капля с бледным крестом.</p>
+        <ul class="pros"><li class="plus">узнаётся сразу, ближе всех к листу</li><li class="plus">латунь отделяет героя от серых врагов</li><li class="minus">крест на щите — как у Паладина</li></ul>
+        <button type="button" class="pick">Показать в бою</button>
+      </article>
+      <article class="look" data-look="B">
+        <h3>B <span>Чёрный рыцарь</span></h3>
+        <div data-tile="B" data-zoom="2"></div>
+        <p>Мрачнее: воронёная побитая сталь без латуни, шлем с Т-прорезью и гребнем, длинный рваный плащ, щит-«утюг» с багровой перевязью.</p>
+        <ul class="pros"><li class="plus">самый «дарк фэнтези», в тон врагам</li><li class="plus">без креста — не спорит с Паладином</li><li class="minus">тёмный силуэт тонет на тёмных фонах</li></ul>
+        <button type="button" class="pick">Показать в бою</button>
+      </article>
+      <article class="look" data-look="C">
+        <h3>C <span>Ветеран</span></h3>
+        <div data-tile="C" data-zoom="2"></div>
+        <p>Стартовая броня Воина — кольчуга: шлем с наносником, лицо с бородой в тени, багровое сюрко, стальные наплечники и круглый расписной щит.</p>
+        <ul class="pros"><li class="plus">живое лицо, отличается от Паладина</li><li class="plus">совпадает со стартовой «Кольчугой»</li><li class="minus">дальше всех от листа, лицо в пикселе 2 почти не читается</li></ul>
+        <button type="button" class="pick">Показать в бою</button>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="weapon-h">
+    <h2 id="weapon-h">Оружие в руке</h2>
+    <p class="prose">Рисованный лист держит один меч навсегда. Лепка может рисовать то, что надето: у Воина в забеге бывает топор, булава, копьё. Здесь — облик A с тремя основами в том же хвате; размер пикселя — переключатель выше.</p>
+    <div class="tiles three">
+      <div class="tile"><div data-tile="A:sword" data-zoom="2"></div><div class="tile-label"><b>Меч</b><span data-pixlabel></span></div></div>
+      <div class="tile"><div data-tile="A:axe" data-zoom="2"></div><div class="tile-label"><b>Топор</b><span data-pixlabel></span></div></div>
+      <div class="tile"><div data-tile="A:mace" data-zoom="2"></div><div class="tile-label"><b>Булава</b><span data-pixlabel></span></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="q-h">
+    <h2 id="q-h">Что решаем</h2>
+    <div class="qs">
+      <div class="q">
+        <h3>Размер пикселя героя</h3>
+        <p>Враги и фоны — в пикселе 2. Нынешние листы героев по подробности ближе к пикселю 1.</p>
+        <ul class="opts">
+          <li><b>2</b>одна сетка на всё поле, но Воин вдвое грубее нынешнего листа: 64 точки роста</li>
+          <li class="rec"><b>1</b>подробность не хуже листа, герой — главное пятно на поле; враги остаются в пикселе 2</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Облик</h3>
+        <p>Можно и смесь: силуэт и латунь A с плащом B, шлем B с палитрой A.</p>
+        <ul class="opts">
+          <li class="rec"><b>A</b>Рыцарь — как на листе</li>
+          <li><b>B</b>Чёрный рыцарь — мрачнее, без латуни, с плащом</li>
+          <li><b>C</b>Ветеран — кольчуга, лицо с бородой</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Крест на щите</h3>
+        <p>У Паладина бело-красный крест на табарде и щите; у Воина на листе — бледный крест на тёмном щите.</p>
+        <ul class="opts">
+          <li><b>Оставить</b>как на листе</li>
+          <li class="rec"><b>Сменить</b>перевязь, меч или зверь — Воин и Паладин различаются с первого взгляда</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Оружие по надетому</h3>
+        <p>Работа растёт: удар каждой основы (рубка, дробящий, укол) — свой рисунок. Делать можно после базовых анимаций.</p>
+        <ul class="opts">
+          <li><b>Нет</b>всегда меч и щит, как на листе</li>
+          <li class="rec"><b>Семьями</b>клинок, топор, дробящее, древко — по типу основы, рука и замах общие</li>
+          <li><b>Каждая основа</b>все 16 основ оружия со своим рисунком</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Что поправить в модели</h3>
+        <p>Пропорции, шлем, наплечник, стойка, цвета — что сейчас не нравится в выбранном облике. После правок модели — анимации: покой, удар, блок, урон, смерть и личные приёмы (Щитовой удар, Ответный удар).</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="doc-h">
+    <h2 id="doc-h">Инструкция</h2>
+    <p class="prose"><code>docs/lepka-geroev.md</code> — продолжение <code>docs/lepka.md</code> для героев: чем герой отличается от врага, как снимать мерки с нынешнего листа, порядок слоёв, сталь и ткань, сверка с референсом, план клипов, приёмка и ловушки, найденные на Воине.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Что</th><th>У врага</th><th>У героя</th></tr></thead>
+        <tbody>
+          <tr><td>Куда смотрит</td><td>влево, ближняя сторона — правая</td><td>вправо, ближняя — левая: рука с оружием слева поверх туловища, щит справа</td></tr>
+          <tr><td>Референс</td><td>палитра процедурного спрайта</td><td>нынешний лист: мерки в долях рамки фигуры</td></tr>
+          <tr><td>Рост</td><td class="n">ENEMY_BODY_HEIGHT</td><td class="n">HERO_BODY_HEIGHT (Воин 128)</td></tr>
+          <tr><td>Сталь</td><td><code>shine</code></td><td><code>metal</code>, стыки и кромки краской по части</td></tr>
+          <tr><td>Клипы</td><td>покой, удар, урон</td><td>покой, удар, сильный удар, приём, лечение, клич, блок, урон, смерть и личные</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>window.ASSETS = {{ASSETS}};</script>
+<script>{{BUNDLE}}</script>
