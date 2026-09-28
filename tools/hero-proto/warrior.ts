@@ -45,6 +45,10 @@ export interface WarriorLook {
   /** Длина плаща 0..1: у A — нет (только шарф), у B — длинный рваный плащ. */
   cape: number;
   helmKind: 'great' | 'tslit' | 'nasal';
+  /** Гребень шлема (B): рваная грива цвета ткани. */
+  crest?: Mat;
+  /** Лицевая пластина шлема (B): рамп светлее шлема — лицо в тени сцены иначе сливается с прорезью. */
+  face?: Mat;
   shieldKind: 'kite' | 'heater' | 'round';
   shieldFace: Mat;
   shieldRim: Mat;
@@ -89,17 +93,21 @@ export const WARRIOR_LOOKS: Record<WarriorLookId, WarriorLook> = {
     name: 'Чёрный рыцарь',
     limb: { base: '#4a4348', ramp: ['#110e12', '#28222a', '#453e45', '#71686d', '#aea3a2'], shine: 0.8, dither: 0.3, tex: { kind: 'spots', scale: 2.4, amp: 0.2, density: 0.16 } },
     chest: { base: '#4a4348', ramp: ['#110e12', '#28222a', '#453e45', '#71686d', '#aea3a2'], shine: 0.9, dither: 0.3, tex: { kind: 'spots', scale: 2.6, amp: 0.22, density: 0.18 } },
-    helm: { base: '#4a4348', ramp: ['#131016', '#2c262d', '#4b434a', '#7a7076', '#b8acaa'], shine: 1, dither: 0.3, tex: { kind: 'spots', scale: 2.2, amp: 0.2, density: 0.14 } },
+    // Шлем на ступень светлее лат: на тёмном теле голова иначе тонет.
+    helm: { base: '#5a5258', ramp: ['#18141a', '#342d34', '#564d54', '#877c82', '#c4b8b4'], dither: 0.3, metal: 0.8, tex: { kind: 'spots', scale: 2.2, amp: 0.18, density: 0.14 } },
     joint: { base: '#1a1518', dither: 0 },
     trim: null,
     cloth: { base: '#6a161d', ramp: ['#22060a', '#420d13', '#68161d', '#8a2228', '#a83a34'], shag: 0.26, tex: { kind: 'stripes', scale: 2.2, amp: 0.16, angle: 1.5 } },
     leather: { base: '#2e2118' },
     cape: 1,
     helmKind: 'tslit',
+    face: { base: '#8e8488', ramp: ['#40383e', '#6c6268', '#8e8488', '#ada3a4', '#d2c8c0'], dither: 0.3, tex: { kind: 'spots', scale: 2.2, amp: 0.16, density: 0.12 } },
+    crest: { base: '#7a1a22', ramp: ['#2a070c', '#4c0f16', '#7a1a22', '#9e2a2e', '#bc4038'], shag: 0.3, tex: { kind: 'stripes', scale: 1.6, amp: 0.18, angle: 0.5 } },
     shieldKind: 'heater',
-    shieldFace: { base: '#2c262a', ramp: ['#100c0f', '#1c171b', '#2b2529', '#3f373c', '#5a5055'], tex: { kind: 'noise', scale: 2, amp: 0.16 } },
-    shieldRim: { base: '#4a4446', ramp: ['#161315', '#2a2527', '#484244', '#6e676a', '#9c9496'], shine: 0.5, dither: 0 },
-    emblem: { base: '#6a161d', ramp: ['#22060a', '#420d13', '#68161d', '#7e1e24', '#943028'], dither: 0 },
+    // Щит светлее лат и с ярким ободом: тёмное на тёмном фоне сливалось.
+    shieldFace: { base: '#3c3439', ramp: ['#141013', '#241e22', '#3a3237', '#52484e', '#6e6268'], tex: { kind: 'noise', scale: 2, amp: 0.16 } },
+    shieldRim: { base: '#6e666a', ramp: ['#1c181a', '#3a3436', '#645c60', '#9a9094', '#d0c6c0'], dither: 0, metal: 0.8 },
+    emblem: { base: '#8a1e26', ramp: ['#2c080d', '#521018', '#841c24', '#a42a2e', '#c0403a'], dither: 0 },
   },
   // C — ветеран в кольчуге (стартовая броня Воина — Кольчуга): шлем с наносником и бармицей, лицо в тени и борода,
   // багровое сюрко поверх кольчуги, круглый деревянный щит с умбоном.
@@ -202,22 +210,36 @@ function helm(p: Painter, L: WarriorLook): void {
   }
   // Горшок: купол и стенки одной частью; лицевая пластина — выпуклый клин к врагам.
   if (L.helmKind === 'tslit') {
-    p.ellipse(0, -2.5, 11, 11.5, M, { part: 'helm' });
+    // Гребень — рваная багровая грива от темени назад: единственное яркое пятно на тёмном шлеме, голова читается
+    // по нему сразу. Рисуется раньше шлема и уходит за затылок.
+    if (L.crest) p.poly([7, -11, 5, -16.5, 2, -14.5, -1, -18.5, -4, -15.5, -7.5, -17.5, -9, -13, -13.5, -12, -16, -7, -20, -3, -16.5, -2.5, -14, 0, -11, -5, -6, -9, 0, -11.5, 5, -10], L.crest, { part: 'crest', bevel: 2 });
+    p.ellipse(0, -4.5, 11, 10, M, { part: 'helm' });
     p.poly([-6, -12.5, 2, -15.5, 8, -10, 2, -12.5], M, { part: 'helm', bevel: 1 });
   } else {
-    p.ellipse(0, -2, 11, 11, M, { part: 'helm' });
+    p.ellipse(0, -4, 11, 9, M, { part: 'helm' });
   }
-  p.poly([-11, -2, 11, -3, 12, 11, 3, 13, -9, 12], M, { part: 'helm', bevel: 4 });
-  // Лицо шлема: пластина вперёд, её верх — ребро над прорезью.
-  p.poly([3, -6, 12, -5, 13, 11, 4, 13], M, { part: 'helm', lift: 1.2, bevel: 2.5, tone: -0.02 });
+  // Стенки горшка — вертикальный цилиндр: бок к свету светлый, к врагам темнее. Шаром (купол до подбородка)
+  // низ шлема уходил в тень, как подбрюшье, и голова читалась тёмным комом.
+  p.limb(0, -3, 11, 0, 9, 10.5, M, { part: 'helm' });
+  p.poly([-10.5, 6, 10.5, 5, 11.5, 11, 3, 13, -9, 12], M, { part: 'helm', bevel: 3 });
+  // Лицо шлема: плоская пластина к врагам, её верх — ребро над прорезью. Подъём выше купола: иначе мягкий максимум
+  // отдаёт лицо правому скату купола, и оно уходит в тень целиком.
+  p.poly([3, -6, 12, -5, 13, 11, 4, 13], M, { part: 'helm', lift: 13, bevel: 2.5, tone: -0.02 });
   // Прорезь — чёрная черта поперёк лица, продолжается на висок.
   p.poly([-2, -1.4, 13, -1.8, 13, 0.8, -2, 0.8], { base: SLIT, dither: 0 }, { part: 'helm', paint: true });
   if (L.helmKind === 'tslit') {
-    p.poly([6.5, 0, 9.5, 0, 9, 9, 7, 9], { base: SLIT, dither: 0 }, { part: 'helm', paint: true });
+    // Лицевая пластина — светлая плоскость: свет сцены из-за спины героя оставлял лицо в тени, и прорезь на нём
+    // не читалась. Т-прорезь на ней — почти чёрная: поперёк лица и вниз до края шлема.
+    p.poly([3.5, -5.5, 12.5, -4.8, 13.2, 11, 4.5, 12.6], L.face ?? M, { part: 'helm', paint: true });
+    p.poly([-1, -2.2, 13.5, -2.6, 13.5, 1, -1, 1], solid(SLIT), { part: 'helm', paint: true });
+    p.poly([7, 0.5, 10.2, 0.5, 9.8, 10.5, 7.4, 10.5], solid(SLIT), { part: 'helm', paint: true });
+    // Кромки: светлая дуга по куполу на свету, тёмный стык бока и лица, тёмный низ шлема.
+    arcStroke(p, 0, -2.5, 10.2, 10.6, 195, 300, EDGE, 'helm');
+    stroke(p, [3.2, -5.8, 4.2, 12.6], SEAM, 'helm');
+    stroke(p, [-9.5, 11.5, 3, 12.8], SEAM, 'helm');
     // Вмятины и сколы.
-    p.line(-5, -9, -3, -8, '#16121a');
-    p.line(-8, 5, -6, 9, '#1e1a20');
-    p.px(10, 5, '#16121a');
+    stroke(p, [-5, -8, -3, -7], SEAM, 'helm');
+    stroke(p, [-8, 4, -6.5, 8], SEAM, 'helm');
   } else {
     // Дыхательные отверстия на щеке — столбиком, латунная кромка по низу и по краю лица.
     for (const [x, y] of [[8, 4], [10, 4], [8, 6.5], [10, 6.5], [8, 9], [10, 9]]) p.px(x, y, SLIT);
@@ -254,11 +276,20 @@ function shield(p: Painter, L: WarriorLook): void {
     return;
   }
   if (L.shieldKind === 'heater') {
-    p.poly(P([-11, -13, 11, -13, 11.5, 2, 6.5, 13, 0, 19, -6.5, 13, -11.5, 2]), R, { part: 'shield', bevel: 3, flat: 0.5 });
-    p.poly(P([-9, -11, 9, -11, 9.5, 1.5, 5.3, 11.5, 0, 16.5, -5.3, 11.5, -9.5, 1.5]), F, { part: 'shield', paint: true });
-    if (L.emblem) p.poly(P([-12, -14, -5, -14, 12, 6, 12, 14]), L.emblem, { part: 'shield', paint: true });
-    p.line(...seg([-10, -2, -7, 0]), '#0e0b0e');
-    p.line(...seg([7, -11, 9, -7]), '#0e0b0e');
+    // «Утюг» в перспективе мягче капли: плоский верх с лёгкой дугой, широкий обод, перевязь наискось.
+    const H = (pts: number[]): number[] => pts.map((v, k) => (k % 2 === 0 ? v * 0.9 : v - pts[k - 1] * 0.28));
+    const hs = (pts: number[]): number[] => H(pts);
+    p.poly(H([-11.5, -13, 0, -14.2, 11.5, -13, 12, 2, 7, 13, 0, 19.5, -7, 13, -12, 2]), R, { part: 'shield', bevel: 3.5, flat: 0.5 });
+    p.poly(H([-9, -10.6, 0, -11.6, 9, -10.6, 9.4, 1.5, 5.4, 11, 0, 16, -5.4, 11, -9.4, 1.5]), F, { part: 'shield', paint: true });
+    if (L.emblem) p.poly(H([-12, -9, -6, -15, 13, 8, 13, 15]), L.emblem, { part: 'shield', paint: true });
+    p.poly(H([-9, -10.6, 0, -11.6, 9, -10.6, 9.4, 1.5, 5.4, 11, 0, 16, -5.4, 11, -9.4, 1.5]), F, { part: 'shieldIn', flat: 0.9, lift: 0.4, noLine: true });
+    if (L.emblem) p.poly(H([-12, -9, -6, -15, 13, 8, 13, 15]), L.emblem, { part: 'shieldIn', paint: true });
+    // Светлая кромка обода сверху и слева — на свету, сколы — тёмными зарубками.
+    stroke(p, hs([-11, -12.6, 0, -13.8, 11, -12.6]), EDGE, 'shield');
+    stroke(p, hs([-11.6, -12, -11.6, 2, -7, 12.4]), '#9a9094', 'shield');
+    stroke(p, hs([-9, -3, -6.5, -1.5]), SEAM, 'shieldIn');
+    stroke(p, hs([6, -10.5, 8, -7]), SEAM, 'shieldIn');
+    stroke(p, hs([2, 8, 4.5, 10]), SEAM, 'shieldIn');
     return;
   }
   // Капля: плоский верх, острый низ, толстая латунная кромка.
@@ -430,7 +461,7 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind): Model {
         }
 
         // Дальний наплечник — за шлемом и щитом, темнее.
-        p.ellipse(82, 36, 11, 10, hard, { part: 'farPauldron', tone: -0.12 });
+        p.ellipse(82, look === 'B' ? 38 : 36, look === 'B' ? 9.5 : 11, look === 'B' ? 8.5 : 10, hard, { part: 'farPauldron', tone: look === 'B' ? -0.2 : -0.12 });
         arcStroke(p, 82, 37, 10, 8, 30, 150, dim, 'farPauldron');
 
         // Голова — низко между плечами, к врагам; раз за цикл чуть поворачивается.
@@ -455,11 +486,12 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind): Model {
         p.ellipse(N.hand[0], N.hand[1], 6, 5.6, hard, { part: 'fist', tone: -0.04 });
         stroke(p, [N.hand[0] - 3, N.hand[1] - 1, N.hand[0] + 3, N.hand[1] + 2], SEAM, 'fist');
         // Ближний наплечник — самая широкая форма силуэта: купол и два ряда пластин одной частью, стыки и кромка.
-        p.ellipse(34, 41, 15.5, 12.5, hard, { part: 'pauldron', lift: 1.5, flat: 0.2 });
-        p.ellipse(29, 51, 12, 6, hard, { part: 'pauldron', flat: 0.3 });
-        arcStroke(p, 33, 42, 14, 10.5, 30, 165, SEAM, 'pauldron');
-        arcStroke(p, 34, 41, 14.8, 11.8, 35, 160, lit, 'pauldron');
-        arcStroke(p, 29, 51, 11, 5.4, 30, 160, dim, 'pauldron');
+        const pb = look === 'B' ? 0.78 : 1;
+        p.ellipse(35, 42, 15.5 * pb, 12.5 * pb, hard, { part: 'pauldron', lift: 1.5, flat: 0.2 });
+        p.ellipse(31, 42 + 9 * pb, 12 * pb, 6 * pb, hard, { part: 'pauldron', flat: 0.3 });
+        arcStroke(p, 34, 43, 14 * pb, 10.5 * pb, 30, 165, SEAM, 'pauldron');
+        arcStroke(p, 35, 42, 14.8 * pb, 11.8 * pb, 35, 160, lit, 'pauldron');
+        arcStroke(p, 31, 42 + 9 * pb, 11 * pb, 5.4 * pb, 30, 160, dim, 'pauldron');
       });
     },
   };

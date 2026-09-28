@@ -89,6 +89,12 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .opts li b { font-family: var(--mono); font-weight: 500; margin-right: 6px; }
 .opts li.rec { outline: 1px solid var(--brass); }
 .opts li.rec::after { content: 'рекомендую'; float: right; font-size: 11px; font-family: var(--mono); color: var(--brass); letter-spacing: 0.05em; margin-left: 10px; }
+.opts li.chosen { background: var(--brass); color: var(--brass-ink); }
+.opts li.chosen::after { content: 'выбрано'; float: right; font-size: 11px; font-family: var(--mono); letter-spacing: 0.05em; margin-left: 10px; }
+.look.chosen { border-color: var(--brass); }
+.look h3 em { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--brass-ink); background: var(--brass); padding: 1px 6px; border-radius: 3px; }
+.look .fix { font-size: 13px; color: var(--muted); border-left: 2px solid var(--brass); padding-left: 8px; }
+.look .fix b { color: var(--text); font-weight: 500; }
 
 .scroll { overflow-x: auto; margin: 10px 0 18px; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
@@ -141,9 +147,9 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <p class="prose">Один кусок поля вокруг героя в масштабе ×2 — как кадр игры на экране FullHD. Мерки сняты с листа в долях рамки фигуры (она почти квадратная — ширина равна росту) и переведены в единицы поля.</p>
     <div class="tiles four">
       <div class="tile"><div data-tile="ref"></div><div class="tile-label"><b>Лист</b><span>генератор</span></div></div>
-      <div class="tile"><div data-tile="A" data-pixel="2"></div><div class="tile-label"><b>A · 2</b><span>64 точки роста</span></div></div>
-      <div class="tile"><div data-tile="A" data-pixel="1.5"></div><div class="tile-label"><b>A · 1,5</b><span>85 точек</span></div></div>
-      <div class="tile"><div data-tile="A" data-pixel="1"></div><div class="tile-label"><b>A · 1</b><span>128 точек</span></div></div>
+      <div class="tile"><div data-tile="B" data-pixel="2"></div><div class="tile-label"><b>B · 2</b><span>64 точки роста</span></div></div>
+      <div class="tile"><div data-tile="B" data-pixel="1.5"></div><div class="tile-label"><b>B · 1,5</b><span>85 точек</span></div></div>
+      <div class="tile"><div data-tile="B" data-pixel="1"></div><div class="tile-label"><b>B · 1</b><span>128 точек</span></div></div>
     </div>
     <h3 style="margin-top:22px">Что взято с листа</h3>
     <ul class="list prose">
@@ -178,11 +184,12 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         <ul class="pros"><li class="plus">узнаётся сразу, ближе всех к листу</li><li class="plus">латунь отделяет героя от серых врагов</li><li class="minus">крест на щите — как у Паладина</li></ul>
         <button type="button" class="pick">Показать в бою</button>
       </article>
-      <article class="look" data-look="B">
-        <h3>B <span>Чёрный рыцарь</span></h3>
+      <article class="look chosen" data-look="B">
+        <h3>B <span>Чёрный рыцарь</span><em>выбран</em></h3>
         <div data-tile="B"></div>
-        <p>Мрачнее: воронёная побитая сталь без латуни, шлем с Т-прорезью и гребнем, длинный рваный плащ, щит-«утюг» с багровой перевязью.</p>
-        <ul class="pros"><li class="plus">самый «дарк фэнтези», в тон врагам</li><li class="plus">без креста — не спорит с Паладином</li><li class="minus">тёмный силуэт тонет на тёмных фонах</li></ul>
+        <p>Мрачнее: воронёная побитая сталь без латуни, шлем с Т-прорезью, длинный рваный плащ, щит-«утюг» с багровой перевязью.</p>
+        <p class="fix"><b>После отзыва:</b> ближний наплечник меньше на пятую часть; шлем на ступень светлее лат — горшок-цилиндр с плоским светлым лицом, чёрной Т-прорезью и рваным багровым гребнем; щит светлее, со светлым ободом и яркой перевязью.</p>
+        <ul class="pros"><li class="plus">самый «дарк фэнтези», в тон врагам</li><li class="plus">без креста — не спорит с Паладином</li><li class="plus">голова и щит читаются на тёмных фонах</li></ul>
         <button type="button" class="pick">Показать в бою</button>
       </article>
       <article class="look" data-look="C">
@@ -197,11 +204,11 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
 
   <section aria-labelledby="weapon-h">
     <h2 id="weapon-h">Оружие в руке</h2>
-    <p class="prose">Рисованный лист держит один меч навсегда. Лепка может рисовать то, что надето: у Воина в забеге бывает топор, булава, копьё. Здесь — облик A с тремя основами в том же хвате; размер пикселя — переключатель выше.</p>
+    <p class="prose">Рисованный лист держит один меч навсегда. Лепка может рисовать то, что надето: у Воина в забеге бывает топор, булава, копьё. Здесь — облик B с тремя основами в том же хвате; размер пикселя — переключатель выше.</p>
     <div class="tiles three">
-      <div class="tile"><div data-tile="A:sword"></div><div class="tile-label"><b>Меч</b><span data-pixlabel></span></div></div>
-      <div class="tile"><div data-tile="A:axe"></div><div class="tile-label"><b>Топор</b><span data-pixlabel></span></div></div>
-      <div class="tile"><div data-tile="A:mace"></div><div class="tile-label"><b>Булава</b><span data-pixlabel></span></div></div>
+      <div class="tile"><div data-tile="B:sword"></div><div class="tile-label"><b>Меч</b><span data-pixlabel></span></div></div>
+      <div class="tile"><div data-tile="B:axe"></div><div class="tile-label"><b>Топор</b><span data-pixlabel></span></div></div>
+      <div class="tile"><div data-tile="B:mace"></div><div class="tile-label"><b>Булава</b><span data-pixlabel></span></div></div>
     </div>
   </section>
 
@@ -219,10 +226,10 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
       </div>
       <div class="q">
         <h3>Облик</h3>
-        <p>Можно и смесь: силуэт и латунь A с плащом B, шлем B с палитрой A.</p>
+        <p>Решено: Чёрный рыцарь. Дальше правки идут в облик B.</p>
         <ul class="opts">
-          <li class="rec"><b>A</b>Рыцарь — как на листе</li>
-          <li><b>B</b>Чёрный рыцарь — мрачнее, без латуни, с плащом</li>
+          <li><b>A</b>Рыцарь — как на листе</li>
+          <li class="chosen"><b>B</b>Чёрный рыцарь — мрачнее, без латуни, с плащом</li>
           <li><b>C</b>Ветеран — кольчуга, лицо с бородой</li>
         </ul>
       </div>

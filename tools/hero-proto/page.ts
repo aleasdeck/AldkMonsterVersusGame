@@ -162,7 +162,8 @@ function boot(): void {
 
 function start(): void {
   // Одно состояние на страницу: облик в бою, размер пикселя (и в бою, и в плитках обликов и оружия), локация.
-  let look: Look = 'A';
+  // Выбран пользователем — Чёрный рыцарь (B).
+  let look: Look = 'B';
   let pixel: Pixel = 1.5;
   let loc: Loc = 'forest';
   const lookGroup = document.getElementById('scene-look')!;
