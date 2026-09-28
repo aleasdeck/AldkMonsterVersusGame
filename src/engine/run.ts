@@ -708,9 +708,9 @@ export function leaveEvent(run: RunState): void {
   advanceRoom(run);
 }
 
-/** Сундук стоит закрытым: что внутри, видно только после «Открыть». Пройти мимо можно и не открывая. */
+/** Сундук стоит закрытым и его можно взломать: что внутри, видно только после взлома. Пройти мимо можно и не открывая. */
 export function chestClosed(run: RunState): boolean {
-  return run.phase === 'event' && run.event?.kind === 'chest' && !run.event.opened;
+  return run.phase === 'event' && run.event?.kind === 'chest' && !run.event.opened && !run.event.jammed;
 }
 
 /**
@@ -731,16 +731,19 @@ const LOCK_LETTER: Record<LockGrade, string> = { great: 'G', good: 'g', miss: 'x
 
 /**
  * Открыть сундук: золото сразу в кошелёк, вещи видны и берутся по одной. `grades` — засечки взлома (v0.54.2): взлом кончается
- * на первом срыве, лишние засечки отбрасываются, недостающие без срыва считаются «хорошо». Каждая отличная — золото акта,
- * срыв — игла по HP (не убивает: оставляет 1 HP); вещи остаются при любом исходе. Без `grades` — открыт без мини-игры: как «хорошо»
- * на всех штифтах, без бонуса, иглы и записи в статистику. Сама мини-игра — в UI (ui/lockCore.ts): поток RNG открытие не трогает.
+ * на первом срыве, лишние засечки отбрасываются, недостающие без срыва считаются «хорошо». Все засечки без срыва — сундук открыт,
+ * каждая отличная — золото акта. Срыв (решение пользователя: «одна попытка») — сундук заклинило: не открыт, ни золота, ни вещей,
+ * взломать снова нельзя, только уйти; плюс игла по HP (не убивает: оставляет 1 HP). Без `grades` — открыт без мини-игры: как
+ * «хорошо» на всех штифтах, без бонуса, иглы и записи в статистику. Сама мини-игра — в UI (ui/lockCore.ts): поток RNG взлом не трогает.
  */
 export function openChest(run: RunState, grades?: LockGrade[]): void {
   if (!chestClosed(run) || run.event?.kind !== 'chest') return;
   const ev = run.event;
-  ev.opened = true;
-  run.gold += ev.gold ?? 0;
-  if (!grades) return;
+  if (!grades) {
+    ev.opened = true;
+    run.gold += ev.gold ?? 0;
+    return;
+  }
   const pins = chestPins(ev);
   const lock: LockGrade[] = [];
   for (const g of grades) {
@@ -751,13 +754,16 @@ export function openChest(run: RunState, grades?: LockGrade[]): void {
   while (lock.length < pins && !lock.includes('miss')) lock.push('good');
   const stakes = chestLockStakes(run);
   ev.lock = lock;
-  ev.lockGold = lock.filter((g) => g === 'great').length * stakes.gold;
-  run.gold += ev.lockGold;
+  (run.lockLog ??= []).push(lock.map((g) => LOCK_LETTER[g]).join(''));
   if (lock.includes('miss')) {
+    ev.jammed = true;
     ev.needle = Math.max(0, Math.min(stakes.needle, run.hero.hp - 1));
     run.hero.hp -= ev.needle;
+    return;
   }
-  (run.lockLog ??= []).push(lock.map((g) => LOCK_LETTER[g]).join(''));
+  ev.opened = true;
+  ev.lockGold = lock.filter((g) => g === 'great').length * stakes.gold;
+  run.gold += (ev.gold ?? 0) + ev.lockGold;
 }
 
 export type { ChestItem, LockGrade };

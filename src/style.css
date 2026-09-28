@@ -3443,6 +3443,10 @@ p {
   color: var(--bad);
   font-weight: inherit;
 }
+/* Сорванный: замок заклинило, сундук остаётся закрытым — значок гаснет. */
+.chest-jammed .glyph {
+  filter: grayscale(1) brightness(0.55);
+}
 /* Открытый: что принёс взлом — под золотом. */
 .lock-result {
   display: flex;

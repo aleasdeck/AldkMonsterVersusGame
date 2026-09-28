@@ -16,8 +16,9 @@ import type { ChestItem, EventState, GearKind, GearTier, LockGrade } from '../..
 import type { App } from '../app';
 
 /** Заголовок и подпись экрана по виду события; у сундука — закрытого и открытого. */
-const HEADS: Record<'chestClosed' | 'chest' | 'altar' | 'forge', [string, string]> = {
+const HEADS: Record<'chestClosed' | 'chestJammed' | 'chest' | 'altar' | 'forge', [string, string]> = {
   chestClosed: ['Сундук', 'Внутри золото и вещи. Взломайте или пройдите мимо.'],
+  chestJammed: ['Сундук', 'Отмычка сорвалась, замок заклинило. Сундук остаётся закрытым.'],
   chest: ['Сундук', 'Золото уже в кошельке. Вещи — по одной, лишнее можно оставить.'],
   altar: ['Алтарь', 'Помолиться о здоровье или отдать кровь за артефакт. Одно из двух.'],
   forge: ['Кузнец', 'Тир оружия или брони +1 за золото; аффикс, сокеты и артефакты остаются. Один предмет.'],
@@ -52,10 +53,28 @@ function pinsWord(n: number): string {
  * Сундук (v0.54.1): закрытый — что внутри, не видно; открытый — ряд как у торговца: золото (уже в кошельке),
  * потом то, что выпало из предмета, артефакта и зелья. Берётся только кнопкой — клик по карточке ничего не забирает.
  * С v0.54.2 закрытый взламывается (`app.startChestLock`): на карточке штифты замка — столько же, сколько вещей, — и ставки
- * засечки; открытый пишет под золотом, что принёс взлом.
+ * засечки; открытый пишет под золотом, что принёс взлом. Попытка одна: сорванный — заклинивший сундук без кнопки, только «Дальше».
  */
 function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[] {
   const run = app.run!;
+  if (ev.jammed) {
+    const pins = chestPins(ev);
+    return [
+      h(
+        'div',
+        { class: 'card event-card chest-closed chest-jammed' },
+        h('div', { class: 'glyph big' }, uiIcon('chest', 64)),
+        h('div', { class: 'card-name' }, 'Замок заклинило'),
+        h('div', { class: 'lock-row' }, lockPins(pins, ev.lock), h('span', { class: 'dim' }, 'отмычка сорвалась')),
+        h(
+          'div',
+          { class: 'card-desc' },
+          'Сундук остаётся закрытым: ни золота, ни вещей.',
+          ev.needle ? h('span', null, ' Игла: ', h('b', { class: 'lock-minus' }, `−${ev.needle}\u00a0HP`), '.') : null,
+        ),
+      ),
+    ];
+  }
   if (!ev.opened) {
     const pins = chestPins(ev);
     const stakes = chestLockStakes(run);
@@ -65,7 +84,7 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
       : paramTip(
           'chest',
           'Взлом',
-          `Штифтов в замке столько же, сколько вещей в сундуке, — засечка на каждый. По кольцу бежит отмычка: тап в любом месте или пробел, когда она в зоне.\nЗолотая часть зоны — «отлично», +${stakes.gold} золота за засечку. Бронзовая — «хорошо».\nМимо или не успели — срыв: укол иглы, ${stakes.needle} урона, взлом кончается. Вещи ваши при любом исходе.`,
+          `Штифтов в замке столько же, сколько вещей в сундуке, — засечка на каждый. По кольцу бежит отмычка: тап в любом месте или пробел, когда она в зоне.\nЗолотая часть зоны — «отлично», +${stakes.gold} золота за засечку. Бронзовая — «хорошо».\nМимо или не успели — срыв: замок заклинивает, сундук остаётся закрытым — ни золота, ни вещей — и укол иглы, ${stakes.needle} урона. Попытка одна.`,
           { action: 'Клик или Space — начать' },
         );
     const closed = h(
@@ -83,9 +102,9 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
             h('b', { class: 'lock-plus' }, `+${stakes.gold}`),
             ' ',
             coin(),
-            ', срыв — игла ',
-            h('b', { class: 'lock-minus' }, `−${stakes.needle} HP`),
-            '. Вещи ваши при любом исходе.',
+            '. Срыв — сундук не откроется, игла ',
+            h('b', { class: 'lock-minus' }, `−${stakes.needle}\u00a0HP`),
+            '. Попытка одна.',
           ),
       h('div', { class: 'card-foot' }, button(skip ? 'Открыть' : 'Взломать', () => app.startChestLock(), { class: 'primary', tip })),
     );
@@ -107,7 +126,6 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
           { class: 'lock-result' },
           lockPins(ev.lock.length, ev.lock),
           ev.lockGold ? h('span', null, 'засечки ', h('b', { class: 'lock-plus' }, `+${ev.lockGold}`)) : null,
-          ev.needle ? h('span', null, 'игла ', h('b', { class: 'lock-minus' }, `−${ev.needle} HP`)) : null,
         )
       : null,
   );
@@ -294,7 +312,7 @@ function snatcherCards(app: App, ev: EventState & { kind: 'gnome_art' }): HTMLEl
 
 /** Кнопка «уйти ни с чем»: мимо закрытого сундука проходят, открытый оставляют, после вора идут дальше. */
 function leaveLabel(ev: EventState | null): string {
-  if (ev?.kind === 'chest') return ev.opened ? 'Дальше' : 'Пройти мимо';
+  if (ev?.kind === 'chest') return ev.opened || ev.jammed ? 'Дальше' : 'Пройти мимо';
   return ev?.kind === 'gnome' || ev?.kind === 'gnome_art' ? 'Дальше' : 'Уйти';
 }
 
@@ -306,7 +324,7 @@ export function eventScreen(app: App): HTMLElement {
   let head: [string, string] = ['Событие', ''];
   if (ev?.kind === 'chest') {
     cards = chestCards(app, ev);
-    head = ev.opened ? HEADS.chest : HEADS.chestClosed;
+    head = ev.opened ? HEADS.chest : ev.jammed ? HEADS.chestJammed : HEADS.chestClosed;
   } else if (ev?.kind === 'altar') {
     cards = altarCards(app, ev);
     head = HEADS.altar;

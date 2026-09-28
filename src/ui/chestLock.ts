@@ -374,7 +374,7 @@ export class ChestLockView {
     }
     const w = lr.worst;
     const out = this.outcome;
-    const tail = !out ? '' : out.needle > 0 ? `игла: −${out.needle} HP` : w === 'miss' ? 'игла не задела' : out.gold > 0 ? `+${out.gold} золота` : 'сундук открыт';
+    const tail = !out ? '' : w === 'miss' ? (out.needle > 0 ? `замок заклинило, игла −${out.needle} HP` : 'замок заклинило') : out.gold > 0 ? `+${out.gold} золота` : 'сундук открыт';
     this.status.replaceChildren(h('span', { class: `lock-grade ${w}` }, GRADE_NAME[w]), pins, h('span', { class: w === 'miss' ? 'lock-minus' : 'dim' }, tail));
     const last = lr.hits.at(-1);
     this.hint.textContent =
