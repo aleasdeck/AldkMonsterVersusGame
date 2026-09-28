@@ -74,7 +74,7 @@ import {
   shopReroll,
   skipReward,
   openChest,
-  takeChest,
+  takeChestItem,
   takeReward,
 } from '../../src/engine/run';
 
@@ -1024,11 +1024,12 @@ export function chooseEventRoom(run: RunState): void {
   const ev = run.event;
   if (!ev) return;
   if (ev.kind === 'chest') {
-    // Содержимое боту видно и в закрытом сундуке — открывает только то, что возьмёт.
-    if (gearGain(run, ev.gear) > 0) {
-      openChest(run);
-      takeChest(run);
-    }
+    // Сундук (v0.54.1): открыть всегда — золото. Вещи по одной, по ценности, как у торговца без цены; после вещи с выбором
+    // слота цикл забега вернётся сюда же, пока в сундуке что-то лежит.
+    openChest(run);
+    if (ev.gear && gearGain(run, ev.gear) > 0) takeChestItem(run, 'gear');
+    else if (ev.artifact && artifactGain(run, ev.artifact) > 0) takeChestItem(run, 'artifact');
+    else if (ev.potion && potionGain(run, ev.potion) > 0) takeChestItem(run, 'potion');
     else leaveEvent(run);
     return;
   }

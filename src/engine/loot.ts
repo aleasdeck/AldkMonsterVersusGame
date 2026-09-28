@@ -15,7 +15,7 @@ import type {
   ShopState,
   StatusId,
 } from './types';
-import { chance, pick, shuffle, weighted, type Rng } from './rng';
+import { chance, int, pick, shuffle, weighted, type Rng } from './rng';
 import { ARTIFACT_IDS, artifactCost, artifactDef } from '../data/artifacts';
 import { artifactTags } from '../data/archetypes';
 import { makeGear } from '../data/gear';
@@ -95,6 +95,41 @@ export function rollShop(rng: Rng, hero: HeroPersistent, act: ActDef): ShopState
     healed: false,
     rerolled: false,
   };
+}
+
+// ─── Сундук ────────────────────────────────────────────────────────────────
+
+/**
+ * Сундук события (v0.54.1): золото всегда, вещи — каждая своим броском, но хотя бы одна. До этого внутри лежал один предмет
+ * пула акта, редко лучше надетого, и живой игрок пропускал сундук забег за забегом. Золото растёт по акту вместе с ценами
+ * торговца: в первом акте это переброс или лекарь, в третьем — почти артефакт.
+ */
+export const CHEST_GOLD: [number, number][] = [
+  [4, 8],
+  [6, 10],
+  [8, 12],
+];
+export const CHEST_GEAR_CHANCE = 0.5;
+export const CHEST_ART_CHANCE = 0.5;
+export const CHEST_POTION_CHANCE = 0.35;
+
+export interface ChestLoot {
+  gold: number;
+  gear: GearInstance | null;
+  artifact: ArtifactInstance | null;
+  potion: string | null;
+}
+
+/** Содержимое сундука: `actIndex` — номер акта с нуля (золото), `act` — пулы вещей. */
+export function rollChest(rng: Rng, hero: HeroPersistent, act: ActDef, actIndex: number): ChestLoot {
+  const [lo, hi] = CHEST_GOLD[Math.max(0, Math.min(actIndex, CHEST_GOLD.length - 1))];
+  const gold = int(rng, lo, hi);
+  let gear = chance(rng, CHEST_GEAR_CHANCE) ? rollGear(rng, hero, act.gearTiers, undefined, act.rareGear) : null;
+  const artifact = chance(rng, CHEST_ART_CHANCE) ? rollArtifact(rng, hero, act.artTiers, []) : null;
+  const potion = chance(rng, CHEST_POTION_CHANCE) ? rollPotion(rng, hero) : null;
+  // Без единой вещи сундук не бывает: не выпало ничего (или артефакты все на максимуме) — внутри предмет.
+  if (!gear && !artifact && !potion) gear = rollGear(rng, hero, act.gearTiers, undefined, act.rareGear);
+  return { gold, gear, artifact, potion };
 }
 
 // ─── Генерация ─────────────────────────────────────────────────────────────

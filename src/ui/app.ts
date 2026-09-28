@@ -858,10 +858,9 @@ export class App {
     this.commit();
   }
 
-  takeChest(): void {
+  takeChestItem(item: R.ChestItem): void {
     if (!this.run) return;
-    R.takeChest(this.run);
-    this.afterPhaseChange();
+    if (R.takeChestItem(this.run, item)) this.afterPhaseChange();
   }
 
   altarPray(): void {
