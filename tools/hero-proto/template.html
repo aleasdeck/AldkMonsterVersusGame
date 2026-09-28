@@ -95,6 +95,17 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .look h3 em { margin-left: auto; font-style: normal; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--brass-ink); background: var(--brass); padding: 1px 6px; border-radius: 3px; }
 .look .fix { font-size: 13px; color: var(--muted); border-left: 2px solid var(--brass); padding-left: 8px; }
 .look .fix b { color: var(--text); font-weight: 500; }
+.clip-controls { margin: 10px 0 0; }
+#scene-clips button.own { border-color: var(--brass); }
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 16px; margin-top: 12px; }
+.clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; }
+.clip-card.own { border-color: var(--brass); }
+.clip-view { min-height: 240px; display: grid; place-items: center; color: var(--faint); font-size: 13px; }
+.clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.clip-head b { font-size: 16px; }
+.clip-head .mono { color: var(--muted); font-size: 12px; }
+.clip-card p { margin: 0; font-size: 14px; color: var(--muted); }
+@media (max-width: 560px) { .clips { grid-template-columns: 1fr; } }
 .helms { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 12px; }
 .helm-card { display: grid; gap: 6px; justify-items: center; align-content: start; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
 .helm-card:hover { border-color: var(--faint); }
@@ -120,7 +131,7 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
 <div class="wrap">
   <header>
     <h1>Лепка Воина</h1>
-    <p class="lead">Враги с v0.52 слеплены кодом, герои пока — рисованные листы из генератора. Пробуем Воина той же лепкой: тот же движок, свет и сцена, что у врагов, референс — нынешний лист. Анимации отложены: сначала договариваемся о модели в стойке.</p>
+    <p class="lead">Враги с v0.52 слеплены кодом, герои пока — рисованные листы из генератора. Воин той же лепкой: тот же движок, свет и сцена, что у врагов, референс — нынешний лист. Модель утверждена — Чёрный рыцарь с гранёным шлемом в пикселе 1,5; теперь анимации: десять клипов, два из них — личные приёмы Воина.</p>
     <div class="meta"><span>Рост в бою <b>128</b></span><span>Референс <b>src/assets/heroes/warrior.png</b></span><span>Черновик <b>tools/hero-proto/warrior.ts</b></span><span>Инструкция <b>docs/lepka-geroev.md</b></span></div>
   </header>
 
@@ -154,8 +165,23 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         </span>
       </div>
       <div class="stage" id="scene"></div>
-      <p class="caption">Пиксель — размер точки рисунка в пикселях поля: 2 — как у врагов и фонов (64 точки роста), 1,5 — плотнее (85 точек; на FullHD ровно три точки экрана), 1 — вдвое подробнее (128 точек).</p>
+      <div class="controls clip-controls">
+        <span class="tog" id="scene-clips" role="group" aria-label="Клип героя"><span class="tog-label">Клип</span></span>
+        <span class="tog" id="speed" role="group" aria-label="Скорость"><span class="tog-label">Скорость</span>
+          <button type="button" data-v="1">1×</button>
+          <button type="button" data-v="0.5">½×</button>
+          <button type="button" data-v="0.25">¼×</button>
+        </span>
+      </div>
+      <p class="caption">Клип играет герой; удары — вместе с первым врагом: он вздрагивает в кадр контакта, а в блоке, уроне, смерти и Ответном ударе сначала бьёт враг, и его контакт совпадает с кадром героя. Пиксель — размер точки рисунка в пикселях поля: 2 — как у врагов и фонов (64 точки роста), 1,5 — плотнее (85 точек; на FullHD ровно три точки экрана), 1 — вдвое подробнее (128 точек).</p>
     </div>
+  </section>
+
+  <section aria-labelledby="clips-h">
+    <h2 id="clips-h">Анимации</h2>
+    <p class="prose">Каждый клип — та же лепка в другой позе: движок рисует все кадры один раз, игра листает лист. Удар, урон и контакт совпадают с врагами: 12 кадров в секунду, удар оружием касается цели на пятом кадре (333 мс), последний кадр любого клипа — первый кадр покоя (у смерти — держится). Позы заданы ключами по кадрам: руки, щит, наклон, присед, шаг, плащ, падение. Скорость — переключатель у поля выше.</p>
+    <div class="clips" id="clips"></div>
+    <p class="note">Эффекты приёмов — мазок клинка, латы блока, рёв клича, круг лечения — рисует слой эффектов игры поверх героя; здесь только сам герой. Золотая рамка — личные приёмы Воина.</p>
   </section>
 
   <section aria-labelledby="ref-h">
@@ -289,8 +315,17 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         </ul>
       </div>
       <div class="q">
-        <h3>Что поправить в модели</h3>
-        <p>Пропорции, шлем, наплечник, стойка, цвета — что сейчас не нравится в выбранном облике. После правок модели — анимации: покой, удар, блок, урон, смерть и личные приёмы (Щитовой удар, Ответный удар).</p>
+        <h3>Что поправить в анимациях</h3>
+        <p>Одиннадцать клипов готовы. Смотреть на ½× и ¼× и в сцене с врагом: вес замаха, где стоит щит в блоке, как падает в смерти, хватает ли кадров покоя. Правка позы — это ключи кадра, а не перерисовка, поэтому дёшева.</p>
+      </div>
+      <div class="q">
+        <h3>Дальше</h3>
+        <p>Когда клипы устроят — Воин идёт в игру.</p>
+        <ul class="opts">
+          <li class="rec"><b>В игру</b>лист лепки вместо PNG в heroSprite.ts, силуэт для слоя эффектов, контакт удара героя — к цифре урона, как у врагов</li>
+          <li><b>Сначала оружие</b>семьи оружия по надетому, потом в игру</li>
+          <li><b>Следующий герой</b>Маг тем же порядком, Воин ждёт общего подключения</li>
+        </ul>
       </div>
     </div>
   </section>

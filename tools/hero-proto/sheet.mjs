@@ -20,9 +20,10 @@ const opt = (name, def) => {
 };
 const Z = Number(opt('zoom', 2));
 const OUT = resolve(opt('out', join(ROOT, 'hero-preview')));
-const LOOKS = opt('look', 'A,B,C').split(',');
+const LOOKS = opt('look', 'B').split(',');
 const WEAPON = opt('weapon', 'sword');
-const ONLY = opt('clips', 'idle'); // клипы героя появятся после утверждения модели
+const ONLY = opt('clips', '');
+const D = Number(opt('d', 1.5)); // пиксель героя — 1,5 (решение пользователя)
 
 const bundle = await build({
   stdin: {
@@ -30,6 +31,7 @@ const bundle = await build({
       "export { warriorModel } from './tools/hero-proto/warrior';",
       "export { HERO_CLIPS, renderHeroClip } from './tools/hero-proto/hero';",
       "export { HERO_BODY_HEIGHT } from './src/data/characterSizes';",
+      "export { MOB_STYLE } from './src/ui/mobs/styles';",
     ].join('\n'),
     resolveDir: ROOT,
     loader: 'ts',
@@ -40,7 +42,7 @@ const bundle = await build({
   write: false,
   logLevel: 'warning',
 });
-const { warriorModel, HERO_CLIPS, renderHeroClip, HERO_BODY_HEIGHT } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { warriorModel, HERO_CLIPS, renderHeroClip, HERO_BODY_HEIGHT, MOB_STYLE } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 
 const CRC = new Int32Array(256).map((_, n) => {
   let c = n;
@@ -79,7 +81,7 @@ const clips = Object.keys(HERO_CLIPS).filter((c) => !ONLY || ONLY.split(',').inc
 for (const look of LOOKS) {
   const model = warriorModel(look, WEAPON);
   const t0 = performance.now();
-  const rows = clips.map((c) => ({ clip: c, sh: renderHeroClip(model, c) }));
+  const rows = clips.map((c) => ({ clip: c, sh: renderHeroClip(model, c, { ...MOB_STYLE, d: D }) }));
   const ms = performance.now() - t0;
   const { w, h, d } = rows[0].sh;
   let x0 = w, y0 = h, x1 = -1, y1 = -1;
