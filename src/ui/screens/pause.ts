@@ -1,5 +1,6 @@
 import { button, h } from '../dom';
 import { DIFFICULTIES } from '../../data/boons';
+import { paramTip } from '../tips';
 import type { App } from '../app';
 
 /** Пауза: продолжить, персонаж, лог боя, сид с копированием, в меню, бросить забег. Сид живёт здесь, а не в шапке. */
@@ -27,7 +28,21 @@ export function pauseMenu(app: App): HTMLElement {
         button('Бросить забег', () => app.abandonRun(), { class: 'big danger' }),
       ),
       h('div', { class: 'pause-seed' }, h('span', { class: 'dim' }, 'Сложность: '), h('span', { style: `color:${DIFFICULTIES[run.difficulty]?.color ?? 'inherit'}` }, DIFFICULTIES[run.difficulty]?.name ?? '—'), h('span', { class: 'dim' }, ' · Сид: '), h('span', { class: 'seed-value' }, `${run.seed}`), seedBtn),
-      h('div', { class: 'pause-keys dim' }, '1–9 приём · Enter цель · Tab другая цель · Space конец хода · C персонаж · L лог · Esc снять выбор / пауза'),
+      h(
+        'div',
+        { class: 'pause-seed' },
+        h('span', { class: 'dim' }, 'Сундук: '),
+        h('span', null, app.profile.lockSkip ? 'открывать сразу' : 'взлом'),
+        button(app.profile.lockSkip ? 'Взламывать' : 'Без взлома', () => app.toggleLockSkip(), {
+          class: 'small',
+          tip: paramTip(
+            'chest',
+            'Взлом сундука',
+            'Взлом — мини-игра со скважиной: засечка на каждую вещь, отличная приносит золото, срыв — укол иглы.\nБез взлома сундук открывается сразу, как «хорошо» на всех штифтах: без золота за засечки и без иглы.',
+          ),
+        }),
+      ),
+      h('div', { class: 'pause-keys dim' }, '1–9 приём · Enter цель · Tab другая цель · Space конец хода, у сундука — взлом · C персонаж · L лог · Esc снять выбор / пауза'),
     ),
   );
 }

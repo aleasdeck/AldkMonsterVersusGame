@@ -1,9 +1,11 @@
 import type { App } from './app';
-import { awaitsBoon, awaitsFocus, awaitsTrial } from '../engine/run';
+import { awaitsBoon, awaitsFocus, awaitsTrial, chestClosed } from '../engine/run';
+import { eventTime } from './chestLock';
 
 /**
  * Горячие клавиши забега: 1–9 приёмы по порядку плиток (выбрать; номер уже выбранного — применить к цели), в награде 1/2 — пул,
- * Enter применить выбранный приём к цели (Tab перебирает цели), Space конец хода, C персонаж, L лог,
+ * Enter применить выбранный приём к цели (Tab перебирает цели), Space конец хода, C персонаж, L лог; у закрытого сундука
+ * Space и Enter — «Взломать», во время взлома — засечка (остальные клавиши молчат),
  * Esc снять выбор приёма, закрыть верхний слой или открыть паузу. Русская раскладка тоже принимается (С, Д).
  * В полях ввода (сид на выборе героя) клавиши не перехватываются.
  */
@@ -15,6 +17,12 @@ export function installHotkeys(app: App): void {
     if (app.screen !== 'run' || !app.run) return;
     const key = ev.key;
     const lower = key.toLowerCase();
+    // Взлом сундука (v0.54.2): пробел и Enter — засечка, остальные клавиши молчат, пока скважина на экране.
+    if (app.chestLock) {
+      ev.preventDefault();
+      if ((key === ' ' || key === 'Enter') && !ev.repeat) app.chestLock.tap(eventTime(ev));
+      return;
+    }
     if (key === 'Escape') {
       ev.preventDefault();
       app.escape();
@@ -33,6 +41,12 @@ export function installHotkeys(app: App): void {
     // Под оверлеем остальные клавиши не действуют: клики по полю тоже не проходят.
     if (app.sheetOpen || app.pauseOpen || app.logOpen) return;
     const inBattle = app.run.phase === 'battle' && !!app.run.battle;
+    // Закрытый сундук: пробел или Enter — «Взломать».
+    if ((key === ' ' || key === 'Enter') && chestClosed(app.run) && !app.run.pending) {
+      ev.preventDefault();
+      if (!ev.repeat) app.startChestLock();
+      return;
+    }
     if (key === ' ') {
       if (inBattle) {
         ev.preventDefault();

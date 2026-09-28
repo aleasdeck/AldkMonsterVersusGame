@@ -3,7 +3,7 @@ import { artifactDef, artifactFullText } from '../../data/artifacts';
 import { GEAR_TIERS, upgradePreview } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { forgePrice } from '../../engine/loot';
-import { altarHealAmount, altarSacrificeCost, canAltarSacrifice, canForge, currentLocation, heroStats } from '../../engine/run';
+import { altarHealAmount, altarSacrificeCost, canAltarSacrifice, canForge, chestLockStakes, chestPins, currentLocation, heroStats } from '../../engine/run';
 import { artifactChip, coin, pendingModal, pickable, potionReplaceNote, tierTip } from '../components';
 import { artifactCard, gearCard, potionCard } from '../cards';
 import { uiIcon } from '../icons';
@@ -11,13 +11,13 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import { markKeywords } from '../keywords';
-import { whyTip } from '../tips';
-import type { ChestItem, EventState, GearKind, GearTier } from '../../engine/types';
+import { paramTip, whyTip } from '../tips';
+import type { ChestItem, EventState, GearKind, GearTier, LockGrade } from '../../engine/types';
 import type { App } from '../app';
 
 /** Заголовок и подпись экрана по виду события; у сундука — закрытого и открытого. */
 const HEADS: Record<'chestClosed' | 'chest' | 'altar' | 'forge', [string, string]> = {
-  chestClosed: ['Сундук', 'Внутри золото и вещи. Откройте или пройдите мимо.'],
+  chestClosed: ['Сундук', 'Внутри золото и вещи. Взломайте или пройдите мимо.'],
   chest: ['Сундук', 'Золото уже в кошельке. Вещи — по одной, лишнее можно оставить.'],
   altar: ['Алтарь', 'Помолиться о здоровье или отдать кровь за артефакт. Одно из двух.'],
   forge: ['Кузнец', 'Тир оружия или брони +1 за золото; аффикс, сокеты и артефакты остаются. Один предмет.'],
@@ -39,22 +39,57 @@ function takenCard(what: string, narrow: boolean): HTMLElement {
   );
 }
 
+/** Штифты замка квадратиками: пустой — ещё не взломан, цветом — засечка. */
+function lockPins(pins: number, grades: LockGrade[] = []): HTMLElement {
+  return h('span', { class: 'lock-pins' }, ...Array.from({ length: pins }, (_, j) => h('i', { class: `lock-pin ${grades[j] ?? ''}`.trim() })));
+}
+
+function pinsWord(n: number): string {
+  return n === 1 ? 'штифт' : n < 5 ? 'штифта' : 'штифтов';
+}
+
 /**
- * Сундук (v0.54.1): закрытый — «Открыть», что внутри, не видно; открытый — ряд как у торговца: золото (уже в кошельке),
+ * Сундук (v0.54.1): закрытый — что внутри, не видно; открытый — ряд как у торговца: золото (уже в кошельке),
  * потом то, что выпало из предмета, артефакта и зелья. Берётся только кнопкой — клик по карточке ничего не забирает.
+ * С v0.54.2 закрытый взламывается (`app.startChestLock`): на карточке штифты замка — столько же, сколько вещей, — и ставки
+ * засечки; открытый пишет под золотом, что принёс взлом.
  */
 function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[] {
   const run = app.run!;
   if (!ev.opened) {
+    const pins = chestPins(ev);
+    const stakes = chestLockStakes(run);
+    const skip = !!app.profile.lockSkip;
+    const tip = skip
+      ? paramTip('chest', 'Открыть', 'Взлом без мини-игры (настройка в паузе): сундук открывается сразу — без золота за засечки и без иглы.', { action: 'Клик или Space — открыть' })
+      : paramTip(
+          'chest',
+          'Взлом',
+          `Штифтов в замке столько же, сколько вещей в сундуке, — засечка на каждый. По кольцу бежит отмычка: тап в любом месте или пробел, когда она в зоне.\nЗолотая часть зоны — «отлично», +${stakes.gold} золота за засечку. Бронзовая — «хорошо».\nМимо или не успели — срыв: укол иглы, ${stakes.needle} урона, взлом кончается. Вещи ваши при любом исходе.`,
+          { action: 'Клик или Space — начать' },
+        );
     const closed = h(
       'div',
       { class: 'card event-card chest-closed' },
       h('div', { class: 'glyph big' }, uiIcon('chest', 64)),
       h('div', { class: 'card-name' }, 'Закрытый сундук'),
-      h('div', { class: 'card-desc' }, 'Золото и вещи этого акта — что именно, видно только внутри.'),
-      h('div', { class: 'card-foot' }, button('Открыть', () => app.openChest(), { class: 'primary' })),
+      h('div', { class: 'lock-row' }, lockPins(pins), h('span', { class: 'dim' }, `${pins} ${pinsWord(pins)} — столько же вещей`)),
+      skip
+        ? h('div', { class: 'card-desc' }, 'Золото и вещи этого акта. Взлом выключен в паузе — сундук откроется сразу.')
+        : h(
+            'div',
+            { class: 'card-desc' },
+            'Золотая засечка — ',
+            h('b', { class: 'lock-plus' }, `+${stakes.gold}`),
+            ' ',
+            coin(),
+            ', срыв — игла ',
+            h('b', { class: 'lock-minus' }, `−${stakes.needle} HP`),
+            '. Вещи ваши при любом исходе.',
+          ),
+      h('div', { class: 'card-foot' }, button(skip ? 'Открыть' : 'Взломать', () => app.startChestLock(), { class: 'primary', tip })),
     );
-    return [pickable(closed, () => app.openChest())];
+    return [pickable(closed, () => app.startChestLock())];
   }
   const def = heroDef(run.hero.defId);
   const off = !!run.pending;
@@ -65,7 +100,16 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
     { class: 'card shop-card chest-narrow' },
     h('div', { class: 'glyph big' }, '⛁'),
     h('div', { class: 'card-name' }, 'Золото'),
-    h('div', { class: 'card-desc' }, h('span', null, `+${ev.gold ?? 0} `, coin(), ` — уже в кошельке (всего ${run.gold}).`)),
+    h('div', { class: 'card-desc' }, h('span', null, `+${(ev.gold ?? 0) + (ev.lockGold ?? 0)} `, coin(), ` — уже в кошельке (всего ${run.gold}).`)),
+    ev.lock
+      ? h(
+          'div',
+          { class: 'lock-result' },
+          lockPins(ev.lock.length, ev.lock),
+          ev.lockGold ? h('span', null, 'засечки ', h('b', { class: 'lock-plus' }, `+${ev.lockGold}`)) : null,
+          ev.needle ? h('span', null, 'игла ', h('b', { class: 'lock-minus' }, `−${ev.needle} HP`)) : null,
+        )
+      : null,
   );
   const cards: HTMLElement[] = [gold];
   if (ev.gear) cards.push(gearCard(ev.gear, { def, run, footer: take('Надеть', 'gear') }));
