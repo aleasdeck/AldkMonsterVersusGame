@@ -55,6 +55,8 @@ export interface Profile {
   allUnlocked?: boolean;
   /** Сложность последнего забега: с неё начинается следующий выбор на экране героя. Нет — «Средний». */
   difficulty?: Difficulty;
+  /** Сундук без мини-игры (v0.54.2, настройка в паузе): открывается сразу, как «хорошо» на всех штифтах — без бонуса и без иглы. */
+  lockSkip?: boolean;
 }
 
 function emptyProfile(): Profile {
@@ -91,6 +93,13 @@ export function pickedDifficulty(p: Profile): Difficulty {
 export function saveDifficulty(d: Difficulty): Profile {
   const p = loadProfile();
   p.difficulty = d;
+  return saveProfile(p);
+}
+
+/** Запомнить, взламывать ли сундук мини-игрой: настройка общая для всех забегов. */
+export function saveLockSkip(on: boolean): Profile {
+  const p = loadProfile();
+  p.lockSkip = on;
   return saveProfile(p);
 }
 

@@ -118,6 +118,13 @@ export const CHEST_ITEM_COUNT: { item: number; weight: number }[] = [
 ];
 /** Какие вещи: экипировка и артефакт вдвое чаще зелья — одно зелье на весь сундук выглядит бедно. */
 export const CHEST_ITEM_WEIGHT: Record<ChestItem, number> = { gear: 2, artifact: 2, potion: 1 };
+/**
+ * Взлом сундука (v0.54.2, решение пользователя «B, Б1, Ц2»): штифтов в замке столько же, сколько вещей, засечка на каждый.
+ * Отличная засечка — золото по акту (в первом акте сундук даёт 4–8, одна засечка — около +40 %), срыв — игла по HP по акту;
+ * вещи при срыве не пропадают никогда, поэтому сундук остаётся таким же выгодным, как в v0.54.1.
+ */
+export const CHEST_GREAT_GOLD = [2, 3, 4];
+export const CHEST_NEEDLE_HP = [3, 5, 7];
 
 export interface ChestLoot {
   gold: number;

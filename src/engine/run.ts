@@ -1,4 +1,4 @@
-import type { ArchetypeId, ArtifactInstance, ChestItem, DerivedStats, Difficulty, EventKind, EventState, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
+import type { ArchetypeId, ArtifactInstance, ChestItem, DerivedStats, Difficulty, EventKind, EventState, GearKind, LockGrade, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
 import { MAX_ENEMIES, SAVE_VERSION } from './types';
 import { chance, createRng, pick, shuffle } from './rng';
 import { defaultSignature, heroDef } from '../data/heroes';
@@ -13,6 +13,8 @@ import { boonsOf } from '../data/boons';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
+  CHEST_GREAT_GOLD,
+  CHEST_NEEDLE_HP,
   GNOME_ART_CHANCE,
   GNOME_BOUNTY,
   POTION_DROP_CHANCE,
@@ -711,14 +713,54 @@ export function chestClosed(run: RunState): boolean {
   return run.phase === 'event' && run.event?.kind === 'chest' && !run.event.opened;
 }
 
-/** Открыть сундук: золото сразу в кошелёк, вещи видны и берутся по одной. */
-export function openChest(run: RunState): void {
-  if (!chestClosed(run) || run.event?.kind !== 'chest') return;
-  run.event.opened = true;
-  run.gold += run.event.gold ?? 0;
+/**
+ * Штифтов в замке сундука (v0.54.2) — сколько в нём вещей: обычный сундук вскрывается одной засечкой, богатый — двумя-тремя,
+ * и замок выдаёт это ещё до открытия.
+ */
+export function chestPins(ev: EventState & { kind: 'chest' }): number {
+  return Math.max(1, [ev.gear, ev.artifact, ev.potion].filter(Boolean).length);
 }
 
-export type { ChestItem };
+/** Золото за отличную засечку и игла за срыв в текущем акте. */
+export function chestLockStakes(run: RunState): { gold: number; needle: number } {
+  const act = Math.min(run.locationIndex, CHEST_GREAT_GOLD.length - 1);
+  return { gold: CHEST_GREAT_GOLD[act], needle: CHEST_NEEDLE_HP[act] };
+}
+
+const LOCK_LETTER: Record<LockGrade, string> = { great: 'G', good: 'g', miss: 'x' };
+
+/**
+ * Открыть сундук: золото сразу в кошелёк, вещи видны и берутся по одной. `grades` — засечки взлома (v0.54.2): взлом кончается
+ * на первом срыве, лишние засечки отбрасываются, недостающие без срыва считаются «хорошо». Каждая отличная — золото акта,
+ * срыв — игла по HP (не убивает: оставляет 1 HP); вещи остаются при любом исходе. Без `grades` — открыт без мини-игры: как «хорошо»
+ * на всех штифтах, без бонуса, иглы и записи в статистику. Сама мини-игра — в UI (ui/lockCore.ts): поток RNG открытие не трогает.
+ */
+export function openChest(run: RunState, grades?: LockGrade[]): void {
+  if (!chestClosed(run) || run.event?.kind !== 'chest') return;
+  const ev = run.event;
+  ev.opened = true;
+  run.gold += ev.gold ?? 0;
+  if (!grades) return;
+  const pins = chestPins(ev);
+  const lock: LockGrade[] = [];
+  for (const g of grades) {
+    if (lock.length >= pins) break;
+    lock.push(g);
+    if (g === 'miss') break;
+  }
+  while (lock.length < pins && !lock.includes('miss')) lock.push('good');
+  const stakes = chestLockStakes(run);
+  ev.lock = lock;
+  ev.lockGold = lock.filter((g) => g === 'great').length * stakes.gold;
+  run.gold += ev.lockGold;
+  if (lock.includes('miss')) {
+    ev.needle = Math.max(0, Math.min(stakes.needle, run.hero.hp - 1));
+    run.hero.hp -= ev.needle;
+  }
+  (run.lockLog ??= []).push(lock.map((g) => LOCK_LETTER[g]).join(''));
+}
+
+export type { ChestItem, LockGrade };
 
 /** В сундуке не осталось вещей — золото забрано при открытии. */
 export function chestEmpty(ev: EventState & { kind: 'chest' }): boolean {

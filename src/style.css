@@ -3401,6 +3401,130 @@ p {
   margin-top: auto;
 }
 
+/* ─── Взлом сундука (v0.54.2) ─────────────────────────────────────────── */
+
+/* Закрытый сундук: штифты замка и ставки засечки. */
+.chest-closed .lock-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 16px;
+}
+.lock-pins {
+  display: inline-flex;
+  gap: 3px;
+  vertical-align: middle;
+}
+.lock-pin {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: #1e1e2f;
+  border: 2px solid #3c3c5a;
+}
+.lock-pin.great {
+  background: var(--accent);
+  border-color: #fff0b8;
+}
+.lock-pin.good {
+  background: #a8702e;
+  border-color: #d49445;
+}
+.lock-pin.miss {
+  background: var(--bad);
+  border-color: #ffb0b0;
+}
+.lock-plus {
+  color: var(--accent);
+  font-weight: inherit;
+}
+.lock-minus {
+  color: var(--bad);
+  font-weight: inherit;
+}
+/* Открытый: что принёс взлом — под золотом. */
+.lock-result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 10px;
+  font-size: 15px;
+}
+/* Оверлей взлома во весь кадр: тап в любом месте — засечка, клики под ним не проходят. */
+.lock-overlay {
+  background: #05050aeb;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.lock-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.lock-box.shake {
+  animation: lock-shake 260ms steps(1, end);
+}
+@keyframes lock-shake {
+  0% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+/* 128 пикселей поля на 256 px кадра — сетка 2 px, как у лепки. */
+.lock-canvas {
+  width: 256px;
+  height: 256px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.lock-status {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.lock-status .lock-pin {
+  width: 10px;
+  height: 16px;
+}
+.lock-grade {
+  font-family: 'Tiny5', 'Handjet', 'VT323', monospace;
+  font-size: 26px;
+  letter-spacing: 1px;
+}
+.lock-grade.great {
+  color: var(--accent);
+}
+.lock-grade.good {
+  color: #d49445;
+}
+.lock-grade.miss {
+  color: var(--bad);
+}
+.lock-hint {
+  min-height: 24px;
+  font-size: 19px;
+}
+
 /* ─── Награда: выбор пула «Нападение» / «Защита» (v0.39) ─────────────── */
 
 /* Две карточки пула по центру: не тянутся на всю ширину трёх обычных карточек, чтобы выбор читался как два крупных варианта. */

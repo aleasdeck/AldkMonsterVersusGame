@@ -6,8 +6,8 @@
  *
  * Дайсов бот не видит: варианты оцениваются на своём генераторе, реальный ход бросает свои кубики.
  */
-import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
-import { createRng, type Rng } from '../../src/engine/rng';
+import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, LockGrade, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
+import { createRng, next as rngNext, type Rng } from '../../src/engine/rng';
 import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { archetypeCounts, setMods } from '../../src/data/archetypes';
@@ -52,6 +52,7 @@ import {
   canShopBuyPotion,
   canShopHeal,
   canShopReroll,
+  chestPins,
   currentRoomKind,
   enterRoom,
   finishBattle,
@@ -1019,14 +1020,34 @@ export function chooseReward(run: RunState): void {
   else skipReward(run);
 }
 
+/**
+ * Засечки взлома сундука (v0.54.2): мини-игру бот не играет, каждая засечка бросается по долям — отлично 30 %, хорошо 55 %,
+ * срыв 15 % — до первого срыва. Бросок идёт своим генератором от сида и клетки, а не `run.rng`: поток забега, как и у живого
+ * игрока, от взлома не зависит.
+ */
+export const BOT_LOCK = { great: 0.3, good: 0.55 };
+export function botLock(run: RunState): LockGrade[] {
+  const ev = run.event;
+  if (ev?.kind !== 'chest') return [];
+  const rng = createRng((run.seed * 7919 + run.locationIndex * 101 + run.roomIndex * 13 + 0x10c) >>> 0);
+  const out: LockGrade[] = [];
+  for (let i = 0; i < chestPins(ev); i++) {
+    const r = rngNext(rng);
+    const g: LockGrade = r < BOT_LOCK.great ? 'great' : r < BOT_LOCK.great + BOT_LOCK.good ? 'good' : 'miss';
+    out.push(g);
+    if (g === 'miss') break;
+  }
+  return out;
+}
+
 /** Сундук, алтарь, кузнец: то же, что награда и торговец — по ценности, лишнее оставить. */
 export function chooseEventRoom(run: RunState): void {
   const ev = run.event;
   if (!ev) return;
   if (ev.kind === 'chest') {
     // Сундук (v0.54.1): открыть всегда — золото. Вещи по одной, по ценности, как у торговца без цены; после вещи с выбором
-    // слота цикл забега вернётся сюда же, пока в сундуке что-то лежит.
-    openChest(run);
+    // слота цикл забега вернётся сюда же, пока в сундуке что-то лежит. С v0.54.2 — взломом, засечки по долям (`botLock`).
+    if (!ev.opened) openChest(run, botLock(run));
     if (ev.gear && gearGain(run, ev.gear) > 0) takeChestItem(run, 'gear');
     else if (ev.artifact && artifactGain(run, ev.artifact) > 0) takeChestItem(run, 'artifact');
     else if (ev.potion && potionGain(run, ev.potion) > 0) takeChestItem(run, 'potion');

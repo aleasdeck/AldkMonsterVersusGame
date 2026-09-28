@@ -52,6 +52,11 @@ export interface RunReport {
   trials: string;
   /** Благословения локаций по порядку (лёгкая сложность), через запятую: «herbs,shroud,broadside»; пусто — без них. */
   boons: string;
+  /**
+   * Взломы сундуков (v0.54.2) через запятую, засечка — буква: `G` отлично, `g` хорошо, `x` срыв — «Gg,x,GGG».
+   * Сундук, открытый без мини-игры, сюда не попадает; пусто — ни одного взлома.
+   */
+  locks: string;
   seed: number;
   /** Фаза в момент записи: у победы и гибели — они же, у брошенного — где бросили (map, battle, shop…). */
   phase: RunPhase;
@@ -154,6 +159,7 @@ export function runReport(run: RunState, ctx: ReportContext): RunReport {
     difficulty: run.difficulty,
     trials: (run.trialLog ?? []).join(','),
     boons: (run.boonLog ?? []).join(','),
+    locks: (run.lockLog ?? []).join(','),
     seed: run.seed,
     phase: run.phase,
     act: run.locationIndex + 1,

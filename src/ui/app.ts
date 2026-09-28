@@ -22,6 +22,7 @@ import {
   recordFinds,
   recordResult,
   saveDifficulty,
+  saveLockSkip,
   saveRun,
   savePick,
   saveSignaturePick,
@@ -56,6 +57,7 @@ import { formatClock } from './topbar';
 import { heroSheet } from './screens/heroSheet';
 import { pauseMenu } from './screens/pause';
 import { logOverlay } from './screens/runLog';
+import { ChestLockView } from './chestLock';
 import { installHotkeys } from './hotkeys';
 import { locationBackground } from './backgrounds';
 import { warmImages } from './preload';
@@ -90,6 +92,11 @@ export class App {
   sheetOpen = false;
   /** Открыта пауза. */
   pauseOpen = false;
+  /**
+   * Идёт взлом сундука (v0.54.2): оверлей со скважиной поверх кадра. Живёт только в App — перезагрузка посреди взлома
+   * возвращает закрытый сундук; итог уходит в движок и сохраняется сразу после последней засечки.
+   */
+  chestLock: ChestLockView | null = null;
   profile: Profile;
   /** Герой, подсвеченный в сетке выбора: справа показано его превью. */
   heroPick: string = HERO_LIST[0].id;
@@ -213,8 +220,11 @@ export class App {
     // а клики по полю и плиткам под ними не проходят.
     // «Персонаж» и лог доступны и на итогах забега: посмотреть билд и бои, которыми он кончился.
     // В бою лог — выдвижная панель на поле (battle.ts), вне боя — оверлей.
+    // Взлом живёт своим циклом кадров: оверлей переезжает в новое дерево тем же узлом, как слой анимаций боя.
+    if (this.chestLock && (this.screen !== 'run' || this.run?.phase !== 'event')) this.closeChestLock();
     if (this.screen === 'run' && this.run) {
-      if (this.sheetOpen) el.appendChild(heroSheet(this));
+      if (this.chestLock) el.appendChild(this.chestLock.el);
+      else if (this.sheetOpen) el.appendChild(heroSheet(this));
       else if (this.logOpen && this.run.phase !== 'battle') el.appendChild(logOverlay(this));
       else if (this.pauseOpen && !R.isRunOver(this.run)) el.appendChild(pauseMenu(this));
     }
@@ -852,6 +862,45 @@ export class App {
     this.afterPhaseChange();
   }
 
+  /**
+   * «Взломать» (v0.54.2): оверлей со скважиной, штифтов — сколько вещей в сундуке. После последней засечки итог сразу уходит
+   * в движок и в сохранение, открытый сундук рисуется, когда итог провисит на плашке. С настройкой «без мини-игры» — открыть сразу.
+   */
+  startChestLock(): void {
+    const run = this.run;
+    if (!run || this.chestLock || run.pending || !R.chestClosed(run) || run.event?.kind !== 'chest') return;
+    if (this.profile.lockSkip) {
+      this.openChest();
+      return;
+    }
+    const ev = run.event;
+    this.chestLock = new ChestLockView(
+      R.chestPins(ev),
+      (grades) => {
+        R.openChest(run, grades);
+        saveRun(run);
+        return { gold: ev.lockGold ?? 0, needle: ev.needle ?? 0 };
+      },
+      () => {
+        this.closeChestLock();
+        this.render();
+      },
+    );
+    this.render();
+  }
+
+  private closeChestLock(): void {
+    this.chestLock?.dispose();
+    this.chestLock = null;
+  }
+
+  /** Настройка паузы: взламывать сундук мини-игрой или открывать сразу. */
+  toggleLockSkip(): void {
+    this.profile = saveLockSkip(!this.profile.lockSkip);
+    this.render();
+  }
+
+  /** Открыть сундук без мини-игры — как «хорошо» на всех штифтах. */
   openChest(): void {
     if (!this.run) return;
     R.openChest(this.run);

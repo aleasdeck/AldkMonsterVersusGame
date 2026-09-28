@@ -883,6 +883,9 @@ export type EventKind = 'camp' | 'elite' | 'shop' | 'chest' | 'altar' | 'forge' 
 /** Вещь в сундуке события (v0.54.1): каждая берётся отдельно. */
 export type ChestItem = 'gear' | 'artifact' | 'potion';
 
+/** Засечка взлома сундука (v0.54.2): отмычка в золотой зоне, в бронзовой или мимо. */
+export type LockGrade = 'great' | 'good' | 'miss';
+
 /**
  * Событие, пока герой в нём. Привал и торговец живут своими фазами (`camp`, `shop`), элита — боем с пометкой,
  * чтобы награда и золото были как за клетку элиты; сундук, алтарь и кузнец — фаза `event`.
@@ -896,8 +899,21 @@ export type EventState =
    * при входе (поток RNG не зависит от того, откроют ли сундук), но видно только после «Открыть»: `opened` ставит `openChest`,
    * он же кладёт золото в кошелёк. `gold`, `artifact`, `potion` и `opened` необязательные — забег, сохранённый в сундуке
    * до v0.54.1 (внутри один предмет), продолжится без сброса. `taken` — что уже взято: экран держит на месте взятой карточку «Взято».
+   * Взлом (v0.54.2): `lock` — засечки, с которыми открыт (по штифту на вещь, до первого срыва), `lockGold` — золото за отличные,
+   * `needle` — HP, снятые иглой за срыв. Нет `lock` — открыт без мини-игры (настройка в паузе, бот тестов, старое сохранение).
    */
-  | { kind: 'chest'; gold?: number; gear: GearInstance | null; artifact?: ArtifactInstance | null; potion?: string | null; opened?: boolean; taken?: ChestItem[] }
+  | {
+      kind: 'chest';
+      gold?: number;
+      gear: GearInstance | null;
+      artifact?: ArtifactInstance | null;
+      potion?: string | null;
+      opened?: boolean;
+      taken?: ChestItem[];
+      lock?: LockGrade[];
+      lockGold?: number;
+      needle?: number;
+    }
   /** null — все артефакты уже на максимуме, остаётся только молитва. */
   | { kind: 'altar'; artifact: ArtifactInstance | null }
   | { kind: 'forge' }
@@ -941,7 +957,7 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.54.1';
+export const GAME_VERSION = '0.54.2';
 
 export const SAVE_VERSION = 42;
 
@@ -1002,6 +1018,11 @@ export interface RunState {
    * пока в таблице есть несыгранные. Необязательное: у забега, сохранённого до v0.53.1, поля нет — это пустой список.
    */
   encounters?: string[];
+  /**
+   * Взломы сундуков за забег (v0.54.2), для статистики: запись на сундук, засечка — буква (`G` отлично, `g` хорошо, `x` срыв).
+   * Сундук, открытый без мини-игры, записи не оставляет. Необязательное — у забега до v0.54.2 поля нет.
+   */
+  lockLog?: string[];
 }
 
 /** Сложность забега: что игрок выбирает перед каждой локацией — благословение, ничего или испытание. */

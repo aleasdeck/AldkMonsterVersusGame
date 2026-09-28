@@ -47,6 +47,7 @@ import {
   skipReward,
   startEvent,
   chestClosed,
+  chestPins,
   openChest,
   takeChestItem,
   takeReward,
@@ -54,7 +55,7 @@ import {
   canChooseFocus,
   chooseRewardFocus,
 } from '../src/engine/run';
-import { CHEST_GOLD, POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, canDropFor, forgePrice, gearPrice, rollArtifact, rollChest, rollEventKind, rollGear } from '../src/engine/loot';
+import { CHEST_GOLD, CHEST_GREAT_GOLD, CHEST_NEEDLE_HP, POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, canDropFor, forgePrice, gearPrice, rollArtifact, rollChest, rollEventKind, rollGear } from '../src/engine/loot';
 import { POTION_IDS } from '../src/data/potions';
 import { freeSocketFor, gearOf } from '../src/engine/equipment';
 import type { EventState, RunState } from '../src/engine/types';
@@ -829,6 +830,74 @@ describe('забег', () => {
     expect(counts[2] / total).toBeGreaterThan(0.19);
     expect(counts[2] / total).toBeLessThan(0.31);
     expect(counts[3] / total).toBeLessThan(0.09);
+  });
+
+  it('взлом сундука: штифтов — сколько вещей, отличная засечка — золото акта, срыв — игла, вещи остаются', () => {
+    const chest = (seed: number, loc = 0) => {
+      const run = newRun('warrior', seed);
+      run.locationIndex = loc;
+      run.roomIndex = 2;
+      startEvent(run, 'chest');
+      const ev = run.event as EventState & { kind: 'chest' };
+      ev.gold = 5;
+      ev.gear = rollGear(run.rng, run.hero, [2]);
+      ev.artifact = { id: 'poison_vial', tier: 1 };
+      ev.potion = null;
+      return { run, ev };
+    };
+    const a = chest(9);
+    expect(chestPins(a.ev)).toBe(2);
+    const gold = a.run.gold;
+    const hp = a.run.hero.hp;
+    openChest(a.run, ['great', 'great']);
+    expect(a.ev.lock).toEqual(['great', 'great']);
+    expect(a.ev.lockGold).toBe(2 * CHEST_GREAT_GOLD[0]);
+    expect(a.run.gold).toBe(gold + 5 + 2 * CHEST_GREAT_GOLD[0]);
+    expect(a.run.hero.hp).toBe(hp);
+    expect(a.ev.needle).toBeUndefined();
+    expect(a.run.lockLog).toEqual(['GG']);
+
+    // Срыв на первом штифте: взлом кончается, игла по акту, вещи на месте. Засечки после срыва отбрасываются.
+    const b = chest(9, 2);
+    const hpB = b.run.hero.hp;
+    openChest(b.run, ['miss', 'great']);
+    expect(b.ev.lock).toEqual(['miss']);
+    expect(b.ev.lockGold).toBe(0);
+    expect(b.ev.needle).toBe(CHEST_NEEDLE_HP[2]);
+    expect(b.run.hero.hp).toBe(hpB - CHEST_NEEDLE_HP[2]);
+    expect(b.ev.gear).not.toBeNull();
+    expect(takeChestItem(b.run, 'artifact')).toBe(true);
+    expect(b.run.lockLog).toEqual(['x']);
+
+    // Игла не убивает; недостающие засечки без срыва — «хорошо», лишние отбрасываются.
+    const c = chest(9);
+    c.run.hero.hp = 2;
+    openChest(c.run, ['good', 'miss']);
+    expect(c.ev.needle).toBe(1);
+    expect(c.run.hero.hp).toBe(1);
+    const d = chest(9);
+    openChest(d.run, ['great']);
+    expect(d.ev.lock).toEqual(['great', 'good']);
+    const e = chest(9);
+    openChest(e.run, ['good', 'good', 'great']);
+    expect(e.ev.lock).toEqual(['good', 'good']);
+    expect(e.ev.lockGold).toBe(0);
+    expect(e.run.lockLog).toEqual(['gg']);
+
+    // Без засечек — открыт без мини-игры: как раньше, без бонуса, иглы и записи.
+    const f = chest(9);
+    const goldF = f.run.gold;
+    openChest(f.run);
+    expect(f.run.gold).toBe(goldF + 5);
+    expect(f.ev.lock).toBeUndefined();
+    expect(f.run.lockLog).toBeUndefined();
+    // Открытый повторно не взламывается.
+    openChest(f.run, ['great', 'great']);
+    expect(f.run.gold).toBe(goldF + 5);
+
+    // В статистику — взломы через запятую.
+    a.run.lockLog!.push('x');
+    expect(runReport(a.run, { event: 'abandoned', player: 'p', playerRuns: 0, debug: true, now: 0 }).locks).toBe('GG,x');
   });
 
   it('сундук из сохранения до v0.54.1: без золота и других вещей открывается и надевается', () => {
