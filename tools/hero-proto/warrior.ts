@@ -45,6 +45,8 @@ export interface WarriorLook {
   helm: Mat;
   /** Стыки, поддоспешник, прорези. */
   joint: Mat;
+  /** Металл гарды и навершия; без него — латунь кромки или железо. */
+  hilt?: Mat;
   /** Кромка лат: светлый и тёмный тон линии (латунь у A); null — без кромки. */
   trim: { lit: string; dark: string; mat: Mat } | null;
   cloth: Mat;
@@ -124,6 +126,8 @@ export const WARRIOR_LOOKS: Record<WarriorLookId, WarriorLook> = {
     // Щит светлее лат и с ярким ободом: тёмное на тёмном фоне сливалось.
     shieldFace: { base: '#3c3439', ramp: ['#141013', '#241e22', '#3a3237', '#52484e', '#6e6268'], tex: { kind: 'noise', scale: 2, amp: 0.16 } },
     shieldRim: { base: '#6e666a', ramp: ['#1c181a', '#3a3436', '#645c60', '#9a9094', '#d0c6c0'], dither: 0, metal: 0.8 },
+    // Гарда и навершие — светлая сталь обода щита: воронёная гарда тонула в латной перчатке и в латах.
+    hilt: { base: '#968c90', ramp: ['#3a3436', '#6a6266', '#968c90', '#c4bab8', '#ece4de'], dither: 0, shine: 0.8 },
     emblem: { base: '#8a1e26', ramp: ['#2c080d', '#521018', '#841c24', '#a42a2e', '#c0403a'], dither: 0 },
   },
   // C — ветеран в кольчуге (стартовая броня Воина — Кольчуга): шлем с наносником и бармицей, лицо в тени и борода,
@@ -157,16 +161,29 @@ export const WARRIOR_LOOKS: Record<WarriorLookId, WarriorLook> = {
  */
 function sword(p: Painter, x: number, y: number, a: number, L: WarriorLook): void {
   const len = 70, w = 3.6;
+  const u: [number, number] = [Math.cos(a * DEG), Math.sin(a * DEG)];
   const n: [number, number] = [-Math.sin(a * DEG), Math.cos(a * DEG)];
-  const [bx, by] = at(x, y, a, 5);
+  // Крестовина стоит сразу за кулаком: ближе к кисти её закрывала латная перчатка (радиус 6), и гарды не было видно.
+  const [gx, gy] = at(x, y, a, 7.5);
+  const [bx, by] = at(x, y, a, 8.5);
   const [tx, ty] = at(x, y, a, len);
   p.poly([bx + n[0] * w, by + n[1] * w, ...at(tx + n[0] * w * 0.85, ty + n[1] * w * 0.85, a, -10), tx, ty, ...at(tx - n[0] * w * 0.85, ty - n[1] * w * 0.85, a, -10), bx - n[0] * w, by - n[1] * w], BLADE, { part: 'blade', bevel: 1.6 });
   // Дол — тёмная черта по середине клинка.
-  p.line(...at(bx, by, a, 4), ...at(bx, by, a, len - 24), '#626872');
-  const hilt = L.trim?.mat ?? IRON;
-  p.limb(bx - n[0] * 7, by - n[1] * 7, 1.6, bx + n[0] * 7, by + n[1] * 7, 1.6, hilt, { part: 'guard' });
-  p.limb(x, y, 1.8, ...at(x, y, a, -8), 1.6, L.leather, { part: 'grip' });
-  p.ellipse(...at(x, y, a, -9.5), 2.6, 2.6, hilt, { part: 'pommel' });
+  p.line(...at(bx, by, a, 3), ...at(bx, by, a, len - 26), '#626872');
+  const hilt = L.hilt ?? L.trim?.mat ?? IRON;
+  // Рукоять в кулаке и навершие.
+  p.limb(...at(x, y, a, 6), 1.8, ...at(x, y, a, -8), 1.6, L.leather, { part: 'grip' });
+  p.ellipse(...at(x, y, a, -9.8), 3, 3, hilt, { part: 'pommel', lift: 1 });
+  // Гарда: плечи поперёк клинка, концы загнуты к острию и с шариками, посередине — ромб-щиток на клинок.
+  for (const side of [-1, 1]) {
+    const mid: [number, number] = [gx + n[0] * 6 * side, gy + n[1] * 6 * side];
+    const end: [number, number] = [gx + n[0] * 11 * side + u[0] * 2.6, gy + n[1] * 11 * side + u[1] * 2.6];
+    p.chain([[gx, gy, 3], [mid[0], mid[1], 2.5], [end[0], end[1], 2]], hilt, { part: 'guard' });
+    p.ellipse(end[0], end[1], 2.8, 2.8, hilt, { part: 'guard', lift: 1 });
+  }
+  p.poly([gx - u[0] * 1.5, gy - u[1] * 1.5, gx + n[0] * 3 + u[0] * 1.5, gy + n[1] * 3 + u[1] * 1.5, gx + u[0] * 5, gy + u[1] * 5, gx - n[0] * 3 + u[0] * 1.5, gy - n[1] * 3 + u[1] * 1.5], hilt, { part: 'guard', lift: 1.5, bevel: 1.2 });
+  // Отблеск по верхней кромке крестовины (к свету) и тёмный стык с клинком.
+  stroke(p, [gx - n[0] * 10 - u[0] * 1.2, gy - n[1] * 10 - u[1] * 1.2, gx - n[0] * 1 - u[0] * 2, gy - n[1] * 1 - u[1] * 2], GLINT, 'guard');
 }
 
 /** Боевой топор: рукоять и широкое бородовидное лезвие у конца. */
