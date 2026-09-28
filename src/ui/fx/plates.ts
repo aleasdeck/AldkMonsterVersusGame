@@ -81,7 +81,7 @@ export function drawPlates(put: Put, M: Mask, phase: PlatePhase, t: number, side
     else if (phase === 'build' && t > BUILD_UP + CLANK && Math.abs(x - M.x0 + (y - yt) - glint) < 2) c = '#ffffff';
     else if (dOut === 1 && tone >= 3 && !solid) c = BLOCK_LIT;
     put(x, y, c, solid || c === '#ffffff' ? 1 : 0.6);
-  });
+  }, 2);
 }
 
 class Plates implements Keep {
