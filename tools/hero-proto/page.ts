@@ -216,7 +216,7 @@ function perform(sc: Scene, clip: HeroClip): void {
   const hero = sc.hero;
   const foeHit = foe ? contactMs(foe.set, 'attack') : 0;
   switch (clip) {
-    case 'attack': case 'attack_thrust': case 'heavy': case 'heavy_thrust': case 'bash': case 'power':
+    case 'attack': case 'heavy': case 'bash': case 'power':
       hero.play(clip);
       if (foe) later(contactMs(hero.set, clip), () => foe.play('hurt'));
       break;
@@ -284,7 +284,7 @@ function start(): void {
   const clipGroup = document.getElementById('scene-clips')!;
   for (const [id, spec] of Object.entries(HERO_CLIPS) as Array<[HeroClip, (typeof HERO_CLIPS)[HeroClip]]>) {
     if (id === 'idle') continue;
-    const b = h('button', spec.own ? 'clip own' : 'clip', spec.variant ? `${spec.name} ${spec.variant.split(' · ')[0]}` : spec.name);
+    const b = h('button', spec.own ? 'clip own' : 'clip', spec.name);
     b.type = 'button';
     b.dataset.v = id;
     clipGroup.appendChild(b);
@@ -303,35 +303,21 @@ function start(): void {
   toggle(speedGroup, '1');
   // Карточки клипов: рисуются по одной, чтобы страница не вставала на время отрисовки всех кадров.
   const clipsHost = document.getElementById('clips')!;
-  const variantsHost = document.getElementById('variants')!;
   const drawClips = (): void => {
     const set = heroAnim(look === 'ref' ? 'B' : look, pixel, helm);
-    const all = (Object.keys(HERO_CLIPS) as HeroClip[]).filter((c) => c !== 'idle');
-    // Клипы с вариантами — парами в своём разделе, остальные — в общей сетке.
-    const hasVariants = (id: HeroClip): boolean => all.some((c) => HERO_CLIPS[c].variantOf === id);
-    const groups = all.filter((c) => hasVariants(c)).map((id) => [id, ...all.filter((c) => HERO_CLIPS[c].variantOf === id)]);
+    const ids = (Object.keys(HERO_CLIPS) as HeroClip[]).filter((c) => c !== 'idle');
     clipsHost.replaceChildren();
-    variantsHost.replaceChildren();
-    const card = (id: HeroClip, host: HTMLElement): { id: HeroClip; view: HTMLElement } => {
+    const cards = ids.map((id) => {
       const spec = HERO_CLIPS[id];
-      const el = h('article', spec.own ? 'clip-card own' : spec.rec ? 'clip-card rec' : 'clip-card');
+      const card = h('article', spec.own ? 'clip-card own' : 'clip-card');
       const view = h('div', 'clip-view');
       view.textContent = 'рисую кадры…';
       const head = h('div', 'clip-head');
-      head.append(h('b', '', spec.variant ? `${spec.name} — ${spec.variant}` : spec.name));
-      if (spec.rec) head.append(h('span', 'tag', 'рекомендую'));
-      head.append(h('span', 'mono', `${spec.frames} × ${spec.fps} к/с · ${Math.round((spec.frames * 1000) / spec.fps)} мс${spec.contact !== undefined ? ` · контакт ${spec.contact + 1}-й, ${Math.round((spec.contact * 1000) / spec.fps)} мс` : ''}${spec.hold ? ' · держит последний кадр' : ''}`));
-      el.append(view, head, h('p', '', spec.when));
-      host.appendChild(el);
+      head.append(h('b', '', spec.name), h('span', 'mono', `${spec.frames} × ${spec.fps} к/с · ${Math.round((spec.frames * 1000) / spec.fps)} мс${spec.contact !== undefined ? ` · контакт ${spec.contact + 1}-й, ${Math.round((spec.contact * 1000) / spec.fps)} мс` : ''}${spec.hold ? ' · держит последний кадр' : ''}`));
+      card.append(view, head, h('p', '', spec.when));
+      clipsHost.appendChild(card);
       return { id, view };
-    };
-    const cards: Array<{ id: HeroClip; view: HTMLElement }> = [];
-    for (const g of groups) {
-      const row = h('div', 'variant-row');
-      variantsHost.appendChild(row);
-      for (const id of g) cards.push(card(id, row));
-    }
-    for (const id of all) if (!hasVariants(id) && !HERO_CLIPS[id].variantOf) cards.push(card(id, clipsHost));
+    });
     let i = 0;
     const next = (): void => {
       const c = cards[i++];

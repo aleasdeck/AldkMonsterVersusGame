@@ -85,8 +85,7 @@ export function mobSet(model: Model): ActorSet {
 export function refSet(img: HTMLImageElement): ActorSet {
   const cell = 162, k = 128 / 107;
   const ROWS: Record<string, { row: number; ms: number; loop?: boolean; hold?: boolean }> = {
-    idle: { row: 1, ms: 1300, loop: true }, attack: { row: 2, ms: 520 }, attack_thrust: { row: 2, ms: 520 }, heavy: { row: 2, ms: 640 },
-    heavy_thrust: { row: 2, ms: 640 }, heal_kneel: { row: 3, ms: 1000 }, power: { row: 3, ms: 560 },
+    idle: { row: 1, ms: 1300, loop: true }, attack: { row: 2, ms: 520 }, heavy: { row: 2, ms: 640 }, power: { row: 3, ms: 560 },
     heal: { row: 3, ms: 800 }, buff: { row: 3, ms: 560 }, block: { row: 4, ms: 560 }, hurt: { row: 5, ms: 400 },
     death: { row: 6, ms: 1000, hold: true }, bash: { row: 3, ms: 560 }, riposte: { row: 2, ms: 520 },
   };
