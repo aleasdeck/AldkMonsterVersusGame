@@ -48,16 +48,16 @@ import {
   startEvent,
   chestClosed,
   openChest,
-  takeChest,
+  takeChestItem,
   takeReward,
   awaitsFocus,
   canChooseFocus,
   chooseRewardFocus,
 } from '../src/engine/run';
-import { POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, canDropFor, forgePrice, gearPrice, rollArtifact, rollEventKind } from '../src/engine/loot';
+import { CHEST_GOLD, POTION_DROP_CHANCE, REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, canDropFor, forgePrice, gearPrice, rollArtifact, rollChest, rollEventKind, rollGear } from '../src/engine/loot';
 import { POTION_IDS } from '../src/data/potions';
 import { freeSocketFor, gearOf } from '../src/engine/equipment';
-import type { RunState } from '../src/engine/types';
+import type { EventState, RunState } from '../src/engine/types';
 
 /** Простейший бот: бьёт первого врага, пока есть стамина, потом заканчивает ход. */
 function playBattle(run: RunState): void {
@@ -128,8 +128,9 @@ function playRun(run: RunState, immortal = false): void {
         break;
       case 'event':
         if (run.event?.kind === 'chest') {
+          // Простой бот берёт из сундука только экипировку, остальное оставляет.
           openChest(run);
-          takeChest(run);
+          if (!takeChestItem(run, 'gear')) leaveEvent(run);
         }
         else if (run.event?.kind === 'altar') altarPray(run);
         else leaveEvent(run);
@@ -746,31 +747,99 @@ describe('забег', () => {
     expect(run3.roomIndex).toBe(3);
   });
 
-  it('сундук: стоит закрытым, из открытого экипировка надевается сразу, можно оставить', () => {
+  it('сундук: стоит закрытым, открытие кладёт золото, вещи берутся по одной, после последней — дальше', () => {
     const run = newRun('warrior', 9);
     run.roomIndex = 2;
     startEvent(run, 'chest');
     expect(run.event?.kind).toBe('chest');
     expect(chestClosed(run)).toBe(true);
-    const gear = run.event?.kind === 'chest' ? run.event.gear : null;
+    const ev = run.event as EventState & { kind: 'chest' };
+    // Содержимое задаём руками: бросок решает, что выпало, а проверяем выдачу всех трёх.
+    const gear = rollGear(run.rng, run.hero, [2]);
+    ev.gold = 7;
+    ev.gear = gear;
+    ev.artifact = { id: 'poison_vial', tier: 1 };
+    ev.potion = 'heal_potion';
+    const gold = run.gold;
     // Из закрытого не взять: сначала «Открыть».
-    takeChest(run);
-    expect(run.phase).toBe('event');
+    expect(takeChestItem(run, 'gear')).toBe(false);
     openChest(run);
     expect(chestClosed(run)).toBe(false);
-    takeChest(run);
+    expect(run.gold).toBe(gold + 7);
+    // Повторное открытие золото не удваивает.
+    openChest(run);
+    expect(run.gold).toBe(gold + 7);
+    expect(takeChestItem(run, 'gear')).toBe(true);
     if (run.pending) resolvePending(run);
-    expect(gearOf(run.hero, gear!.kind).name).toBe(gear!.name);
+    expect(gearOf(run.hero, gear.kind).name).toBe(gear.name);
+    expect(run.phase).toBe('event');
+    // Артефакт ждёт выбора сокета; после размещения сундук не закрывается, пока в нём что-то лежит.
+    expect(takeChestItem(run, 'artifact')).toBe(true);
+    expect(run.pending).not.toBeNull();
+    resolvePending(run);
+    expect(run.pending).toBeNull();
+    expect(run.phase).toBe('event');
+    expect(takeChestItem(run, 'potion')).toBe(true);
+    expect(run.hero.potion).toBe('heal_potion');
+    expect(ev.taken).toEqual(['gear', 'artifact', 'potion']);
+    expect(run.phase).toBe('map');
+  });
+
+  it('сундук: мимо можно пройти не открывая, открытый — оставить часть вещей', () => {
+    const run = newRun('warrior', 9);
+    run.roomIndex = 2;
+    startEvent(run, 'chest');
+    const before = run.hero.weapon.name + run.hero.armor.name;
+    const gold = run.gold;
+    leaveEvent(run);
+    expect(run.hero.weapon.name + run.hero.armor.name).toBe(before);
+    expect(run.gold).toBe(gold);
     expect(run.phase).toBe('map');
 
     const run2 = newRun('warrior', 9);
     run2.roomIndex = 2;
     startEvent(run2, 'chest');
-    const before = run2.hero.weapon.name + run2.hero.armor.name;
-    // Пройти мимо можно, не открывая.
+    const ev = run2.event as EventState & { kind: 'chest' };
+    ev.artifact = { id: 'poison_vial', tier: 1 };
+    ev.potion = 'heal_potion';
+    openChest(run2);
+    takeChestItem(run2, 'potion');
+    expect(run2.phase).toBe('event');
     leaveEvent(run2);
-    expect(run2.hero.weapon.name + run2.hero.armor.name).toBe(before);
     expect(run2.phase).toBe('map');
+  });
+
+  it('сундук: золото по акту всегда, хотя бы одна вещь', () => {
+    for (let act = 0; act < CHEST_GOLD.length; act++) {
+      let items = 0;
+      for (let seed = 1; seed <= 200; seed++) {
+        const run = newRun('mage', seed);
+        const loot = rollChest(run.rng, run.hero, ACTS[act], act);
+        const [lo, hi] = CHEST_GOLD[act];
+        expect(loot.gold).toBeGreaterThanOrEqual(lo);
+        expect(loot.gold).toBeLessThanOrEqual(hi);
+        const n = [loot.gear, loot.artifact, loot.potion].filter(Boolean).length;
+        expect(n).toBeGreaterThan(0);
+        items += n;
+      }
+      // В среднем полторы вещи: предмет и артефакт через раз, зелье реже.
+      expect(items / 200).toBeGreaterThan(1.2);
+      expect(items / 200).toBeLessThan(1.9);
+    }
+  });
+
+  it('сундук из сохранения до v0.54.1: без золота и других вещей открывается и надевается', () => {
+    const run = newRun('warrior', 9);
+    run.roomIndex = 2;
+    run.phase = 'event';
+    const gear = rollGear(run.rng, run.hero, [2]);
+    run.event = { kind: 'chest', gear };
+    const gold = run.gold;
+    openChest(run);
+    expect(run.gold).toBe(gold);
+    expect(takeChestItem(run, 'gear')).toBe(true);
+    if (run.pending) resolvePending(run);
+    expect(run.phase).toBe('map');
   });
 
   it('кузнец: поднимает тир предмета за золото, аффикс и артефакты остаются, сокеты добавляются', () => {

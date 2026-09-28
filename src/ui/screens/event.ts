@@ -4,26 +4,45 @@ import { GEAR_TIERS, upgradePreview } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { forgePrice } from '../../engine/loot';
 import { altarHealAmount, altarSacrificeCost, canAltarSacrifice, canForge, currentLocation, heroStats } from '../../engine/run';
-import { artifactChip, coin, pendingModal, pickable, tierTip } from '../components';
-import { gearCard } from '../cards';
+import { artifactChip, coin, pendingModal, pickable, potionReplaceNote, tierTip } from '../components';
+import { artifactCard, gearCard, potionCard } from '../cards';
 import { uiIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import { markKeywords } from '../keywords';
 import { whyTip } from '../tips';
-import type { EventState, GearKind, GearTier } from '../../engine/types';
+import type { ChestItem, EventState, GearKind, GearTier } from '../../engine/types';
 import type { App } from '../app';
 
 /** Заголовок и подпись экрана по виду события; у сундука — закрытого и открытого. */
 const HEADS: Record<'chestClosed' | 'chest' | 'altar' | 'forge', [string, string]> = {
-  chestClosed: ['Сундук', 'Внутри — оружие или броня. Откройте или пройдите мимо.'],
-  chest: ['Сундук', 'Наденется сразу, старый предмет пропадёт. Можно оставить.'],
+  chestClosed: ['Сундук', 'Внутри золото и вещи. Откройте или пройдите мимо.'],
+  chest: ['Сундук', 'Золото уже в кошельке. Вещи — по одной, лишнее можно оставить.'],
   altar: ['Алтарь', 'Помолиться о здоровье или отдать кровь за артефакт. Одно из двух.'],
   forge: ['Кузнец', 'Тир оружия или брони +1 за золото; аффикс, сокеты и артефакты остаются. Один предмет.'],
 };
 
-/** Сундук: закрытый — «Открыть», что внутри, не видно; открытый — карточка предмета с дельтами к надетому, «Надеть» или «Оставить». */
+function narrow(el: HTMLElement): HTMLElement {
+  el.classList.add('chest-narrow');
+  return el;
+}
+
+/** Взятая из сундука вещь: место остаётся, чтобы ряд не прыгал, — как «Куплено» у торговца. */
+function takenCard(what: string, narrow: boolean): HTMLElement {
+  return h(
+    'div',
+    { class: `card shop-card sold ${narrow ? 'chest-narrow' : ''}`.trim() },
+    h('div', { class: 'glyph big' }, '✓'),
+    h('div', { class: 'card-name' }, what),
+    h('div', { class: 'card-desc' }, 'Взято'),
+  );
+}
+
+/**
+ * Сундук (v0.54.1): закрытый — «Открыть», что внутри, не видно; открытый — ряд как у торговца: золото (уже в кошельке),
+ * потом то, что выпало из предмета, артефакта и зелья. Берётся только кнопкой — клик по карточке ничего не забирает.
+ */
 function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[] {
   const run = app.run!;
   if (!ev.opened) {
@@ -32,18 +51,31 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
       { class: 'card event-card chest-closed' },
       h('div', { class: 'glyph big' }, uiIcon('chest', 64)),
       h('div', { class: 'card-name' }, 'Закрытый сундук'),
-      h('div', { class: 'card-desc' }, 'Оружие или броня этого акта — какая, видно только внутри.'),
+      h('div', { class: 'card-desc' }, 'Золото и вещи этого акта — что именно, видно только внутри.'),
       h('div', { class: 'card-foot' }, button('Открыть', () => app.openChest(), { class: 'primary' })),
     );
     return [pickable(closed, () => app.openChest())];
   }
   const def = heroDef(run.hero.defId);
-  return [
-    pickable(
-      gearCard(ev.gear, { def, run, footer: button('Надеть', () => app.takeChest(), { class: 'primary', disabled: !!run.pending }) }),
-      run.pending ? undefined : () => app.takeChest(),
-    ),
-  ];
+  const off = !!run.pending;
+  const taken = ev.taken ?? [];
+  const take = (label: string, item: ChestItem) => button(label, () => app.takeChestItem(item), { class: 'primary', disabled: off });
+  const gold = h(
+    'div',
+    { class: 'card shop-card chest-narrow' },
+    h('div', { class: 'glyph big' }, '⛁'),
+    h('div', { class: 'card-name' }, 'Золото'),
+    h('div', { class: 'card-desc' }, h('span', null, `+${ev.gold ?? 0} `, coin(), ` — уже в кошельке (всего ${run.gold}).`)),
+  );
+  const cards: HTMLElement[] = [gold];
+  if (ev.gear) cards.push(gearCard(ev.gear, { def, run, footer: take('Надеть', 'gear') }));
+  else if (taken.includes('gear')) cards.push(takenCard('Экипировка', false));
+  if (ev.artifact) cards.push(artifactCard(ev.artifact, take('Забрать', 'artifact'), undefined, run));
+  else if (taken.includes('artifact')) cards.push(takenCard('Артефакт', false));
+  // Зелье — узкая колонка, как у торговца.
+  if (ev.potion) cards.push(narrow(potionCard(ev.potion, take('Взять', 'potion'), potionReplaceNote(run))));
+  else if (taken.includes('potion')) cards.push(takenCard('Зелье', true));
+  return cards;
 }
 
 /** Алтарь: молитва лечит, жертва режет HP и даёт артефакт (виден до выбора). */
@@ -218,7 +250,7 @@ function snatcherCards(app: App, ev: EventState & { kind: 'gnome_art' }): HTMLEl
 
 /** Кнопка «уйти ни с чем»: мимо закрытого сундука проходят, открытый оставляют, после вора идут дальше. */
 function leaveLabel(ev: EventState | null): string {
-  if (ev?.kind === 'chest') return ev.opened ? 'Оставить' : 'Пройти мимо';
+  if (ev?.kind === 'chest') return ev.opened ? 'Дальше' : 'Пройти мимо';
   return ev?.kind === 'gnome' || ev?.kind === 'gnome_art' ? 'Дальше' : 'Уйти';
 }
 
@@ -261,5 +293,5 @@ export function eventScreen(app: App): HTMLElement {
       button(leaveLabel(ev), () => app.leaveEvent(), { disabled: !!run.pending }),
     ),
   );
-  return runFrame(app, { cls: `event event-${ev?.kind ?? 'none'}`, center, mid: hubGear(app), overlays: [pendingModal(app)] });
+  return runFrame(app, { cls: `event event-${ev?.kind ?? 'none'}${ev?.kind === 'chest' && ev.opened ? ' chest-open' : ''}`, center, mid: hubGear(app), overlays: [pendingModal(app)] });
 }

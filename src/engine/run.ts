@@ -1,4 +1,4 @@
-import type { ArchetypeId, ArtifactInstance, DerivedStats, Difficulty, EventKind, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
+import type { ArchetypeId, ArtifactInstance, ChestItem, DerivedStats, Difficulty, EventKind, EventState, GearKind, LootItem, PlayerAction, RewardFocus, RewardScreen, RoomKind, RunState } from './types';
 import { MAX_ENEMIES, SAVE_VERSION } from './types';
 import { chance, createRng, pick, shuffle } from './rng';
 import { defaultSignature, heroDef } from '../data/heroes';
@@ -28,8 +28,8 @@ import {
   potionRewardScreen,
   rollArtifact,
   rollBossRewards,
+  rollChest,
   rollEventKind,
-  rollGear,
   rollPotion,
   rollRewardOptions,
   rollRewards,
@@ -298,7 +298,7 @@ export function startEvent(run: RunState, kind: EventKind): void {
       startBattle(run, 'elite');
       return;
     case 'chest':
-      run.event = { kind, gear: rollGear(run.rng, run.hero, act.gearTiers, undefined, act.rareGear) };
+      run.event = { kind, ...rollChest(run.rng, run.hero, act, run.locationIndex) };
       run.phase = 'event';
       return;
     case 'altar':
@@ -596,7 +596,8 @@ export function rerollReward(run: RunState): boolean {
 
 function continueAfterPending(run: RunState): void {
   if (run.phase === 'reward') afterReward(run);
-  else if (run.phase === 'event') advanceRoom(run);
+  // Из сундука (v0.54.1) после вещи с выбором слота остаёмся, пока в нём что-то лежит, — как у торговца.
+  else if (run.phase === 'event' && (run.event?.kind !== 'chest' || chestEmpty(run.event))) advanceRoom(run);
   // В магазине после покупки остаёмся: уйти игрок решает сам.
 }
 
@@ -710,17 +711,47 @@ export function chestClosed(run: RunState): boolean {
   return run.phase === 'event' && run.event?.kind === 'chest' && !run.event.opened;
 }
 
-/** Открыть сундук: показать предмет. Надеть или оставить — следующим выбором. */
+/** Открыть сундук: золото сразу в кошелёк, вещи видны и берутся по одной. */
 export function openChest(run: RunState): void {
   if (!chestClosed(run) || run.event?.kind !== 'chest') return;
   run.event.opened = true;
+  run.gold += run.event.gold ?? 0;
 }
 
-/** Сундук: экипировка надевается сразу, старый предмет пропадает, лишние артефакты ждут выбора слота. Только из открытого. */
-export function takeChest(run: RunState): void {
-  if (run.phase !== 'event' || run.event?.kind !== 'chest' || !run.event.opened || run.pending) return;
-  giveGear(run, { kind: 'gear', gear: run.event.gear });
-  if (!run.pending) advanceRoom(run);
+export type { ChestItem };
+
+/** В сундуке не осталось вещей — золото забрано при открытии. */
+export function chestEmpty(ev: EventState & { kind: 'chest' }): boolean {
+  return !ev.gear && !ev.artifact && !ev.potion;
+}
+
+/**
+ * Взять вещь из открытого сундука. Экипировка надевается сразу (старый предмет пропадает, лишние артефакты ждут выбора слота),
+ * артефакт — как покупка у торговца (дубликат апгрейдит стоящий, новый ждёт слота без отмены), зелье вытесняет стоящее.
+ * Остальное остаётся в сундуке; взята последняя вещь — дальше по этажу.
+ */
+export function takeChestItem(run: RunState, item: ChestItem): boolean {
+  const ev = run.event;
+  if (run.phase !== 'event' || ev?.kind !== 'chest' || !ev.opened || run.pending) return false;
+  if (item === 'gear') {
+    const gear = ev.gear;
+    if (!gear) return false;
+    ev.gear = null;
+    giveGear(run, { kind: 'gear', gear });
+  } else if (item === 'artifact') {
+    const artifact = ev.artifact;
+    if (!artifact) return false;
+    ev.artifact = null;
+    giveArtifact(run, { kind: 'artifact', artifact }, { cancellable: false, consumeReward: false });
+  } else {
+    const potion = ev.potion;
+    if (!potion) return false;
+    ev.potion = null;
+    run.hero.potion = potion;
+  }
+  (ev.taken ??= []).push(item);
+  if (!run.pending && chestEmpty(ev)) advanceRoom(run);
+  return true;
 }
 
 export function altarHealAmount(run: RunState): number {

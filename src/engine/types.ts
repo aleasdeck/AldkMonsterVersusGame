@@ -880,6 +880,9 @@ export interface PendingPlacement {
 /** Что выпало в клетке «Событие»: привал, элита, торговец, сундук, алтарь, кузнец или вор (веса — EVENT_WEIGHTS). */
 export type EventKind = 'camp' | 'elite' | 'shop' | 'chest' | 'altar' | 'forge' | 'gnome' | 'gnome_art';
 
+/** Вещь в сундуке события (v0.54.1): каждая берётся отдельно. */
+export type ChestItem = 'gear' | 'artifact' | 'potion';
+
 /**
  * Событие, пока герой в нём. Привал и торговец живут своими фазами (`camp`, `shop`), элита — боем с пометкой,
  * чтобы награда и золото были как за клетку элиты; сундук, алтарь и кузнец — фаза `event`.
@@ -889,10 +892,12 @@ export type EventState =
   | { kind: 'elite' }
   | { kind: 'shop' }
   /**
-   * Содержимое катится при входе (поток RNG не зависит от того, откроют ли сундук), но видно только после «Открыть»:
-   * `opened` ставит `openChest`. Поле необязательное — забег, сохранённый в событии раньше, продолжится с закрытым сундуком.
+   * Сундук (v0.54.1): золото всегда, вещи — каждая своим броском (`rollChest`), взятая становится null. Содержимое катится
+   * при входе (поток RNG не зависит от того, откроют ли сундук), но видно только после «Открыть»: `opened` ставит `openChest`,
+   * он же кладёт золото в кошелёк. `gold`, `artifact`, `potion` и `opened` необязательные — забег, сохранённый в сундуке
+   * до v0.54.1 (внутри один предмет), продолжится без сброса. `taken` — что уже взято: экран держит на месте взятой карточку «Взято».
    */
-  | { kind: 'chest'; gear: GearInstance; opened?: boolean }
+  | { kind: 'chest'; gold?: number; gear: GearInstance | null; artifact?: ArtifactInstance | null; potion?: string | null; opened?: boolean; taken?: ChestItem[] }
   /** null — все артефакты уже на максимуме, остаётся только молитва. */
   | { kind: 'altar'; artifact: ArtifactInstance | null }
   | { kind: 'forge' }

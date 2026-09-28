@@ -808,15 +808,15 @@ p {
   gap: 4px 6px;
 }
 /* Торговец: четыре товара в ряд равными колонками, кнопка покупки во всю ширину карточки. */
-.shop .cards {
+:is(.shop, .chest-open) .cards {
   flex-wrap: nowrap;
 }
-.shop .cards .card {
+:is(.shop, .chest-open) .cards .card {
   flex: 1 1 0;
   min-width: 0;
   max-width: none;
 }
-.shop .card-foot .btn {
+:is(.shop, .chest-open) .card-foot .btn {
   flex: 1;
   padding-left: 4px;
   padding-right: 4px;
@@ -2850,26 +2850,26 @@ p {
   border-style: dashed;
   justify-content: center;
 }
-.shop .card-foot .btn {
+:is(.shop, .chest-open) .card-foot .btn {
   white-space: nowrap;
 }
 /* Четыре узкие карточки торговца: плотнее, перк одной строкой (полный текст в подсказке), дельты мельче,
    чипы сокетов не рисуются — их число уже есть в дельтах. Строки не сжимаются, иначе переполненная колонка схлопнет их в ноль. */
-.shop .card {
+:is(.shop, .chest-open) .card {
   gap: 4px;
   padding: 6px 8px;
 }
-.shop .card > * {
+:is(.shop, .chest-open) .card > * {
   flex-shrink: 0;
 }
 
-.shop .note {
+:is(.shop, .chest-open) .note {
   font-size: 14px;
 }
-.shop .card-desc {
+:is(.shop, .chest-open) .card-desc {
   font-size: 15px;
 }
-.shop .card-head .card-name {
+:is(.shop, .chest-open) .card-head .card-name {
   font-size: 18px;
   line-height: 1;
 }
@@ -3936,27 +3936,40 @@ p {
 .shop .cards > .card:nth-child(3) {
   flex: 1.2 1 0;
 }
+/* Открытый сундук (v0.54.1) — тот же прилавок, но вещей бывает от одной до трёх: колонку задаёт класс, а не номер.
+   Золото и зелье узкие, предмет и артефакт шире; при двух-трёх карточках они не растягиваются на весь ряд, а стоят по центру. */
+.chest-open .cards {
+  justify-content: center;
+}
+.chest-open .cards > .card {
+  flex: 1.2 1 0;
+  max-width: 300px;
+}
+.chest-open .cards > .card.chest-narrow {
+  flex: 0.8 1 0;
+  max-width: 220px;
+}
 /* Имя в узкой колонке мельче; плитка консоли под прилавком — как на остальных экранах. */
-.shop .card .item-name {
+:is(.shop, .chest-open) .card .item-name {
   font-size: 18px;
 }
-.shop .big-stat b {
+:is(.shop, .chest-open) .big-stat b {
   font-size: 24px;
 }
-.shop .gear-card .prop-row {
+:is(.shop, .chest-open) .gear-card .prop-row {
   font-size: 14px;
 }
 /* Таблица артефакта в узкой колонке: тоже две колонки, но без названий строк — значок и значение с единицами («1 STA», «2 хода»);
    что это за строка, пишет подсказка. Иначе таблица в три строки выталкивает кнопку покупки за рамку. */
-.shop .cmp.art-tbl {
+:is(.shop, .chest-open) .cmp.art-tbl {
   grid-template-columns: 1fr 1fr;
   gap: 1px 10px;
 }
-.shop .art-tbl-row {
+:is(.shop, .chest-open) .art-tbl-row {
   grid-template-columns: 16px auto;
   justify-content: start;
 }
-.shop .art-tbl-row .cmp-name {
+:is(.shop, .chest-open) .art-tbl-row .cmp-name {
   display: none;
 }
 
