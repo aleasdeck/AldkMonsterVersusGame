@@ -173,7 +173,8 @@ export class App {
     this.settleArmed();
     this.aim = null;
     // Выбор пула награды (v0.39) — тоже смена экрана: «Выбрать» стоит там же, где потом «Надеть», второй клик двойного не должен брать предмет.
-    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0]), r ? R.awaitsThreshold(r) : false].join('|');
+    // Так же и закрытый сундук: «Открыть» стоит там же, где потом «Надеть».
+    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0]), r ? R.awaitsThreshold(r) : false, r ? R.chestClosed(r) : false].join('|');
     if (key !== this.screenKey) {
       this.screenKey = key;
       this.screenChangedAt = performance.now();
@@ -849,6 +850,12 @@ export class App {
     if (!this.run) return;
     R.leaveEvent(this.run);
     this.afterPhaseChange();
+  }
+
+  openChest(): void {
+    if (!this.run) return;
+    R.openChest(this.run);
+    this.commit();
   }
 
   takeChest(): void {

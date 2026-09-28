@@ -888,7 +888,11 @@ export type EventState =
   | { kind: 'camp' }
   | { kind: 'elite' }
   | { kind: 'shop' }
-  | { kind: 'chest'; gear: GearInstance }
+  /**
+   * Содержимое катится при входе (поток RNG не зависит от того, откроют ли сундук), но видно только после «Открыть»:
+   * `opened` ставит `openChest`. Поле необязательное — забег, сохранённый в событии раньше, продолжится с закрытым сундуком.
+   */
+  | { kind: 'chest'; gear: GearInstance; opened?: boolean }
   /** null — все артефакты уже на максимуме, остаётся только молитва. */
   | { kind: 'altar'; artifact: ArtifactInstance | null }
   | { kind: 'forge' }
@@ -932,7 +936,7 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.54.0';
+export const GAME_VERSION = '0.54.1';
 
 export const SAVE_VERSION = 42;
 

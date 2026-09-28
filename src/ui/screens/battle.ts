@@ -353,6 +353,8 @@ function effectValue(effects: Effect[], range: DamageRange | null, s: DerivedSta
       case 'gainMp':
         return [`+${e.amount}`, uiIcon('mp', 14)];
       case 'status':
+        // Заражение: свой Яд на цель, потом разнос — число яда и «на всех» рядом.
+        if (effects.some((x) => x.type === 'spread')) return [statusIcon(e.status, 18), ` ${e.value}`, h('small', null, 'на всех')];
         return [statusIcon(e.status, 18), e.value > 1 || e.status === 'strength' ? ` ${e.value}` : e.turns > 0 ? ` ${e.turns}х` : ''];
       case 'summon':
         return ['☍'];
