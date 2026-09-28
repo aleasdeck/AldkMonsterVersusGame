@@ -8,13 +8,15 @@ import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
 import { warriorModel } from '../../src/ui/heroes/warrior';
 import { HERO_CLIPS, HERO_STYLE, type SculptClip } from '../../src/ui/heroes/clips';
+import { renderAvatar } from '../../src/ui/heroes/avatar';
+import { avatarCells } from '../../src/ui/heroes';
 import { Actor, heroSet, later, mobSet, refSet, setSpeed, type ActorSet } from './anim';
 
 type Loc = 'forest' | 'crypt' | 'caves';
 type Look = 'ref' | 'sculpt';
 
 declare global {
-  interface Window { ASSETS: { bg: Record<Loc, string>; ref: string } }
+  interface Window { ASSETS: { bg: Record<Loc, string>; ref: string; avatar: string } }
 }
 
 const LOCS: Record<Loc, { name: string; foes: string[]; models: Record<string, Model> }> = {
@@ -300,7 +302,35 @@ function start(): void {
   drawClips();
 }
 
+/**
+ * Аватарки: `data-avatar` — размер в игре (112 плитка выбора, 80 лист персонажа, 44 консоль), `data-old` — прежний
+ * рисованный портрет. Всё ×2, как кадр игры на FullHD; клетки — тем же `avatarCells`, что в игре.
+ */
+function drawAvatars(): void {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-avatar]')) {
+    const px = Number(el.dataset.avatar);
+    const c = document.createElement('canvas');
+    if (el.dataset.old !== undefined) {
+      const img = new Image();
+      img.src = window.ASSETS.avatar;
+      img.width = img.height = px * 2;
+      img.alt = 'Прежний рисованный портрет Воина';
+      el.replaceChildren(img);
+      continue;
+    }
+    const n = avatarCells(px);
+    c.width = c.height = n;
+    c.getContext('2d')?.putImageData(new ImageData(renderAvatar(MODEL, n), n, n), 0, 0);
+    c.style.width = `${px * 2}px`;
+    c.style.imageRendering = 'pixelated';
+    c.setAttribute('role', 'img');
+    c.setAttribute('aria-label', `Аватарка из лепки, ${px} точек`);
+    el.replaceChildren(c);
+  }
+}
+
 function boot(): void {
+  drawAvatars();
   const img = new Image();
   img.onload = () => {
     REF = refFig(img);

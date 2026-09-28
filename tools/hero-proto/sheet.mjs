@@ -1,13 +1,15 @@
-// Кадры лепки Воина (src/ui/heroes/warrior.ts) в PNG — посмотреть каждый кадр без браузера.
+// Кадры героя-лепки (модель из HERO_MODELS, src/ui/heroes) в PNG — посмотреть каждый кадр без браузера.
 //
-//   node tools/hero-proto/sheet.mjs                          → hero-preview/warrior.png: все клипы и сводка
+//   node tools/hero-proto/sheet.mjs                          → hero-preview/warrior.png: все клипы Воина и сводка
 //   node tools/hero-proto/sheet.mjs --clips attack,block --zoom 3
+//   node tools/hero-proto/sheet.mjs --hero mage               → hero-preview/mage.png (модель должна быть в HERO_MODELS)
+//   node tools/hero-proto/sheet.mjs --avatar                  → ещё hero-preview/<герой>-avatar.png: аватарка 56, 40 и 44 клетки
 //
 // Ряд на клип (покой — каждый второй кадр из 24), кадр контакта подчёркнут золотом, коричневая черта — линия земли.
 // В сводке — рост в покое против HERO_BODY_HEIGHT (если покой в списке) и касание края листа (мало `pad`).
 import { build } from 'esbuild';
 import { deflateSync } from 'node:zlib';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,11 +24,17 @@ const Z = Number(opt('zoom', 2));
 const OUT = resolve(opt('out', join(ROOT, 'hero-preview')));
 const ONLY = opt('clips', '');
 const D = Number(opt('d', 1.5)); // пиксель героя — 1,5 (решение пользователя)
+const HERO = opt('hero', 'warrior');
+const AVATAR = args.includes('--avatar');
 
 const bundle = await build({
   stdin: {
     contents: [
-      "export { warriorModel } from './src/ui/heroes/warrior';",
+      "export { modelClips } from './src/ui/heroes/model';",
+      // Модель, ещё не записанная в HERO_MODELS (идёт работа, игра её не видит), — из своего файла: `<герой>Model()`.
+      existsSync(resolve(ROOT, `src/ui/heroes/${HERO}.ts`)) ? `export * as own from './src/ui/heroes/${HERO}';` : 'export const own = {};',
+      "export { HERO_MODELS, avatarCells } from './src/ui/heroes';",
+      "export { renderAvatar } from './src/ui/heroes/avatar';",
       "export { HERO_CLIPS, renderHeroClip } from './src/ui/heroes/clips';",
       "export { HERO_BODY_HEIGHT } from './src/data/characterSizes';",
       "export { MOB_STYLE } from './src/ui/mobs/styles';",
@@ -40,7 +48,7 @@ const bundle = await build({
   write: false,
   logLevel: 'warning',
 });
-const { warriorModel, HERO_CLIPS, renderHeroClip, HERO_BODY_HEIGHT, MOB_STYLE } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { own, modelClips, HERO_MODELS, avatarCells, renderAvatar, HERO_CLIPS, renderHeroClip, HERO_BODY_HEIGHT, MOB_STYLE } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 
 const CRC = new Int32Array(256).map((_, n) => {
   let c = n;
@@ -74,10 +82,11 @@ function png(w, h, rgba) {
 mkdirSync(OUT, { recursive: true });
 const BG = [34, 38, 34], GROUND = [110, 84, 56], KEY = [255, 209, 102];
 const GAP = 4;
-const clips = Object.keys(HERO_CLIPS).filter((c) => !ONLY || ONLY.split(',').includes(c));
-
+const model = HERO_MODELS[HERO] ?? own[`${HERO}Model`]?.();
+if (!model) throw new Error(`Нет модели героя «${HERO}»: ни в HERO_MODELS (src/ui/heroes/index.ts), ни ${HERO}Model() в src/ui/heroes/${HERO}.ts`);
+// Клипы, которые рисует модель: общие и её личные (чужие личные она не рисует — в игре играет замена).
+const clips = modelClips(model).filter((c) => !ONLY || ONLY.split(',').includes(c));
 {
-  const model = warriorModel();
   const t0 = performance.now();
   const rows = clips.map((c) => ({ clip: c, sh: renderHeroClip(model, c, { ...MOB_STYLE, d: D }) }));
   const ms = performance.now() - t0;
@@ -116,10 +125,30 @@ const clips = Object.keys(HERO_CLIPS).filter((c) => !ONLY || ONLY.split(',').inc
       for (let x = ox; x < ox + bw * Z; x++) for (let y = oy + bh * Z + 1; y < oy + bh * Z + 3; y++) out.set([...KEY, 255], (y * W + x) * 4);
     }
   }));
-  const file = join(OUT, 'warrior.png');
+  const file = join(OUT, `${HERO}.png`);
   writeFileSync(file, png(W, H, out));
   const idle = rows.find((r) => r.clip === 'idle')?.sh;
   const body = idle ? (ground - idle.top) * d : 0;
-  const want = HERO_BODY_HEIGHT.warrior;
-  console.log(`Воин: рост ${idle ? body : '—'} (таблица ${want}), кадр ${w * d}×${h * d}, ${Math.round(ms)} мс${edge.size ? `, ⚠ край листа: ${[...edge].join(', ')}` : ''} → ${file}`);
+  const want = HERO_BODY_HEIGHT[HERO];
+  console.log(`${HERO}: рост ${idle ? body : '—'} (таблица ${want}), кадр ${w * d}×${h * d}, ${Math.round(ms)} мс${edge.size ? `, ⚠ край листа: ${[...edge].join(', ')}` : ''} → ${file}`);
+}
+
+// Аватарка: те же размеры, что в игре (плитка выбора 112, лист персонажа 80, консоль 44 — клетки по avatarCells), в ряд ×Z.
+if (AVATAR) {
+  const sizes = [112, 80, 44].map((px) => avatarCells(px));
+  const W = sizes.reduce((a, n) => a + n * Z + GAP, GAP), H = Math.max(...sizes) * Z + 2 * GAP;
+  const out = new Uint8Array(W * H * 4);
+  for (let k = 0; k < W * H; k++) out.set([...BG, 255], k * 4);
+  let ox = GAP;
+  for (const n of sizes) {
+    const a = renderAvatar(model, n);
+    for (let j = 0; j < n * Z; j++) for (let i = 0; i < n * Z; i++) {
+      const s = (Math.floor(j / Z) * n + Math.floor(i / Z)) * 4;
+      out.set(a.subarray(s, s + 4), ((GAP + j) * W + ox + i) * 4);
+    }
+    ox += n * Z + GAP;
+  }
+  const file = join(OUT, `${HERO}-avatar.png`);
+  writeFileSync(file, png(W, H, out));
+  console.log(`${HERO}: аватарка ${sizes.join(', ')} клеток → ${file}`);
 }

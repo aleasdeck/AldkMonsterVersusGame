@@ -4,12 +4,11 @@ import assassinAvatar from '../assets/heroes/assassin-avatar.png';
 import berserkAvatar from '../assets/heroes/berserk-avatar.png';
 import mageAvatar from '../assets/heroes/mage-avatar.png';
 import paladinAvatar from '../assets/heroes/paladin-avatar.png';
-import warriorAvatar from '../assets/heroes/warrior-avatar.png';
 import assassinSheet from '../assets/heroes/assassin.png';
 import berserkSheet from '../assets/heroes/berserk.png';
 import mageSheet from '../assets/heroes/mage.png';
 import paladinSheet from '../assets/heroes/paladin.png';
-import { hasHeroArt, heroClipContact, heroFrameMs, heroSheetSprite, playHeroSculptClip } from './heroes';
+import { avatarCells, hasHeroArt, heroAvatarUrl, heroClipContact, heroFrameMs, heroSheetSprite, playHeroSculptClip } from './heroes';
 
 /**
  * Герои на поле. Воин — пиксельной лепкой (heroes/, свои одиннадцать клипов), остальные — рисованными листами
@@ -48,10 +47,10 @@ export function heroSheetInfo(heroId: string): Readonly<HeroSheet> | undefined {
 
 /**
  * Аватарки героев (v0.41.1): портрет в рисованной рамке, лист генератора режет `tools/hero-avatars.py`.
- * Рамка — часть рисунка и заодно цвет героя, поэтому своей в разметке нет.
+ * Рамка — часть рисунка и заодно цвет героя, поэтому своей в разметке нет. У героев-лепки (v0.54.4, Воин)
+ * аватарка рисуется из модели (heroes/avatar.ts) — рисованной у них нет.
  */
 const HERO_AVATARS: Record<string, string> = {
-  warrior: warriorAvatar,
   mage: mageAvatar,
   assassin: assassinAvatar,
   paladin: paladinAvatar,
@@ -139,9 +138,15 @@ export function heroAvatar(heroId: string, px: number): HTMLElement {
   el.className = 'hero-avatar';
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', heroId);
+  el.style.setProperty('--box', `${px}px`);
+  if (hasHeroArt(heroId)) {
+    // Лепка — пиксель в пиксель: увеличивать без сглаживания, ужимать (подсказка) — со сглаживанием.
+    el.classList.toggle('sculpt', avatarCells(px) <= px);
+    el.style.setProperty('--pic', `url(${heroAvatarUrl(heroId, px)})`);
+    return el;
+  }
   const url = HERO_AVATARS[heroId];
   if (!url) return el;
-  el.style.setProperty('--box', `${px}px`);
   el.style.setProperty('--pic', `url(${url})`);
   return el;
 }
@@ -187,11 +192,11 @@ export function playHeroClip(root: HTMLElement, heroId: string, want: HeroClip, 
  */
 export function heroContactMs(heroId: string, clip: HeroClip): number {
   if (!hasHeroArt(heroId) || clip === 'idle' || clip === 'battle') return 0;
-  return heroClipContact(clip);
+  return heroClipContact(heroId, clip);
 }
 
 /** Длительность кадра клипа героя-лепки, мс (0 — рисованный). */
 export function heroClipFrameMs(heroId: string, clip: HeroClip): number {
   if (!hasHeroArt(heroId) || clip === 'idle' || clip === 'battle') return 0;
-  return heroFrameMs(clip);
+  return heroFrameMs(heroId, clip);
 }

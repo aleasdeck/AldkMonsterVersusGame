@@ -1,5 +1,8 @@
-import { type Mat, type Model, type Painter } from '../mobs/pixel';
+import { type Mat, type Painter } from '../mobs/pixel';
+import type { AvatarSpec } from './avatar';
+import type { HeroModel, HeroProbe } from './model';
 import { clipAt, HERO_CLIPS, poseAt, type PoseKeys, type SculptClip } from './clips';
+import { arcStroke, at, DEG, ease, ik, lerp, limb2, reachFoot, solid, stroke } from './rig';
 
 /**
  * Воин пиксельной лепкой — облик «Чёрный рыцарь» (решения пользователя со страницы обсуждения «Лепка Воина»:
@@ -17,35 +20,6 @@ import { clipAt, HERO_CLIPS, poseAt, type PoseKeys, type SculptClip } from './cl
  * Порядок вызовов фигур не переставлять без нужды: зерно фактуры материала зависит от того, каким по счёту
  * материал встретился в кадре (`Painter`), — перестановка меняет крапинки на латах.
  */
-
-const DEG = Math.PI / 180;
-
-/** Точка на расстоянии `len` от (x, y) под углом `a` градусов: 0 — вперёд (к врагам), 90 — вниз, 180 — назад, 270 — вверх. */
-function at(x: number, y: number, a: number, len: number): [number, number] {
-  return [x + len * Math.cos(a * DEG), y + len * Math.sin(a * DEG)];
-}
-
-/** Рука из двух звеньев от плеча: направления плеча `a1` и предплечья `a2` (градусы, как в `at`). */
-function limb2(sx: number, sy: number, a1: number, l1: number, a2: number, l2: number): { ex: number; ey: number; hx: number; hy: number } {
-  const [ex, ey] = at(sx, sy, a1, l1);
-  const [hx, hy] = at(ex, ey, a2, l2);
-  return { ex, ey, hx, hy };
-}
-
-/** Колено по бедру и щиколотке (кости `l1`, `l2`): из двух решений — то, что ближе к направлению (dx, dy). */
-function ik(ax: number, ay: number, bx: number, by: number, l1: number, l2: number, dx: number, dy: number): [number, number] {
-  const vx = bx - ax, vy = by - ay;
-  const dist = Math.hypot(vx, vy) || 1;
-  const d = Math.min(dist, l1 + l2 - 0.01);
-  const ux = vx / dist, uy = vy / dist;
-  const a = Math.acos(Math.max(-1, Math.min(1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d))));
-  const k1: [number, number] = [ax + l1 * (ux * Math.cos(a) - uy * Math.sin(a)), ay + l1 * (ux * Math.sin(a) + uy * Math.cos(a))];
-  const k2: [number, number] = [ax + l1 * (ux * Math.cos(a) + uy * Math.sin(a)), ay + l1 * (-ux * Math.sin(a) + uy * Math.cos(a))];
-  return (k1[0] - ax) * dx + (k1[1] - ay) * dy >= (k2[0] - ax) * dx + (k2[1] - ay) * dy ? k1 : k2;
-}
-
-const lerp = (a: number, b: number, k: number): number => a + (b - a) * k;
-const ease = (k: number): number => k * k * (3 - 2 * k);
 
 // ─── Материалы ──────────────────────────────────────────────────────────────
 
@@ -87,33 +61,6 @@ const DIM = '#3a3236';
 /** Отблески на гранях шлема и гарде: яркий — на кромке к свету, приглушённый — пятна на плоскостях. */
 const GLINT = '#e4dad2';
 const GLINT_DIM = '#b8aeaa';
-
-/** Материал одного цвета — для штрихов краской по части: стык, кромка, блик. Кэш: движок узнаёт материал по объекту. */
-const SOLID = new Map<string, Mat>();
-function solid(c: string): Mat {
-  let m = SOLID.get(c);
-  if (!m) SOLID.set(c, (m = { base: c, ramp: [c, c, c, c, c], dither: 0 }));
-  return m;
-}
-
-/**
- * Штрих в пиксель краской по своей части (`paint`): в отличие от декали его закрывает всё, что нарисовано позже, —
- * меч поверх ноги не пересекается чертой наколенника.
- */
-function stroke(p: Painter, pts: number[], color: string, part: string): void {
-  for (let k = 0; k + 3 < pts.length; k += 2) p.limb(pts[k], pts[k + 1], 0.6, pts[k + 2], pts[k + 3], 0.6, solid(color), { part, paint: true });
-}
-
-/** Дуга эллипса штрихом краской по части. */
-function arcStroke(p: Painter, cx: number, cy: number, rx: number, ry: number, a0: number, a1: number, color: string, part: string): void {
-  const n = Math.max(3, Math.ceil((Math.abs(a1 - a0) / 360) * (rx + ry) * 1.2));
-  const pts: number[] = [];
-  for (let k = 0; k <= n; k++) {
-    const a = (a0 + ((a1 - a0) * k) / n) * DEG;
-    pts.push(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
-  }
-  stroke(p, pts, color, part);
-}
 
 // ─── Меч, шлем, щит ─────────────────────────────────────────────────────────
 
@@ -269,6 +216,8 @@ export interface WarriorPose extends Record<string, number> {
   drop: number;
   /** Свечение на острие (приём, клич), пыль у острия (сильный удар), искры о кромку щита. */
   glow: number; dust: number; spark: number;
+  /** Меч поверх ближнего наплечника, кулак — поверх рукояти (1): портрет с клинком на плече. В клипах 0 — меч под рукой. */
+  front: number;
 }
 
 const REST: WarriorPose = {
@@ -277,7 +226,7 @@ const REST: WarriorPose = {
   nh: 0, hx: M.armN.hand[0], hy: M.armN.hand[1],
   f1: ARM_F.a1, f2: ARM_F.a2, sh: 0, shx: 0, shy: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
-  cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0,
+  cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0, front: 0,
 };
 
 /**
@@ -414,8 +363,8 @@ function nearArm(P: WarriorPose): { ex: number; ey: number; hx: number; hy: numb
   return { ex, ey, hx: tx, hy: ty, a1: Math.atan2(ey - sy, ex - sx) / DEG, a2: Math.atan2(ty - ey, tx - ex) / DEG };
 }
 
-/** Для инструментов (`tools/hero-proto/probe.mjs`): точки кадра в координатах поля — кисть, острие, стопы, таз. */
-export const warriorProbe: { on?: (info: Record<string, number>) => void } = {};
+/** Зонд (`tools/hero-proto/probe.mjs`, тест): точки кадра — таз, кисть, острие, стопы. Меч в земле нарочно — лечение на колене, удар сверху в землю, падение. */
+export const warriorProbe: HeroProbe = { grounded: ['heal', 'heavy', 'death'] };
 
 /** Поза кадра: ключи клипа или покой. Покой прибавляется и в клипах — там фаза 0, первый кадр покоя. */
 function framePose(p: Painter): WarriorPose {
@@ -437,240 +386,265 @@ function tipGlow(p: Painter, x: number, y: number, a: number, glow: number): voi
   if (glow > 0.5) p.px(gx, gy, '#fff4e0');
 }
 
+/**
+ * Поза портрета: меч на плече — кулак перед грудью держит рукоять под гардой, клинок чистой диагональю лежит на
+ * ближнем наплечнике и уходит за край кадра; щит подтянут к телу справа внизу, шлем прямо. В покое меч у бедра
+ * срезался кадром бюста, а отвесный клинок в салюте прятал гарду под наплечником и на пикселе 1,5 ломался ступенькой.
+ */
+const PORTRAIT: WarriorPose = { ...REST, nh: 1, hx: 52, hy: 66, sw: -128, f1: 85, f2: 70, shx: -2, shy: -11, front: 1 };
+
+/**
+ * Аватарка: бюст от гребня до пояса, щит у правого края, ореол за шлемом; багровый фон и силуэт замка —
+ * как у прежнего рисованного портрета, чтобы Воин стоял в ряду выбора героев вместе с остальными.
+ */
+const AVATAR: AvatarSpec = {
+  draw: (p) => drawWarrior(p, PORTRAIT),
+  crop: [18, -10, 94],
+  halo: [66, 22, 33],
+  colors: { top: '#5a171b', bottom: '#1f080b', halo: '#8a2a2b', haloEdge: '#a8443c', skyline: '#2b0a0e', frameDark: '#0e0508', frame: '#4a1a1d', frameLight: '#8c3a34' },
+  skyline: [[0.05, 0.1, 0.6, 0.18], [0.15, 0.07, 0.52, 0.1], [0.1, 0.3, 0.42, 0], [0.88, 0.08, 0.58, 0.14], [0.96, 0.08, 0.68, 0.16], [0.92, 0.2, 0.44, 0]],
+};
+
 /** Воин; рост в покое — `HERO_BODY_HEIGHT.warrior` (128) в пикселе `HERO_PIXEL`. */
-export function warriorModel(): Model {
+export function warriorModel(): HeroModel {
   return {
     id: 'warrior',
+    own: ['bash', 'riposte'],
+    avatar: AVATAR,
+    probe: warriorProbe,
     w: 128,
     h: 136,
     ground: G,
     // Поле под клипы: выпад с мечом к врагам, меч над шлемом, лежащее тело головой назад.
     pad: 80,
-    draw(p: Painter) {
-      const P = framePose(p);
-      // Дыхание: два вдоха за цикл — верх на пиксель вверх.
-      const breath = p.bob(2, 2);
-      const turn = p.blink(0.62, 0.16);
-      const fall = ease(Math.max(0, Math.min(1, P.fall)));
-      const bounce = P.fall > 1 ? (P.fall - 1) * 50 : 0;
-      // Таз: присед опускает, падение кладёт на спину головой назад (от врагов).
-      const hipX = lerp(PELVIS[0], PELVIS[0] - 6, fall);
-      const hipY = lerp(PELVIS[1] + P.crouch, G - 16, fall) - bounce;
-      const rot = lerp(HUNCH + P.lean * DEG, -Math.PI / 2, fall);
-      const up = { dx: hipX - PELVIS[0], dy: hipY - PELVIS[1] - breath * (1 - fall), rot, px: PELVIS[0], py: PELVIS[1] };
-      const probeInfo: Record<string, number> = {};
-      /** Точка верха (координаты стойки) в кадре — для выпавшего меча и острия. */
-      const toWorld = (x: number, y: number): [number, number] => {
-        const c = Math.cos(rot), s = Math.sin(rot);
-        return [PELVIS[0] + c * (x - PELVIS[0]) - s * (y - PELVIS[1]) + up.dx, PELVIS[1] + s * (x - PELVIS[0]) + c * (y - PELVIS[1]) + up.dy];
-      };
-
-      p.pose({ dx: P.x, dy: P.y }, () => {
-        // Тень — между стопами и тазом: стопы стоят, таз уходит вперёд или назад.
-        p.shadow(62 - 10 * fall - P.x * 0.5 * (1 - fall), 48 + 16 * fall, 4);
-
-        // Плащ, упавший под тело, — на земле.
-        if (fall > 0.55) p.poly([hipX - 78, G - 5, hipX - 34, G - 7, hipX + 2, G - 4, hipX + 4, G, hipX - 82, G], CLOTH, { part: 'capeGround', tone: -0.18 });
-
-        // ── Плащ — за спиной, в кадре верха; на замахе и выпаде взвивается назад, при падении уходит под тело. ──
-        if (fall < 0.6) {
-          p.pose(up, () => {
-            const fl = P.cape, keep = 1 - fall / 0.6;
-            const pts = [54, 30, 42, 34, 30, 46, 22, 74, 17, 104, 12, 127, 20, 121, 26, 129, 31, 117, 37, 126, 41, 108, 46, 84, 50, 60];
-            for (let k = 0; k < pts.length; k += 2) {
-              const t = Math.max(0, (pts[k + 1] - 30) / 99);
-              pts[k + 1] = 30 + (pts[k + 1] - 30) * keep - fl * 34 * t * t;
-              pts[k] = pts[k] - fl * 30 * t;
-            }
-            p.poly(pts, CLOTH, { part: 'cape', tone: -0.16, bevel: 3 });
-          });
-        }
-
-        // ── Ноги: бедро от таза, колено — ik. Стопы стоят на земле: `x`/`y` двигают таз, а не стопы (шаг — `footF`/`footN`,
-        //    подъём — `liftF`/`liftN`); нога не достаёт — пятка отрывается, носок на полу. `kneel` ставит ближнее колено
-        //    на землю; при падении ноги вытягиваются к врагам. ──
-        const legRot = lerp(0, -Math.PI / 2, fall);
-        const legs = [
-          { g: M.legF, L2: LEG_F, side: 'far', tone: -0.03, off: [11, 2], foot: P.footF, lift: P.liftF, kneel: 0, lie: [hipX + 46, G - 6], lieRot: -1.4, bend: [lerp(1, 0.2, fall), lerp(-0.2, -1, fall)] },
-          { g: M.legN, L2: LEG_N, side: 'near', tone: 0, off: [-10, 2], foot: P.footN, lift: P.liftN, kneel: P.kneel, lie: [hipX + 40, G - 5], lieRot: 1.4, bend: [lerp(-1, 0.3, fall), lerp(-0.2, -1, fall)] },
-        ] as const;
-        for (const lg of legs) {
-          const c = Math.cos(legRot), sn = Math.sin(legRot);
-          const hx = hipX + c * lg.off[0] - sn * lg.off[1], hy = hipY + sn * lg.off[0] + c * lg.off[1];
-          const out = lg.g.toe === 0 ? 1 : -1;
-          // Стопа в координатах поля: сдвиг тела её не двигает (в этой позе поле сдвинуто на x, y — вычитаем).
-          const floor = lg.g.ank[1] - P.y;
-          let ax = lg.g.ank[0] + lg.foot - P.x, ay = floor - lg.lift;
-          let bend: [number, number] = [lg.bend[0], lg.bend[1]];
-          let toe = 0;
-          if (lg.kneel > 0) {
-            // Колено на земле чуть впереди бедра, голень назад-вверх, стопа на носке.
-            ax = lerp(ax, hx + 6 - 23.5, lg.kneel);
-            ay = lerp(ay, G - P.y - 17, lg.kneel);
-            bend = [lerp(bend[0], 0.3, lg.kneel), lerp(bend[1], 1, lg.kneel)];
-            toe += 0.5 * lg.kneel;
-          }
-          // Не достаёт — щиколотка поднимается (пятка отрывается), носок остаётся на полу.
-          const reach = lg.L2.l1 + lg.L2.l2 - 0.2;
-          const ddx = ax - hx;
-          if (Math.hypot(ddx, ay - hy) > reach) {
-            if (Math.abs(ddx) < reach) ay = hy + Math.sqrt(reach * reach - ddx * ddx);
-            else {
-              ax = hx + Math.sign(ddx) * reach;
-              ay = hy;
-            }
-          }
-          toe += Math.max(0, floor - ay) / 14;
-          ax = lerp(ax, lg.lie[0], fall);
-          ay = lerp(ay, lg.lie[1], fall);
-          const toeRot = lerp(toe, lg.lieRot, fall);
-          if (lg.side === 'far') probeInfo.footF = ax + P.x;
-          else probeInfo.footN = ax + P.x;
-          const [kx, ky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, bend[0], bend[1]);
-          const tone = lg.tone;
-          const leg = `${lg.side}Leg`, knee = `${lg.side}Knee`, foot = `${lg.side}Foot`;
-          p.limb(hx, hy, 8.5, kx, ky, 6.8, LIMB, { part: leg, tone });
-          p.limb(kx, ky, 6.2, ax, ay, 5.2, LIMB, { part: leg, tone });
-          // Стык набедренника посередине бедра и кромка поножи спереди (к врагам).
-          const mx = (hx + kx) / 2, my = (hy + ky) / 2;
-          stroke(p, [mx - 7, my + 1 * out, mx + 7, my - 1 * out], SEAM, leg);
-          stroke(p, [kx + 4, ky + 5, ax + 3.5, ay - 3], EDGE, leg);
-          // Башмак в своих координатах от щиколотки: носок наружу, подошва на земле; при шаге носок клюёт вниз.
-          p.pose({ rot: toeRot * out, px: ax, py: ay }, () => {
-            const S = G - M.legF.ank[1] - 0.5;
-            p.poly([ax - 5.5, ay - 2, ax + 5.5, ay - 2, ax + 17 * out, ay + S - 4, ax + 14 * out, ay + S, ax - 6 * out, ay + S], LIMB, { part: foot, tone: tone - 0.04, bevel: 2.5 });
-            stroke(p, [ax - 5, ay + 3, ax + 5, ay + 3], SEAM, foot);
-            stroke(p, [ax + 2 * out, ay + 7, ax + 9 * out, ay + S - 3], SEAM, foot);
-            stroke(p, [ax - 5, ay - 1, ax + 5, ay - 1], EDGE, foot);
-          });
-          // Наколенник — чаша с крылом наружу и кромкой.
-          p.ellipse(kx, ky, 7.4, 6.6, LIMB, { part: knee, lift: 1.5, tone: tone + 0.04 });
-          p.poly([kx - 1 * out, ky - 4, kx + 11 * out, ky - 1, kx + 9 * out, ky + 5, kx, ky + 4], LIMB, { part: knee, tone: tone - 0.02, bevel: 2 });
-          arcStroke(p, kx, ky, 7, 6.2, 25, 155, lg.side === 'far' ? DIM : EDGE, knee);
-        }
-
-        // ── Верх: наклон вокруг таза, присед, дыхание; при падении — на спину. ──
-        const near = nearArm(P);
-        const far = limb2(M.armF.sh[0], M.armF.sh[1], P.f1, ARM_F.l1, P.f2, ARM_F.l2);
-        p.pose(up, () => {
-          // Дальняя рука — за туловищем, кулак за щитом.
-          p.limb(M.armF.sh[0], M.armF.sh[1], 7, far.ex, far.ey, 6, LIMB, { part: 'farArm', tone: -0.16 });
-          p.limb(far.ex, far.ey, 6, far.hx, far.hy, 5, LIMB, { part: 'farArm', tone: -0.16 });
-
-          // Туловище: таз, живот и кираса — одна часть; под кирасой — два ряда пластин живота.
-          p.ellipse(60, 70, 17, 8, CHEST, { part: 'torso', tone: -0.06 });
-          p.ellipse(61, 59, 17, 11, CHEST, { part: 'torso' });
-          p.ellipse(59, 46, 22, 16, CHEST, { part: 'torso', lift: 1.5 });
-          arcStroke(p, 60, 44, 19, 12, 25, 155, SEAM, 'torso');
-          arcStroke(p, 60, 48, 18, 11, 30, 150, SEAM, 'torso');
-          arcStroke(p, 60, 43, 19, 12, 30, 150, EDGE, 'torso');
-          stroke(p, [44, 38, 42, 50], EDGE, 'torso');
-          // Пояс с круглой пряжкой.
-          p.poly([44, 62, 79, 61, 80, 66, 44, 67], LEATHER, { part: 'belt', bevel: 1.5 });
-          p.ellipse(66, 64.5, 3.6, 3.6, IRON, { part: 'buckle', lift: 1 });
-          stroke(p, [65, 64, 66, 64], '#1a120c', 'buckle');
-          // Набедренные пластины — выпуклые лепестки в два ряда поверх бёдер.
-          p.ellipse(47, 72, 11, 6.5, LIMB, { part: 'tassetN', rot: 0.35, lift: 1 });
-          p.ellipse(44, 79, 10, 5.5, LIMB, { part: 'tassetN', rot: 0.5 });
-          arcStroke(p, 47, 72, 10, 5.8, 20, 160, SEAM, 'tassetN');
-          arcStroke(p, 44, 79, 9.4, 5, 30, 160, EDGE, 'tassetN');
-          p.ellipse(77, 72, 9, 6, LIMB, { part: 'tassetF', rot: -0.3, tone: -0.08 });
-          arcStroke(p, 77, 72, 8.4, 5.4, 20, 160, DIM, 'tassetF');
-          // Табард со складками и рваным подолом; на выпаде подол относит назад.
-          const tf = P.cape * 6;
-          p.poly([55, 66, 71, 66, 73 - tf * 0.3, 82, 71 - tf, 102, 67 - tf, 95, 63 - tf * 1.2, 110 - tf * 0.5, 59 - tf, 97, 56 - tf * 0.3, 84], CLOTH, { part: 'tabard', bevel: 2.5 });
-          stroke(p, [61, 70, 60 - tf * 0.8, 96], '#420c16', 'tabard');
-          stroke(p, [67, 70, 68 - tf * 0.8, 92], '#561420', 'tabard');
-
-          // Шарф лежит на ближнем наплечнике, обвивает шею под шлемом и широким концом свисает по груди до пояса.
-          p.poly([30, 30, 48, 25, 70, 27, 86, 31, 84, 40, 75, 50, 71, 63, 62, 65, 52, 57, 42, 47, 33, 40], CLOTH, { part: 'scarf', bevel: 4 });
-          p.ellipse(47, 32, 11, 8, CLOTH, { part: 'scarf', lift: 1 });
-          p.poly([50, 50, 66, 46, 71, 60, 64, 65, 56, 58], CLOTH, { part: 'scarf', paint: true, tone: -0.1 });
-          stroke(p, [44, 38, 58, 56], '#420c16', 'scarf');
-          stroke(p, [56, 40, 64, 58], '#420c16', 'scarf');
-          stroke(p, [72, 36, 78, 42], '#561420', 'scarf');
-
-          // Дальний наплечник — за шлемом и щитом, темнее.
-          p.ellipse(82, 38, 9.5, 8.5, LIMB, { part: 'farPauldron', tone: -0.2 });
-          arcStroke(p, 82, 37, 10, 8, 30, 150, DIM, 'farPauldron');
-
-          // Голова на шее: раз за цикл поворачивается, в клипах — запрокидывается и склоняется.
-          p.pose({ rot: (0.05 * turn) + P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => {
-            p.scope(HELM_SCALE, M.helm[0] - 4, M.helm[1] + 14 * (1.36 - HELM_SCALE), () => helm(p));
-          });
-
-          // Щит — перед туловищем, от кисти дальней руки; в покое — ровно на мерке.
-          const cx = far.hx + (M.armF.shield[0] - M.armF.hand[0]) + P.shx, cy = far.hy + (M.armF.shield[1] - M.armF.hand[1]) + P.shy;
-          p.pose({ rot: P.sh * DEG, px: cx, py: cy }, () => {
-            p.scope(1.62, cx, cy, () => {
-              shield(p);
-              // Искры о кромку щита со стороны врагов.
-              if (P.spark > 0.05) {
-                const n = Math.round(7 * P.spark);
-                for (let k = 0; k < n; k++) {
-                  const [x, y] = at(10, -6, -80 + k * 26, 3 + 5 * P.spark + (k % 2) * 2.5);
-                  p.px(x, y, k % 2 ? '#ffd890' : '#fff6d8');
-                }
-                p.glow(10, -6, 5 * P.spark, '#ffc870', 0.5);
-              }
-            });
-          });
-
-          // Ближняя рука с мечом — поверх туловища; меч выпадает из руки при смерти.
-          if (P.drop < 0.05) {
-            sword(p, near.hx, near.hy, P.sw);
-            tipGlow(p, near.hx, near.hy, P.sw, P.glow);
-          }
-          p.limb(M.armN.sh[0], M.armN.sh[1], 8, near.ex, near.ey, 7, LIMB, { part: 'nearArm' });
-          p.limb(near.ex, near.ey, 6.6, near.hx, near.hy, 5.6, LIMB, { part: 'nearArm' });
-          const [ex, ey] = at(near.ex, near.ey, near.a2, 6), [hx2, hy2] = at(near.hx, near.hy, near.a2, -6);
-          stroke(p, [ex + 3, ey + 1, hx2 + 3, hy2 + 1], EDGE, 'nearArm');
-          // Налокотник с крылом — крыло смотрит наружу от сгиба (против биссектрисы плеча и предплечья).
-          let ox = -(Math.cos((near.a1 + 180) * DEG) + Math.cos(near.a2 * DEG)), oy = -(Math.sin((near.a1 + 180) * DEG) + Math.sin(near.a2 * DEG));
-          const ol = Math.hypot(ox, oy);
-          if (ol < 0.2) [ox, oy] = [Math.cos((near.a1 + 90) * DEG), Math.sin((near.a1 + 90) * DEG)];
-          else [ox, oy] = [ox / ol, oy / ol];
-          const [wx, wy] = [near.ex + ox * 9, near.ey + oy * 9];
-          p.ellipse(near.ex, near.ey, 8, 7.4, LIMB, { part: 'elbow', lift: 1.4 });
-          p.poly([near.ex - oy * 5, near.ey + ox * 5, wx - oy * 3.5, wy + ox * 3.5, wx + oy * 3.5, wy - ox * 3.5, near.ex + oy * 4, near.ey - ox * 4], LIMB, { part: 'elbow', bevel: 2 });
-          arcStroke(p, near.ex, near.ey, 7.4, 6.8, 200, 330, EDGE, 'elbow');
-          // Раструб латной перчатки и кулак.
-          const [cfx, cfy] = at(near.hx, near.hy, near.a2, -3.5);
-          p.ellipse(cfx, cfy, 6.8, 5, LIMB, { part: 'cuff', rot: (near.a2 + 90) * DEG, tone: 0.02 });
-          p.ellipse(near.hx, near.hy, 6, 5.6, LIMB, { part: 'fist', tone: -0.04 });
-          stroke(p, [near.hx - 3, near.hy - 1, near.hx + 3, near.hy + 2], SEAM, 'fist');
-          // Ближний наплечник — купол и нижний ряд пластин одной частью, стыки и кромка; уменьшен до 0.78 —
-          // «огромный» (отзыв пользователя).
-          const pb = 0.78;
-          p.ellipse(35, 42, 15.5 * pb, 12.5 * pb, LIMB, { part: 'pauldron', lift: 1.5, flat: 0.2 });
-          p.ellipse(31, 42 + 9 * pb, 12 * pb, 6 * pb, LIMB, { part: 'pauldron', flat: 0.3 });
-          arcStroke(p, 34, 43, 14 * pb, 10.5 * pb, 30, 165, SEAM, 'pauldron');
-          arcStroke(p, 35, 42, 14.8 * pb, 11.8 * pb, 35, 160, EDGE, 'pauldron');
-          arcStroke(p, 31, 42 + 9 * pb, 11 * pb, 5.4 * pb, 30, 160, DIM, 'pauldron');
-        });
-
-        // Выпавший меч: соскальзывает из руки и ложится на землю перед телом.
-        if (P.drop >= 0.05) {
-          const k = ease(Math.min(1, P.drop));
-          const [hx0, hy0] = toWorld(near.hx, near.hy);
-          const x = lerp(hx0, 26, k), y = lerp(hy0, G - 3.5, k * k);
-          const a = lerp(P.sw + (rot * 180) / Math.PI, 3, k);
-          sword(p, x, y, a);
-        }
-        // Острие в координатах кадра: пыль сильного удара встаёт там, где клинок у земли.
-        const [tipX, tipY] = toWorld(...at(near.hx, near.hy, P.sw, SWORD_LEN));
-        if (P.dust > 0.05) {
-          const dx0 = Math.min(tipX, 150);
-          for (let k = 0; k < 9; k++) {
-            const r = (2 + 4 * P.dust) * (0.6 + ((k * 37) % 5) / 8);
-            p.disc(dx0 + (k - 4) * 5 * P.dust, G - 2 - (k % 3) * 3 * P.dust - (k % 2) * 2, r * 0.5, k % 2 ? '#7a6c58c0' : '#9a8a70c0', true);
-          }
-        }
-        if (warriorProbe.on) {
-          const [hwx, hwy] = toWorld(near.hx, near.hy);
-          warriorProbe.on({ ...probeInfo, hipX: hipX + P.x, hipY: hipY + P.y, handX: hwx + P.x, handY: hwy + P.y, tipX: tipX + P.x, tipY: tipY + P.y, ground: G });
-        }
-      });
-    },
+    draw: (p: Painter) => drawWarrior(p, framePose(p)),
   };
+}
+
+/** Воин в позе `P`: клипы берут позу по кадру (`framePose`), портрет — свою (`PORTRAIT`). */
+function drawWarrior(p: Painter, P: WarriorPose): void {
+  // Дыхание: два вдоха за цикл — верх на пиксель вверх.
+  const breath = p.bob(2, 2);
+  const turn = p.blink(0.62, 0.16);
+  const fall = ease(Math.max(0, Math.min(1, P.fall)));
+  const bounce = P.fall > 1 ? (P.fall - 1) * 50 : 0;
+  // Таз: присед опускает, падение кладёт на спину головой назад (от врагов).
+  const hipX = lerp(PELVIS[0], PELVIS[0] - 6, fall);
+  const hipY = lerp(PELVIS[1] + P.crouch, G - 16, fall) - bounce;
+  const rot = lerp(HUNCH + P.lean * DEG, -Math.PI / 2, fall);
+  const up = { dx: hipX - PELVIS[0], dy: hipY - PELVIS[1] - breath * (1 - fall), rot, px: PELVIS[0], py: PELVIS[1] };
+  const probeInfo: Record<string, number> = {};
+  /** Точка верха (координаты стойки) в кадре — для выпавшего меча и острия. */
+  const toWorld = (x: number, y: number): [number, number] => {
+    const c = Math.cos(rot), s = Math.sin(rot);
+    return [PELVIS[0] + c * (x - PELVIS[0]) - s * (y - PELVIS[1]) + up.dx, PELVIS[1] + s * (x - PELVIS[0]) + c * (y - PELVIS[1]) + up.dy];
+  };
+
+  p.pose({ dx: P.x, dy: P.y }, () => {
+    // Тень — между стопами и тазом: стопы стоят, таз уходит вперёд или назад.
+    p.shadow(62 - 10 * fall - P.x * 0.5 * (1 - fall), 48 + 16 * fall, 4);
+
+    // Плащ, упавший под тело, — на земле.
+    if (fall > 0.55) p.poly([hipX - 78, G - 5, hipX - 34, G - 7, hipX + 2, G - 4, hipX + 4, G, hipX - 82, G], CLOTH, { part: 'capeGround', tone: -0.18 });
+
+    // ── Плащ — за спиной, в кадре верха; на замахе и выпаде взвивается назад, при падении уходит под тело. ──
+    if (fall < 0.6) {
+      p.pose(up, () => {
+        const fl = P.cape, keep = 1 - fall / 0.6;
+        const pts = [54, 30, 42, 34, 30, 46, 22, 74, 17, 104, 12, 127, 20, 121, 26, 129, 31, 117, 37, 126, 41, 108, 46, 84, 50, 60];
+        for (let k = 0; k < pts.length; k += 2) {
+          const t = Math.max(0, (pts[k + 1] - 30) / 99);
+          pts[k + 1] = 30 + (pts[k + 1] - 30) * keep - fl * 34 * t * t;
+          pts[k] = pts[k] - fl * 30 * t;
+        }
+        p.poly(pts, CLOTH, { part: 'cape', tone: -0.16, bevel: 3 });
+      });
+    }
+
+    // ── Ноги: бедро от таза, колено — ik. Стопы стоят на земле: `x`/`y` двигают таз, а не стопы (шаг — `footF`/`footN`,
+    //    подъём — `liftF`/`liftN`); нога не достаёт — пятка отрывается, носок на полу. `kneel` ставит ближнее колено
+    //    на землю; при падении ноги вытягиваются к врагам. ──
+    const legRot = lerp(0, -Math.PI / 2, fall);
+    const legs = [
+      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.03, off: [11, 2], foot: P.footF, lift: P.liftF, kneel: 0, lie: [hipX + 46, G - 6], lieRot: -1.4, bend: [lerp(1, 0.2, fall), lerp(-0.2, -1, fall)] },
+      { g: M.legN, L2: LEG_N, side: 'near', tone: 0, off: [-10, 2], foot: P.footN, lift: P.liftN, kneel: P.kneel, lie: [hipX + 40, G - 5], lieRot: 1.4, bend: [lerp(-1, 0.3, fall), lerp(-0.2, -1, fall)] },
+    ] as const;
+    for (const lg of legs) {
+      const c = Math.cos(legRot), sn = Math.sin(legRot);
+      const hx = hipX + c * lg.off[0] - sn * lg.off[1], hy = hipY + sn * lg.off[0] + c * lg.off[1];
+      const out = lg.g.toe === 0 ? 1 : -1;
+      // Стопа в координатах поля: сдвиг тела её не двигает (в этой позе поле сдвинуто на x, y — вычитаем).
+      const floor = lg.g.ank[1] - P.y;
+      let ax = lg.g.ank[0] + lg.foot - P.x, ay = floor - lg.lift;
+      let bend: [number, number] = [lg.bend[0], lg.bend[1]];
+      let toe = 0;
+      if (lg.kneel > 0) {
+        // Колено на земле чуть впереди бедра, голень назад-вверх, стопа на носке.
+        ax = lerp(ax, hx + 6 - 23.5, lg.kneel);
+        ay = lerp(ay, G - P.y - 17, lg.kneel);
+        bend = [lerp(bend[0], 0.3, lg.kneel), lerp(bend[1], 1, lg.kneel)];
+        toe += 0.5 * lg.kneel;
+      }
+      // Не достаёт — щиколотка поднимается (пятка отрывается), носок остаётся на полу.
+      [ax, ay] = reachFoot(hx, hy, ax, ay, lg.L2.l1 + lg.L2.l2 - 0.2);
+      toe += Math.max(0, floor - ay) / 14;
+      ax = lerp(ax, lg.lie[0], fall);
+      ay = lerp(ay, lg.lie[1], fall);
+      const toeRot = lerp(toe, lg.lieRot, fall);
+      if (lg.side === 'far') probeInfo.footF = ax + P.x;
+      else probeInfo.footN = ax + P.x;
+      const [kx, ky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, bend[0], bend[1]);
+      const tone = lg.tone;
+      const leg = `${lg.side}Leg`, knee = `${lg.side}Knee`, foot = `${lg.side}Foot`;
+      p.limb(hx, hy, 8.5, kx, ky, 6.8, LIMB, { part: leg, tone });
+      p.limb(kx, ky, 6.2, ax, ay, 5.2, LIMB, { part: leg, tone });
+      // Стык набедренника посередине бедра и кромка поножи спереди (к врагам).
+      const mx = (hx + kx) / 2, my = (hy + ky) / 2;
+      stroke(p, [mx - 7, my + 1 * out, mx + 7, my - 1 * out], SEAM, leg);
+      stroke(p, [kx + 4, ky + 5, ax + 3.5, ay - 3], EDGE, leg);
+      // Башмак в своих координатах от щиколотки: носок наружу, подошва на земле; при шаге носок клюёт вниз.
+      p.pose({ rot: toeRot * out, px: ax, py: ay }, () => {
+        const S = G - M.legF.ank[1] - 0.5;
+        p.poly([ax - 5.5, ay - 2, ax + 5.5, ay - 2, ax + 17 * out, ay + S - 4, ax + 14 * out, ay + S, ax - 6 * out, ay + S], LIMB, { part: foot, tone: tone - 0.04, bevel: 2.5 });
+        stroke(p, [ax - 5, ay + 3, ax + 5, ay + 3], SEAM, foot);
+        stroke(p, [ax + 2 * out, ay + 7, ax + 9 * out, ay + S - 3], SEAM, foot);
+        stroke(p, [ax - 5, ay - 1, ax + 5, ay - 1], EDGE, foot);
+      });
+      // Наколенник — чаша с крылом наружу и кромкой.
+      p.ellipse(kx, ky, 7.4, 6.6, LIMB, { part: knee, lift: 1.5, tone: tone + 0.04 });
+      p.poly([kx - 1 * out, ky - 4, kx + 11 * out, ky - 1, kx + 9 * out, ky + 5, kx, ky + 4], LIMB, { part: knee, tone: tone - 0.02, bevel: 2 });
+      arcStroke(p, kx, ky, 7, 6.2, 25, 155, lg.side === 'far' ? DIM : EDGE, knee);
+    }
+
+    // ── Верх: наклон вокруг таза, присед, дыхание; при падении — на спину. ──
+    const near = nearArm(P);
+    const far = limb2(M.armF.sh[0], M.armF.sh[1], P.f1, ARM_F.l1, P.f2, ARM_F.l2);
+    p.pose(up, () => {
+      // Дальняя рука — за туловищем, кулак за щитом.
+      p.limb(M.armF.sh[0], M.armF.sh[1], 7, far.ex, far.ey, 6, LIMB, { part: 'farArm', tone: -0.16 });
+      p.limb(far.ex, far.ey, 6, far.hx, far.hy, 5, LIMB, { part: 'farArm', tone: -0.16 });
+
+      // Туловище: таз, живот и кираса — одна часть; под кирасой — два ряда пластин живота.
+      p.ellipse(60, 70, 17, 8, CHEST, { part: 'torso', tone: -0.06 });
+      p.ellipse(61, 59, 17, 11, CHEST, { part: 'torso' });
+      p.ellipse(59, 46, 22, 16, CHEST, { part: 'torso', lift: 1.5 });
+      arcStroke(p, 60, 44, 19, 12, 25, 155, SEAM, 'torso');
+      arcStroke(p, 60, 48, 18, 11, 30, 150, SEAM, 'torso');
+      arcStroke(p, 60, 43, 19, 12, 30, 150, EDGE, 'torso');
+      stroke(p, [44, 38, 42, 50], EDGE, 'torso');
+      // Пояс с круглой пряжкой.
+      p.poly([44, 62, 79, 61, 80, 66, 44, 67], LEATHER, { part: 'belt', bevel: 1.5 });
+      p.ellipse(66, 64.5, 3.6, 3.6, IRON, { part: 'buckle', lift: 1 });
+      stroke(p, [65, 64, 66, 64], '#1a120c', 'buckle');
+      // Набедренные пластины — выпуклые лепестки в два ряда поверх бёдер.
+      p.ellipse(47, 72, 11, 6.5, LIMB, { part: 'tassetN', rot: 0.35, lift: 1 });
+      p.ellipse(44, 79, 10, 5.5, LIMB, { part: 'tassetN', rot: 0.5 });
+      arcStroke(p, 47, 72, 10, 5.8, 20, 160, SEAM, 'tassetN');
+      arcStroke(p, 44, 79, 9.4, 5, 30, 160, EDGE, 'tassetN');
+      p.ellipse(77, 72, 9, 6, LIMB, { part: 'tassetF', rot: -0.3, tone: -0.08 });
+      arcStroke(p, 77, 72, 8.4, 5.4, 20, 160, DIM, 'tassetF');
+      // Табард со складками и рваным подолом; на выпаде подол относит назад.
+      const tf = P.cape * 6;
+      p.poly([55, 66, 71, 66, 73 - tf * 0.3, 82, 71 - tf, 102, 67 - tf, 95, 63 - tf * 1.2, 110 - tf * 0.5, 59 - tf, 97, 56 - tf * 0.3, 84], CLOTH, { part: 'tabard', bevel: 2.5 });
+      stroke(p, [61, 70, 60 - tf * 0.8, 96], '#420c16', 'tabard');
+      stroke(p, [67, 70, 68 - tf * 0.8, 92], '#561420', 'tabard');
+
+      // Шарф лежит на ближнем наплечнике, обвивает шею под шлемом и широким концом свисает по груди до пояса.
+      p.poly([30, 30, 48, 25, 70, 27, 86, 31, 84, 40, 75, 50, 71, 63, 62, 65, 52, 57, 42, 47, 33, 40], CLOTH, { part: 'scarf', bevel: 4 });
+      p.ellipse(47, 32, 11, 8, CLOTH, { part: 'scarf', lift: 1 });
+      p.poly([50, 50, 66, 46, 71, 60, 64, 65, 56, 58], CLOTH, { part: 'scarf', paint: true, tone: -0.1 });
+      stroke(p, [44, 38, 58, 56], '#420c16', 'scarf');
+      stroke(p, [56, 40, 64, 58], '#420c16', 'scarf');
+      stroke(p, [72, 36, 78, 42], '#561420', 'scarf');
+
+      // Дальний наплечник — за шлемом и щитом, темнее.
+      p.ellipse(82, 38, 9.5, 8.5, LIMB, { part: 'farPauldron', tone: -0.2 });
+      arcStroke(p, 82, 37, 10, 8, 30, 150, DIM, 'farPauldron');
+
+      // Голова на шее: раз за цикл поворачивается, в клипах — запрокидывается и склоняется.
+      p.pose({ rot: (0.05 * turn) + P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => {
+        p.scope(HELM_SCALE, M.helm[0] - 4, M.helm[1] + 14 * (1.36 - HELM_SCALE), () => helm(p));
+      });
+
+      // Щит — перед туловищем, от кисти дальней руки; в покое — ровно на мерке.
+      const cx = far.hx + (M.armF.shield[0] - M.armF.hand[0]) + P.shx, cy = far.hy + (M.armF.shield[1] - M.armF.hand[1]) + P.shy;
+      p.pose({ rot: P.sh * DEG, px: cx, py: cy }, () => {
+        p.scope(1.62, cx, cy, () => {
+          shield(p);
+          // Искры о кромку щита со стороны врагов.
+          if (P.spark > 0.05) {
+            const n = Math.round(7 * P.spark);
+            for (let k = 0; k < n; k++) {
+              const [x, y] = at(10, -6, -80 + k * 26, 3 + 5 * P.spark + (k % 2) * 2.5);
+              p.px(x, y, k % 2 ? '#ffd890' : '#fff6d8');
+            }
+            p.glow(10, -6, 5 * P.spark, '#ffc870', 0.5);
+          }
+        });
+      });
+
+      // Ближняя рука с мечом — поверх туловища; меч выпадает из руки при смерти. На портрете клинок лежит на
+      // наплечнике — тогда меч и кулак рисуются после наплечника (ниже), иначе он закрыл бы гарду.
+      const front = P.front > 0.5 && P.drop < 0.05;
+      if (P.drop < 0.05 && !front) {
+        sword(p, near.hx, near.hy, P.sw);
+        tipGlow(p, near.hx, near.hy, P.sw, P.glow);
+      }
+      p.limb(M.armN.sh[0], M.armN.sh[1], 8, near.ex, near.ey, 7, LIMB, { part: 'nearArm' });
+      p.limb(near.ex, near.ey, 6.6, near.hx, near.hy, 5.6, LIMB, { part: 'nearArm' });
+      const [ex, ey] = at(near.ex, near.ey, near.a2, 6), [hx2, hy2] = at(near.hx, near.hy, near.a2, -6);
+      stroke(p, [ex + 3, ey + 1, hx2 + 3, hy2 + 1], EDGE, 'nearArm');
+      // Налокотник с крылом — крыло смотрит наружу от сгиба (против биссектрисы плеча и предплечья).
+      let ox = -(Math.cos((near.a1 + 180) * DEG) + Math.cos(near.a2 * DEG)), oy = -(Math.sin((near.a1 + 180) * DEG) + Math.sin(near.a2 * DEG));
+      const ol = Math.hypot(ox, oy);
+      if (ol < 0.2) [ox, oy] = [Math.cos((near.a1 + 90) * DEG), Math.sin((near.a1 + 90) * DEG)];
+      else [ox, oy] = [ox / ol, oy / ol];
+      const [wx, wy] = [near.ex + ox * 9, near.ey + oy * 9];
+      p.ellipse(near.ex, near.ey, 8, 7.4, LIMB, { part: 'elbow', lift: 1.4 });
+      p.poly([near.ex - oy * 5, near.ey + ox * 5, wx - oy * 3.5, wy + ox * 3.5, wx + oy * 3.5, wy - ox * 3.5, near.ex + oy * 4, near.ey - ox * 4], LIMB, { part: 'elbow', bevel: 2 });
+      arcStroke(p, near.ex, near.ey, 7.4, 6.8, 200, 330, EDGE, 'elbow');
+      // Раструб латной перчатки и кулак.
+      const [cfx, cfy] = at(near.hx, near.hy, near.a2, -3.5);
+      p.ellipse(cfx, cfy, 6.8, 5, LIMB, { part: 'cuff', rot: (near.a2 + 90) * DEG, tone: 0.02 });
+      const fist = (): void => {
+        p.ellipse(near.hx, near.hy, 6, 5.6, LIMB, { part: 'fist', tone: -0.04 });
+        stroke(p, [near.hx - 3, near.hy - 1, near.hx + 3, near.hy + 2], SEAM, 'fist');
+      };
+      if (!front) fist();
+      // Ближний наплечник — купол и нижний ряд пластин одной частью, стыки и кромка; уменьшен до 0.78 —
+      // «огромный» (отзыв пользователя).
+      const pb = 0.78;
+      p.ellipse(35, 42, 15.5 * pb, 12.5 * pb, LIMB, { part: 'pauldron', lift: 1.5, flat: 0.2 });
+      p.ellipse(31, 42 + 9 * pb, 12 * pb, 6 * pb, LIMB, { part: 'pauldron', flat: 0.3 });
+      arcStroke(p, 34, 43, 14 * pb, 10.5 * pb, 30, 165, SEAM, 'pauldron');
+      arcStroke(p, 35, 42, 14.8 * pb, 11.8 * pb, 35, 160, EDGE, 'pauldron');
+      arcStroke(p, 31, 42 + 9 * pb, 11 * pb, 5.4 * pb, 30, 160, DIM, 'pauldron');
+      if (front) {
+        sword(p, near.hx, near.hy, P.sw);
+        fist();
+      }
+    });
+
+    // Выпавший меч: соскальзывает из руки и ложится на землю перед телом.
+    if (P.drop >= 0.05) {
+      const k = ease(Math.min(1, P.drop));
+      const [hx0, hy0] = toWorld(near.hx, near.hy);
+      const x = lerp(hx0, 26, k), y = lerp(hy0, G - 3.5, k * k);
+      const a = lerp(P.sw + (rot * 180) / Math.PI, 3, k);
+      sword(p, x, y, a);
+    }
+    // Острие в координатах кадра: пыль сильного удара встаёт там, где клинок у земли.
+    const [tipX, tipY] = toWorld(...at(near.hx, near.hy, P.sw, SWORD_LEN));
+    if (P.dust > 0.05) {
+      const dx0 = Math.min(tipX, 150);
+      for (let k = 0; k < 9; k++) {
+        const r = (2 + 4 * P.dust) * (0.6 + ((k * 37) % 5) / 8);
+        p.disc(dx0 + (k - 4) * 5 * P.dust, G - 2 - (k % 3) * 3 * P.dust - (k % 2) * 2, r * 0.5, k % 2 ? '#7a6c58c0' : '#9a8a70c0', true);
+      }
+    }
+    if (warriorProbe.on) {
+      const [hwx, hwy] = toWorld(near.hx, near.hy);
+      warriorProbe.on({ ...probeInfo, hipX: hipX + P.x, hipY: hipY + P.y, handX: hwx + P.x, handY: hwy + P.y, tipX: tipX + P.x, tipY: tipY + P.y, ground: G });
+    }
+  });
 }

@@ -1363,6 +1363,8 @@ p {
   background: var(--pic) no-repeat center / cover;
   image-rendering: auto;
 }
+/* Аватарка героя-лепки (heroes/avatar.ts): рисунок в клетках, увеличивается без сглаживания. */
+.hero-avatar.sculpt { image-rendering: pixelated; }
 .hero-sprite {
   flex: none; /* пустой div во flex-строке сжимается под текст соседа (у img была своя ширина) — правый край кадра срезало */
   position: relative;
