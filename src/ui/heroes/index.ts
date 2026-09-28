@@ -1,7 +1,8 @@
 import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
-import type { Model } from '../mobs/pixel';
 import { packMask, type MobMask } from '../mobs';
+import { renderAvatar } from './avatar';
 import { clipMs, contactMs, HERO_CLIPS, HERO_STYLE, renderHeroClip, type SculptClip } from './clips';
+import { modelClip, modelClips, type HeroModel } from './model';
 import { warriorModel } from './warrior';
 
 /**
@@ -14,7 +15,7 @@ import { warriorModel } from './warrior';
  * квадрата, земля — по его низу, а кадр целиком (с полем под выпад, замах и падение) рисуется `::before` поверх.
  * Идущий клип переживает `App.render()`: состояние лежит на герое, новый спрайт продолжает его с той же точки.
  */
-export const HERO_MODELS: Record<string, Model> = { warrior: warriorModel() };
+export const HERO_MODELS: Record<string, HeroModel> = { warrior: warriorModel() };
 
 /** Рисуется ли герой лепкой. */
 export function hasHeroArt(id: string): boolean {
@@ -67,14 +68,15 @@ function pack(sh: ReturnType<typeof renderHeroClip>): BakedClip {
 }
 
 /** Порядок прогрева: покой и то, что играет в первом же бою, — раньше; смерть — последней. */
-const WARM_ORDER: SculptClip[] = ['idle', 'attack', 'block', 'hurt', 'heavy', 'power', 'heal', 'buff', 'bash', 'riposte', 'death'];
+const WARM_ORDER: SculptClip[] = ['idle', 'attack', 'block', 'hurt', 'heavy', 'power', 'heal', 'buff', ...(Object.keys(HERO_CLIPS) as SculptClip[]).filter((c) => HERO_CLIPS[c].own), 'death'];
 const queue: Array<[string, SculptClip]> = [];
 let warming = false;
 
 /** Запечь клипы героя впрок, по одному за такт: первый удар в бою начинается без заминки. */
 export function warmHero(id: string): void {
   if (!hasHeroArt(id)) return;
-  for (const clip of WARM_ORDER) if (!bakes.get(id)?.clips[clip] && !queue.some(([h, c]) => h === id && c === clip)) queue.push([id, clip]);
+  const drawn = modelClips(HERO_MODELS[id]);
+  for (const clip of WARM_ORDER.filter((c) => drawn.includes(c))) if (!bakes.get(id)?.clips[clip] && !queue.some(([h, c]) => h === id && c === clip)) queue.push([id, clip]);
   if (warming || queue.length === 0) return;
   warming = true;
   const next = (): void => {
@@ -87,6 +89,33 @@ export function warmHero(id: string): void {
     window.setTimeout(next, 40);
   };
   window.setTimeout(next, 40);
+}
+
+// ─── Аватарка ───────────────────────────────────────────────────────────────
+
+const avatars = new Map<string, string>();
+
+/**
+ * Клеток в аватарке под размер на экране: крупная (плитка выбора 112, лист персонажа 80) — пиксель 2, как у врагов;
+ * мелкая (консоль 44) — пиксель 1, иначе лицо в 22 клетки не читается; подсказка 24 ужимает ту же, что в консоли.
+ */
+export function avatarCells(px: number): number {
+  return px >= 64 ? Math.round(px / 2) : 44;
+}
+
+/** Аватарка героя-лепки в data URL — рисуется при первом показе этого размера (≈10 мс) и дальше берётся готовой. */
+export function heroAvatarUrl(id: string, px: number): string {
+  const n = avatarCells(px);
+  const key = `${id}:${n}`;
+  let url = avatars.get(key);
+  if (!url) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = n;
+    canvas.getContext('2d')?.putImageData(new ImageData(renderAvatar(HERO_MODELS[id], n), n, n), 0, 0);
+    url = canvas.toDataURL();
+    avatars.set(key, url);
+  }
+  return url;
 }
 
 // ─── Спрайт и клипы ─────────────────────────────────────────────────────────
@@ -184,8 +213,9 @@ const reducedMotion = (): boolean => window.matchMedia('(prefers-reduced-motion:
  * Проиграть клип героя-лепки на спрайте в бою; `from` — с какого момента клипа, мс (блок — сразу с удара о щит).
  * false — движение отключено: игра оставит свой наскок и тряску.
  */
-export function playHeroSculptClip(root: HTMLElement, id: string, clip: SculptClip, from = 0): boolean {
+export function playHeroSculptClip(root: HTMLElement, id: string, want: SculptClip, from = 0): boolean {
   if (reducedMotion() || !hasHeroArt(id)) return false;
+  const clip = modelClip(HERO_MODELS[id], want);
   const st = stateOf(id);
   st.run = { clip, started: performance.now() - from };
   const el = root.querySelector<HTMLElement>('.hero-zone .hero-sheet');
@@ -199,19 +229,17 @@ export function playHeroSculptClip(root: HTMLElement, id: string, clip: SculptCl
   return true;
 }
 
-/** Момент контакта клипа от его начала, мс (0 — у клипа нет контакта): к нему игра приурочивает удар, цифру и эффект. */
-export function heroClipContact(clip: SculptClip): number {
-  return contactMs(clip);
-}
-
-/** Длительность клипа, мс. */
-export function heroClipMs(clip: SculptClip): number {
-  return clipMs(clip);
+/**
+ * Момент контакта клипа от его начала, мс (0 — у клипа нет контакта): к нему игра приурочивает удар, цифру и эффект.
+ * Чужой личный клип — по его замене: герой сыграет её.
+ */
+export function heroClipContact(id: string, clip: SculptClip): number {
+  return contactMs(modelClip(HERO_MODELS[id], clip));
 }
 
 /** Длительность кадра клипа, мс. */
-export function heroFrameMs(clip: SculptClip): number {
-  return 1000 / HERO_CLIPS[clip].fps;
+export function heroFrameMs(id: string, clip: SculptClip): number {
+  return 1000 / HERO_CLIPS[modelClip(HERO_MODELS[id], clip)].fps;
 }
 
 /**

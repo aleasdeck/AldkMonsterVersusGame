@@ -2,7 +2,7 @@
 //
 //   node tools/hero-proto/build.mjs          → hero-preview/lepka-voina.html (один файл)
 //
-// Модель — src/ui/heroes/warrior.ts, разметка — page.ts и template.html. Фоны и прежний лист Воина — data URI.
+// Модель — src/ui/heroes/warrior.ts, разметка — page.ts и template.html. Фоны, прежний лист и портрет Воина — data URI.
 import { build } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -18,6 +18,7 @@ const js = bundle.outputFiles[0].text.replace(/<\/script>/g, '<\\/script>');
 const assets = {
   bg: Object.fromEntries(['forest', 'crypt', 'caves'].map((id) => [id, uri(`src/assets/backgrounds/${id}-wide.png`)])),
   ref: uri('src/assets/heroes/warrior.png'),
+  avatar: uri('src/assets/heroes/warrior-avatar.png'),
 };
 const html = readFileSync(join(HERE, 'template.html'), 'utf8')
   .replace('{{ASSETS}}', () => JSON.stringify(assets))

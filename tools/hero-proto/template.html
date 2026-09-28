@@ -64,6 +64,13 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .tile-label { display: flex; justify-content: space-between; gap: 8px; width: 100%; max-width: 300px; font-size: 13px; color: var(--muted); margin-top: 6px; }
 .tile-label b { color: var(--text); font-weight: 500; }
 
+/* ─── Аватарки ─── */
+.avatars { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-end; }
+.avatars figure { margin: 0; display: grid; gap: 6px; justify-items: start; }
+.avatars img, .avatars canvas { display: block; max-width: 100%; height: auto; }
+.avatars figcaption { font-size: 13px; color: var(--muted); }
+.avatars figcaption b { color: var(--text); font-weight: 500; margin-right: 6px; }
+
 .list { padding-left: 1.2em; margin: 0 0 12px; }
 .list li { margin: 4px 0; }
 
@@ -156,6 +163,17 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     </ul>
   </section>
 
+  <section aria-labelledby="av-h">
+    <h2 id="av-h">Аватарка</h2>
+    <p class="prose">Портрет из той же лепки: своя поза — меч поднят в салюте слева от шлема, щит подтянут к телу, — бюст от гребня до пояса, багровый фон с ореолом за шлемом и силуэтами башен, пиксельная рамка. Размеры — как в игре, ×2: плитка выбора героя, лист персонажа, консоль. Крупные — пиксель 2, как у врагов, консоль — пиксель 1, иначе лицо не читается.</p>
+    <div class="avatars">
+      <figure><div data-avatar="112"></div><figcaption><b>112</b> выбор героя</figcaption></figure>
+      <figure><div data-avatar="80"></div><figcaption><b>80</b> лист персонажа</figcaption></figure>
+      <figure><div data-avatar="44"></div><figcaption><b>44</b> консоль</figcaption></figure>
+      <figure><div data-avatar="112" data-old></div><figcaption><b>Было</b> рисованный</figcaption></figure>
+    </div>
+  </section>
+
   <section aria-labelledby="q-h">
     <h2 id="q-h">Решено</h2>
     <div class="scroll">
@@ -170,13 +188,13 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
           <tr><td>Удар</td><td>укол с шага от бедра</td><td>рубка с плеча</td></tr>
           <tr><td>Сильный удар</td><td>рубка сверху с широким шагом, клинок в землю</td><td>глубокий выпад-укол</td></tr>
           <tr><td>Лечение</td><td>на колено, меч остриём в землю</td><td>«Второе дыхание» стоя</td></tr>
+          <tr><td>Аватарка</td><td>из лепки: салют мечом, щит у тела, багровый фон с ореолом</td><td>кадр покоя (меч у бедра срезан кадром), кадр блока, кадр лечения (шлем опущен)</td></tr>
         </tbody>
       </table>
     </div>
     <h3 style="margin-top:22px">Открыто</h3>
     <ul class="list prose">
       <li><b>Оружие по надетому.</b> Сейчас Воин всегда с мечом и щитом, что бы ни надел. Можно рисовать семьями: клинок, топор, дробящее, древко — рука и замах общие.</li>
-      <li><b>Аватарка.</b> Портрет в консоли и на выборе героя — прежний рисованный (серебряный рыцарь с крестом на щите); портрет из лепки Чёрного рыцаря — отдельной задачей.</li>
       <li><b>Остальные герои.</b> Маг, Ассасин, Паладин, Берсерк и Лучник — рисованными листами; следующий — тем же порядком (docs/lepka-geroev.md).</li>
     </ul>
   </section>
