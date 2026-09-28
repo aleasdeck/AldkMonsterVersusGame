@@ -262,6 +262,15 @@ function angularHelm(p: Painter, L: WarriorLook): void {
       stroke(p, [2.5, -7, 3, 12.8], SEAM, 'helm');
       stroke(p, [-9, -3.5, 2.5, -7], SEAM, 'helm');
       stroke(p, [-10.5, 10.5, 6, 13.5], SEAM, 'helm');
+      // Отблески: грани плоские, и блик движка на них почти не загорается — ставим его руками на свету:
+      // верх конька, передняя кромка верхней грани, пятно на ней, край лица под коньком, нижний край бока.
+      stroke(p, [2.2, -15.8, 5.5, -12], GLINT, 'helm');
+      stroke(p, [-10, -6.5, -6.8, -11.2], GLINT, 'helm');
+      stroke(p, [-4.5, -8.4, -2, -9.6], GLINT_DIM, 'helm');
+      stroke(p, [3.8, -5.2, 4, -3], GLINT_DIM, 'helm');
+      stroke(p, [-11.3, 3.5, -11, 7.5], GLINT_DIM, 'helm');
+      // Заклёпки по нижнему краю бока.
+      for (const x of [-8, -4, 0]) p.px(x, 10.5, GLINT_DIM);
       return;
     }
     case 'hounskull': {
@@ -459,6 +468,9 @@ function arcStroke(p: Painter, cx: number, cy: number, rx: number, ry: number, a
 /** Тёмный стык пластин и светлая кромка стали. */
 const SEAM = '#140f13';
 const EDGE_LIGHT = '#b6aaa6';
+/** Отблески на гранях шлема: яркий — на кромке к свету, приглушённый — пятна на плоскостях. */
+const GLINT = '#e4dad2';
+const GLINT_DIM = '#b8aeaa';
 const EDGE = EDGE_LIGHT;
 
 function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKind): Model {
@@ -574,7 +586,8 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKin
           // Угловатый шлем крупнее горшка по габариту (конёк, клюв) — его масштаб меньше, низ остаётся на воротнике.
           const angular = ANGULAR_HELMS.includes(L.helmKind);
           const hs = angular ? HELM_ANGULAR_SCALE : 1.36;
-          p.scope(hs, M.helm[0] + (angular ? 1 : 0), M.helm[1] + (angular ? 14 * (1.36 - hs) : 0), () => helm(p, L));
+          // Угловатый шлем сдвинут назад на 4 единицы: вынесенный к врагам, он «сильно впереди» (отзыв пользователя).
+          p.scope(hs, M.helm[0] + (angular ? -4 : 0), M.helm[1] + (angular ? 14 * (1.36 - hs) : 0), () => helm(p, L));
         });
 
         // Щит — перед туловищем, в перспективе.
