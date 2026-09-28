@@ -2,7 +2,7 @@
 // общий цикл кадров листает их по виртуальному времени (скорость ½×, ¼× — для разбора кадров).
 import { renderSheet, type Model, type Sheet, type Style } from '../../src/ui/mobs/pixel';
 import { MOB_STYLE } from '../../src/ui/mobs/styles';
-import { HERO_CLIPS, renderHeroClip, type HeroClip } from './hero';
+import { HERO_CLIPS, renderHeroClip, type SculptClip } from '../../src/ui/heroes/clips';
 
 /** Клип бойца: кадры холстами, частота, повтор или держать последний кадр. */
 export interface Anim { frames: HTMLCanvasElement[]; fps: number; loop: boolean; hold: boolean; contact?: number }
@@ -37,8 +37,8 @@ function anchor(sh: Sheet, model: Model): { ax: number; ay: number } {
 export function heroSet(model: Model, style: Style): ActorSet {
   const cache = new Map<string, Anim>();
   const make = (clip: string): Anim => {
-    const spec = HERO_CLIPS[clip as HeroClip];
-    const sh = renderHeroClip(model, clip as HeroClip, style);
+    const spec = HERO_CLIPS[clip as SculptClip];
+    const sh = renderHeroClip(model, clip as SculptClip, style);
     return { frames: sh.frames.map((f) => toCanvas(f, sh.w, sh.h)), fps: spec.fps, loop: clip === 'idle', hold: !!spec.hold, contact: spec.contact };
   };
   const idle = renderHeroClip(model, 'idle', style);

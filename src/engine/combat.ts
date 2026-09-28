@@ -636,8 +636,9 @@ function noteDealt(state: BattleState, kind: DamageKind, opts: HitOpts, dealt: n
 function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: DamageKind, opts: HitOpts = {}): number {
   const crit = opts.crit ?? false;
   const detail = opts.detail ?? newDetail();
+  const by = opts.src === 'riposte' ? { by: 'riposte' as const } : {};
   if (getStatus(e, 'invuln')) {
-    state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
+    state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked', ...by });
     detail.miss = 'неуязвим';
     if (!opts.detail) log(state, `${e.name} неуязвим`);
     return 0;
@@ -646,7 +647,7 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   if (kind === 'hit' || kind === 'spell') {
     const ev = statusValue(e, 'evade');
     if (ev > 0 && opts.rng && chance(opts.rng, ev / 100)) {
-      state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
+      state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked', ...by });
       detail.miss = `уворот ${ev} %`;
       if (!opts.detail) log(state, `${e.name} уворачивается (${ev} %)`);
       return 0;
@@ -657,7 +658,7 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
     if (d) {
       d.value -= 1;
       if (d.value <= 0) removeStatus(e, 'dodge');
-      state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked' });
+      state.events.push({ type: 'damage', target: e.uid, amount: 0, kind: 'blocked', ...by });
       detail.miss = 'уклонился';
       if (!opts.detail) log(state, `${e.name} уворачивается`);
       return 0;
@@ -683,7 +684,7 @@ function damageEnemy(state: BattleState, e: EnemyState, amount: number, kind: Da
   noteDealt(state, kind, opts, Math.min(rest, Math.max(0, e.hp)));
   e.hp -= rest;
   state.stats.damageDealt += rest;
-  state.events.push({ type: 'damage', target: e.uid, amount: rest, kind: rest === 0 ? 'blocked' : crit ? 'crit' : kind });
+  state.events.push({ type: 'damage', target: e.uid, amount: rest, kind: rest === 0 ? 'blocked' : crit ? 'crit' : kind, ...by });
   if (kind === 'hit' && !opts.noThorns) {
     const th = statusValue(e, 'thorns');
     if (th > 0 && opts.attacker) {

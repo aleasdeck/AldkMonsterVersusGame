@@ -523,7 +523,7 @@ const list: ArtifactDef[] = [
 
   {
     id: 'shield_bash',
-    fx: { color: '#8ecae6' },
+    fx: { color: '#8ecae6', clip: 'bash' },
     name: 'Щитовой удар',
     glyph: '⛨',
     kind: 'active',

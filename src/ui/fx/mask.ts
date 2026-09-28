@@ -1,11 +1,13 @@
 import { heroSheetInfo } from '../heroSprite';
-import { mobMaskNow } from '../mobs';
+import { heroMaskNow } from '../heroes';
+import { mobMaskNow, type MobMask } from '../mobs';
 import { CELL } from './bake';
 
 /**
  * Силуэт бойца в клетках холста эффектов (v0.52.7): латы блока ложатся по нему, поэтому им не нужен свой рисунок
- * на каждого врага. Враг-лепка отдаёт силуэт своего листа (mobs/index.ts хранит его битами), рисованный герой —
- * кадр своего листа, уменьшенный до сетки 2 px. Кадр — тот, что спрайт показывает прямо сейчас: латы идут за дыханием.
+ * на каждого врага. Враг и герой-лепка отдают силуэт своего листа (mobs/index.ts и heroes/index.ts хранят его битами),
+ * рисованный герой — кадр своего листа, уменьшенный до сетки 2 px. Кадр — тот, что спрайт показывает прямо сейчас:
+ * латы идут за дыханием и за щитом в клипе блока.
  */
 export interface Mask {
   /** Левая верхняя клетка силуэта на холсте. */
@@ -29,7 +31,21 @@ function mobMask(el: HTMLElement, r: FieldRect): Mask | null {
   const mm = mobMaskNow(el);
   if (!mm) return null;
   // Союзник-лепка (волк Волчьего свистка) развёрнут к врагам зеркалом CSS — силуэт тоже зеркалим.
-  const flip = !!el.closest('.ally');
+  return bitsMask(mm, r, !!el.closest('.ally'));
+}
+
+/**
+ * Герой-лепка: кадр рисуется `::before` поверх квадрата спрайта со сдвигом — силуэт кладём туда, где кадр,
+ * а не в квадрат.
+ */
+function sculptHeroMask(el: HTMLElement, r: FieldRect): Mask | null {
+  const hm = heroMaskNow(el);
+  if (!hm) return null;
+  return bitsMask(hm.mask, { x: r.x + hm.fx, y: r.y + hm.fy, w: hm.fw, h: hm.fh }, false);
+}
+
+/** Битовый силуэт кадра листа в клетки холста: `r` — где кадр лежит на поле. */
+function bitsMask(mm: MobMask, r: FieldRect, flip: boolean): Mask {
   const px = r.w / mm.w;
   const x0 = Math.floor(r.x / CELL), y0 = Math.floor(r.y / CELL);
   const w = Math.ceil((r.x + r.w) / CELL) - x0, h = Math.ceil((r.y + r.h) / CELL) - y0;
@@ -114,6 +130,7 @@ function heroMask(el: HTMLElement, r: FieldRect): Mask | null {
 /** Силуэт спрайта бойца: лепка врага или союзника, рисованный герой; иначе null (процедурный спрайт — без лат). */
 export function fighterMask(el: HTMLElement, r: FieldRect): Mask | null {
   if (el.classList.contains('mob-sheet')) return mobMask(el, r);
+  if (el.classList.contains('hero-sheet')) return sculptHeroMask(el, r);
   if (el.classList.contains('hero-sprite')) return heroMask(el, r);
   return null;
 }

@@ -1,10 +1,10 @@
-// Кадры черновой лепки героя в PNG — посмотреть каждый кадр без браузера.
+// Кадры лепки Воина (src/ui/heroes/warrior.ts) в PNG — посмотреть каждый кадр без браузера.
 //
-//   node tools/hero-proto/sheet.mjs                 → hero-preview/warrior-A.png, -B.png, -C.png и сводка (покой)
-//   node tools/hero-proto/sheet.mjs --look A --weapon axe --zoom 2
+//   node tools/hero-proto/sheet.mjs                          → hero-preview/warrior.png: все клипы и сводка
+//   node tools/hero-proto/sheet.mjs --clips attack,block --zoom 3
 //
-// Лист облика: ряд на клип (покой — каждый второй кадр из 24), кадр контакта подчёркнут золотом, коричневая черта —
-// линия земли. В сводке — рост в покое против HERO_BODY_HEIGHT и касание края листа (мало `pad`).
+// Ряд на клип (покой — каждый второй кадр из 24), кадр контакта подчёркнут золотом, коричневая черта — линия земли.
+// В сводке — рост в покое против HERO_BODY_HEIGHT (если покой в списке) и касание края листа (мало `pad`).
 import { build } from 'esbuild';
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -20,16 +20,14 @@ const opt = (name, def) => {
 };
 const Z = Number(opt('zoom', 2));
 const OUT = resolve(opt('out', join(ROOT, 'hero-preview')));
-const LOOKS = opt('look', 'B').split(',');
-const WEAPON = opt('weapon', 'sword');
 const ONLY = opt('clips', '');
 const D = Number(opt('d', 1.5)); // пиксель героя — 1,5 (решение пользователя)
 
 const bundle = await build({
   stdin: {
     contents: [
-      "export { warriorModel } from './tools/hero-proto/warrior';",
-      "export { HERO_CLIPS, renderHeroClip } from './tools/hero-proto/hero';",
+      "export { warriorModel } from './src/ui/heroes/warrior';",
+      "export { HERO_CLIPS, renderHeroClip } from './src/ui/heroes/clips';",
       "export { HERO_BODY_HEIGHT } from './src/data/characterSizes';",
       "export { MOB_STYLE } from './src/ui/mobs/styles';",
     ].join('\n'),
@@ -78,8 +76,8 @@ const BG = [34, 38, 34], GROUND = [110, 84, 56], KEY = [255, 209, 102];
 const GAP = 4;
 const clips = Object.keys(HERO_CLIPS).filter((c) => !ONLY || ONLY.split(',').includes(c));
 
-for (const look of LOOKS) {
-  const model = warriorModel(look, WEAPON);
+{
+  const model = warriorModel();
   const t0 = performance.now();
   const rows = clips.map((c) => ({ clip: c, sh: renderHeroClip(model, c, { ...MOB_STYLE, d: D }) }));
   const ms = performance.now() - t0;
@@ -118,10 +116,10 @@ for (const look of LOOKS) {
       for (let x = ox; x < ox + bw * Z; x++) for (let y = oy + bh * Z + 1; y < oy + bh * Z + 3; y++) out.set([...KEY, 255], (y * W + x) * 4);
     }
   }));
-  const file = join(OUT, `warrior-${look}${WEAPON === 'sword' ? '' : '-' + WEAPON}.png`);
+  const file = join(OUT, 'warrior.png');
   writeFileSync(file, png(W, H, out));
   const idle = rows.find((r) => r.clip === 'idle')?.sh;
   const body = idle ? (ground - idle.top) * d : 0;
   const want = HERO_BODY_HEIGHT.warrior;
-  console.log(`${look} ${WEAPON}: рост ${body} (таблица ${want}), кадр ${w * d}×${h * d}, ${Math.round(ms)} мс${edge.size ? `, ⚠ край листа: ${[...edge].join(', ')}` : ''} → ${file}`);
+  console.log(`Воин: рост ${idle ? body : '—'} (таблица ${want}), кадр ${w * d}×${h * d}, ${Math.round(ms)} мс${edge.size ? `, ⚠ край листа: ${[...edge].join(', ')}` : ''} → ${file}`);
 }

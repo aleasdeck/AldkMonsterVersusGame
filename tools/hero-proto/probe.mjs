@@ -22,8 +22,8 @@ const LOOK = opt('look', 'B');
 const bundle = await build({
   stdin: {
     contents: [
-      "export { warriorModel, warriorProbe } from './tools/hero-proto/warrior';",
-      "export { HERO_CLIPS, renderHeroClip } from './tools/hero-proto/hero';",
+      "export { warriorModel, warriorProbe } from './src/ui/heroes/warrior';",
+      "export { HERO_CLIPS, renderHeroClip } from './src/ui/heroes/clips';",
       "export { MOB_STYLE } from './src/ui/mobs/styles';",
     ].join('\n'),
     resolveDir: ROOT,
@@ -37,7 +37,7 @@ const bundle = await build({
 });
 const { warriorModel, warriorProbe, HERO_CLIPS, renderHeroClip, MOB_STYLE } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 
-const model = warriorModel(LOOK, 'sword', 'faceted');
+const model = warriorModel();
 const r = (v) => String(Math.round(v)).padStart(4);
 for (const clip of Object.keys(HERO_CLIPS).filter((c) => c !== 'idle' && (!ONLY || ONLY.split(',').includes(c)))) {
   const rows = [];

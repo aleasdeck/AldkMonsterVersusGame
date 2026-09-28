@@ -294,6 +294,11 @@ export interface FxSpec {
   kind?: FxKind;
   color?: string;
   sculpt?: SculptId;
+  /**
+   * Клип героя для приёма, если он не выводится из эффектов: Щитовой удар — удар щитом. У героя-лепки свой клип,
+   * рисованный подменяет его тяжёлым ударом (heroSprite.ts, `FALLBACK`).
+   */
+  clip?: 'bash';
 }
 
 // ─── Артефакты ─────────────────────────────────────────────────────────────
@@ -716,7 +721,14 @@ export interface AllyState extends Combatant {
 export type EventTarget = 'hero' | number;
 
 export type BattleEvent =
-  | { type: 'damage'; target: EventTarget; amount: number; kind: 'hit' | 'dot' | 'thorns' | 'spell' | 'blocked' | 'crit' }
+  | {
+      type: 'damage';
+      target: EventTarget;
+      amount: number;
+      kind: 'hit' | 'dot' | 'thorns' | 'spell' | 'blocked' | 'crit';
+      /** Ответный удар Воина (`riposte`): цифру UI показывает в кадр удара его клипа, а не вместе с блоком. */
+      by?: 'riposte';
+    }
   | { type: 'heal'; target: EventTarget; amount: number }
   | { type: 'block'; target: EventTarget; amount: number }
   | { type: 'status'; target: EventTarget; status: StatusId; value: number }

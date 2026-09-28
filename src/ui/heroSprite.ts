@@ -9,14 +9,18 @@ import assassinSheet from '../assets/heroes/assassin.png';
 import berserkSheet from '../assets/heroes/berserk.png';
 import mageSheet from '../assets/heroes/mage.png';
 import paladinSheet from '../assets/heroes/paladin.png';
-import warriorSheet from '../assets/heroes/warrior.png';
+import { hasHeroArt, heroClipContact, heroFrameMs, heroSheetSprite, playHeroSculptClip } from './heroes';
 
 /**
- * Рисованные герои: у каждого свой лист кадров (`src/assets/heroes/<id>.png`, ряд — клип, 8 кадров в ряду),
- * собранный из картинки генератора скриптом `tools/hero-sheet.py` — цифры манифеста печатает он же.
- * Кадры листает CSS (`.hero-sprite` в style.css), клипы боя запускает `playHeroClip`.
+ * Герои на поле. Воин — пиксельной лепкой (heroes/, свои одиннадцать клипов), остальные — рисованными листами
+ * (`src/assets/heroes/<id>.png`, ряд — клип, 8 кадров в ряду), собранными из картинки генератора скриптом
+ * `tools/hero-sheet.py` — цифры манифеста печатает он же. Кадры листает CSS (`.hero-sprite` и `.hero-sheet`
+ * в style.css), клипы боя запускает `playHeroClip` — одинаково для обоих.
+ *
+ * Клипы названы по роли, а не по рисунку: `battle` — покой в бою, `buff` — клич и бафы, `bash` и `riposte` —
+ * личные приёмы Воина. Чего у рисованного героя нет — подменяется по цепочке `FALLBACK`.
  */
-export type HeroClip = 'idle' | 'battle' | 'attack' | 'heavy' | 'power' | 'heal' | 'block' | 'hurt' | 'death';
+export type HeroClip = 'idle' | 'battle' | 'attack' | 'heavy' | 'power' | 'heal' | 'buff' | 'block' | 'hurt' | 'death' | 'bash' | 'riposte';
 
 export interface HeroSheet {
   url: string;
@@ -30,7 +34,6 @@ export interface HeroSheet {
 }
 
 const HERO_SHEETS: Record<string, HeroSheet> = {
-  warrior: { url: warriorSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 162, body: 107 },
   mage: { url: mageSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 186, body: 134 },
   assassin: { url: assassinSheet, clips: ['idle'], frames: 8, cell: 182, body: 166 },
   paladin: { url: paladinSheet, clips: ['idle'], frames: 8, cell: 188, body: 180 },
@@ -57,10 +60,13 @@ const HERO_AVATARS: Record<string, string> = {
 };
 
 /** Длительность клипа, мс. У боевых — под тайминг боя: удар приходится на середину клипа, к попаданию снаряда (FLIGHT в fx.ts). */
-const CLIP_MS: Record<HeroClip, number> = { idle: 1600, battle: 1300, attack: 520, heavy: 640, power: 560, heal: 800, block: 560, hurt: 400, death: 1000 };
+const CLIP_MS: Record<HeroClip, number> = { idle: 1600, battle: 1300, attack: 520, heavy: 640, power: 560, heal: 800, buff: 560, block: 560, hurt: 400, death: 1000, bash: 640, riposte: 560 };
 
-/** Чем заменить клип, которого у героя нет: тяжёлый удар — обычным, лечение — приёмом. Без замены клип не играется. */
-const FALLBACK: Partial<Record<HeroClip, HeroClip>> = { heavy: 'attack', heal: 'power', power: 'attack', battle: 'idle' };
+/**
+ * Чем заменить клип, которого у героя нет: тяжёлый удар — обычным, лечение — приёмом. Без замены клип не играется:
+ * клич рисованный герой не играет, как и до лепки, — его приём на себя светится эффектом.
+ */
+const FALLBACK: Partial<Record<HeroClip, HeroClip>> = { heavy: 'attack', heal: 'power', power: 'attack', bash: 'heavy', riposte: 'block', battle: 'idle' };
 
 /** Зацикленные клипы; остальные играются один раз и замирают на последнем кадре. */
 const LOOPS = new Set<HeroClip>(['idle', 'battle']);
@@ -99,6 +105,7 @@ function setClip(el: HTMLElement, clip: HeroClip, row: number, elapsed = 0): voi
  * чтобы замах мечом и падение не обрезались. `base` — что играть в покое: 'battle' в бою, 'death' на гибели.
  */
 export function heroSprite(heroId: string, px: number, base: HeroClip = 'idle'): HTMLElement {
+  if (hasHeroArt(heroId)) return heroSheetSprite(heroId, px, base === 'death' ? 'death' : 'idle');
   const sheet = HERO_SHEETS[heroId];
   const el = document.createElement('div');
   el.className = 'sprite hero-sprite';
@@ -146,9 +153,11 @@ export function heroArtUrls(heroId: string): string[] {
 
 /**
  * Проиграть одноразовый клип героя в бою и вернуться в стойку. false — такого клипа у героя нет,
- * и вызывающий оставляет старый наскок (`acting`).
+ * и вызывающий оставляет старый наскок (`acting`). `from` — с какого момента клипа, мс (только у лепки:
+ * блок на ударе врага начинается сразу с удара о щит).
  */
-export function playHeroClip(root: HTMLElement, heroId: string, want: HeroClip): boolean {
+export function playHeroClip(root: HTMLElement, heroId: string, want: HeroClip, from = 0): boolean {
+  if (hasHeroArt(heroId)) return want !== 'idle' && want !== 'battle' && playHeroSculptClip(root, heroId, want, from);
   const sheet = HERO_SHEETS[heroId];
   const found = sheet ? resolve(sheet, want) : null;
   if (!sheet || !found) return false;
@@ -170,4 +179,19 @@ export function playHeroClip(root: HTMLElement, heroId: string, want: HeroClip):
     setClip(back, p.clip, p.row);
   }, CLIP_MS[clip]);
   return true;
+}
+
+/**
+ * Момент контакта клипа, мс от начала: удар о цель, взмах приёма, удар о щит. 0 — у клипа нет контакта или герой
+ * рисованный (его листы подогнаны под время снаряда, `CLIP_MS`). По нему бой приурочивает цифру урона и эффект.
+ */
+export function heroContactMs(heroId: string, clip: HeroClip): number {
+  if (!hasHeroArt(heroId) || clip === 'idle' || clip === 'battle') return 0;
+  return heroClipContact(clip);
+}
+
+/** Длительность кадра клипа героя-лепки, мс (0 — рисованный). */
+export function heroClipFrameMs(heroId: string, clip: HeroClip): number {
+  if (!hasHeroArt(heroId) || clip === 'idle' || clip === 'battle') return 0;
+  return heroFrameMs(clip);
 }

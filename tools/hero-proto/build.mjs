@@ -1,8 +1,8 @@
-// Страница обсуждения «Лепка Воина»: модель героя лепкой рядом с нынешним листом, облики, размер пикселя, оружие.
+// Страница обсуждения «Лепка Воина»: модель и клипы из игры (src/ui/heroes) рядом с прежним рисованным листом.
 //
 //   node tools/hero-proto/build.mjs          → hero-preview/lepka-voina.html (один файл)
 //
-// Черновик модели — warrior.ts (в игру не входит), разметка — page.ts и template.html. Фоны и лист Воина — data URI.
+// Модель — src/ui/heroes/warrior.ts, разметка — page.ts и template.html. Фоны и прежний лист Воина — data URI.
 import { build } from 'esbuild';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
