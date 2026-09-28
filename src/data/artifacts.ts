@@ -692,7 +692,7 @@ const list: ArtifactDef[] = [
     cooldown: (tier) => t(3, 2, 2)(tier),
     target: 'enemy',
     reach: 'any',
-    // Сначала свой Яд на цель, потом разнос: без заводки в руках приём был пустым, а против одиночки не делал ничего.
+    // v0.54.1: сначала свой Яд на цель, потом разнос — без заводки в руках приём был пустым, а против одиночки не делал ничего.
     effects: (tier) => [
       { type: 'status', target: 'enemy', status: 'poison', value: t(1, 2, 3)(tier), turns: -1 },
       { type: 'spread', statuses: ['poison'], target: 'enemy' },
