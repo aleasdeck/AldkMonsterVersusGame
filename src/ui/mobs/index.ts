@@ -35,8 +35,8 @@ const ROW: Record<Row, number> = { idle: 0, attack: 1, hurt: 2 };
  */
 interface Baked { url: string; cols: number; w: number; h: number; d: number; n: Record<Row, number>; masks: Record<Row, Uint8Array[]> }
 
-/** Силуэт кадра: непрозрачные клетки (тень и свечение полупрозрачны — они не фигура), бит на клетку. */
-function packMask(px: Uint8ClampedArray, w: number, h: number): Uint8Array {
+/** Силуэт кадра: непрозрачные клетки (тень и свечение полупрозрачны — они не фигура), бит на клетку. Герои-лепка — тем же. */
+export function packMask(px: Uint8ClampedArray, w: number, h: number): Uint8Array {
   const out = new Uint8Array(Math.ceil((w * h) / 8));
   for (let k = 0; k < w * h; k++) if (px[k * 4 + 3] === 255) out[k >> 3] |= 1 << (k & 7);
   return out;

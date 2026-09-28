@@ -1296,7 +1296,8 @@ p {
    `--tint` ставит поле боя, вне боя переменной нет и спрайты остаются в своей палитре. */
 .field .sprite-wrap img.sprite,
 .field .sprite-wrap .mob-sheet,
-.field .hero-sprite::before {
+.field .hero-sprite::before,
+.field .hero-sheet::before {
   filter: var(--tint, none);
 }
 .tint-defs {
@@ -1392,6 +1393,49 @@ p {
 @keyframes hero-frames-once {
   to {
     background-position-x: calc(var(--cell) * -1 * (var(--frames) - 1));
+  }
+}
+/* Герой пиксельной лепкой (heroes/index.ts): клип — своя картинка в ряд кадров (--n), кадр --fw × --fh рисуется
+   ::before поверх квадрата --box со сдвигом --fx/--fy: середина фигуры в покое — по середине квадрата, земля — по низу.
+   Покой крутится hero-loop, клип — одноразовый hero-once (смерть замирает на последнем кадре); --delay отрицательный,
+   поэтому перерисовка экрана продолжает идущий клип с той же точки. `restart` перезапускает тот же клип подряд. */
+.hero-sheet {
+  flex: none;
+  position: relative;
+  width: var(--box);
+  height: var(--box);
+}
+.hero-sheet::before {
+  content: '';
+  position: absolute;
+  left: var(--fx);
+  top: var(--fy);
+  width: var(--fw);
+  height: var(--fh);
+  pointer-events: none;
+  background: var(--sheet) 0 0 / calc(var(--fw) * var(--n)) var(--fh) no-repeat;
+  image-rendering: pixelated;
+  animation: hero-loop var(--dur) steps(var(--n)) var(--delay, 0ms) infinite;
+}
+.hero-sheet.once::before {
+  animation: hero-once var(--dur) steps(var(--n), jump-none) var(--delay, 0ms) forwards;
+}
+.hero-sheet.restart::before {
+  animation: none;
+}
+@keyframes hero-loop {
+  to {
+    background-position-x: calc(var(--fw) * -1 * var(--n));
+  }
+}
+@keyframes hero-once {
+  to {
+    background-position-x: calc(var(--fw) * -1 * (var(--n) - 1));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-sheet::before {
+    animation: none;
   }
 }
 
@@ -2826,6 +2870,10 @@ p {
 }
 .result-body .stats-grid {
   flex: 1;
+}
+/* Павший герой-лепка лежит на спине головой назад, от середины квадрата влево: отодвигаем от края панели. */
+.end.lost .result-body .hero-sheet {
+  margin-left: 28px;
 }
 .end .row {
   justify-content: center;

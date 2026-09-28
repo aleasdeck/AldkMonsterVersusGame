@@ -622,7 +622,8 @@ export function battleScreen(app: App): HTMLElement {
     'div',
     { class: `hero-zone ${hasAllies ? 'narrow' : ''}` },
     badges(b.hero, true, undefined, fatigueBadge(b)),
-    h('div', { class: 'sprite-wrap' }, heroSprite(def.id, HERO_BODY_HEIGHT[def.id] ?? 128, 'battle')),
+    // Гибель: герой-лепка играет смерть и остаётся лежать до итогов (рисованный — стоит, как раньше).
+    h('div', { class: 'sprite-wrap' }, heroSprite(def.id, HERO_BODY_HEIGHT[def.id] ?? 128, b.phase === 'lost' ? 'death' : 'battle')),
     h('div', { class: 'name' }, def.name),
   );
 

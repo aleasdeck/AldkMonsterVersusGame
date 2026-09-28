@@ -1,0 +1,203 @@
+<title>Лепка Воина</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Tiny5&display=swap">
+<style>
+/* Одна тёмная сцена под игру: страница нарочно без светлой темы — пиксель-арт сверяется на тёмном. */
+:root {
+  color-scheme: dark;
+  --ink: #121016;
+  --panel: #1b181f;
+  --panel-2: #231f28;
+  --line: #2f2a35;
+  --text: #e8e2d6;
+  --muted: #a59dab;
+  --faint: #6f6877;
+  --brass: #d6a050;
+  --brass-ink: #1e1408;
+  --crimson: #ae3440;
+  --display: 'Tiny5', 'IBM Plex Mono', ui-monospace, monospace;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+body { background: var(--ink); color: var(--text); font: 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 64px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+.prose { max-width: 70ch; }
+h1, h2 { font-family: var(--display); font-weight: 400; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.05; margin: 40px 0 12px; color: var(--brass); }
+h2 { font-size: clamp(24px, 3.4vw, 30px); line-height: 1.15; margin: 60px 0 12px; }
+h3 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+p { margin: 0 0 12px; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.lead { font-size: 18px; max-width: 68ch; }
+.meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 20px; }
+.meta b { color: var(--text); font-weight: 500; }
+.note { color: var(--muted); font-size: 14px; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+.tog { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tog-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.tog button, .pick { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 14px; line-height: 1.3; }
+.tog button:hover, .pick:hover { border-color: var(--faint); }
+.tog button[aria-pressed="true"] { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-bottom: 10px; }
+
+/* ─── Поле ─── */
+.bench { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px; }
+.stage { position: relative; width: 100%; overflow: hidden; border-radius: 4px; background: #0b0a0e; }
+.field { position: absolute; left: 0; top: 0; width: 960px; height: 320px; transform-origin: 0 0; overflow: hidden; }
+.field .bg { position: absolute; inset: 0; width: 960px; height: 320px; max-width: none; image-rendering: pixelated; }
+.fig { position: absolute; max-width: none; image-rendering: pixelated; }
+.fig.smooth { image-rendering: auto; }
+.tint-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.caption { font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+
+/* ─── Крупные планы ─── */
+.tiles { display: grid; gap: 16px; }
+.tiles.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tile { min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.tile > [data-tile] { width: 100%; }
+.tile-win { position: relative; overflow: hidden; border-radius: 4px; background: #0b0a0e; margin: 0 auto; }
+.tile-win .field { transform-origin: 0 0; }
+.tile-label { display: flex; justify-content: space-between; gap: 8px; width: 100%; max-width: 300px; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.tile-label b { color: var(--text); font-weight: 500; }
+
+.list { padding-left: 1.2em; margin: 0 0 12px; }
+.list li { margin: 4px 0; }
+
+.clip-controls { margin: 10px 0 0; }
+#scene-clips button.own { border-color: var(--brass); }
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 16px; margin-top: 12px; }
+.clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; }
+.clip-card.own { border-color: var(--brass); }
+.clip-view { min-height: 240px; display: grid; place-items: center; color: var(--faint); font-size: 13px; }
+.clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.clip-head b { font-size: 16px; }
+.clip-head .mono { color: var(--muted); font-size: 12px; }
+.clip-card p { margin: 0; font-size: 14px; color: var(--muted); }
+@media (max-width: 560px) { .clips { grid-template-columns: 1fr; } }
+
+.scroll { overflow-x: auto; margin: 10px 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+
+@media (max-width: 760px) {
+  .tiles.two { grid-template-columns: 1fr; }
+  body { font-size: 15px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Лепка Воина</h1>
+    <p class="lead">Воин в игре — пиксельной лепкой, тем же движком, светом и сценой, что враги. Чёрный рыцарь с гранёным шлемом в пикселе 1,5 и одиннадцать клипов: покой, удар, сильный удар, приём, лечение, клич, блок, урон, смерть и два личных приёма. Здесь — та же модель, что в игре, рядом с прежним рисованным листом.</p>
+    <div class="meta"><span>Рост в бою <b>128</b></span><span>Модель <b>src/ui/heroes/warrior.ts</b></span><span>Клипы <b>src/ui/heroes/clips.ts</b></span><span>Инструкция <b>docs/lepka-geroev.md</b></span></div>
+  </header>
+
+  <section aria-labelledby="battle-h">
+    <h2 id="battle-h">В бою</h2>
+    <p class="prose">Кадр поля 960 × 320, как в игре: фон локации, её тонировка, враги-лепка в пикселе 2. Герой — лепка из игры или прежний рисованный лист.</p>
+    <div class="bench">
+      <div class="controls">
+        <span class="tog" id="scene-look" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
+          <button type="button" data-v="sculpt">Лепка</button>
+          <button type="button" data-v="ref">Лист (было)</button>
+        </span>
+        <span class="tog" id="scene-loc" role="group" aria-label="Локация"><span class="tog-label">Локация</span>
+          <button type="button" data-v="forest">Лес</button>
+          <button type="button" data-v="crypt">Склеп</button>
+          <button type="button" data-v="caves">Пещеры</button>
+        </span>
+      </div>
+      <div class="stage" id="scene"></div>
+      <div class="controls clip-controls">
+        <span class="tog" id="scene-clips" role="group" aria-label="Клип героя"><span class="tog-label">Клип</span></span>
+        <span class="tog" id="speed" role="group" aria-label="Скорость"><span class="tog-label">Скорость</span>
+          <button type="button" data-v="1">1×</button>
+          <button type="button" data-v="0.5">½×</button>
+          <button type="button" data-v="0.25">¼×</button>
+        </span>
+      </div>
+      <p class="caption">Клип играет герой; удары — вместе с первым врагом: он вздрагивает в кадр контакта, а в блоке, уроне, смерти и Ответном ударе сначала бьёт враг, и его контакт совпадает с кадром героя — так же, как в бою игры.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="clips-h">
+    <h2 id="clips-h">Анимации</h2>
+    <p class="prose">Каждый клип — та же лепка в другой позе: движок рисует все кадры один раз, игра листает лист. Удар, урон и контакт совпадают с врагами: 12 кадров в секунду, удар оружием касается цели на пятом кадре (333 мс), последний кадр любого клипа — первый кадр покоя (у смерти — держится). Позы заданы ключами по кадрам: руки, щит, наклон, присед, шаг, плащ, падение. Скорость — переключатель у поля выше.</p>
+    <p class="prose">Удары ведутся путём кисти, а не углами суставов: клинок отстаёт от кисти на замахе и догоняет её в кадр контакта — рука и меч одной линией на врага. Стопы держатся за землю, двигается таз: на выпаде задняя нога вытягивается и встаёт на носок, в блоке и уроне сгибается заднее колено, в лечении и смерти колено на земле. Удар — укол, сильный удар — рубка сверху с шагом, лечение — на колено (выбраны из пар вариантов).</p>
+    <div class="clips" id="clips"></div>
+    <p class="note">Эффекты приёмов — мазок клинка, латы блока, рёв клича, круг лечения — рисует слой эффектов игры поверх героя; здесь только сам герой. Золотая рамка — личные приёмы Воина.</p>
+  </section>
+
+  <section aria-labelledby="ref-h">
+    <h2 id="ref-h">Рядом с референсом</h2>
+    <p class="prose">Один кусок поля вокруг героя в масштабе ×2 — как кадр игры на экране FullHD. Мерки сняты с листа в долях рамки фигуры (она почти квадратная — ширина равна росту) и переведены в единицы поля.</p>
+    <div class="tiles two">
+      <div class="tile"><div data-tile="ref"></div><div class="tile-label"><b>Лист</b><span>было, генератор</span></div></div>
+      <div class="tile"><div data-tile="sculpt"></div><div class="tile-label"><b>Лепка</b><span>пиксель 1,5, 85 точек роста</span></div></div>
+    </div>
+    <h3 style="margin-top:22px">Что взято с листа</h3>
+    <ul class="list prose">
+      <li>Шлем-горшок в четверть роста, сидит низко между плечами и подан к врагам; прорезь — чёрная черта поперёк лица.</li>
+      <li>Ближний наплечник — самая широкая форма силуэта; верх ссутулен к врагам на 7°.</li>
+      <li>Длинный широкий меч — от кулака у бедра наискось почти до земли у передней стопы.</li>
+      <li>Щит-капля в перспективе занимает правую треть от плеча до колена; ноги короткие, колени широко и низко.</li>
+      <li>Палитра: тёплая сталь, латунная кромка, багровые шарф и табард.</li>
+    </ul>
+    <h3>Чего лепке не хватает до листа</h3>
+    <ul class="list prose">
+      <li>Лист нарисован с мелочью: десятки пластин, царапины, блики полосками. Лепка — крупные гладкие формы; сталь без правки выходила резиновой, поэтому в движок добавлен материал <code>metal</code> (сильнее контраст, шире блик — только для героев, враги не меняются) и тонкие стыки и кромки краской по пластинам.</li>
+      <li>В пикселе 2 фигура — 64 точки роста против ~107 у листа: прорезь шлема, кромки и стыки упрощаются. В пикселе 1,5 — 85 точек: кромки и стыки читаются, фигура всё ещё крупнее по зерну, чем лист. В пикселе 1 — 128 точек, подробнее листа.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="q-h">
+    <h2 id="q-h">Решено</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Что</th><th>Выбрано</th><th>Отвергнуто</th></tr></thead>
+        <tbody>
+          <tr><td>Облик</td><td>Чёрный рыцарь: воронёная сталь, багровые грива, плащ и перевязь на щите</td><td>Рыцарь как на листе, Ветеран в кольчуге</td></tr>
+          <tr><td>Шлем</td><td>гранёный, из той же стали, что латы, ×1,14, отблески на гранях, без дыхалец</td><td>круглый горшок, ведро, сахарная голова, собачья морда</td></tr>
+          <tr><td>Пиксель</td><td>1,5 — 85 точек роста, на FullHD три точки экрана</td><td>2 (как враги), 1 (вдвое подробнее)</td></tr>
+          <tr><td>Гарда</td><td>багровая, шире кулака, концы загнуты к острию</td><td>воронёная, светлая стальная</td></tr>
+          <tr><td>Крест на щите</td><td>перевязь — крест остаётся Паладину</td><td>бледный крест как на листе</td></tr>
+          <tr><td>Удар</td><td>укол с шага от бедра</td><td>рубка с плеча</td></tr>
+          <tr><td>Сильный удар</td><td>рубка сверху с широким шагом, клинок в землю</td><td>глубокий выпад-укол</td></tr>
+          <tr><td>Лечение</td><td>на колено, меч остриём в землю</td><td>«Второе дыхание» стоя</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3 style="margin-top:22px">Открыто</h3>
+    <ul class="list prose">
+      <li><b>Оружие по надетому.</b> Сейчас Воин всегда с мечом и щитом, что бы ни надел. Можно рисовать семьями: клинок, топор, дробящее, древко — рука и замах общие.</li>
+      <li><b>Аватарка.</b> Портрет в консоли и на выборе героя — прежний рисованный (серебряный рыцарь с крестом на щите); портрет из лепки Чёрного рыцаря — отдельной задачей.</li>
+      <li><b>Остальные герои.</b> Маг, Ассасин, Паладин, Берсерк и Лучник — рисованными листами; следующий — тем же порядком (docs/lepka-geroev.md).</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="doc-h">
+    <h2 id="doc-h">Инструкция</h2>
+    <p class="prose"><code>docs/lepka-geroev.md</code> — продолжение <code>docs/lepka.md</code> для героев: чем герой отличается от врага, как снимать мерки с нынешнего листа, порядок слоёв, сталь и ткань, сверка с референсом, клипы (каркас позы, путь кисти, стопы на земле, хореография с ударом врага), приёмка и ловушки, найденные на Воине.</p>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Что</th><th>У врага</th><th>У героя</th></tr></thead>
+        <tbody>
+          <tr><td>Куда смотрит</td><td>влево, ближняя сторона — правая</td><td>вправо, ближняя — левая: рука с оружием слева поверх туловища, щит справа</td></tr>
+          <tr><td>Референс</td><td>палитра процедурного спрайта</td><td>нынешний лист: мерки в долях рамки фигуры</td></tr>
+          <tr><td>Рост</td><td class="n">ENEMY_BODY_HEIGHT</td><td class="n">HERO_BODY_HEIGHT (Воин 128)</td></tr>
+          <tr><td>Сталь</td><td><code>shine</code></td><td><code>metal</code>, стыки и кромки краской по части</td></tr>
+          <tr><td>Клипы</td><td>покой, удар, урон</td><td>покой, удар, сильный удар, приём, лечение, клич, блок, урон, смерть и личные</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>window.ASSETS = {{ASSETS}};</script>
+<script>{{BUNDLE}}</script>

@@ -3,11 +3,12 @@ import type { Difficulty, EventKind, BattleEvent, EventTarget, GearKind, Locatio
 import * as R from '../engine/run';
 import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
 import { ENEMY_LIST, enemyDef } from '../data/enemies';
-import { HIT_GAP, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
+import { HIT_GAP, alignHeroShots, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
 import { syncPlates } from './fx/plates';
-import { heroArtUrls, playHeroClip } from './heroSprite';
+import { heroArtUrls, heroClipFrameMs, heroContactMs, playHeroClip } from './heroSprite';
 import { playEnemyAction, playEnemyClip } from './enemySprite';
 import { replayMobStrike, warmMobs } from './mobs';
+import { HERO_MODELS, warmHero } from './heroes';
 import {
   clearRun,
   loadProfile,
@@ -269,6 +270,9 @@ export class App {
    * следующей локации. Проверка при каждой перерисовке: повторный заказ preload.ts отсекает сам.
    */
   private warmArt(): void {
+    // Герои-лепка рисуются кодом, одиннадцать клипов — больше секунды: запекаются очередью в фоне с первого экрана,
+    // к выбору героя и первому бою листы готовы.
+    for (const id of Object.keys(HERO_MODELS)) warmHero(id);
     const run = this.run;
     if (!run) return;
     const here = R.currentLocation(run).id;
@@ -690,9 +694,13 @@ export class App {
     if (!run?.battle || this.busy || this.fxTimer !== null) return;
     if (canUseAction(run.battle, action)) return;
     const plan = animate ? planHeroFx(run, action) : null;
-    // Нарисованный клип героя стартует до применения приёма: он играет на старом поле вместе со снарядом.
+    // Клип героя стартует до применения приёма: он играет на старом поле вместе со снарядом. У героя-лепки удар,
+    // снаряд и цифры ждут кадра контакта клипа — как у врагов-лепки (у рисованного контакт 0, план не меняется).
     const clip = plan && heroClip(plan, action);
-    if (clip && playHeroClip(this.root, run.hero.defId, clip)) plan!.clipped = true;
+    if (clip && playHeroClip(this.root, run.hero.defId, clip)) {
+      plan!.clipped = true;
+      alignHeroShots(plan!, heroContactMs(run.hero.defId, clip));
+    }
     R.battleAction(run, action);
     const events = run.battle.events.splice(0);
     if (!plan) {
@@ -1047,6 +1055,12 @@ export class App {
     const hitSeq = new Map<string, number>();
     const drains = this.planDrains(events);
     let actor: EventTarget | null = plan?.lunged.has('hero') ? 'hero' : null;
+    // Ответный удар Воина: герой-лепка принимает удар щитом и бьёт в ответ своим клипом — цифра ответа ждёт его кадра
+    // удара (от удара о щит, с которого клип начат, до контакта). Рисованный герой отвечает сразу, как раньше.
+    const heroId = this.run?.hero.defId ?? '';
+    const riposte = events.some((e) => e.type === 'damage' && e.by === 'riposte');
+    const shieldAt = heroClipFrameMs(heroId, 'riposte');
+    const riposteLag = riposte && shieldAt > 0 ? heroContactMs(heroId, 'riposte') - shieldAt : 0;
     let longest = 0;
     const done = new Set<string>();
     const after = (fx: AfterFx) => {
@@ -1090,18 +1104,24 @@ export class App {
           const land = () => {
             const animatedEnemy = playEnemyClip(this.root, ev.target, hurt ? 'hurt' : 'block');
             if (hurt && !animatedEnemy) shake(wrap);
-            // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит.
-            if (ev.target === 'hero' && this.run) playHeroClip(this.root, this.run.hero.defId, hurt ? 'hurt' : 'block');
+            // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит, и ответ мечом, если за
+            // блоком последует Ответный удар. Лепка начинает клип сразу с удара о щит — щит поднят, когда вылетает цифра.
+            // Многоударный приём: ответ один, на первый удар — следующие удары клип ответа не перебивают.
+            if (ev.target === 'hero' && heroId && !(riposte && seq > 0)) {
+              const clip = riposte ? 'riposte' : hurt ? 'hurt' : 'block';
+              playHeroClip(this.root, heroId, clip, clip === 'riposte' ? shieldAt : clip === 'block' ? heroContactMs(heroId, 'block') : 0);
+            }
             // Лепка бьёт каждый удар своим клипом; остальные наскакивают снова.
             if (seq > 0 && who !== null && !replayMobStrike(this.root, who)) lungeAgain(this.root, who);
             // Полоска догоняет цифру: первый удар отматывает её назад без перехода, остальные снимают HP по своему куску.
             if (drain) setBarHp(drain.el, drain.hp + drain.left[seq + 1], seq === 0);
             floatText(wrap, text, cls, n - seq);
           };
-          if (seq === 0) land();
+          const wait = seq * HIT_GAP + (ev.by === 'riposte' ? riposteLag : 0);
+          if (wait === 0) land();
           else {
-            longest = Math.max(longest, seq * HIT_GAP);
-            window.setTimeout(land, seq * HIT_GAP);
+            longest = Math.max(longest, wait);
+            window.setTimeout(land, wait);
           }
           continue;
         }

@@ -385,13 +385,37 @@ function animate(el: HTMLElement, frames: Keyframe[], opts: KeyframeAnimationOpt
 export function heroClip(plan: FxPlan, action: PlayerAction): HeroClip | null {
   if (action.type === 'defend') return 'block'; // «Защититься» до плана не доходит: щит ему рисует событие блока
   if (action.type === 'attack') return 'attack';
+  // Свой клип приёма из данных (`fx.clip`): Щитовой удар бьёт щитом, а не клинком.
+  const own = action.type === 'artifact' ? artifactDef(action.artifactId).fx?.clip : undefined;
+  if (own) return own;
   // Лечащий приём узнаём по эффектам (тир на род не влияет); у зелья лечение видно по глотку ниже.
   if (action.type === 'artifact' && (artifactDef(action.artifactId).effects?.(1) ?? []).some((e) => e.type === 'heal')) return 'heal';
   const shot = plan.shots.find((s) => s.from === 'hero');
   if (shot) return shot.kind === 'melee' ? 'heavy' : 'power';
   if (plan.after.some((a) => a.target === 'hero' && a.kind === 'shield')) return 'block';
   if (plan.after.some((a) => a.target === 'hero' && (a.kind === 'drink' || a.kind === 'heal'))) return 'heal';
+  // Приём на себя без блока и лечения — клич: Боевой клич (рёв), Ярость, прочие бафы.
+  if (plan.after.some((a) => a.target === 'hero' && (a.kind === 'glow' || a.kind === 'sculpt'))) return 'buff';
   return null;
+}
+
+/**
+ * Герой-лепка бьёт своим клипом (app.ts: `battleAction`): первый взмах приходит в кадр контакта — след клинка
+ * ложится в момент касания, как у врагов-лепки; снаряд (бросок, заклинание) вылетает в кадр контакта. Приём без
+ * снаряда — перерисовка, цифры и эффекты тоже в контакт: рёв на пике клича, латы, когда щит поднят, круг лечения,
+ * когда меч воткнут. `contact` — момент контакта клипа, мс; 0 — рисованный герой, план не меняется.
+ */
+export function alignHeroShots(plan: FxPlan, contact: number): void {
+  if (contact <= 0) return;
+  if (plan.shots.length === 0) {
+    plan.impact = Math.max(plan.impact, contact);
+    return;
+  }
+  const first = plan.shots.reduce((a, s) => (s.delay < a.delay ? s : a));
+  const shift = first.kind === 'melee' ? contact - (first.delay + first.flight) : contact - first.delay;
+  if (shift <= 0) return;
+  for (const s of plan.shots) s.delay += shift;
+  plan.impact += shift;
 }
 
 export function playShots(root: HTMLElement, plan: FxPlan): number {
