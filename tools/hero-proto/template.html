@@ -16,6 +16,7 @@
   --brass: #d6a050;
   --brass-ink: #1e1408;
   --crimson: #ae3440;
+  --good: #6fa06a;
   --display: 'Tiny5', 'IBM Plex Mono', ui-monospace, monospace;
   --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
@@ -100,12 +101,15 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 16px; margin-top: 12px; }
 .clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; }
 .clip-card.own { border-color: var(--brass); }
+.clip-card.rec { border-color: var(--good); }
+.clip-head .tag { font-size: 12px; padding: 1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--good) 25%, transparent); color: var(--text); }
+.variant-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 16px; margin-top: 12px; }
 .clip-view { min-height: 240px; display: grid; place-items: center; color: var(--faint); font-size: 13px; }
 .clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
 .clip-head b { font-size: 16px; }
 .clip-head .mono { color: var(--muted); font-size: 12px; }
 .clip-card p { margin: 0; font-size: 14px; color: var(--muted); }
-@media (max-width: 560px) { .clips { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .clips, .variant-row { grid-template-columns: 1fr; } }
 .helms { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 12px; }
 .helm-card { display: grid; gap: 6px; justify-items: center; align-content: start; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
 .helm-card:hover { border-color: var(--faint); }
@@ -175,6 +179,14 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
       </div>
       <p class="caption">Клип играет герой; удары — вместе с первым врагом: он вздрагивает в кадр контакта, а в блоке, уроне, смерти и Ответном ударе сначала бьёт враг, и его контакт совпадает с кадром героя. Пиксель — размер точки рисунка в пикселях поля: 2 — как у врагов и фонов (64 точки роста), 1,5 — плотнее (85 точек; на FullHD ровно три точки экрана), 1 — вдвое подробнее (128 точек).</p>
     </div>
+  </section>
+
+  <section aria-labelledby="var-h">
+    <h2 id="var-h">Удары и лечение — переделано</h2>
+    <p class="prose">По отзыву «траектория меча странная, так никто не бьёт» удары собраны заново — путём кисти, а не углами суставов. Рубка: кисть уходит за плечо, клинок ложится за спину, шаг передней ногой — кисть идёт дугой над шлемом вперёд-вниз, клинок отстаёт от кисти и догоняет её в кадр контакта (рука и меч одной линией на врага), дальше уходит вниз-вперёд. Укол: кисть к бедру, клинок вдоль предплечья, шаг — и рука во всю длину. Ответный удар — снизу вверх: клинок проходит под кистью и выходит острием вверх.</p>
+    <p class="prose">Ноги больше не стоят в стойке всё время: стопы держатся за землю, а двигается таз. На выпаде передняя нога шагает, задняя вытягивается и встаёт на носок; в блоке и уроне таз уходит назад и сгибается заднее колено; в лечении стопы сходятся и ноги выпрямляются; в смерти и лечении B — колено на земле.</p>
+    <div id="variants"></div>
+    <p class="note">Зелёная рамка — рекомендую. Удары лучше брать разные: если обычный удар — укол, сильный — рубка сверху, и наоборот.</p>
   </section>
 
   <section aria-labelledby="clips-h">
@@ -315,8 +327,28 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         </ul>
       </div>
       <div class="q">
-        <h3>Что поправить в анимациях</h3>
-        <p>Одиннадцать клипов готовы. Смотреть на ½× и ¼× и в сцене с врагом: вес замаха, где стоит щит в блоке, как падает в смерти, хватает ли кадров покоя. Правка позы — это ключи кадра, а не перерисовка, поэтому дёшева.</p>
+        <h3>Удар</h3>
+        <p>Обычная атака оружием — играет чаще всех клипов.</p>
+        <ul class="opts">
+          <li class="rec"><b>A · С плеча</b>рубка из-за плеча вниз-вперёд с шагом — читается ударом меча с первого взгляда</li>
+          <li><b>B · Укол</b>короче и суше, клинок по прямой в грудь</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Сильный удар</h3>
+        <p>Приёмы оружием вплотную.</p>
+        <ul class="opts">
+          <li class="rec"><b>A · Сверху с шагом</b>на носки, клинок висит за спиной, широкий шаг и рубка в землю с пылью — тяжелее обычного удара</li>
+          <li><b>B · Глубокий выпад</b>длинный выпад-укол, задняя нога вытянута; пара к рубке, если обычный удар — рубка</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>Лечение</h3>
+        <p>Приём с лечением и зелье.</p>
+        <ul class="opts">
+          <li class="rec"><b>A · Второе дыхание</b>встал прямо, меч в землю, выдох — вдох; быстрее, подходит воину</li>
+          <li><b>B · На колено</b>колено на земле, меч остриём в землю — торжественнее, но дольше и ближе к Паладину</li>
+        </ul>
       </div>
       <div class="q">
         <h3>Дальше</h3>

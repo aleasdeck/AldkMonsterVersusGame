@@ -532,7 +532,9 @@ const PELVIS: [number, number] = [60, 74];
 /**
  * Поза героя. Углы рук — градусы по `at` (0 — к врагам, 90 — вниз, 270 — вверх; можно и за 360 и в минус —
  * интерполяция идёт по числу, а не по кругу), наклоны — градусы (плюс — вперёд, к врагам).
- * Всё тело сдвигается `x`/`y` целыми пикселями, присед опускает таз, ступни стоят (шаг — `footF`/`footN`).
+ * `x`/`y` двигают таз и верх, а ступни стоят на земле (шаг — `footF`/`footN`): ноги сгибаются сами, а не достают —
+ * пятка отрывается и нога встаёт на носок. Ближнюю руку можно вести углами (`n1`, `n2`) или кистью в точку
+ * (`hx`, `hy` при `nh` = 1): удары задаются путём кисти и углом клинка, локоть решает ik.
  */
 export interface WarriorPose extends Record<string, number> {
   x: number; y: number;
@@ -544,10 +546,14 @@ export interface WarriorPose extends Record<string, number> {
   head: number;
   /** Ближняя рука (оружие): плечо, предплечье, оружие. */
   n1: number; n2: number; sw: number;
+  /** Ближняя рука кистью: точка кисти в координатах верха и доля (0 — углы `n1`/`n2`, 1 — кисть в точке). */
+  nh: number; hx: number; hy: number;
   /** Дальняя рука (щит): плечо, предплечье; наклон щита и сдвиг от кисти. */
   f1: number; f2: number; sh: number; shx: number; shy: number;
   /** Шаг: сдвиг стоп по x и подъём над полом. */
   footF: number; footN: number; liftF: number; liftN: number;
+  /** Колено ближней (задней) ноги на земле: 0 — стоит, 1 — на колене (таз опускать приседом ~23). */
+  kneel: number;
   /** Плащ, грива, табард: 0 — висят, 1 — взвились назад. */
   cape: number;
   /** Смерть: 0 — стоит, 1 — лежит на спине. */
@@ -561,8 +567,9 @@ export interface WarriorPose extends Record<string, number> {
 const REST: WarriorPose = {
   x: 0, y: 0, crouch: 0, lean: 0, head: 0,
   n1: ARM_N.a1, n2: ARM_N.a2, sw: M.armN.sword,
+  nh: 0, hx: M.armN.hand[0], hy: M.armN.hand[1],
   f1: ARM_F.a1, f2: ARM_F.a2, sh: 0, shx: 0, shy: 0,
-  footF: 0, footN: 0, liftF: 0, liftN: 0,
+  footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
   cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0,
 };
 
@@ -572,27 +579,54 @@ const REST: WarriorPose = {
  * Вспышки (`spark`, `dust`) ставятся явным нулём на кадре перед контактом — иначе они растекаются по замаху.
  */
 const CLIPS: Record<Exclude<HeroClip, 'idle'>, PoseKeys<WarriorPose>> = {
-  // Рубка наискось: меч взлетает перед шлемом за ближнее плечо, шаг к врагам — и через верх вниз-вперёд, плащ взвивается.
+  // Удар A «С плеча»: кисть уходит за ближнее плечо, клинок ложится за спину; шаг передней ногой — и кисть идёт дугой
+  // над шлемом вперёд-вниз, клинок отстаёт от кисти и догоняет её в кадр контакта (прямая линия руки и меча на врага),
+  // потом уходит вниз-вперёд, не доставая земли. Задняя нога стоит, пятка отрывается сама.
   attack: [
-    [0, { x: -1, lean: -3, head: -2, n1: 165, n2: -10, sw: -35, cape: 0.15 }],
-    [1, { x: -3, crouch: 2, lean: -8, head: -5, n1: 218, n2: -78, sw: -100, f1: 75, f2: 55, sh: 6, cape: 0.3 }],
-    [2, { x: -3, crouch: 2, lean: -9, head: -5, n1: 222, n2: -84, sw: -106, f1: 76, f2: 58, sh: 6, cape: 0.35 }],
-    [3, { x: 6, crouch: 3, lean: 4, head: 4, n1: 292, n2: -35, sw: -42, f1: 80, f2: 64, sh: 8, cape: 0.7, footF: 7, liftF: 3, footN: 2 }],
-    [4, { x: 12, crouch: 4, lean: 12, head: 8, n1: 352, n2: 2, sw: 14, f1: 84, f2: 70, sh: 10, cape: 1, footF: 12, footN: 4 }],
-    [5, { x: 11, crouch: 3, lean: 13, head: 8, n1: 385, n2: 30, sw: 52, f1: 80, f2: 62, sh: 8, cape: 0.85, footF: 12, footN: 5 }],
-    [6, { x: 5, crouch: 1, lean: 7, head: 4, n1: 440, n2: 48, sw: 40, cape: 0.45, footF: 5, footN: 2 }],
+    [0, { x: -2, crouch: 2, lean: -4, head: -3, nh: 1, hx: 36, hy: 34, sw: -70, cape: 0.1 }],
+    [1, { x: -5, crouch: 4, lean: -9, head: -6, hx: 28, hy: 10, sw: -198, f1: 70, f2: 40, sh: 4, liftF: 2, cape: 0.3 }],
+    [2, { x: -6, crouch: 5, lean: -10, head: -6, hx: 25, hy: 8, sw: -210, f1: 72, f2: 42, sh: 5, liftF: 3, footF: -1, cape: 0.35 }],
+    [3, { x: 3, crouch: 3, lean: 0, head: 2, hx: 56, hy: 4, sw: -110, f1: 80, f2: 60, sh: 8, liftF: 5, footF: 7, cape: 0.6 }],
+    [4, { x: 10, crouch: 8, lean: 8, head: 6, hx: 76, hy: 42, sw: 10, f1: 86, f2: 72, sh: 10, liftF: 0, footF: 12, cape: 1 }],
+    [5, { x: 11, crouch: 9, lean: 10, head: 7, hx: 70, hy: 62, sw: 30, f1: 84, f2: 68, sh: 9, footF: 12, cape: 0.85 }],
+    [6, { x: 5, crouch: 4, lean: 5, head: 3, nh: 1, hx: 46, hy: 72, sw: 28, liftF: 3, footF: 6, cape: 0.4 }],
   ],
-  // Сверху вниз: меч вертикально над шлемом, привстал, прыжок-шаг — и рубка почти до земли, пыль.
+  // Удар B «Укол»: кисть к бедру, клинок вперёд вдоль предплечья, щит прикрывает; шаг — и рука во всю длину, клинок по
+  // горизонтали в грудь врага.
+  attack_thrust: [
+    [0, { x: -2, crouch: 2, lean: -2, nh: 1, hx: 30, hy: 60, sw: 2, cape: 0.1 }],
+    [1, { x: -4, crouch: 4, lean: -4, hx: 20, hy: 58, sw: -2, f1: 45, f2: 15, sh: -4, liftF: 2, cape: 0.2 }],
+    [2, { x: -4, crouch: 4, lean: -4, hx: 19, hy: 57, sw: -3, f1: 45, f2: 15, sh: -4, liftF: 3, cape: 0.25 }],
+    [3, { x: 4, crouch: 5, lean: 4, hx: 50, hy: 52, sw: -8, f1: 70, f2: 45, sh: 2, liftF: 4, footF: 7, cape: 0.6 }],
+    [4, { x: 11, crouch: 8, lean: 9, head: 4, hx: 80, hy: 46, sw: -15, f1: 86, f2: 70, sh: 10, liftF: 0, footF: 12, cape: 1 }],
+    [5, { x: 11, crouch: 8, lean: 9, head: 4, hx: 78, hy: 47, sw: -14, f1: 85, f2: 68, sh: 9, footF: 12, cape: 0.85 }],
+    [6, { x: 5, crouch: 4, lean: 4, head: 2, nh: 1, hx: 46, hy: 62, sw: 4, liftF: 3, footF: 6, cape: 0.4 }],
+  ],
+  // Сильный удар A «Сверху с шагом»: присел — и привстал на носки, кисть высоко над плечом, клинок висит за спиной;
+  // широкий шаг, кисть дугой над шлемом, клинок догоняет в кадр контакта и уходит в землю перед врагом — пыль.
   heavy: [
-    [0, { x: -1, crouch: 3, lean: -2, head: -2, n1: 175, n2: -30, sw: -60 }],
-    [1, { x: -3, y: -2, lean: -12, head: -8, n1: 250, n2: -88, sw: -92, f1: 40, f2: 20, cape: 0.3 }],
-    [2, { x: -2, y: -4, lean: -14, head: -8, n1: 256, n2: -92, sw: -96, f1: 38, f2: 18, cape: 0.4, liftF: 2 }],
-    [3, { x: 0, y: -4, lean: -12, head: -6, n1: 258, n2: -92, sw: -96, f1: 42, f2: 22, cape: 0.45, liftF: 3, dust: 0 }],
-    [4, { x: 10, y: -2, crouch: 2, lean: 8, head: 6, n1: 305, n2: -40, sw: -20, f1: 70, f2: 50, cape: 0.8, footF: 8, liftF: 4, dust: 0 }],
-    [5, { x: 16, y: 0, crouch: 9, lean: 20, head: 14, n1: 376, n2: 28, sw: 50, f1: 85, f2: 75, cape: 1, footF: 14, footN: 5, dust: 1 }],
-    [6, { x: 16, crouch: 9, lean: 20, head: 14, n1: 378, n2: 30, sw: 52, f1: 85, f2: 75, cape: 0.9, footF: 14, footN: 5, dust: 0.7 }],
-    [7, { x: 12, crouch: 6, lean: 14, head: 10, n1: 400, n2: 40, sw: 46, cape: 0.6, footF: 10, footN: 4, dust: 0.35 }],
-    [8, { x: 5, crouch: 2, lean: 6, head: 4, n1: 450, n2: 52, sw: 32, cape: 0.3, footF: 4, footN: 2, dust: 0 }],
+    [0, { x: -1, crouch: 4, lean: 2, head: 2, nh: 1, hx: 38, hy: 40, sw: -50, cape: 0.1, dust: 0 }],
+    [1, { x: -5, y: -2, crouch: 1, lean: -10, head: -8, hx: 34, hy: 6, sw: -170, f1: 60, f2: 30, sh: 2, liftF: 1, cape: 0.3 }],
+    [2, { x: -6, y: -4, crouch: 0, lean: -13, head: -9, hx: 36, hy: -2, sw: -235, f1: 60, f2: 30, sh: 2, liftF: 3, footF: -2, cape: 0.4 }],
+    [3, { x: -4, y: -4, crouch: 0, lean: -12, head: -8, hx: 38, hy: -3, sw: -240, f1: 62, f2: 32, sh: 3, liftF: 5, footF: 2, cape: 0.45 }],
+    [4, { x: 6, y: -2, crouch: 3, lean: 0, head: 2, hx: 62, hy: 2, sw: -150, f1: 78, f2: 55, sh: 8, liftF: 6, footF: 12, cape: 0.7, dust: 0 }],
+    [5, { x: 15, y: 0, crouch: 12, lean: 12, head: 10, hx: 78, hy: 40, sw: 5, f1: 88, f2: 76, sh: 12, liftF: 0, footF: 18, cape: 1, dust: 0 }],
+    [6, { x: 16, crouch: 13, lean: 14, head: 12, hx: 72, hy: 60, sw: 35, f1: 88, f2: 76, sh: 12, footF: 18, cape: 0.9, dust: 1 }],
+    [7, { x: 15, crouch: 12, lean: 13, head: 11, hx: 71, hy: 61, sw: 36, footF: 18, cape: 0.7, dust: 0.6 }],
+    [8, { x: 7, crouch: 6, lean: 6, head: 4, nh: 1, hx: 50, hy: 70, sw: 30, liftF: 4, footF: 9, cape: 0.3, dust: 0.15 }],
+  ],
+  // Сильный удар B «Глубокий выпад»: кисть отведена к заднему бедру, щит выставлен вперёд; длинный шаг, таз низко, задняя
+  // нога вытянута на носке — рука и клинок одной прямой в грудь врага, щит уходит назад противовесом.
+  heavy_thrust: [
+    [0, { x: -2, crouch: 3, lean: -3, nh: 1, hx: 30, hy: 56, sw: 0, f1: 40, f2: 10, sh: -6, cape: 0.1 }],
+    [1, { x: -6, crouch: 7, lean: -6, head: 2, hx: 18, hy: 54, sw: -4, f1: 30, f2: 0, sh: -8, liftF: 2, cape: 0.2 }],
+    [2, { x: -7, crouch: 8, lean: -7, head: 2, hx: 16, hy: 53, sw: -5, f1: 30, f2: 0, sh: -8, liftF: 3, cape: 0.25 }],
+    [3, { x: -2, crouch: 6, lean: -2, hx: 30, hy: 50, sw: -6, f1: 50, f2: 20, sh: -4, liftF: 6, footF: 6, cape: 0.4 }],
+    [4, { x: 8, crouch: 8, lean: 6, head: 2, hx: 58, hy: 46, sw: -10, f1: 85, f2: 60, sh: 8, liftF: 3, footF: 16, cape: 0.8 }],
+    [5, { x: 18, crouch: 12, lean: 12, head: 4, hx: 80, hy: 44, sw: -17, f1: 92, f2: 80, sh: 12, liftF: 0, footF: 22, footN: 4, cape: 1 }],
+    [6, { x: 18, crouch: 12, lean: 12, head: 4, hx: 80, hy: 44, sw: -16, f1: 92, f2: 80, sh: 12, footF: 22, footN: 4, cape: 0.9 }],
+    [7, { x: 12, crouch: 9, lean: 8, head: 3, hx: 55, hy: 52, sw: -8, f1: 80, f2: 60, sh: 8, footF: 18, footN: 3, cape: 0.6 }],
+    [8, { x: 5, crouch: 4, lean: 3, nh: 1, hx: 36, hy: 64, sw: 10, liftF: 4, footF: 8, footN: 1, cape: 0.3 }],
   ],
   // Приём (заклинание, бросок): меч вскинут вертикально, потом остриём на цель — рука во всю длину, свет на острие.
   power: [
@@ -604,14 +638,32 @@ const CLIPS: Record<Exclude<HeroClip, 'idle'>, PoseKeys<WarriorPose>> = {
     [5, { x: 6, lean: 8, head: 4, n1: 352, n2: -2, sw: -2, f1: 86, f2: 70, glow: 0.6, footF: 6, cape: 0.5 }],
     [6, { x: 3, lean: 5, head: 3, n1: 420, n2: 30, sw: 12, glow: 0.2, footF: 3 }],
   ],
-  // Лечение: меч рукоятью к груди, клинок вверх перед шлемом — крестовина крестом; голова склонена, щит опущен.
+  // Лечение A «Второе дыхание»: передняя нога шагает назад, задняя — вперёд: встал прямо, стопы под тазом; меч остриём
+  // вниз вонзён в землю перед собой, кисть на рукояти, щит опущен; голова склонилась — выдох, поднялась — вдох;
+  // вынул меч и шагнул обратно в стойку. 12 кадров — на два шага туда и обратно.
   heal: [
-    [0, { crouch: 1, lean: 3, n1: 100, n2: 0, sw: -40, f1: 70, f2: 50 }],
-    [2, { crouch: 4, lean: 6, head: 14, n1: 62, n2: -40, sw: -90, f1: 84, f2: 80, sh: 10 }],
-    [3, { crouch: 5, lean: 7, head: 18, n1: 60, n2: -42, sw: -90, f1: 86, f2: 82, sh: 12 }],
-    [6, { crouch: 5, lean: 7, head: 18, n1: 60, n2: -42, sw: -90, f1: 86, f2: 82, sh: 12 }],
-    [7, { crouch: 4, lean: 6, head: 12, n1: 64, n2: -36, sw: -86, f1: 82, f2: 74, sh: 8 }],
-    [8, { crouch: 2, lean: 3, head: 5, n1: 110, n2: 20, sw: -10 }],
+    [0, { x: 0, lean: 2, head: 2, nh: 1, hx: 50, hy: 58, sw: 60, liftF: 3, footF: -4, cape: 0.05 }],
+    [1, { x: -2, crouch: -1, lean: 0, head: 6, hx: 64, hy: 58, sw: 84, f1: 88, f2: 88, sh: 2, liftF: 4, footF: -12, liftN: 3, footN: 6 }],
+    [2, { x: -2, crouch: -4, lean: -1, head: 10, hx: 68, hy: 67, sw: 84, f1: 92, f2: 92, sh: 0, liftF: 0, footF: -18, liftN: 3, footN: 16, dust: 0.35 }],
+    [3, { x: -2, crouch: -5, lean: 0, head: 14, hx: 68, hy: 69, sw: 84, f1: 92, f2: 92, footF: -18, liftN: 0, footN: 20, dust: 0.15 }],
+    [5, { x: -2, crouch: -5, lean: 0, head: 14, hx: 68, hy: 69, sw: 84, footF: -18, footN: 20, dust: 0 }],
+    [6, { x: -2, y: -1, crouch: -6, lean: -4, head: -6, hx: 69, hy: 70, sw: 85, f1: 90, f2: 88, footF: -18, footN: 20 }],
+    [7, { x: -2, y: -1, crouch: -6, lean: -4, head: -8, hx: 69, hy: 70, sw: 85, footF: -18, footN: 20 }],
+    [8, { x: -2, crouch: -6, lean: -2, head: -2, hx: 68, hy: 69, sw: 84, footF: -18, footN: 20 }],
+    [9, { x: -1, crouch: -3, lean: 0, head: 0, hx: 62, hy: 58, sw: 76, footF: -18, liftN: 3, footN: 10 }],
+    [10, { x: 0, crouch: 1, lean: 1, nh: 1, hx: 48, hy: 64, sw: 50, liftF: 4, footF: -8, liftN: 1, footN: 2 }],
+  ],
+  // Лечение B «На колено»: опустился на заднее колено, меч остриём в землю перед передним коленом, голова склонена;
+  // встаёт. Дольше A: 12 кадров.
+  heal_kneel: [
+    [0, { x: 2, crouch: 6, lean: 4, head: 4, nh: 1, hx: 56, hy: 58, sw: 70, kneel: 0.2 }],
+    [1, { x: 3, crouch: 16, lean: 3, head: 8, hx: 68, hy: 48, sw: 82, f1: 88, f2: 84, sh: 4, shy: -6, kneel: 0.6 }],
+    [2, { x: 4, crouch: 24, lean: 2, head: 14, hx: 70, hy: 42, sw: 83, f1: 92, f2: 88, sh: 0, shy: -12, kneel: 1, dust: 0.35 }],
+    [3, { x: 4, crouch: 25, lean: 3, head: 16, hx: 70, hy: 41, sw: 83, f1: 92, f2: 88, shy: -12, kneel: 1, dust: 0.1 }],
+    [7, { x: 4, crouch: 24, lean: 2, head: 14, hx: 70, hy: 42, sw: 83, f1: 92, f2: 88, shy: -12, kneel: 1, dust: 0 }],
+    [8, { x: 4, crouch: 23, lean: 0, head: 4, hx: 70, hy: 43, sw: 83, f1: 90, f2: 86, shy: -12, kneel: 1 }],
+    [9, { x: 3, crouch: 14, lean: 2, head: 4, hx: 60, hy: 52, sw: 70, f1: 86, f2: 80, shy: -6, kneel: 0.5 }],
+    [10, { x: 1, crouch: 5, lean: 2, head: 2, nh: 1, hx: 44, hy: 66, sw: 40, kneel: 0.1 }],
   ],
   // Клич: меч к небу, щит в сторону, грудь вперёд, шлем запрокинут — рёв рисует слой эффектов (cry.ts).
   buff: [
@@ -641,11 +693,11 @@ const CLIPS: Record<Exclude<HeroClip, 'idle'>, PoseKeys<WarriorPose>> = {
   death: [
     [0, { x: -6, crouch: 2, lean: -14, head: -20, n1: 155, n2: 95, sw: 5, f1: 85, f2: 75, sh: 18, cape: 0.6 }],
     [1, { x: -8, crouch: 7, lean: -10, head: -12, n1: 140, n2: 100, drop: 0.12, cape: 0.5 }],
-    [2, { x: -8, crouch: 15, lean: -2, head: 10, n1: 120, n2: 95, f1: 95, f2: 90, drop: 0.45, cape: 0.4 }],
-    [3, { x: -8, crouch: 22, lean: 4, head: 16, n1: 105, n2: 92, f1: 92, f2: 85, drop: 0.8, cape: 0.3 }],
-    [4, { x: -8, crouch: 24, lean: 0, head: 12, drop: 1, fall: 0.05 }],
+    [2, { x: -8, crouch: 15, lean: -2, head: 10, n1: 120, n2: 95, f1: 95, f2: 90, drop: 0.45, cape: 0.4, kneel: 0.6 }],
+    [3, { x: -8, crouch: 22, lean: 4, head: 16, n1: 105, n2: 92, f1: 92, f2: 85, drop: 0.8, cape: 0.3, kneel: 1 }],
+    [4, { x: -8, crouch: 24, lean: 0, head: 12, drop: 1, fall: 0.05, kneel: 1 }],
     [5, { fall: 0.25, head: -4 }],
-    [6, { fall: 0.5, head: -10, f1: 88, f2: 86, sh: 4 }],
+    [6, { fall: 0.5, head: -10, f1: 88, f2: 86, sh: 4, kneel: 0 }],
     [7, { fall: 0.78, head: -14, cape: 0.1 }],
     [8, { fall: 1, head: -10 }],
     [9, { fall: 1.04, y: -2, head: -6 }],
@@ -661,17 +713,39 @@ const CLIPS: Record<Exclude<HeroClip, 'idle'>, PoseKeys<WarriorPose>> = {
     [5, { x: 15, crouch: 3, lean: 16, head: 10, f1: 8, f2: -2, sh: -8, shx: 7, n1: 148, n2: 118, sw: 134, footF: 16, footN: 6, cape: 0.8, spark: 0.4 }],
     [6, { x: 7, crouch: 2, lean: 9, f1: 40, f2: 12, sh: -2, shx: 2, n1: 140, n2: 90, sw: 60, footF: 7, footN: 3, cape: 0.4, spark: 0 }],
   ],
-  // Ответный удар: щит принял удар (искры) — и из-под щита меч идёт вперёд горизонтально.
+  // Ответный удар: щит принял удар (искры), меч опущен назад-вниз за бедро; щит уходит в сторону — и снизу вверх:
+  // кисть идёт вперёд и вверх, клинок проходит под кистью у самой земли и выходит острием вверх в кадр контакта.
   riposte: [
-    [0, { crouch: 3, lean: 2, head: 10, f1: -15, f2: -65, sh: -8, shy: -10, spark: 0 }],
-    [1, { x: -3, crouch: 5, lean: -2, head: 12, f1: -24, f2: -74, sh: -14, shy: -12, n1: 165, n2: 130, sw: 150, spark: 1 }],
-    [2, { x: -2, crouch: 5, lean: 0, head: 10, f1: 40, f2: 0, sh: -4, shy: -4, n1: 172, n2: 140, sw: 158, cape: 0.3, spark: 0 }],
-    [3, { x: 6, crouch: 4, lean: 9, head: 5, f1: 76, f2: 50, sh: 6, n1: 300, n2: 330, sw: 342, footF: 6, liftF: 3, cape: 0.6 }],
-    [4, { x: 12, crouch: 3, lean: 14, head: 7, f1: 84, f2: 66, sh: 10, n1: 352, n2: 0, sw: 2, footF: 12, footN: 4, cape: 1 }],
-    [5, { x: 11, crouch: 3, lean: 14, head: 7, f1: 82, f2: 62, n1: 380, n2: 22, sw: 26, footF: 12, footN: 4, cape: 0.8 }],
-    [6, { x: 5, lean: 7, n1: 430, n2: 45, sw: 30, footF: 5, footN: 2, cape: 0.4 }],
+    [0, { crouch: 3, lean: 2, head: 10, f1: -15, f2: -65, sh: -8, shy: -10, nh: 1, hx: 24, hy: 70, sw: 120, spark: 0 }],
+    [1, { x: -3, crouch: 5, lean: -2, head: 12, f1: -24, f2: -74, sh: -14, shy: -12, hx: 14, hy: 74, sw: 150, footF: -2, footN: -2, spark: 1 }],
+    [2, { x: -2, crouch: 6, lean: 0, head: 10, f1: 40, f2: 0, sh: -4, shy: -4, hx: 16, hy: 76, sw: 155, footF: -2, footN: -2, cape: 0.3, spark: 0 }],
+    [3, { x: 5, crouch: 6, lean: 6, head: 6, f1: 76, f2: 50, sh: 6, shy: 0, hx: 50, hy: 72, sw: 30, liftF: 4, footF: 6, footN: -2, cape: 0.6 }],
+    [4, { x: 11, crouch: 6, lean: 8, head: 4, f1: 84, f2: 66, sh: 10, hx: 76, hy: 40, sw: -35, liftF: 0, footF: 10, footN: -1, cape: 1 }],
+    [5, { x: 11, crouch: 5, lean: 6, head: 2, f1: 82, f2: 62, hx: 64, hy: 16, sw: -70, footF: 10, cape: 0.8 }],
+    [6, { x: 5, crouch: 2, lean: 3, nh: 1, hx: 46, hy: 62, sw: 4, liftF: 3, footF: 5, cape: 0.4 }],
   ],
 };
+
+/**
+ * Ближняя рука: углами `n1`/`n2` или кистью в точке (`hx`, `hy`, доля `nh`). Локоть — ik с изгибом наружу, как у
+ * живой руки: слева от направления «плечо → кисть» (опущенная рука — локоть назад, поднятая — вперёд).
+ */
+function nearArm(P: WarriorPose): { ex: number; ey: number; hx: number; hy: number; a1: number; a2: number } {
+  const [sx, sy] = M.armN.sh;
+  const byAngle = limb2(sx, sy, P.n1, ARM_N.l1, P.n2, ARM_N.l2);
+  if (P.nh < 0.001) return { ...byAngle, a1: P.n1, a2: P.n2 };
+  let tx = lerp(byAngle.hx, P.hx, P.nh), ty = lerp(byAngle.hy, P.hy, P.nh);
+  const vx = tx - sx, vy = ty - sy, d = Math.hypot(vx, vy), reach = ARM_N.l1 + ARM_N.l2 - 0.05;
+  if (d > reach) {
+    tx = sx + (vx * reach) / d;
+    ty = sy + (vy * reach) / d;
+  }
+  const [ex, ey] = ik(sx, sy, tx, ty, ARM_N.l1, ARM_N.l2, -vy, vx);
+  return { ex, ey, hx: tx, hy: ty, a1: Math.atan2(ey - sy, ex - sx) / DEG, a2: Math.atan2(ty - ey, tx - ex) / DEG };
+}
+
+/** Для инструментов (`tools/hero-proto/probe.mjs`): точки кадра в координатах поля — кисть, острие, стопы, таз. */
+export const warriorProbe: { on?: (info: Record<string, number>) => void } = {};
 
 /** Поза кадра: ключи клипа или покой. Покой прибавляется и в клипах — там фаза 0, первый кадр покоя. */
 function framePose(p: Painter): WarriorPose {
@@ -721,14 +795,16 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKin
       const hipY = lerp(PELVIS[1] + P.crouch, G - 16, fall) - bounce;
       const rot = lerp(HUNCH + P.lean * DEG, -Math.PI / 2, fall);
       const up = { dx: hipX - PELVIS[0], dy: hipY - PELVIS[1] - breath * (1 - fall), rot, px: PELVIS[0], py: PELVIS[1] };
-      /** Точка верха (координаты стойки) в кадре — для выпавшего меча. */
+      const probeInfo: Record<string, number> = {};
+      /** Точка верха (координаты стойки) в кадре — для выпавшего меча и острия. */
       const toWorld = (x: number, y: number): [number, number] => {
         const c = Math.cos(rot), s = Math.sin(rot);
         return [PELVIS[0] + c * (x - PELVIS[0]) - s * (y - PELVIS[1]) + up.dx, PELVIS[1] + s * (x - PELVIS[0]) + c * (y - PELVIS[1]) + up.dy];
       };
 
       p.pose({ dx: P.x, dy: P.y }, () => {
-        p.shadow(62 - 10 * fall, 48 + 16 * fall, 4);
+        // Тень — между стопами и тазом: стопы стоят, таз уходит вперёд или назад.
+        p.shadow(62 - 10 * fall - P.x * 0.5 * (1 - fall), 48 + 16 * fall, 4);
 
         // Плащ, упавший под тело, — на земле.
         if (fall > 0.55 && L.cape > 0) p.poly([hipX - 78, G - 5, hipX - 34, G - 7, hipX + 2, G - 4, hipX + 4, G, hipX - 82, G], L.cloth, { part: 'capeGround', tone: -0.18 });
@@ -747,18 +823,47 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKin
           });
         }
 
-        // ── Ноги: бедро от таза, колено — ik, стопа на полу (шаг и подъём); при падении ноги вытягиваются к врагам. ──
+        // ── Ноги: бедро от таза, колено — ik. Стопы стоят на земле: `x`/`y` двигают таз, а не стопы (шаг — `footF`/`footN`,
+        //    подъём — `liftF`/`liftN`); нога не достаёт — пятка отрывается, носок на полу. `kneel` ставит ближнее колено
+        //    на землю; при падении ноги вытягиваются к врагам. ──
         const legRot = lerp(0, -Math.PI / 2, fall);
         const legs = [
-          { g: M.legF, L2: LEG_F, side: 'far', tone: -0.03, off: [11, 2], ank: [lerp(M.legF.ank[0] + P.footF, hipX + 46, fall), lerp(M.legF.ank[1] - P.liftF, G - 6, fall)], bend: [lerp(1, 0.2, fall), lerp(-0.2, -1, fall)], toeRot: lerp(0.25 * P.liftF / 4, -1.4, fall) },
-          { g: M.legN, L2: LEG_N, side: 'near', tone: 0, off: [-10, 2], ank: [lerp(M.legN.ank[0] + P.footN, hipX + 40, fall), lerp(M.legN.ank[1] - P.liftN, G - 5, fall)], bend: [lerp(-1, 0.3, fall), lerp(-0.2, -1, fall)], toeRot: lerp(0, 1.4, fall) },
+          { g: M.legF, L2: LEG_F, side: 'far', tone: -0.03, off: [11, 2], foot: P.footF, lift: P.liftF, kneel: 0, lie: [hipX + 46, G - 6], lieRot: -1.4, bend: [lerp(1, 0.2, fall), lerp(-0.2, -1, fall)] },
+          { g: M.legN, L2: LEG_N, side: 'near', tone: 0, off: [-10, 2], foot: P.footN, lift: P.liftN, kneel: P.kneel, lie: [hipX + 40, G - 5], lieRot: 1.4, bend: [lerp(-1, 0.3, fall), lerp(-0.2, -1, fall)] },
         ] as const;
         for (const lg of legs) {
           const c = Math.cos(legRot), sn = Math.sin(legRot);
           const hx = hipX + c * lg.off[0] - sn * lg.off[1], hy = hipY + sn * lg.off[0] + c * lg.off[1];
-          const [ax, ay] = lg.ank;
-          const [kx, ky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, lg.bend[0], lg.bend[1]);
           const out = lg.g.toe === 0 ? 1 : -1;
+          // Стопа в координатах поля: сдвиг тела её не двигает (в этой позе поле сдвинуто на x, y — вычитаем).
+          const floor = lg.g.ank[1] - P.y;
+          let ax = lg.g.ank[0] + lg.foot - P.x, ay = floor - lg.lift;
+          let bend: [number, number] = [lg.bend[0], lg.bend[1]];
+          let toe = 0;
+          if (lg.kneel > 0) {
+            // Колено на земле чуть впереди бедра, голень назад-вверх, стопа на носке.
+            ax = lerp(ax, hx + 6 - 23.5, lg.kneel);
+            ay = lerp(ay, G - P.y - 17, lg.kneel);
+            bend = [lerp(bend[0], 0.3, lg.kneel), lerp(bend[1], 1, lg.kneel)];
+            toe += 0.5 * lg.kneel;
+          }
+          // Не достаёт — щиколотка поднимается (пятка отрывается), носок остаётся на полу.
+          const reach = lg.L2.l1 + lg.L2.l2 - 0.2;
+          const ddx = ax - hx;
+          if (Math.hypot(ddx, ay - hy) > reach) {
+            if (Math.abs(ddx) < reach) ay = hy + Math.sqrt(reach * reach - ddx * ddx);
+            else {
+              ax = hx + Math.sign(ddx) * reach;
+              ay = hy;
+            }
+          }
+          toe += Math.max(0, floor - ay) / 14;
+          ax = lerp(ax, lg.lie[0], fall);
+          ay = lerp(ay, lg.lie[1], fall);
+          const toeRot = lerp(toe, lg.lieRot, fall);
+          if (lg.side === 'far') probeInfo.footF = ax + P.x;
+          else probeInfo.footN = ax + P.x;
+          const [kx, ky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, bend[0], bend[1]);
           const tone = lg.tone;
           const leg = `${lg.side}Leg`, knee = `${lg.side}Knee`, foot = `${lg.side}Foot`;
           p.limb(hx, hy, 8.5, kx, ky, 6.8, L.limb, { part: leg, tone });
@@ -770,7 +875,7 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKin
             stroke(p, [kx + 4, ky + 5, ax + 3.5, ay - 3], EDGE, leg);
           }
           // Башмак в своих координатах от щиколотки: носок наружу, подошва на земле; при шаге носок клюёт вниз.
-          p.pose({ rot: lg.toeRot * out, px: ax, py: ay }, () => {
+          p.pose({ rot: toeRot * out, px: ax, py: ay }, () => {
             const S = G - M.legF.ank[1] - 0.5;
             p.poly([ax - 5.5, ay - 2, ax + 5.5, ay - 2, ax + 17 * out, ay + S - 4, ax + 14 * out, ay + S, ax - 6 * out, ay + S], boot, { part: foot, tone: tone - 0.04, bevel: 2.5 });
             if (plate) {
@@ -786,7 +891,7 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKin
         }
 
         // ── Верх: наклон вокруг таза, присед, дыхание; при падении — на спину. ──
-        const near = limb2(M.armN.sh[0], M.armN.sh[1], P.n1, ARM_N.l1, P.n2, ARM_N.l2);
+        const near = nearArm(P);
         const far = limb2(M.armF.sh[0], M.armF.sh[1], P.f1, ARM_F.l1, P.f2, ARM_F.l2);
         p.pose(up, () => {
           // Дальняя рука — за туловищем, кулак за щитом.
@@ -872,21 +977,21 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKin
           p.limb(M.armN.sh[0], M.armN.sh[1], 8, near.ex, near.ey, 7, L.limb, { part: 'nearArm' });
           p.limb(near.ex, near.ey, 6.6, near.hx, near.hy, 5.6, plate ? L.limb : L.leather, { part: 'nearArm' });
           if (plate) {
-            const [ex, ey] = at(near.ex, near.ey, P.n2, 6), [hx2, hy2] = at(near.hx, near.hy, P.n2, -6);
+            const [ex, ey] = at(near.ex, near.ey, near.a2, 6), [hx2, hy2] = at(near.hx, near.hy, near.a2, -6);
             stroke(p, [ex + 3, ey + 1, hx2 + 3, hy2 + 1], EDGE, 'nearArm');
           }
           // Налокотник с крылом — крыло смотрит наружу от сгиба (против биссектрисы плеча и предплечья).
-          let ox = -(Math.cos((P.n1 + 180) * DEG) + Math.cos(P.n2 * DEG)), oy = -(Math.sin((P.n1 + 180) * DEG) + Math.sin(P.n2 * DEG));
+          let ox = -(Math.cos((near.a1 + 180) * DEG) + Math.cos(near.a2 * DEG)), oy = -(Math.sin((near.a1 + 180) * DEG) + Math.sin(near.a2 * DEG));
           const ol = Math.hypot(ox, oy);
-          if (ol < 0.2) [ox, oy] = [Math.cos((P.n1 + 90) * DEG), Math.sin((P.n1 + 90) * DEG)];
+          if (ol < 0.2) [ox, oy] = [Math.cos((near.a1 + 90) * DEG), Math.sin((near.a1 + 90) * DEG)];
           else [ox, oy] = [ox / ol, oy / ol];
           const [wx, wy] = [near.ex + ox * 9, near.ey + oy * 9];
           p.ellipse(near.ex, near.ey, 8, 7.4, hard, { part: 'elbow', lift: 1.4 });
           p.poly([near.ex - oy * 5, near.ey + ox * 5, wx - oy * 3.5, wy + ox * 3.5, wx + oy * 3.5, wy - ox * 3.5, near.ex + oy * 4, near.ey - ox * 4], hard, { part: 'elbow', bevel: 2 });
           arcStroke(p, near.ex, near.ey, 7.4, 6.8, 200, 330, lit, 'elbow');
           // Раструб латной перчатки и кулак.
-          const [cfx, cfy] = at(near.hx, near.hy, P.n2, -3.5);
-          p.ellipse(cfx, cfy, 6.8, 5, hard, { part: 'cuff', rot: (P.n2 + 90) * DEG, tone: 0.02 });
+          const [cfx, cfy] = at(near.hx, near.hy, near.a2, -3.5);
+          p.ellipse(cfx, cfy, 6.8, 5, hard, { part: 'cuff', rot: (near.a2 + 90) * DEG, tone: 0.02 });
           p.ellipse(near.hx, near.hy, 6, 5.6, hard, { part: 'fist', tone: -0.04 });
           stroke(p, [near.hx - 3, near.hy - 1, near.hx + 3, near.hy + 2], SEAM, 'fist');
           // Ближний наплечник — купол и нижний ряд пластин одной частью, стыки и кромка.
@@ -906,12 +1011,18 @@ function warriorBase(look: WarriorLookId, weapon: WeaponKind, helmKind?: HelmKin
           const a = lerp(P.sw + (rot * 180) / Math.PI, 3, k);
           WEAPONS[weapon](p, x, y, a, L);
         }
-        // Пыль сильного удара — у острия, на земле перед передней стопой.
+        // Острие в координатах кадра: пыль сильного удара встаёт там, где клинок у земли.
+        const [tipX, tipY] = toWorld(...at(near.hx, near.hy, P.sw, WEAPON_LEN[weapon]));
         if (P.dust > 0.05) {
+          const dx0 = Math.min(tipX, 150);
           for (let k = 0; k < 9; k++) {
             const r = (2 + 4 * P.dust) * (0.6 + ((k * 37) % 5) / 8);
-            p.disc(104 + P.footF + (k - 4) * 5 * P.dust, G - 2 - (k % 3) * 3 * P.dust - (k % 2) * 2, r * 0.5, k % 2 ? '#7a6c58c0' : '#9a8a70c0', true);
+            p.disc(dx0 + (k - 4) * 5 * P.dust, G - 2 - (k % 3) * 3 * P.dust - (k % 2) * 2, r * 0.5, k % 2 ? '#7a6c58c0' : '#9a8a70c0', true);
           }
+        }
+        if (warriorProbe.on) {
+          const [hwx, hwy] = toWorld(near.hx, near.hy);
+          warriorProbe.on({ ...probeInfo, hipX: hipX + P.x, hipY: hipY + P.y, handX: hwx + P.x, handY: hwy + P.y, tipX: tipX + P.x, tipY: tipY + P.y, ground: G });
         }
       });
     },

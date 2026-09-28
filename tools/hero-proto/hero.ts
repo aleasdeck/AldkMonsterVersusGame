@@ -14,7 +14,7 @@
 import { Painter, type MobClip, type Model, type Sheet, type Style } from '../../src/ui/mobs/pixel';
 import { MOB_STYLE } from '../../src/ui/mobs/styles';
 
-export type HeroClip = 'idle' | 'attack' | 'heavy' | 'power' | 'heal' | 'buff' | 'block' | 'hurt' | 'death' | 'bash' | 'riposte';
+export type HeroClip = 'idle' | 'attack' | 'attack_thrust' | 'heavy' | 'heavy_thrust' | 'power' | 'heal' | 'heal_kneel' | 'buff' | 'block' | 'hurt' | 'death' | 'bash' | 'riposte';
 
 export interface HeroClipSpec {
   frames: number;
@@ -30,6 +30,10 @@ export interface HeroClipSpec {
   when: string;
   /** Личный клип героя (есть не у всех). */
   own?: boolean;
+  /** Вариант на выбор: подпись варианта, чей это вариант (у варианта A — нет) и рекомендация. */
+  variant?: string;
+  variantOf?: HeroClip;
+  rec?: boolean;
 }
 
 /**
@@ -38,10 +42,13 @@ export interface HeroClipSpec {
  */
 export const HERO_CLIPS: Record<HeroClip, HeroClipSpec> = {
   idle: { frames: 24, fps: 8, name: 'Покой', when: 'стойка в бою и на экранах вне боя; 3 с цикл' },
-  attack: { frames: 8, fps: 12, contact: 4, name: 'Удар', when: 'обычная атака оружием' },
-  heavy: { frames: 10, fps: 12, contact: 5, name: 'Сильный удар', when: 'приём оружием вплотную (Вихрь, Порез, Таран…)' },
+  attack: { frames: 8, fps: 12, contact: 4, name: 'Удар', variant: 'A · С плеча', rec: true, when: 'обычная атака оружием: рубка из-за плеча вниз-вперёд' },
+  attack_thrust: { frames: 8, fps: 12, contact: 4, name: 'Удар', variant: 'B · Укол', variantOf: 'attack', when: 'обычная атака оружием: укол с шага от бедра' },
+  heavy: { frames: 10, fps: 12, contact: 5, name: 'Сильный удар', variant: 'A · Сверху с шагом', rec: true, when: 'приём оружием вплотную (Вихрь, Порез, Таран…): рубка сверху с широким шагом, клинок в землю' },
+  heavy_thrust: { frames: 10, fps: 12, contact: 5, name: 'Сильный удар', variant: 'B · Глубокий выпад', variantOf: 'heavy', when: 'приём оружием вплотную: глубокий выпад-укол, задняя нога вытянута' },
   power: { frames: 8, fps: 12, contact: 4, name: 'Приём', when: 'заклинание, бросок, выстрел — всё, что летит' },
-  heal: { frames: 10, fps: 10, name: 'Лечение', when: 'приём с лечением, зелье' },
+  heal: { frames: 12, fps: 10, name: 'Лечение', variant: 'A · Второе дыхание', rec: true, when: 'приём с лечением, зелье: встал прямо, меч в землю, выдох и вдох' },
+  heal_kneel: { frames: 12, fps: 10, name: 'Лечение', variant: 'B · На колено', variantOf: 'heal', when: 'приём с лечением, зелье: на колено, меч остриём в землю' },
   buff: { frames: 10, fps: 12, contact: 4, name: 'Клич', when: 'приём на себя без лечения: Боевой клич, Ярость, бафы' },
   block: { frames: 6, fps: 12, contact: 2, name: 'Блок', when: '«Защититься» и удар врага, погашенный блоком' },
   hurt: { frames: 5, fps: 12, flash: [0.7, 0.3], name: 'Урон', when: 'удар врага прошёл в HP' },

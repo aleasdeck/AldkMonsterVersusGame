@@ -34,7 +34,7 @@ SIM_DEATH=L2R10 SIM_HERO=warrior SIM_SHOW=2 npx vitest run tests/sim-death.test.
 node tools/mob-sheet.mjs forest                                                             # лепка: каждый кадр клипов в PNG (mob-preview/) и сводка роста; --zoom, --out; id,id или all
 node tools/fx-sheet.mjs                                                                     # лепка эффектов: клипы FX_CLIPS и фазы лат блока на силуэтах врагов в PNG (fx-preview/); --plates wolf,troll, --zoom, --out
 node tools/fx-proto/build.mjs                                                               # страница обсуждения «Лепка приёмов»: fx.ts рядом с черновиками всех семейств (fx-preview/lepka-priyomov.html)
-node tools/hero-proto/build.mjs                                                             # страница обсуждения «Лепка Воина» (hero-preview/lepka-voina.html); кадры обликов в PNG — node tools/hero-proto/still.mjs --look A,B,C --d 2,1.5,1 --scale 2; листы клипов — node tools/hero-proto/sheet.mjs --clips attack,block --zoom 3; типы — tsc -p tools/hero-proto
+node tools/hero-proto/build.mjs                                                             # страница обсуждения «Лепка Воина» (hero-preview/lepka-voina.html); кадры обликов в PNG — node tools/hero-proto/still.mjs --look A,B,C --d 2,1.5,1 --scale 2; листы клипов — node tools/hero-proto/sheet.mjs --clips attack,block --zoom 3; путь кисти и острия числами — node tools/hero-proto/probe.mjs --clips attack; типы — tsc -p tools/hero-proto
 SIM=1 SIM_N=200 npx vitest run tests/gnome-odds.test.ts                                     # как часто бот успевает убить вора на снаряжении каждого акта
 ```
 
