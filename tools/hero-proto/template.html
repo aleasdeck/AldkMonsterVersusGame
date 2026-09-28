@@ -57,10 +57,12 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 /* ─── Крупные планы ─── */
 .tiles { display: grid; gap: 16px; }
 .tiles.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.tile { min-width: 0; }
+.tiles.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tile { min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.tile > [data-tile] { width: 100%; }
 .tile-win { position: relative; overflow: hidden; border-radius: 4px; background: #0b0a0e; margin: 0 auto; }
 .tile-win .field { transform-origin: 0 0; }
-.tile-label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.tile-label { display: flex; justify-content: space-between; gap: 8px; width: 100%; max-width: 300px; font-size: 13px; color: var(--muted); margin-top: 6px; }
 .tile-label b { color: var(--text); font-weight: 500; }
 
 .looks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
@@ -109,17 +111,19 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
 
   <section aria-labelledby="battle-h">
     <h2 id="battle-h">В бою</h2>
-    <p class="prose">Кадр поля 960 × 320, как в игре: фон локации, её тонировка, враги-лепка в пикселе 2. Переключайте героя — нынешний лист или лепка одного из обликов в пикселе 2 или 1.</p>
+    <p class="prose">Кадр поля 960 × 320, как в игре: фон локации, её тонировка, враги-лепка в пикселе 2. Переключайте героя — нынешний лист или лепка одного из обликов — и размер его пикселя.</p>
     <div class="bench">
       <div class="controls">
-        <span class="tog" id="scene-hero" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
+        <span class="tog" id="scene-look" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
           <button type="button" data-v="ref">Лист (сейчас)</button>
-          <button type="button" data-v="A2">A · 2</button>
-          <button type="button" data-v="A1">A · 1</button>
-          <button type="button" data-v="B2">B · 2</button>
-          <button type="button" data-v="B1">B · 1</button>
-          <button type="button" data-v="C2">C · 2</button>
-          <button type="button" data-v="C1">C · 1</button>
+          <button type="button" data-v="A">A</button>
+          <button type="button" data-v="B">B</button>
+          <button type="button" data-v="C">C</button>
+        </span>
+        <span class="tog" data-pixel-group role="group" aria-label="Размер пикселя"><span class="tog-label">Пиксель</span>
+          <button type="button" data-v="2">2</button>
+          <button type="button" data-v="1.5">1,5</button>
+          <button type="button" data-v="1">1</button>
         </span>
         <span class="tog" id="scene-loc" role="group" aria-label="Локация"><span class="tog-label">Локация</span>
           <button type="button" data-v="forest">Лес</button>
@@ -128,17 +132,18 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         </span>
       </div>
       <div class="stage" id="scene"></div>
-      <p class="caption">Цифра после буквы — размер пикселя рисунка в пикселях поля: 2 — как у врагов и фонов, 1 — вдвое подробнее.</p>
+      <p class="caption">Пиксель — размер точки рисунка в пикселях поля: 2 — как у врагов и фонов (64 точки роста), 1,5 — плотнее (85 точек; на FullHD ровно три точки экрана), 1 — вдвое подробнее (128 точек).</p>
     </div>
   </section>
 
   <section aria-labelledby="ref-h">
     <h2 id="ref-h">Рядом с референсом</h2>
-    <p class="prose">Один кусок поля вокруг героя, целым увеличением. Мерки сняты с листа в долях рамки фигуры (она почти квадратная — ширина равна росту) и переведены в единицы поля.</p>
-    <div class="tiles three">
-      <div class="tile"><div data-tile="ref"></div><div class="tile-label"><b>Лист</b><span>генератор, сглаживание</span></div></div>
-      <div class="tile"><div data-tile="A2"></div><div class="tile-label"><b>Облик A</b><span>пиксель 2 · 64 точки роста</span></div></div>
-      <div class="tile"><div data-tile="A1"></div><div class="tile-label"><b>Облик A</b><span>пиксель 1 · 128 точек роста</span></div></div>
+    <p class="prose">Один кусок поля вокруг героя в масштабе ×2 — как кадр игры на экране FullHD. Мерки сняты с листа в долях рамки фигуры (она почти квадратная — ширина равна росту) и переведены в единицы поля.</p>
+    <div class="tiles four">
+      <div class="tile"><div data-tile="ref"></div><div class="tile-label"><b>Лист</b><span>генератор</span></div></div>
+      <div class="tile"><div data-tile="A" data-pixel="2"></div><div class="tile-label"><b>A · 2</b><span>64 точки роста</span></div></div>
+      <div class="tile"><div data-tile="A" data-pixel="1.5"></div><div class="tile-label"><b>A · 1,5</b><span>85 точек</span></div></div>
+      <div class="tile"><div data-tile="A" data-pixel="1"></div><div class="tile-label"><b>A · 1</b><span>128 точек</span></div></div>
     </div>
     <h3 style="margin-top:22px">Что взято с листа</h3>
     <ul class="list prose">
@@ -151,7 +156,7 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <h3>Чего лепке не хватает до листа</h3>
     <ul class="list prose">
       <li>Лист нарисован с мелочью: десятки пластин, царапины, блики полосками. Лепка — крупные гладкие формы; сталь без правки выходила резиновой, поэтому в движок добавлен материал <code>metal</code> (сильнее контраст, шире блик — только для героев, враги не меняются) и тонкие стыки и кромки краской по пластинам.</li>
-      <li>В пикселе 2 фигура — 64 точки роста против ~107 у листа: прорезь шлема, кромки и стыки упрощаются. В пикселе 1 — 128 точек, подробнее листа.</li>
+      <li>В пикселе 2 фигура — 64 точки роста против ~107 у листа: прорезь шлема, кромки и стыки упрощаются. В пикселе 1,5 — 85 точек: кромки и стыки читаются, фигура всё ещё крупнее по зерну, чем лист. В пикселе 1 — 128 точек, подробнее листа.</li>
     </ul>
   </section>
 
@@ -159,29 +164,30 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <h2 id="looks-h">Облики</h2>
     <p class="prose">Одна лепка и одна стойка — разные шлем, щит и материалы. Анимации у обликов будут общими, поэтому выбор облика ничего не стоит в работе.</p>
     <div class="controls">
-      <span class="tog" id="pixel" role="group" aria-label="Размер пикселя"><span class="tog-label">Пиксель</span>
+      <span class="tog" data-pixel-group role="group" aria-label="Размер пикселя"><span class="tog-label">Пиксель</span>
         <button type="button" data-v="2">2 — как враги</button>
+        <button type="button" data-v="1.5">1,5 — плотнее</button>
         <button type="button" data-v="1">1 — вдвое подробнее</button>
       </span>
     </div>
     <div class="looks">
       <article class="look" data-look="A">
         <h3>A <span>Рыцарь</span></h3>
-        <div data-tile="A" data-zoom="2"></div>
+        <div data-tile="A"></div>
         <p>Как на листе: закрытый шлем с прорезью и латунной кромкой, багровые шарф и табард, щит-капля с бледным крестом.</p>
         <ul class="pros"><li class="plus">узнаётся сразу, ближе всех к листу</li><li class="plus">латунь отделяет героя от серых врагов</li><li class="minus">крест на щите — как у Паладина</li></ul>
         <button type="button" class="pick">Показать в бою</button>
       </article>
       <article class="look" data-look="B">
         <h3>B <span>Чёрный рыцарь</span></h3>
-        <div data-tile="B" data-zoom="2"></div>
+        <div data-tile="B"></div>
         <p>Мрачнее: воронёная побитая сталь без латуни, шлем с Т-прорезью и гребнем, длинный рваный плащ, щит-«утюг» с багровой перевязью.</p>
         <ul class="pros"><li class="plus">самый «дарк фэнтези», в тон врагам</li><li class="plus">без креста — не спорит с Паладином</li><li class="minus">тёмный силуэт тонет на тёмных фонах</li></ul>
         <button type="button" class="pick">Показать в бою</button>
       </article>
       <article class="look" data-look="C">
         <h3>C <span>Ветеран</span></h3>
-        <div data-tile="C" data-zoom="2"></div>
+        <div data-tile="C"></div>
         <p>Стартовая броня Воина — кольчуга: шлем с наносником, лицо с бородой в тени, багровое сюрко, стальные наплечники и круглый расписной щит.</p>
         <ul class="pros"><li class="plus">живое лицо, отличается от Паладина</li><li class="plus">совпадает со стартовой «Кольчугой»</li><li class="minus">дальше всех от листа, лицо в пикселе 2 почти не читается</li></ul>
         <button type="button" class="pick">Показать в бою</button>
@@ -193,9 +199,9 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <h2 id="weapon-h">Оружие в руке</h2>
     <p class="prose">Рисованный лист держит один меч навсегда. Лепка может рисовать то, что надето: у Воина в забеге бывает топор, булава, копьё. Здесь — облик A с тремя основами в том же хвате; размер пикселя — переключатель выше.</p>
     <div class="tiles three">
-      <div class="tile"><div data-tile="A:sword" data-zoom="2"></div><div class="tile-label"><b>Меч</b><span data-pixlabel></span></div></div>
-      <div class="tile"><div data-tile="A:axe" data-zoom="2"></div><div class="tile-label"><b>Топор</b><span data-pixlabel></span></div></div>
-      <div class="tile"><div data-tile="A:mace" data-zoom="2"></div><div class="tile-label"><b>Булава</b><span data-pixlabel></span></div></div>
+      <div class="tile"><div data-tile="A:sword"></div><div class="tile-label"><b>Меч</b><span data-pixlabel></span></div></div>
+      <div class="tile"><div data-tile="A:axe"></div><div class="tile-label"><b>Топор</b><span data-pixlabel></span></div></div>
+      <div class="tile"><div data-tile="A:mace"></div><div class="tile-label"><b>Булава</b><span data-pixlabel></span></div></div>
     </div>
   </section>
 
@@ -204,10 +210,11 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <div class="qs">
       <div class="q">
         <h3>Размер пикселя героя</h3>
-        <p>Враги и фоны — в пикселе 2. Нынешние листы героев по подробности ближе к пикселю 1.</p>
+        <p>Враги и фоны — в пикселе 2. Нынешние листы героев по подробности — между 1,5 и 1.</p>
         <ul class="opts">
           <li><b>2</b>одна сетка на всё поле, но Воин вдвое грубее нынешнего листа: 64 точки роста</li>
-          <li class="rec"><b>1</b>подробность не хуже листа, герой — главное пятно на поле; враги остаются в пикселе 2</li>
+          <li class="rec"><b>1,5</b>плотнее врагов, но не сильно: 85 точек, кромки и прорезь читаются; на FullHD — ровно три точки экрана на пиксель</li>
+          <li><b>1</b>подробнее листа, 128 точек; зерно героя вдвое мельче, чем у врагов и фонов</li>
         </ul>
       </div>
       <div class="q">

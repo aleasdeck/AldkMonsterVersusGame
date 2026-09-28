@@ -67,16 +67,20 @@ function figEl(f: Fig, x: number, loc: Loc): HTMLCanvasElement {
 
 // ─── Варианты героя ─────────────────────────────────────────────────────────
 
-type Pixel = 1 | 2;
-type Variant = 'ref' | `${WarriorLookId}${Pixel}`;
+/**
+ * Размер пикселя рисунка в пикселях поля: 2 — как враги и фоны, 1 — вдвое подробнее, 1.5 — между ними
+ * (на FullHD кадр игры ×2, и пиксель 1.5 — ровно три точки экрана).
+ */
+type Pixel = 2 | 1.5 | 1;
+type Look = 'ref' | WarriorLookId;
 const figs = new Map<string, Fig>();
 let REF: Fig;
 
-function heroFig(v: Variant, weapon: WeaponKind = 'sword'): Fig {
-  if (v === 'ref') return REF;
-  const key = `${v}-${weapon}`;
+function heroFig(look: Look, pixel: Pixel, weapon: WeaponKind = 'sword'): Fig {
+  if (look === 'ref') return REF;
+  const key = `${look}-${pixel}-${weapon}`;
   let f = figs.get(key);
-  if (!f) figs.set(key, (f = still(warriorModel(v[0] as WarriorLookId, weapon), { ...MOB_STYLE, d: Number(v[1]) })));
+  if (!f) figs.set(key, (f = still(warriorModel(look, weapon), { ...MOB_STYLE, d: pixel })));
   return f;
 }
 
@@ -122,8 +126,8 @@ function fitStage(host: HTMLElement, f: HTMLElement): void {
 }
 
 /**
- * Крупный план героя на полу локации: кусок поля 150 × 190 вокруг героя, целым увеличением (пиксели не плывут).
- * Увеличение — наибольшее целое, что влезает в ширину плитки, но не больше `zmax`.
+ * Крупный план героя на полу локации: кусок поля 150 × 190 вокруг героя, целым увеличением — как кадр игры
+ * на FullHD (×2): пиксель 1.5 там ровно три точки. Не влезает в ширину плитки — ×1.
  */
 function tile(host: HTMLElement, loc: Loc, hero: Fig, zmax: number): void {
   const CW = 150, CH = 190;
@@ -157,51 +161,53 @@ function boot(): void {
 }
 
 function start(): void {
-  // ── Сцена ──
-  let sceneHero: Variant = 'A1';
-  let sceneLoc: Loc = 'forest';
-  const heroGroup = document.getElementById('scene-hero')!;
+  // Одно состояние на страницу: облик в бою, размер пикселя (и в бою, и в плитках обликов и оружия), локация.
+  let look: Look = 'A';
+  let pixel: Pixel = 1.5;
+  let loc: Loc = 'forest';
+  const lookGroup = document.getElementById('scene-look')!;
+  const pixGroups = [...document.querySelectorAll<HTMLElement>('[data-pixel-group]')];
   const locGroup = document.getElementById('scene-loc')!;
   const stage = document.getElementById('scene')!;
   const drawScene = (): void => {
-    fitStage(stage, field(sceneLoc, heroFig(sceneHero), true));
-    toggle(heroGroup, sceneHero);
-    toggle(locGroup, sceneLoc);
+    fitStage(stage, field(loc, heroFig(look, pixel), true));
+    toggle(lookGroup, look);
+    toggle(locGroup, loc);
   };
-  heroGroup.addEventListener('click', (e) => {
-    const v = (e.target as HTMLElement).closest('button')?.dataset.v as Variant | undefined;
-    if (v) { sceneHero = v; drawScene(); }
-  });
-  locGroup.addEventListener('click', (e) => {
-    const v = (e.target as HTMLElement).closest('button')?.dataset.v as Loc | undefined;
-    if (v) { sceneLoc = v; drawScene(); redrawTiles(); }
-  });
-  drawScene();
-
-  // ── Плитки: рядом с референсом, облики, оружие ──
-  let pixel: Pixel = 1;
-  const pixGroup = document.getElementById('pixel')!;
-  const redrawTiles = (): void => {
+  // Плитки: `data-tile` — облик (A, B, C, ref) и оружие; `data-pixel` — свой размер пикселя, иначе общий.
+  const drawTiles = (): void => {
     for (const el of document.querySelectorAll<HTMLElement>('[data-tile]')) {
-      const [v, weapon] = el.dataset.tile!.split(':') as [string, WeaponKind | undefined];
-      const variant = (v === 'ref' ? 'ref' : v.length === 1 ? `${v}${pixel}` : v) as Variant;
-      tile(el, sceneLoc, heroFig(variant, weapon ?? 'sword'), Number(el.dataset.zoom ?? 3));
+      const [l, weapon] = el.dataset.tile!.split(':') as [Look, WeaponKind | undefined];
+      const px = el.dataset.pixel ? (Number(el.dataset.pixel) as Pixel) : pixel;
+      tile(el, loc, heroFig(l, px, weapon ?? 'sword'), 2);
     }
-    toggle(pixGroup, String(pixel));
-    for (const el of document.querySelectorAll<HTMLElement>('[data-pixlabel]')) el.textContent = `пиксель ${pixel}`;
+    for (const g of pixGroups) toggle(g, String(pixel));
+    for (const el of document.querySelectorAll<HTMLElement>('[data-pixlabel]')) el.textContent = `пиксель ${String(pixel).replace('.', ',')}`;
   };
-  pixGroup.addEventListener('click', (e) => {
-    const v = (e.target as HTMLElement).closest('button')?.dataset.v;
-    if (v) { pixel = Number(v) as Pixel; redrawTiles(); }
+  const pick = (e: Event): string | undefined => (e.target as HTMLElement).closest('button')?.dataset.v;
+  lookGroup.addEventListener('click', (e) => {
+    const v = pick(e) as Look | undefined;
+    if (v) { look = v; drawScene(); }
+  });
+  for (const g of pixGroups) {
+    g.addEventListener('click', (e) => {
+      const v = pick(e);
+      if (v) { pixel = Number(v) as Pixel; drawScene(); drawTiles(); }
+    });
+  }
+  locGroup.addEventListener('click', (e) => {
+    const v = pick(e) as Loc | undefined;
+    if (v) { loc = v; drawScene(); drawTiles(); }
   });
   for (const card of document.querySelectorAll<HTMLElement>('[data-look]')) {
     card.querySelector('button')?.addEventListener('click', () => {
-      sceneHero = `${card.dataset.look}${pixel}` as Variant;
+      look = card.dataset.look as Look;
       drawScene();
       document.getElementById('battle-h')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
-  redrawTiles();
+  drawScene();
+  drawTiles();
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

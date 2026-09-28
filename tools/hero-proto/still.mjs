@@ -15,6 +15,8 @@ const LOOKS = opt('look', 'A,B,C').split(',');
 const DS = opt('d', '2').split(',').map(Number);
 const WEAPON = opt('weapon', 'sword');
 const FRAME = Number(opt('frame', 0));
+// Во сколько раз крупнее поля: 2 — как кадр 960 × 540 на экране FullHD (пиксель 1.5 даёт ровно 3 точки экрана).
+const SCALE = Number(opt('scale', 1));
 
 const bundle = await build({
   stdin: { contents: "export { warriorModel } from './tools/hero-proto/warrior';\nexport { renderHeroClip } from './tools/hero-proto/hero';\nexport { MOB_STYLE } from './src/ui/mobs/styles';", resolveDir: ROOT, loader: 'ts' },
@@ -37,12 +39,13 @@ for (const look of LOOKS) for (const d of DS) {
   const sh = renderHeroClip(warriorModel(look, WEAPON), 'idle', style);
   const f = sh.frames[FRAME];
   // В пиксели поля: каждый пиксель рисунка — d×d.
-  const W = sh.w * d, H = sh.h * d, out = new Uint8Array(W * H * 4);
+  const k = d * SCALE;
+  const W = Math.round(sh.w * k), H = Math.round(sh.h * k), out = new Uint8Array(W * H * 4);
   for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-    const s = (Math.floor(j / d) * sh.w + Math.floor(i / d)) * 4, t = (j * W + i) * 4;
+    const s = (Math.min(sh.h - 1, Math.floor(j / k)) * sh.w + Math.min(sh.w - 1, Math.floor(i / k))) * 4, t = (j * W + i) * 4;
     out[t] = f[s]; out[t + 1] = f[s + 1]; out[t + 2] = f[s + 2]; out[t + 3] = f[s + 3];
   }
-  const file = join(OUT, `${look}-d${d}${WEAPON === 'sword' ? '' : '-' + WEAPON}.png`);
+  const file = join(OUT, `${look}-d${String(d).replace('.', '_')}${SCALE === 1 ? '' : `-x${SCALE}`}${WEAPON === 'sword' ? '' : '-' + WEAPON}.png`);
   writeFileSync(file, png(W, H, out));
-  console.log(`${file} ${W}×${H}, земля ${H - sh.foot * d}, верх ${sh.top * d}`);
+  console.log(`${file} ${W}×${H}, земля ${Math.round(H - sh.foot * k)}, верх ${Math.round(sh.top * k)}`);
 }
