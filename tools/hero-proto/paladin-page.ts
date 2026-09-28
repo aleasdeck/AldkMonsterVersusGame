@@ -1,7 +1,7 @@
 // Страница обсуждения «Лепка Паладина» — шаги 2–3 рецепта (docs/lepka-geroev.md): модель в стойке по меркам прежнего
 // листа, три облика одной лепкой, шлем и оружие. Клипов пока нет — сначала облик. Модель — src/ui/heroes/paladin.ts
 // (в игру ещё не входит), враги и фоны — из игры, тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero paladin.
-import type { Model } from '../../src/ui/mobs/pixel';
+import { Painter, type Model } from '../../src/ui/mobs/pixel';
 import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
@@ -161,6 +161,7 @@ function drawScene(): void {
  */
 let tileRun = 0;
 function drawTiles(): void {
+  drawOverlay();
   const run = ++tileRun;
   const hosts = [...document.querySelectorAll<HTMLElement>('[data-tile]')];
   for (const el of hosts) if (!el.firstChild) el.textContent = 'рисую кадры…';
@@ -182,6 +183,63 @@ function drawTiles(): void {
   const lookName = document.querySelectorAll<HTMLElement>('[data-look-name]');
   const name = state.look === 'ref' ? 'B' : state.look;
   for (const el of lookName) el.textContent = name;
+}
+
+/**
+ * Сверка силуэта: лист пересчитан в сетку лепки (пиксель 1,5) — каждая клетка берёт точку листа под своей серединой
+ * по тому же переводу, что мерки, — рядом лепка в выбранном облике (первый кадр покоя) и карта расхождений.
+ */
+function drawOverlay(): void {
+  const host = document.getElementById('overlay');
+  if (!host) return;
+  const look = state.look === 'ref' ? 'B' : state.look;
+  const m = paladinModel(look, state.helm, state.weapon);
+  const p = new Painter(m, HERO_STYLE, 0);
+  m.draw(p);
+  const fig = p.finish();
+  const rc = document.createElement('canvas');
+  rc.width = rc.height = 188;
+  const rctx = rc.getContext('2d')!;
+  rctx.drawImage(REF_IMG, 0, 0, 188, 188, 0, 0, 188, 188);
+  const ref = rctx.getImageData(0, 0, 188, 188).data;
+  const k = 132 / 180, d = HERO_STYLE.d, pad = m.pad ?? 80;
+  const X0 = -8, Y0 = 0, cols = Math.round(148 / d), rows = Math.round(138 / d);
+  const panels = [0, 1, 2].map(() => new ImageData(cols, rows));
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const x = X0 + (i + 0.5) * d, y = Y0 + (j + 0.5) * d;
+      const px = Math.floor(12 + (x - 5) / k), py = Math.floor(184 - (136 - y) / k);
+      const ro = (py * 188 + px) * 4;
+      const r = px >= 0 && py >= 0 && px < 188 && py < 188 && ref[ro + 3] > 0 ? [ref[ro], ref[ro + 1], ref[ro + 2]] : null;
+      const fi = Math.floor((x + pad) / d), fj = Math.floor((y + pad) / d), so = (fj * p.W + fi) * 4;
+      const s2 = fi >= 0 && fj >= 0 && fi < p.W && fj < p.H && fig[so + 3] > 0 ? [fig[so], fig[so + 1], fig[so + 2]] : null;
+      const grid = Math.round(x) % 10 === 0 || Math.round(y) % 10 === 0;
+      const bg = grid ? [52, 48, 58] : [30, 27, 34];
+      const diff = r && s2 ? [120, 116, 124] : r ? [220, 70, 70] : s2 ? [70, 196, 220] : bg;
+      [r ?? bg, s2 ?? bg, diff].forEach((c, n) => {
+        const o = (j * cols + i) * 4, data = panels[n].data;
+        data[o] = c[0];
+        data[o + 1] = c[1];
+        data[o + 2] = c[2];
+        data[o + 3] = 255;
+      });
+    }
+  }
+  const names = ['Лист в пикселе 1,5', `Лепка, облик ${look}`, 'Расхождения'];
+  host.replaceChildren(...panels.map((img, n) => {
+    const f = document.createElement('figure');
+    const c = document.createElement('canvas');
+    c.width = cols;
+    c.height = rows;
+    c.getContext('2d')!.putImageData(img, 0, 0);
+    c.style.width = `${cols * 3}px`;
+    c.setAttribute('role', 'img');
+    c.setAttribute('aria-label', names[n]);
+    const cap = document.createElement('figcaption');
+    cap.textContent = names[n];
+    f.append(c, cap);
+    return f;
+  }));
 }
 
 function start(): void {
