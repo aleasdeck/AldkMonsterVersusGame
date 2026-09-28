@@ -809,23 +809,26 @@ describe('забег', () => {
     expect(run2.phase).toBe('map');
   });
 
-  it('сундук: золото по акту всегда, хотя бы одна вещь', () => {
+  it('сундук: золото по акту всегда, обычно одна вещь, две — реже, три — совсем редко', () => {
+    const counts = [0, 0, 0, 0];
     for (let act = 0; act < CHEST_GOLD.length; act++) {
-      let items = 0;
-      for (let seed = 1; seed <= 200; seed++) {
+      for (let seed = 1; seed <= 400; seed++) {
         const run = newRun('mage', seed);
         const loot = rollChest(run.rng, run.hero, ACTS[act], act);
         const [lo, hi] = CHEST_GOLD[act];
         expect(loot.gold).toBeGreaterThanOrEqual(lo);
         expect(loot.gold).toBeLessThanOrEqual(hi);
-        const n = [loot.gear, loot.artifact, loot.potion].filter(Boolean).length;
-        expect(n).toBeGreaterThan(0);
-        items += n;
+        counts[[loot.gear, loot.artifact, loot.potion].filter(Boolean).length]++;
       }
-      // В среднем полторы вещи: предмет и артефакт через раз, зелье реже.
-      expect(items / 200).toBeGreaterThan(1.2);
-      expect(items / 200).toBeLessThan(1.9);
     }
+    // 70 / 25 / 5 (CHEST_ITEM_COUNT) на 1200 сундуках; пустых не бывает.
+    const total = 1200;
+    expect(counts[0]).toBe(0);
+    expect(counts[1] / total).toBeGreaterThan(0.64);
+    expect(counts[1] / total).toBeLessThan(0.76);
+    expect(counts[2] / total).toBeGreaterThan(0.19);
+    expect(counts[2] / total).toBeLessThan(0.31);
+    expect(counts[3] / total).toBeLessThan(0.09);
   });
 
   it('сундук из сохранения до v0.54.1: без золота и других вещей открывается и надевается', () => {

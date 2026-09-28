@@ -1,6 +1,7 @@
 import type {
   ArtTier,
   ArtifactInstance,
+  ChestItem,
   EventKind,
   GearInstance,
   GearKind,
@@ -100,18 +101,23 @@ export function rollShop(rng: Rng, hero: HeroPersistent, act: ActDef): ShopState
 // ─── Сундук ────────────────────────────────────────────────────────────────
 
 /**
- * Сундук события (v0.54.1): золото всегда, вещи — каждая своим броском, но хотя бы одна. До этого внутри лежал один предмет
- * пула акта, редко лучше надетого, и живой игрок пропускал сундук забег за забегом. Золото растёт по акту вместе с ценами
- * торговца: в первом акте это переброс или лекарь, в третьем — почти артефакт.
+ * Сундук события (v0.54.1): золото всегда и от одной до трёх вещей. До этого внутри лежал один предмет пула акта, редко лучше
+ * надетого, и живой игрок пропускал сундук забег за забегом. Золото растёт по акту вместе с ценами торговца: в первом акте
+ * это переброс или лекарь, в третьем — почти артефакт.
  */
 export const CHEST_GOLD: [number, number][] = [
   [4, 8],
   [6, 10],
   [8, 12],
 ];
-export const CHEST_GEAR_CHANCE = 0.5;
-export const CHEST_ART_CHANCE = 0.5;
-export const CHEST_POTION_CHANCE = 0.35;
+/** Сколько вещей: обычно одна, две — в каждом четвёртом сундуке, три — в каждом двадцатом (решение пользователя). */
+export const CHEST_ITEM_COUNT: { item: number; weight: number }[] = [
+  { item: 1, weight: 70 },
+  { item: 2, weight: 25 },
+  { item: 3, weight: 5 },
+];
+/** Какие вещи: экипировка и артефакт вдвое чаще зелья — одно зелье на весь сундук выглядит бедно. */
+export const CHEST_ITEM_WEIGHT: Record<ChestItem, number> = { gear: 2, artifact: 2, potion: 1 };
 
 export interface ChestLoot {
   gold: number;
@@ -120,16 +126,30 @@ export interface ChestLoot {
   potion: string | null;
 }
 
-/** Содержимое сундука: `actIndex` — номер акта с нуля (золото), `act` — пулы вещей. */
+/**
+ * Содержимое сундука: `actIndex` — номер акта с нуля (золото), `act` — пулы вещей. Сначала число вещей, потом какие —
+ * без повторов, по весам. Артефакт не выпал (все на максимуме) — его место занимает следующая вещь.
+ */
 export function rollChest(rng: Rng, hero: HeroPersistent, act: ActDef, actIndex: number): ChestLoot {
   const [lo, hi] = CHEST_GOLD[Math.max(0, Math.min(actIndex, CHEST_GOLD.length - 1))];
-  const gold = int(rng, lo, hi);
-  let gear = chance(rng, CHEST_GEAR_CHANCE) ? rollGear(rng, hero, act.gearTiers, undefined, act.rareGear) : null;
-  const artifact = chance(rng, CHEST_ART_CHANCE) ? rollArtifact(rng, hero, act.artTiers, []) : null;
-  const potion = chance(rng, CHEST_POTION_CHANCE) ? rollPotion(rng, hero) : null;
-  // Без единой вещи сундук не бывает: не выпало ничего (или артефакты все на максимуме) — внутри предмет.
-  if (!gear && !artifact && !potion) gear = rollGear(rng, hero, act.gearTiers, undefined, act.rareGear);
-  return { gold, gear, artifact, potion };
+  const loot: ChestLoot = { gold: int(rng, lo, hi), gear: null, artifact: null, potion: null };
+  const pool: ChestItem[] = ['gear', 'artifact', 'potion'];
+  let left = weighted(rng, CHEST_ITEM_COUNT);
+  while (left > 0 && pool.length > 0) {
+    const kind = weighted(
+      rng,
+      pool.map((item) => ({ item, weight: CHEST_ITEM_WEIGHT[item] })),
+    );
+    pool.splice(pool.indexOf(kind), 1);
+    if (kind === 'gear') loot.gear = rollGear(rng, hero, act.gearTiers, undefined, act.rareGear);
+    else if (kind === 'potion') loot.potion = rollPotion(rng, hero);
+    else {
+      loot.artifact = rollArtifact(rng, hero, act.artTiers, []);
+      if (!loot.artifact) continue;
+    }
+    left--;
+  }
+  return loot;
 }
 
 // ─── Генерация ─────────────────────────────────────────────────────────────
