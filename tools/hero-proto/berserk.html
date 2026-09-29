@@ -1,0 +1,321 @@
+<title>Лепка Берсерка</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Tiny5&display=swap">
+<style>
+/* Одна тёмная сцена под игру, как у «Лепки Воина» и «Лепки Паладина»: страница нарочно без светлой темы — пиксель-арт
+   сверяется на тёмном. Лента: шапка, сцена во всю ширину, карточки вариантов, сверка, вопросы. Акцент — цвет раны. */
+:root {
+  color-scheme: dark;
+  --ink: #120f10;
+  --panel: #1b1718;
+  --panel-2: #241f20;
+  --line: #322a2b;
+  --text: #ebe3da;
+  --muted: #a89c9a;
+  --faint: #716665;
+  --accent: #d6704a;
+  --accent-ink: #1e0b06;
+  --plus: #8fd06a;
+  --minus: #e07a6a;
+  --display: 'Tiny5', 'IBM Plex Mono', ui-monospace, monospace;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+body { background: var(--ink); color: var(--text); font: 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 64px; }
+.wrap { max-width: 1120px; margin: 0 auto; }
+.prose { max-width: 72ch; }
+h1, h2 { font-family: var(--display); font-weight: 400; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.05; margin: 40px 0 12px; color: var(--accent); }
+h2 { font-size: clamp(24px, 3.4vw, 30px); line-height: 1.15; margin: 60px 0 12px; }
+h3 { font-size: 17px; font-weight: 600; margin: 0 0 6px; text-wrap: balance; }
+p { margin: 0 0 12px; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.lead { font-size: 18px; max-width: 70ch; }
+.meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 20px; }
+.meta b { color: var(--text); font-weight: 500; }
+.note { color: var(--muted); font-size: 14px; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+.tog { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; transition: opacity 0.2s; }
+.tog.muted { opacity: 0.4; }
+.tog-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.tog button, .pick { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 14px; line-height: 1.3; }
+.tog button:hover, .pick:hover { border-color: var(--faint); }
+.tog button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-bottom: 10px; }
+
+/* ─── Поле ─── */
+.bench { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px; }
+.stage { position: relative; width: 100%; overflow: hidden; border-radius: 4px; background: #0b0a0b; }
+/* Заглушка, пока рисуются кадры: высота кадра 3 : 1, текст по центру. */
+.stage:not(:has(.field)) { aspect-ratio: 3 / 1; display: grid; place-items: center; color: var(--faint); font-size: 13px; }
+.field { position: absolute; left: 0; top: 0; width: 960px; height: 320px; transform-origin: 0 0; overflow: hidden; }
+.field .bg { position: absolute; inset: 0; width: 960px; height: 320px; max-width: none; image-rendering: pixelated; }
+.fig { position: absolute; max-width: none; image-rendering: pixelated; }
+.fig.smooth { image-rendering: auto; }
+.tint-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.caption { font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+
+/* ─── Крупные планы ─── */
+.tile-win { position: relative; overflow: hidden; border-radius: 4px; background: #0b0a0b; margin: 0 auto; max-width: 100%; }
+[data-tile] { width: 100%; min-height: 180px; display: grid; place-items: center; color: var(--faint); font-size: 13px; }
+.tiles { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tile { min-width: 0; display: grid; gap: 6px; justify-items: center; align-content: start; }
+.tile-label { display: flex; justify-content: space-between; gap: 8px; width: 100%; max-width: 340px; font-size: 13px; color: var(--muted); }
+.tile-label b { color: var(--text); font-weight: 500; }
+
+/* ─── Хват оружия — плитки-кнопки ─── */
+.cards { display: grid; gap: 16px; margin-top: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.card-btn { display: grid; gap: 6px; justify-items: stretch; align-content: start; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-width: 0; }
+.card-btn:hover { border-color: var(--faint); }
+.card-btn[aria-pressed="true"] { border-color: var(--accent); }
+.card-name { display: flex; gap: 8px; align-items: baseline; font-weight: 600; font-size: 15px; }
+.card-btn[aria-pressed="true"] .card-name::after { content: 'в сцене'; margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--accent-ink); background: var(--accent); padding: 1px 6px; border-radius: 3px; }
+.card-desc { font-size: 14px; color: var(--muted); }
+.card-desc b { color: var(--text); font-weight: 500; }
+.card-anim { font-size: 13px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; }
+.card-anim b { color: var(--text); font-weight: 500; }
+
+/* ─── Сверка силуэта ─── */
+.overlay { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 18px; }
+.overlay figure { margin: 0; display: grid; gap: 4px; min-width: 0; }
+.overlay canvas { display: block; image-rendering: pixelated; width: 321px; max-width: 100%; height: auto; border-radius: 4px; }
+.overlay figcaption { font-size: 13px; color: var(--muted); }
+
+/* ─── Вопросы ─── */
+.qs { display: grid; gap: 14px; margin-top: 16px; counter-reset: q; }
+.q { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px 16px; }
+.q h3 { display: flex; gap: 10px; align-items: baseline; }
+.q h3::before { counter-increment: q; content: 'В' counter(q); font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 500; }
+.q > p { font-size: 14px; color: var(--muted); }
+.opts { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.opts li { margin: 0; padding: 6px 10px; border-radius: 4px; background: var(--panel-2); font-size: 14px; }
+.opts li b { font-family: var(--mono); font-weight: 500; margin-right: 6px; }
+.opts li.rec { outline: 1px solid var(--accent); }
+.opts li.rec::after { content: 'рекомендую'; float: right; font-size: 11px; font-family: var(--mono); color: var(--accent); letter-spacing: 0.05em; margin-left: 10px; }
+.opts li.chosen { background: var(--accent); color: var(--accent-ink); }
+.opts li.chosen::after { content: 'решено'; float: right; font-size: 11px; font-family: var(--mono); letter-spacing: 0.05em; margin-left: 10px; }
+
+.list { padding-left: 1.2em; margin: 0 0 12px; }
+.list li { margin: 4px 0; }
+.steps { padding-left: 1.4em; margin: 0; display: grid; gap: 10px; }
+.steps li::marker { font-family: var(--mono); color: var(--accent); }
+.steps b { font-weight: 600; }
+
+.scroll { overflow-x: auto; margin: 10px 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+
+/* ─── Аватарка: три размера, ряд выбора, прежний портрет ─── */
+.av-sizes { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.av-sizes figure, .avatar-row figure, .av-old figure { margin: 0; display: grid; gap: 4px; justify-items: start; }
+.av-sizes canvas, .avatar-row canvas, .avatar-row img, .av-old img { display: block; max-width: 100%; height: auto; border-radius: 2px; }
+.av-sizes figcaption, .avatar-row figcaption, .av-old figcaption { font-size: 12px; color: var(--muted); }
+.avatar-row { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px; background: #0b0a0e; border: 1px solid var(--line); border-radius: 6px; margin-top: 10px; }
+.avatar-row figure.me figcaption { color: var(--accent); font-weight: 600; }
+.avatar-row figure.me canvas { outline: 2px solid var(--accent); outline-offset: 2px; }
+.av-old { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; margin-top: 18px; }
+.av-old p { max-width: 52ch; font-size: 14px; color: var(--muted); }
+#avatar-old { min-height: 224px; }
+
+/* ─── Клипы ─── */
+.clip-controls { margin: 10px 0 0; }
+#scene-clips.muted { pointer-events: none; }
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; margin-top: 12px; }
+.clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.clip-view { min-height: 250px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; width: 100%; }
+.clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.clip-head b { font-size: 16px; }
+.clip-head .mono { color: var(--muted); font-size: 12px; }
+.clip-card p { margin: 0; font-size: 14px; color: var(--muted); }
+details.history { margin-top: 12px; }
+table.rig td { min-width: 0; }
+table.rig td:first-child { white-space: nowrap; }
+table.rig td p { margin: 6px 0 0; color: var(--muted); }
+details.history summary { cursor: pointer; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .cards { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .tiles { grid-template-columns: 1fr; }
+  body { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tog { transition: none; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Лепка Берсерка</h1>
+    <p class="lead">Берсерк в игре с v0.54.6 — вместо рисованного листа и портрета; третий герой на пиксельной лепке после Воина и Паладина. Облик «Северянин» с волчьей шкурой капюшоном, топор в дальней руке, как на листе. Девять клипов, каждый разобрал свой агент-риггер: удар «Сверху», сильный удар «Двумя руками», лечение «Второе дыхание», клич «Ярость» — кулак в грудь. Аватарка — поза покоя в кадре бюста, как прежний портрет.</p>
+    <div class="meta"><span>Рост в бою <b>136</b></span><span>Пиксель <b>1,5</b> — 91 точка роста</span><span>Модель <b>src/ui/heroes/berserk.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
+  </header>
+
+  <section aria-labelledby="battle-h">
+    <h2 id="battle-h">В бою</h2>
+    <p class="prose">Кадр поля 960 × 320, как в игре: фон и тонировка локации, враги-лепка в пикселе 2. Кнопка клипа играет его так, как покажет игра: на удар первый враг вздрагивает в кадр контакта, на блок, урон и смерть сначала бьёт враг. Скорость ¼ — разобрать кадры.</p>
+    <div class="bench">
+      <div class="controls">
+        <span class="tog" id="scene-hero" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
+          <button type="button" data-v="sculpt">Лепка</button>
+          <button type="button" data-v="ref">Лист (было)</button>
+        </span>
+        <span class="tog" id="scene-loc" role="group" aria-label="Локация"><span class="tog-label">Локация</span>
+          <button type="button" data-v="forest">Лес</button>
+          <button type="button" data-v="crypt">Склеп</button>
+          <button type="button" data-v="caves">Пещеры</button>
+        </span>
+      </div>
+      <div class="stage" id="scene"></div>
+      <div class="controls clip-controls">
+        <span class="tog" id="scene-clips" role="group" aria-label="Клип героя"><span class="tog-label">Клип</span></span>
+        <span class="tog" id="speed" role="group" aria-label="Скорость"><span class="tog-label">Скорость</span>
+          <button type="button" data-v="1">1×</button>
+          <button type="button" data-v="0.5">½</button>
+          <button type="button" data-v="0.25">¼</button>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="avatar-h">
+    <h2 id="avatar-h">Аватарка</h2>
+    <p class="prose">Аватарка рисуется из той же лепки и заменила прежний портрет везде: плитка выбора героя (112), лист персонажа (80), консоль (44). Поза покоя в кадре бюста: волчья голова у дальнего плеча, горб шкуры слева, торс с перевязью, лезвие топора в правом нижнем углу. Фон — с прежнего портрета: кровавое небо, луна за мордой волка, частокол по краям. Три размера игры ×2, как на FullHD.</p>
+    <div class="av-sizes" id="avatars"></div>
+    <h3 style="margin-top:22px">Ряд выбора героя</h3>
+    <p class="prose note">Шесть плиток по 112 в порядке игры: Воин, Паладин и Берсерк — из лепки, Маг, Ассасин и Лучник — рисованные портреты, как в игре.</p>
+    <div class="avatar-row" id="avatar-row"></div>
+    <div class="av-old">
+      <figure><div id="avatar-old"></div><figcaption>Было — рисованный портрет</figcaption></figure>
+      <p>Прежний портрет: рогатый шлем, огромная шкура на плечах, голый торс с перевязью и бляхой, окровавленное лезвие в правом нижнем углу; кровавая луна, вороны и пики. У лепки на месте шлема — волчья шкура (выбор облика), пики — частоколом по краям; ворон фон аватарки рисовать не умеет.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="clips-h">
+    <h2 id="clips-h">Все клипы</h2>
+    <p class="prose">Каждый клип по кругу на локации из сцены, ×2. Удар, сильный удар и лечение — выбранные варианты A.</p>
+    <div class="clips" id="clips"></div>
+  </section>
+
+  <section aria-labelledby="rig-h">
+    <h2 id="rig-h">Ревью риггинга</h2>
+    <p class="prose">По просьбе пользователя каждый клип разобрал свой агент-риггер без контекста разговора: цепь суставов, плечевой пояс, локоть, запястье, слои, дуги и тайминг, ноги, стык с покоем. Что нашли и что поправлено (варианты B удара, сильного удара и лечения отвергнуты — они в истории ветки):</p>
+    <div id="rig-notes"><div class="scroll">
+    <table class="rig">
+      <thead><tr><th>Клип</th><th>Что нашёл риггер</th><th>Что стало</th></tr></thead>
+      <tbody>
+      <tr><td><b>Удар (рекомендация риггера — A)</b></td><td>A — ключ на кадре 0; хват под головой топора — на замахе 29 единиц древка торчали к врагу палкой над головой, а голова топора пряталась за головой героя; кулак заведён за затылок; в контакт локоть согнут на 84° и опущен — удар не одной линией; проводки нет, ближний кулак стоял. B — замаха не было, топор за корпусом лежал поверх бедра; локоть складывался до 8°, топор перекидывался на 180°; при ударе снизу вверх неперевёрнутый топор бил обухом.</td><td>A «Сверху» — вес назад, топор на плечо (хват съезжает к концу древка), замах — кулак над шлемом, древко за головой; шаг — рука прямая вверх-вперёд, топор отстаёт над кулаком; в кадр удара рука прямая на врага, топор её продолжает, кромка на уровне груди, ближний кулак отброшен назад; проводка вниз. Топор весь удар поворачивается к бороде — бьёт кромка. B «Наотмашь снизу» — присел и закрутился, рука поперёк груди к ближнему бедру, кисть провёрнута (борода вперёд); шаг — рука маятником вниз-вперёд, топор у колен; в кадр удара рука прямая на врага на высоте груди, кромка режет снизу вверх. Каркас: <code>slide</code> — хват съезжает к окованному концу, <code>across</code> — дальняя рука поперёк груди рисуется перед торсом, <code>aflip</code> — топор перевёрнут в кисти (все 0 в покое).<p><b>Почему A:</b> читается в масштабе боя сразу, рука одной цепью на своей глубине, без переворота топора и руки поперёк груди; у B топор низко у колен и за ближней рукой, лезвие на контакте вверх, кисть переворачивается дважды.</p><p><b>Открыто:</b> B держит дальнюю руку поперёк груди на кадрах 1–3 (нарочно — замах с другой стороны), что близко к прошлой жалобе «рука спереди»; рывок в начале A — неизбежен.</p></td></tr>
+      <tr><td><b>Сильный удар (рекомендация риггера — A)</b></td><td>ключ на кадре 0 (стык с покоем); в кадре 1 дальний локоть «куриным крылом» (25–35°), топор дёргался вверх у бедра; ближний кулак висел в 10–12 от древка, а с кадра 2 сползал с него на 12–35 — двуручного хвата фактически не было; на замахе дальний кулак рос из-за головы, топор лежал назад лезвием вверх, конец древка торчал над лицом; пыль появлялась на кадр позже удара; у B стопа отрывалась уже в приседе, в прыжке ноги висели палками.</td><td>A «Двумя руками» — подобрался, ближний кулак взял древко у конца; топор вверх перед грудью; замах — корпус прогнут, топор над головой наклонён назад, два кулака на древке один над другим; шаг — руки вверх-вперёд, топор ещё отстаёт; в кадр удара догоняет одним рывком, лезвие в землю, пыль; держит и выдёргивает. B «С прыжка» — глубокий присед, толчок, верх прыжка с поджатыми коленями и топором над головой, приземление на обе стопы в глубокий присед с рубкой, подскок в стойку. Хват скользит по древку, ближнее плечо выдвинуто к врагам (<code>nsx</code>) — плечи в ракурсе шире ближней руки.<p><b>Почему A:</b> совпадает с сильными ударами Воина и Паладина, тяжесть держат три кадра замаха и рывок; у B в воздухе всего 3 кадра — прыжок резкий, «мультяшный», и прыжок на каждый приём вплотную может приесться. B — если обычный удар «Сверху» и сильный окажутся слишком похожи.</p><p><b>Открыто:</b> на кадре замаха ближняя рука на ~80 мс закрывает лицо; ближняя рука в кадрах 2–4 почти прямая.</p></td></tr>
+      <tr><td><b>Приём (бросок)</b></td><td>локоть ближней руки перескакивал вперёд к лицу (сгиб 39° — «куриное крыло»), в контакте рука не выпрямлялась (117°); край горба над ближним плечом рисовался поверх поднятой руки и резал её на кулак с наручем и отдельный бугор; вытянутая рука кончалась у дальнего плеча — кулак ложился в бороду, броска не видно; замах в два кадра, топор стоял мёртво.</td><td>бросок сверху, как у правши — вес назад, рука назад почти прямой, локоть вверх и кулак за головой над горбом, шаг, в кадр контакта рука прямая к врагу на высоте плеча, проводка вниз через корпус к колену, возврат. Дальняя рука с топором — противовес: вперёд на замахе, к бедру на броске. Каркас: <code>nfur</code> — край горба рисуется под поднятой ближней рукой, <code>nsx</code> — разворот корпуса сдвигом ближнего плеча к врагам (оба 0 в покое).<p><b>Открыто:</b> кисть всегда кулак (открытой ладони нет); дальняя рука на кадр уходит за бедро.</p></td></tr>
+      <tr><td><b>Лечение (рекомендация риггера — A)</b></td><td>A — кадр 0 расходился с покоем на 44 %, ближний локоть складывался до 46–51°, топор задирался с наклоном назад, 0,6 с полной неподвижности; B — колено уходило на 10 под землю (присед Воина 22 при длинном бедре Берсерка), носок сапога в земле, колено прыгало на 40 за кадр на входе и выходе, дальняя рука палкой, лезвие не упиралось в землю.</td><td>A «Второе дыхание» — осел на выдохе, в кадр контакта рывком выпрямился: кулак к груди, голова запрокинута, держит вдох (голова уходит ещё назад), выдох и в стойку; топор висит расслабленно. B «На колено» — за два кадра на ближнее колено (колено на земле при приседе 12,5), топор лезвием в землю перед дальним сапогом, пыль; вдох и выдох, пока топор стоит; встал, оттолкнувшись от носка. Каркас ног: щиколотка на колене поднята на низ сапога, стоящего на носке; колено на переходе идёт между двумя решениями ik, а не перескакивает; мех колена ложится вдоль голени.<p><b>Почему A:</b> приём и называется «Второе дыхание» — берсерк лечится стоя, кулаком в грудь; Воин лечится на колене; B первыми кадрами похож на начало смерти (падение на колено).</p></td></tr>
+      <tr><td><b>Клич «Ярость»</b></td><td>кулак приходил на грудь уже во 2-м кадре и стоял — удара в контакт не было, лежал на грудной мышце кожа к коже; дальний локоть складывался до 56–58°, топор — «факел» (запястье в пределе −25, топор отвесно над почти прямой рукой); скачки лезвия 74 и 65 за кадр; нулевой кадр расходился с покоем на 32 пикселя (<code>ws</code> на нулевом ключе).</td><td>сжался (кулак к животу) — кулак занесён над горбом, топор вверх перед грудью — в кадр контакта кулак с размаху бьёт в грудину (самое быстрое движение клипа, 46 единиц), рука с топором вскинута вверх-вперёд почти прямой, топор наклонён назад на запястье (−52°); кулак отскакивает и снова прижат, шкура взвивается на кадр позже. Дальний локоть ≥ 87°, запястье −43…−66, нулевой кадр — покой.<p><b>Открыто:</b> наклон топора наверху (−40 / −52 / −62), мех дальнего плеча не поднимается за вскинутой рукой (правка каркаса, заденет удары).</p></td></tr>
+      <tr><td><b>Блок</b></td><td>топор развёрнут головой за спину (предплечье вверх, угол к нему −100 — древко назад-влево), к врагу торчал конец древка, лезвия не видно, корпус не закрыт; ближняя кисть висела в 12–13 единицах от древка — двуручного хвата не было; дальний локоть «куриным крылом» (41–49°); прыжок конца оружия 55 на возврате.</td><td>«секира щитом» — обе руки на древке, древко наискось перед грудью (отвесно ближняя рука не достаёт — плечи в ракурсе разнесены на 52), лезвие-«борода» висит перед корпусом со стороны врага от темени до живота, лицо видно над древком; ближнее плечо развёрнуто к удару (<code>nsx</code>); в кадр удара — толчок назад и искры о древко; опускает, ближняя рука отпускает древко. Хват обратный — угол топора задан от корпуса на каждом кадре (вне предела запястья стойки нарочно).<p><b>Открыто:</b> удар принимает скорее лезвие, чем древко (искры можно перенести на кромку).</p></td></tr>
+      <tr><td><b>Урон</b></td><td>кулак с топором взлетал к груди при локте у пояса и плече за торсом — «кисть спереди, а рука сзади»; топор вставал отвесно «факелом» (лезвие вверх на 50); ближняя рука «куриным крылом» (локоть выше плеча); все части затухали синхронно — деревянно.</td><td>лёгкое летит по удару, тяжёлое отстаёт. Кадр вспышки — корпус назад, голова запрокинута, кулак с топором почти на месте в мире (рука вытянулась вперёд-вниз, топор впереди); кадр 1 — таз держится, голова, плащ и ближняя рука доходят дальше (рука отброшена назад почти прямой); кадр 2 — быстрый возврат, лезвие по инерции чуть выше покоя; кадр 3 — осел вперёд. Локти не острее 138°, рука видна от плеча до кулака во всех кадрах.<p><b>Открыто:</b> плащ взлетает по условности (по физике подол сначала отстаёт); начало смерти стоит на старой позе урона.</p></td></tr>
+      <tr><td><b>Смерть</b></td><td>кадр 0 — старая поза урона; топор выходил из руки уже в кадре 1; присед 16–24 уводил колено на 10–17 под землю; после падения руки оставались в позах стойки (кулак висел в воздухе); весь верх поворачивался на 88° — горб вставал вертикальным гребнем, плащ сжимался в столб и пропадал, повязка торчала флагом, торс читался перекатом на бок, голова пряталась за топором; топор стоял на лезвии и ложился лезвием вверх поверх всего; падение сглажено — тело тормозило перед ударом о землю.</td><td>кадр 0 — кадр 0 урона; отдача доходит, ноги подкашиваются, топор выскальзывает и падает головой вниз, лезвием бьётся о землю и опрокидывается плашмя за телом; ближнее колено о землю, опускается дальнее, таз садится на пятки, голова свесилась; валится вперёд с ускорением, ближняя рука ложится по земле к топору, удар грудью, отскок на пиксель — лежит ничком на коленях: горб шкуры оседает на спину, плащ ложится на спину и свешивается до земли, голова на вытянутой руке. Каркас (только при падении): дальнее колено на земле (<code>kneelF</code>), сел на пятки (<code>sit</code>), руки висят по отвесу (<code>limp</code>), горб оседает на спину, повязка висит, плащ ложится по спине, топор поворачивается плашмя.<p><b>Открыто:</b> последний кадр — «куча» на коленях, а не лёгшее тело (лёгшее плашмя с вытянутыми ногами — другой вариант, не делался); лицо волка вниз — читается по ушам.</p></td></tr>
+      </tbody>
+    </table>
+    </div></div>
+  </section>
+
+  <section aria-labelledby="done-h">
+    <h2 id="done-h">Решено</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Что</th><th>Выбор</th><th>Отвергнуто — в истории ветки</th></tr></thead>
+        <tbody>
+          <tr><td>Облик</td><td>B «Северянин»: палитра листа, приглушённая под сцену, — пепельно-бурый мех, обветренная кожа, повязка цвета запёкшейся крови, тёмная сталь</td><td>A «С листа», C «Вайда»</td></tr>
+          <tr><td>Голова</td><td>Волчья шкура капюшоном: уши торчком, морда с клыками над лицом, пустые глазницы; лицо под челюстью — глазница в тени, нос, скула, борода</td><td>рогатый шлем с листа, грива</td></tr>
+          <tr><td>Хват</td><td>Как на листе: топор в дальней руке, рука висит у дальнего бока, ближний кулак свободен</td><td>секира двумя руками, два топора</td></tr>
+          <tr><td>Удар</td><td>A «Сверху»: топор на плечо — замах над шлемом — шаг, рука прямая на врага, бьёт кромка</td><td>B «Наотмашь снизу»</td></tr>
+          <tr><td>Сильный удар</td><td>A «Двумя руками»: топор над головой в двух кулаках — рубка в землю, пыль</td><td>B «С прыжка»</td></tr>
+          <tr><td>Лечение</td><td>A «Второе дыхание»: стоя, кулак к груди, вдох — выдох</td><td>B «На колено»</td></tr>
+          <tr><td>Остальные клипы</td><td>По одному варианту, как прошли ревью: бросок сверху, клич «Ярость» (кулак в грудь, топор вскинут), блок «секирой щитом», урон, смерть ничком на коленях</td><td></td></tr>
+          <tr><td>Аватарка</td><td>Поза покоя в кадре бюста, как прежний портрет: лезвие топора в правом нижнем углу, кровавая луна за мордой волка, частокол по краям</td><td>«Ярость» (кадр удара клича), «Секира щитом» (кадр блока)</td></tr>
+          <tr><td>Пиксель</td><td class="n">1,5</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <details class="history">
+      <summary>Как правилась модель — ревью агента-моделлера</summary>
+      <p class="prose">Модель посмотрел отдельный агент-моделлер без контекста разговора: сверил лепку с листом в числах. Жалоба «голова сильно правее» подтвердилась. Причина не только в шлеме: у лепки не было шеи, а кожа плеча и груди шла полосой на всю ширину, и голова стояла на её правом конце. Что поправлено:</p>
+      <ul class="list prose">
+      <li>Шлем — на 4 точки листа левее, центр совпал с листом до точки; перед лица уходит под обод, проём уже — шлем больше не «ведро».</li>
+      <li>За шлемом появилась шея в тени, мех дальнего плеча — по листу, из-под подбородка: голова сидит между шеей и мехом, а не на плече.</li>
+      <li>Ближнее плечо тоньше и кончается раньше, открылась тень подмышки; грудные развёрнуты вдоль перевязи, рука больше не ярче головы.</li>
+      <li>Горб опущен к контуру листа (был на 6 точек выше), край плаща — внутрь на 3–4 точки.</li>
+      <li>Штаны, сапоги и повязка — на ступень светлее: низ был вдвое темнее листа, ноги не читались.</li>
+      <li>Волчья голова и грива — тоже левее, морда волка короче и своим серым тоном; топорик во втором хвате — лезвием к врагам и у бедра, а не на колене.</li>
+      <li>Лицо (второе ревью: «лица вообще не видно» — от него оставалось 3 тёмных пикселя): мех дальнего плеча закрывал его и бороду — теперь рисуется до головы; шлем открыт спереди до скулы, как на листе, наносник убран; лицо — своя часть поверх шлема: глазница в тени, светлые спинка носа и скула, борода. У волка и гривы — так же.</li>
+      <li>Дальняя рука (отзыв «как будто спереди, анатомически неправильно»): светлый бугор плеча был нарисован поверх груди, а локоть стоял посреди торса — рука читалась впереди тела. Плечо увели за торс — как на листе, где светлый бугор справа — дальняя грудная мышца.</li>
+      <li>Дальняя рука, третье ревью агента-моделлера (отзывы «кисть спереди, а рука сзади», потом «снова спереди и как будто сломана в локте»). Все попытки держали локоть, снятый с листа, а он лежит внутри силуэта торса лепки — торс у неё шире листа. Поэтому предплечье к кулаку всегда шло по груди: рука то росла из груди, то пряталась, оставляя кулак, то ломалась — снаружи вниз, внутрь к локтю, снова наружу. Теперь рука висит у дальнего бока: плечо выходит из-под меха и идёт вниз вдоль бока, локоть у пояса смотрит назад, предплечье — вперёд-вниз к кулаку. Плечо, локоть и начало предплечья рисуются до торса (край торса закрывает их внутреннюю сторону), вторая половина предплечья — после юбки и древка, но той же частью: шва на локте нет. Пояс кончается у края торса, мех дальнего плеча короче — лежит на дельте, рука выходит из-под него. Предплечье голое, наруч — обмоткой у запястья.</li>
+      <li>Покой больше не «кипит»: число прядей плаща менялось с дыханием и перебрасывало зерно фактуры всего, что нарисовано после.</li>
+      <li>Мелочи: кивок в покое — сдвигом на пиксель, а не поворотом (шлем «кипел»); пряди меха свисают наружу, а не внутрь; мех на коленях — клочьями вдоль голени; подол плаща у колен больше не качается с дыханием.</li>
+    </ul>
+    </details>
+  </section>
+
+  <section aria-labelledby="ref-h">
+    <h2 id="ref-h">Рядом с листом</h2>
+    <p class="prose">Один кусок поля вокруг героя в масштабе ×2. Контуры частей обведены по первому кадру прежнего листа в его точках и стоят в коде числами листа: перевод в единицы поля — x = 4 + (px − 6)·k, y = 140 − (189 − py)·k, k = 136 / 182.</p>
+    <div class="tiles">
+      <div class="tile"><div data-tile="ref"></div><div class="tile-label"><b>Лист</b><span>было, генератор</span></div></div>
+      <div class="tile"><div data-tile="sculpt"></div><div class="tile-label"><b>Лепка</b><span>покой</span></div></div>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Что</th><th>На листе, точки</th><th>В лепке, единицы поля</th></tr></thead>
+        <tbody>
+          <tr><td>Голова (шлем листа; у лепки на его месте волчья шкура)</td><td class="n">центр (120, 34), 29 × 39</td><td class="n">центр (88.4, 24.9), 22 × 29</td></tr>
+          <tr><td>Шея в тени за шлемом</td><td class="n">x 100–108, y 40–62</td><td class="n">x 74.2–80.2, y 28.7–45.1</td></tr>
+          <tr><td>Горб меха: верх, левый край</td><td class="n">(83, 21), (29, 52)</td><td class="n">(61.5, 14.4), (21.2, 37.6)</td></tr>
+          <tr><td>Ближняя рука: плечо, локоть, кулак</td><td class="n">(68, 65), (42, 78), (50, 117)</td><td class="n">(50.3, 47.3), (30.9, 57.1), (36.9, 86.2)</td></tr>
+          <tr><td>Дальняя рука: плечо (из-под меха), локоть, кулак. В лепке рука висит у дальнего бока, локоть у пояса смотрит назад: локоть листа лежит внутри торса лепки</td><td class="n">(134, 72), (129, 88), (146, 104)</td><td class="n">(101.9, 50.3), (99.6, 66.8), (108.6, 76.5)</td></tr>
+          <tr><td>Топор: проушина, нижний рог лезвия</td><td class="n">(156, 99), (177, 147)</td><td class="n">(116.1, 72.7), (131.8, 108.6)</td></tr>
+          <tr><td>Колени</td><td class="n">(48, 143), (130, 143)</td><td class="n">(35.4, 105.6), (96.7, 105.6)</td></tr>
+          <tr><td>Щиколотки</td><td class="n">(38, 176), (132, 176)</td><td class="n">(27.9, 130.3), (98.2, 130.3)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Что взято с листа</h3>
+    <ul class="list prose">
+      <li>Огромная шкура: горб меха выше головы, плащ за спиной до колен, рваный край прядями.</li>
+      <li>Голова низко и впереди, у дальнего плеча, над шеей в тени; на листе — рогатый шлем, у лепки — волчья шкура (выбор).</li>
+      <li>Голый торс с перевязью наискось, пояс из круглых бляшек с ромбом-пряжкой, красная повязка между ног.</li>
+      <li>Ближняя рука голая до кожаного наруча, пустой кулак у бедра; дальняя — висит у дальнего бока, локоть у пояса, предплечье вперёд, кулак держит топор впереди, лезвием вниз.</li>
+      <li>Штаны тёмной кожи, светлый мех на коленях и голенях, крупные сапоги, широкая низкая стойка.</li>
+    </ul>
+    <h3>Чем лепка отличается</h3>
+    <ul class="list prose">
+      <li>Урок Паладина — «анатомия на глаз»: с листа сняты не только суставы, но и контур каждой части: горба, плаща, шлема, торса, пояса, повязки, наручей, меха на коленях, сапог, лезвия.</li>
+      <li>Мех листа — слои прядей с тёмными щелями. В лепке так же: край шкуры зубцами, пряди краской поверх фактуры меха. Гладкий контур читался стриженым.</li>
+      <li>В пикселе 1,5 у фигуры 91 точка роста против 182 на листе: чеканка шлема, заклёпки пояса и рисунок мышц уходят, остаются формы и свет.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="ov-h">
+    <h2 id="ov-h">Сверка силуэта</h2>
+    <p class="prose">Лист, пересчитанный в сетку лепки (пиксель 1,5), лепка (первый кадр покоя) и карта расхождений: красное — только на листе, голубое — только в лепке. Голубая кайма по краю — зубцы прядей и контур лепки; сетка — через 10 единиц.</p>
+    <div class="overlay" id="overlay"></div>
+  </section>
+
+  <section aria-labelledby="next-h">
+    <h2 id="next-h">Открыто</h2>
+    <p class="prose">Из ревью риггеров, оставлено как есть — поправлю, если в игре заметно:</p>
+    <ul class="list prose">
+      <li>Последний кадр смерти — «куча» ничком на коленях, а не лёгшее тело с вытянутыми ногами.</li>
+      <li>Сильный удар: на кадре замаха ближняя рука на ~80 мс закрывает лицо.</li>
+      <li>Клич: наклон вскинутого топора (сейчас −52° к предплечью; пробовали −40 и −62).</li>
+      <li>Блок: удар принимает скорее лезвие, чем древко, — искры можно перенести на кромку.</li>
+    </ul>
+  </section>
+</div>
+
+<script>window.ASSETS = {{ASSETS}};</script>
+<script>{{BUNDLE}}</script>

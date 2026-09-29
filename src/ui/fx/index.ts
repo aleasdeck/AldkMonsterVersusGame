@@ -420,7 +420,10 @@ export function alignHeroShots(plan: FxPlan, contact: number): void {
 
 export function playShots(root: HTMLElement, plan: FxPlan): number {
   const L = pxLayer(root);
-  if (!L || plan.shots.length === 0) return 0;
+  if (!L) return 0;
+  // Приём без снаряда: у героя-лепки `alignHeroShots` ставит `impact` в кадр контакта клипа — рёв клича, латы и круг
+  // лечения ждут его (до v0.54.6 здесь возвращался 0, и эффекты шли с первого кадра); у рисованного `impact` — 0.
+  if (plan.shots.length === 0) return plan.impact;
   const lunged = new Set<EventTarget>(plan.clipped ? ['hero' as EventTarget] : []);
   for (const s of plan.shots) {
     // Наскок — у героя и союзников при ударе вплотную; враг-лепка замахивается своим клипом, ему наскок не нужен.

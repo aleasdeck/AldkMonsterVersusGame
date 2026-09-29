@@ -2896,6 +2896,11 @@ p {
 .end.lost .result-body .hero-sheet {
   margin-left: 28px;
 }
+/* Берсерк падает ничком вперёд: лежит от середины квадрата вправо (до 146 из 112) — отодвигаем таблицу, а не край. */
+.end.lost .result-body .hero-sheet[data-hero='berserk'] {
+  margin-left: 0;
+  margin-right: 34px;
+}
 .end .row {
   justify-content: center;
 }

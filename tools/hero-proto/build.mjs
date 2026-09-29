@@ -2,6 +2,7 @@
 //
 //   node tools/hero-proto/build.mjs                  → hero-preview/lepka-voina.html (один файл)
 //   node tools/hero-proto/build.mjs --hero paladin   → hero-preview/lepka-paladina.html
+//   node tools/hero-proto/build.mjs --hero berserk   → hero-preview/lepka-berserka.html
 //
 // Модель — src/ui/heroes/<герой>.ts, разметка — страница и шаблон героя из PAGES. Фоны, прежний лист и портрет — data URI.
 import { build } from 'esbuild';
@@ -15,10 +16,11 @@ const OUT = join(ROOT, 'hero-preview');
 const args = process.argv.slice(2);
 const i = args.indexOf('--hero');
 const HERO = i >= 0 ? args[i + 1] : 'warrior';
-/** Страница, шаблон и файл на героя: Воин — итоговая страница, Паладин — облики (шаги 2–3 рецепта). */
+/** Страница, шаблон и файл на героя: Воин и Паладин — итоговые страницы, Берсерк — модель и варианты (шаги 2–3 рецепта). */
 const PAGES = {
   warrior: { page: 'page.ts', template: 'template.html', out: 'lepka-voina.html' },
   paladin: { page: 'paladin-page.ts', template: 'paladin.html', out: 'lepka-paladina.html' },
+  berserk: { page: 'berserk-page.ts', template: 'berserk.html', out: 'lepka-berserka.html' },
 };
 const spec = PAGES[HERO];
 if (!spec) throw new Error(`Нет страницы обсуждения для «${HERO}»: ${Object.keys(PAGES).join(', ')}`);
