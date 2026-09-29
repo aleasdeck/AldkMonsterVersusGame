@@ -153,8 +153,8 @@ const LOOK_C: LookSpec = {
   cloak: ['#1a1712', '#2f2a21', '#463f32', '#5e5545', '#776d5a'],
   lining: '#0e0c09',
   trim: null,
-  fold: '#15120d',
-  lit: '#857a64',
+  fold: '#2a251c',
+  lit: '#7b715c',
   leather: ['#241a10', '#46351f', '#6a5432', '#8e764f', '#ae966c'],
   skin: ['#342018', '#62402e', '#8e644c', '#b0846a', '#caa486'],
   staff: ['#1a120a', '#332314', '#4e3822', '#6c5234', '#8a6e4c'],
@@ -164,7 +164,7 @@ const LOOK_C: LookSpec = {
     ['#dcfff8', '#e6fffa', '#f0fffc', '#f8fffe', '#ffffff'],
   ],
   halo: '#40d0c8',
-  shag: 0.26,
+  shag: 0.14,
   boot: ['#16110c', '#2c2118', '#433226', '#5c4636', '#765c48'],
   beard: ['#141210', '#221e1a', '#322c26', '#443c34', '#584e44'],
 };
@@ -218,6 +218,8 @@ function matsOf(L: LookSpec) {
     lit: L.lit,
     halo: L.halo,
     skinDark: L.skin[1],
+    skinDark0: L.skin[0],
+    skinLit: L.skin[3],
     leatherDark: L.leather[0],
     leatherLit: L.leather[4],
   };
@@ -289,6 +291,11 @@ const TUNIC_F = [95, 108, 112, 104, 121, 108, 123, 116, 121, 124, 122, 131, 119,
 const TUNIC_F_EDGE = [96, 109, 97, 112, 100, 117, 104, 124, 108, 131, 112, 137, 116, 134, 119, 132, 122, 131];
 /** Палантин от пряжки до острого конца между клиньями. */
 const STOLE = [86, 109, 95, 109, 95, 124, 94, 140, 93, 149, 89, 154, 86, 149, 85, 139, 86, 124];
+/**
+ * Палантин Звездочёта — конец ласточкиным хвостом: узкая полоса с серебряной кромкой, острым концом и пряжкой-«навершием»
+ * читалась мечом в ножнах (ревью моделлера).
+ */
+const STOLE_B = [86, 109, 95, 109, 95, 124, 95, 140, 95.5, 151, 90.5, 147.5, 85.5, 151, 85.5, 140, 86, 124];
 /** Грудь рясы под пелериной и клином воротника. */
 const TORSO = [66, 86, 80, 86, 92, 93, 104, 92, 114, 94, 118, 100, 114, 106, 100, 108, 66, 109, 62, 98];
 /** Пояс поднимается к врагам (ракурс); пряжка, кошель у ближнего бедра. */
@@ -311,13 +318,18 @@ const BROW = [91, 77, 94, 75, 100, 71, 106, 67, 113, 62];
 /** Залом макушки: тень под выступом над затылком. */
 const HOOD_FOLD = [73, 62, 79, 59, 83, 61, 80, 65, 76, 65];
 /** Лицо в тени: скула и спинка носа на свету, ниже — маска. */
-const FACE_LIT = [98, 74, 101, 70.5, 104, 70, 107.5, 75.5, 106.5, 78.5, 102, 79, 99, 78];
-const NOSE = [102.5, 70.5, 104.5, 71, 107.5, 75.5, 106, 77];
+const FACE_LIT = [98, 74, 101, 70.5, 104, 70, 107.5, 75.5, 106.5, 78.5, 104, 79.5, 101.5, 78.5, 99, 78];
+/** Скула на свету — косой полосой от брови к носу; остальное лицо в глубокой тени (ровное пятно читалось квадратом). */
+const CHEEK = [100.5, 75, 103.5, 72.5, 106, 76, 103.5, 78];
+const NOSE = [103, 70.5, 104.5, 71, 107.5, 75.5, 106, 76.5];
 /** Глазница — тень под бровью, глаз не светится. */
 const SOCKET = [98.5, 74, 101, 71, 103, 71, 101.5, 73.5];
-const MASK = [93, 80, 107.5, 79.5, 108.5, 85, 105, 90, 99, 92, 94, 86];
-/** Сапоги от щиколотки (разница в точках листа): ближний носком наружу (влево), дальний — к врагам. */
-const BOOT_N = [7, -4, -3, -4, -7, -1, -11, 2, -12, 5, 7, 5];
+const MASK = [93, 81, 99, 79, 101.5, 79.5, 104, 80.5, 107.5, 79.5, 108.5, 85, 105, 90, 99, 92, 94, 86];
+/**
+ * Сапоги от щиколотки (разница в точках листа): ближний — носком к зрителю, короткий и скруглённый, как на листе (носком
+ * назад стопы смотрели в разные стороны на 180°), дальний — носком к врагам.
+ */
+const BOOT_N = [6.5, -4.5, -3, -4.5, -6, -2, -7.5, 1.5, -7, 5, 7, 5];
 const BOOT_F = [-6, -3, 3, -3, 6, 0, 9, 3, 10, 5, -6, 5];
 
 // ─── Посох ──────────────────────────────────────────────────────────────────
@@ -398,8 +410,8 @@ function staff(p: Painter, m: Mats, L: LookSpec, x: number, y: number, a: number
   // B: серебряные пояса и полумесяц рогами вверх вокруг звезды.
   if (m.trim) {
     for (const s0 of [4, 13, top - 3]) {
-      const [b0x, b0y] = q(s0, 0), [b1x, b1y] = q(s0 + 1.8, 0);
-      p.limb(b0x, b0y, 2.6, b1x, b1y, 2.6, m.trim, { part: 'staffBand', lift: 0.6 });
+      const [b0x, b0y] = q(s0, 0), [b1x, b1y] = q(s0 + 0.6, 0);
+      p.limb(b0x, b0y, 2.2, b1x, b1y, 2.2, m.trim, { part: 'staffBand', lift: 0.6, tone: -0.15 });
     }
   }
   // Полумесяц рогами вверх — круг без такого же круга, сдвинутого вверх на 0,7 радиуса: низ толстый, рога сужаются
@@ -485,11 +497,19 @@ function edgeBand(p: Painter, pts: number[], w: number, mat: Mat, part: string, 
 
 /**
  * Кулак по образцу Берсерка: овал поперёк предплечья (`fa` — его направление, градусы), костяшки по ходу предплечья —
- * тёмные черты пальцев, большой палец сверху, блик. Эллипс с одной чертой читался шариком.
+ * тёмные черты пальцев, большой палец сверху, блик. Эллипс с одной чертой читался шариком. `grip` — кулак на древке:
+ * три черты пальцев при таком радиусе на сетке 1,5 сливались в пятно цвета тени — одна тёмная черта между пальцами
+ * поперёк, светлая по костяшкам и блик; древко видно по обе стороны кулака (ревью моделлера).
  */
-function fist(p: Painter, m: Mats, mat: Mat, x: number, y: number, fa: number, r: number, tone: number, part: string): void {
+function fist(p: Painter, m: Mats, mat: Mat, x: number, y: number, fa: number, r: number, tone: number, part: string, grip = false): void {
   p.ellipse(x, y, r * 1.15, r * 0.85, mat, { part, lift: 1.2, tone, rot: (fa + 90) * DEG });
   const ux = Math.cos(fa * DEG), uy = Math.sin(fa * DEG), nx = -uy, ny = ux;
+  if (grip) {
+    stroke(p, [x + nx * r * 0.7 + ux * r * 0.05, y + ny * r * 0.7 + uy * r * 0.05, x - nx * r * 0.6 + ux * r * 0.05, y - ny * r * 0.6 + uy * r * 0.05], m.skinDark0, part);
+    stroke(p, [x + nx * r * 0.5 + ux * r * 0.6, y + ny * r * 0.5 + uy * r * 0.6, x - nx * r * 0.5 + ux * r * 0.6, y - ny * r * 0.5 + uy * r * 0.6], m.skinLit, part);
+    p.poly([x - r * 0.7, y - r * 0.4, x - r * 0.25, y - r * 0.75, x + r * 0.1, y - r * 0.65, x - r * 0.35, y - r * 0.2], mat, { part, paint: true, tone: tone + 0.24 });
+    return;
+  }
   for (const t of [-0.35, 0.15, 0.6]) stroke(p, [x + nx * r * t + ux * r * 0.2, y + ny * r * t + uy * r * 0.2, x + nx * r * t + ux * r * 0.8, y + ny * r * t + uy * r * 0.8], m.skinDark, part);
   p.ellipse(x - nx * r * 0.75 - ux * r * 0.1, y - ny * r * 0.75 - uy * r * 0.1, r * 0.4, r * 0.34, mat, { part, lift: 2, tone: tone + 0.06 });
   p.poly([x - r * 0.7, y - r * 0.4, x - r * 0.25, y - r * 0.75, x + r * 0.1, y - r * 0.65, x - r * 0.35, y - r * 0.2], mat, { part, paint: true, tone: tone + 0.24 });
@@ -740,10 +760,11 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: numbe
   stroke(p, hang(S(70, 141, 68, 155), 104), m.fold, 'skirt');
   stroke(p, hang(S(100, 143, 99, 155), 104), m.fold, 'skirt');
   stroke(p, hang(S(118, 139, 116, 149), 104), m.fold, 'skirt');
-  // Ноги под рясой: складки натяжения от таза к сапогам и тень между ногами у подола — стойка широкая, а ног не видно.
-  p.poly(hang(S(78, 156, 90, 136, 104, 156), 104, true), m.skirt, { part: 'skirt', paint: true, tone: -0.18 });
-  fold(p, m, hang(S(84, 118, 62, 150), 104), 'skirt');
-  fold(p, m, hang(S(98, 118, 116, 146), 104), 'skirt');
+  // Ноги под рясой выпадом: задняя (ближняя) прямая — складка от таза к сапогу, передняя — к колену и вниз; тень между
+  // ногами у подола. Две прямые складки к сапогам читались «шпагатом».
+  p.poly(hang(S(78, 156, 90, 134, 104, 156), 104, true), m.skirt, { part: 'skirt', paint: true, tone: -0.35 });
+  fold(p, m, hang(S(84, 118, 55, 148), 104), 'skirt');
+  fold(p, m, hang(S(98, 118, 117, 127, 122, 146), 104), 'skirt');
   trimEdge(p, m, hang(S(...SKIRT_HEM_N), 104), 'skirt', 2);
   trimEdge(p, m, hang(S(...SKIRT_HEM_F), 104), 'skirt', 2);
 
@@ -754,8 +775,15 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: numbe
   p.poly(hang(S(...TUNIC_F), 106, true), m.tunicF, { part: 'tunicF', bevel: 5, tone: -0.08 });
   stroke(p, hang(S(110, 110, 117, 127), 106), m.fold, 'tunicF');
   trimEdge(p, m, hang(S(...TUNIC_F_EDGE), 106), 'tunicF');
-  p.poly(hang(S(...STOLE), 106, true), m.stole, { part: 'stole', bevel: 2, tone: 0.04 });
-  trimEdge(p, m, hang(S(86, 109, 85, 124, 85, 139, 86, 149, 89, 154, 93, 149, 94, 140, 95, 124, 95, 109), 106), 'stole', 1.8);
+  if (L.id === 'b') {
+    // Длинные края — швом, серебро только по низу хвоста: серебряная кромка во всю длину делала из палантина меч.
+    p.poly(hang(S(...STOLE_B), 106, true), m.stole, { part: 'stole', bevel: 2, tone: 0.04 });
+    edgeBand(p, hang(S(86, 109, 85.5, 124, 85.5, 140, 85.5, 151, 90.5, 147.5, 95.5, 151, 95, 140, 95, 124, 95, 109), 106), 1.2, solid(m.fold), 'stole');
+    trimEdge(p, m, hang(S(85.5, 151, 90.5, 147.5, 95.5, 151), 106), 'stole', 1.6);
+  } else {
+    p.poly(hang(S(...STOLE), 106, true), m.stole, { part: 'stole', bevel: 2, tone: 0.04 });
+    trimEdge(p, m, hang(S(86, 109, 85, 124, 85, 139, 86, 149, 89, 154, 93, 149, 94, 140, 95, 124, 95, 109), 106), 'stole', 1.8);
+  }
   if (L.id === 'b' && m.trim) {
     // Звёзды по палантину — по пикселю серебра.
     for (const [sx, sy] of [[90, 120], [90, 132], [89.5, 144]]) {
@@ -852,20 +880,25 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: numbe
     const bell = [
       far.ex + nUp[0] * R(6.5), far.ey + nUp[1] * R(6.5),
       wx + nUp[0] * R(6), wy + nUp[1] * R(6),
-      wx + nUp[0] * R(2) + R(0.8), wy + R(5),
-      wx - R(1.5), wy + R(14),
-      wx - R(3.5), wy + R(24),
-      wx - R(8.5), wy + R(20),
+      wx + nUp[0] * R(2) - R(1), wy + R(5),
+      wx - R(5), wy + R(13),
+      wx - R(8), wy + R(23),
+      wx - R(12), wy + R(19),
       far.ex + R(1), far.ey + R(11),
       far.ex - R(4), far.ey + R(4),
     ];
     p.poly(bell, m.sleeveF, { part: 'sleeveF', bevel: 5, tone: -0.03 });
-    stroke(p, [far.ex + R(2), far.ey + R(4), wx - R(4), wy + R(19)], m.fold, 'sleeveF');
+    stroke(p, [far.ex + R(1), far.ey + R(4), wx - R(8), wy + R(18)], m.fold, 'sleeveF');
     // Верх вытянутой руки — на свету: на листе рукав к врагам светлый, в тени он сливался с грудью.
     stroke(p, [far.ex + nUp[0] * R(4.5), far.ey + nUp[1] * R(4.5), wx + nUp[0] * R(4), wy + nUp[1] * R(4)], m.lit, 'sleeveF');
     // Край обшлага — снизу вверх (рукав слева от хода).
-    trimEdge(p, m, [wx - R(3.5), wy + R(24), wx - R(1.5), wy + R(14), wx + nUp[0] * R(2) + R(0.8), wy + R(5), wx + nUp[0] * R(6), wy + nUp[1] * R(6)], 'sleeveF', 2);
-    fist(p, m, m.fistF, far.hx, far.hy, far.a2, R(4.2), 0.02, 'fistF');
+    trimEdge(p, m, [wx - R(8), wy + R(23), wx - R(5), wy + R(13), wx + nUp[0] * R(2) - R(1), wy + R(5), wx + nUp[0] * R(6), wy + nUp[1] * R(6)], 'sleeveF', 2);
+    // Древко под кулаком — поверх края раструба: на листе оно идёт ниже кулака правее обшлага и уходит за клин рясы.
+    // Раструб, лежавший правее древка, закрывал его целиком — посох читался коротким скипетром с шаром на конце.
+    const [l0x, l0y] = staffPt(far.hx, far.hy, SW, -22, 0), [l1x, l1y] = staffPt(far.hx, far.hy, SW, -1, 0);
+    const knot = L.id === 'c' ? 0.4 : 0;
+    p.limb(l0x, l0y, 1.9 + knot, l1x, l1y, 2 + knot, m.staff, { part: 'staffLow' });
+    fist(p, m, m.fistF, far.hx, far.hy, far.a2, R(4.2), 0.02, 'fistF', true);
 
     // Пелерина на плечах — поверх рукава и полы; кромка по низу.
     // Низ пелерины: A — ровный край листа, B — фестоны клиньями, C — лохмотья.
@@ -904,7 +937,7 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: numbe
 /**
  * Капюшон в координатах листа (поворот головы — снаружи): купол с заломленной макушкой, проём лица в тени — скула
  * и спинка носа на свету, ниже тёмная маска, как на прежнем портрете; бровь капюшона — кромкой облика; клин
- * воротника на груди. B — звезда-застёжка на клине; C — рваная бровь зубцами над лицом, седая борода из тени.
+ * воротника на груди. C — рваная бровь зубцами над лицом, тёмная борода в тени, хвост капюшона по спине.
  */
 function hood(p: Painter, m: Mats, L: LookSpec): void {
   if (L.id === 'c') {
@@ -922,7 +955,8 @@ function hood(p: Painter, m: Mats, L: LookSpec): void {
   stroke(p, S(99, 55, 90, 70), m.fold, 'hood');
   // Проём лица — почти чёрная тень; лицо — своя часть поверх (скула, нос), маска ниже — тёмная ткань.
   p.poly(S(...FACE_HOLE), m.dark, { part: 'hood', paint: true });
-  p.poly(S(...FACE_LIT), m.face, { part: 'face', bevel: 0.8, tone: -0.32, flat: 0.7 });
+  p.poly(S(...FACE_LIT), m.face, { part: 'face', bevel: 0.8, tone: -0.45, flat: 0.7 });
+  p.poly(S(...CHEEK), m.face, { part: 'face', paint: true, tone: -0.12 });
   p.poly(S(...NOSE), m.face, { part: 'face', paint: true, tone: 0.25 });
   p.poly(S(...SOCKET), m.dark, { part: 'face', paint: true });
   if (L.id === 'c' && m.beard) {
@@ -935,7 +969,7 @@ function hood(p: Painter, m: Mats, L: LookSpec): void {
   } else {
     // Маска — тёмная ткань ниже носа, чуть светлее тени проёма; верхний край — складкой.
     p.poly(S(...MASK), solid(L.id === 'b' ? '#141826' : '#1b1726'), { part: 'hood', paint: true });
-    stroke(p, S(94, 80.5, 107.5, 80), L.id === 'b' ? '#252c3e' : '#2c2638', 'hood');
+    stroke(p, S(94, 81.5, 99, 79.5, 101.5, 80, 104, 81, 107.5, 80), L.id === 'b' ? '#252c3e' : '#2c2638', 'hood');
   }
   // Бровь капюшона — кромкой; у отшельника — рваные зубцы ткани над лицом.
   if (L.id === 'c') {
@@ -944,9 +978,6 @@ function hood(p: Painter, m: Mats, L: LookSpec): void {
     trimEdge(p, m, S(...BROW), 'hood', 2.4, 0.1);
   }
   trimEdge(p, m, S(...HOOD_EDGE), 'hood');
-  if (L.id === 'b' && m.trim) {
-    // Звезда-застёжка на клине воротника.
-    const [cx, cy] = PT(92, 94);
-    p.poly([cx, cy - R(4), cx + R(1.2), cy - R(1.2), cx + R(4), cy, cx + R(1.2), cy + R(1.2), cx, cy + R(4), cx - R(1.2), cy + R(1.2), cx - R(4), cy, cx - R(1.2), cy - R(1.2)], m.trim, { part: 'brooch', lift: 1, bevel: 0.8 });
-  }
+  // Звезды-застёжки на клине воротника у Звездочёта нет: на пикселе 1,5 она выходила плюсом 4×3 и рядом с Паладином
+  // читалась крестиком; звёзды есть на посохе и палантине.
 }
