@@ -34,6 +34,11 @@ export interface AvatarSpec {
    * Пусто — без силуэтов. По краям их видно, в середине их закрывает сам герой.
    */
   skyline?: ReadonlyArray<readonly [number, number, number, number]>;
+  /**
+   * Лучи ореола — солнце за головой (Паладин, как на его прежнем портрете): число лучей и докуда тянется длинный луч
+   * в радиусах ореола; короткие лучи между длинными — вдвое короче. Цвет — кромка ореола. Без поля — ореол без лучей.
+   */
+  rays?: readonly [number, number];
 }
 
 /** Упорядоченный дизеринг 4×4 — тот же, что у рампа лепки. */
@@ -72,6 +77,15 @@ export function renderAvatar(model: HeroModel, n: number): Uint8ClampedArray<Arr
       const level = Math.max(0, Math.min(SKY_TONES - 1, Math.floor((j / (n - 1)) * (SKY_TONES - 1) + 0.5 + b * 0.9)));
       let rgb = mix(top, bottom, level / (SKY_TONES - 1));
       const r = Math.hypot(i + 0.5 - hx, j + 0.5 - hy);
+      // Лучи — линии в клетку от кромки ореола наружу, длинные через один (шире клетки лучи на косых сливались в «ветки»).
+      if (spec.rays && r >= hr) {
+        const [count, reach] = spec.rays;
+        const step = (2 * Math.PI) / count;
+        const a = Math.atan2(j + 0.5 - hy, i + 0.5 - hx) + Math.PI / 2;
+        const k = Math.round(a / step), off = Math.abs(a - k * step) * r;
+        const len = hr * (((k % 2) + 2) % 2 === 0 ? reach : 1 + (reach - 1) / 2);
+        if (off < 0.5 && r < len) rgb = haloEdge;
+      }
       // Ореол — два тона: светлая середина и полутон к краю, на стыке дизеринг; по краю — кромка в клетку.
       if (r < hr) rgb = r > hr - 1 ? haloEdge : r / hr + b * 0.2 < 0.7 ? halo : mix(halo, rgb, 0.5);
       for (const t of towers) {

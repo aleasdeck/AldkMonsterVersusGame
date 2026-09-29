@@ -30,6 +30,8 @@ const assets = {
   bg: Object.fromEntries(['forest', 'crypt', 'caves'].map((id) => [id, uri(`src/assets/backgrounds/${id}-wide.png`)])),
   ref: uri(`src/assets/heroes/${HERO}.png`),
   avatar: uri(`src/assets/heroes/${HERO}-avatar.png`),
+  // Рисованные портреты соседей — ряд выбора героя на странице Паладина (Воин рисуется из своей лепки).
+  others: Object.fromEntries(['mage', 'assassin', 'berserk', 'archer'].map((id) => [id, uri(`src/assets/heroes/${id}-avatar.png`)])),
 };
 const html = readFileSync(join(HERE, spec.template), 'utf8')
   .replace('{{ASSETS}}', () => JSON.stringify(assets))

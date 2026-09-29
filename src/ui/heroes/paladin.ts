@@ -555,23 +555,43 @@ function framePose(p: Painter): PaladinPose {
   return P;
 }
 
+// ─── Аватарка ───────────────────────────────────────────────────────────────
+
+/** Варианты портрета на выбор (страница обсуждения): поза бюста; фон, ореол и рамка общие. */
+export type PaladinAvatar = 'A' | 'B' | 'C';
+export const PALADIN_AVATARS: Record<PaladinAvatar, string> = { A: 'Молот на плече', B: 'Молот света', C: 'Крест щита' };
+
 /**
- * Черновик аватарки (шаг 5 — следующий): бюст из кадра покоя на золотом фоне прежнего портрета. Своя поза портрета —
- * следующим шагом.
+ * Позы портрета — та же `PaladinPose`, что у клипов. Покой не портрет: молот висит у колена и срезается кадром бюста.
+ * A — молот на плече: кулак перед грудью, боёк лежит на ближнем наплечнике (`front` — молот и кулак поверх него).
+ * B — молот света: молот отвесно перед грудью, боёк у плеча раскалён светом и светит крестом лучей.
+ * C — крест щита: щит поднят к груди и развёрнут к зрителю, крест залит светом, молот на плече.
  */
-const AVATAR: AvatarSpec = {
-  crop: [20, -6, 96],
-  halo: [70, 20, 30],
-  colors: { top: '#6a4410', bottom: '#1f1306', halo: '#a8741f', haloEdge: '#d09a38', skyline: '#2a1a08', frameDark: '#120a04', frame: '#4a2e0e', frameLight: '#8a5a1e' },
-  skyline: [[0.06, 0.1, 0.6, 0.2], [0.14, 0.06, 0.5, 0.12], [0.9, 0.08, 0.62, 0.2], [0.96, 0.06, 0.5, 0.1]],
+const PORTRAITS: Record<PaladinAvatar, PaladinPose> = {
+  A: { ...REST, nh: 1, hx: 56, hy: 52, sw: -110, front: 1 },
+  B: { ...REST, nh: 1, hx: 50, hy: 62, sw: -96, glow: 1.1, front: 1 },
+  C: { ...REST, nh: 1, hx: 56, hy: 52, sw: -110, front: 1, f1: 110, f2: 40, sh: -8, shx: -14, shy: -10, shine: 1 },
 };
 
-/** Паладин; рост в покое — `HERO_BODY_HEIGHT.paladin` (132) в пикселе `HERO_PIXEL`. */
-export function paladinModel(): HeroModel {
+/**
+ * Аватарка: бюст от ореола до пояса, ореол-солнце за шлемом с лучами, по краям — шпили собора; цвета — с прежнего
+ * рисованного портрета (тёмное золото, ореол латунью), рамка — темнее фона, как у Воина.
+ */
+const avatarOf = (v: PaladinAvatar): AvatarSpec => ({
+  draw: (p) => drawPaladin(p, PORTRAITS[v]),
+  crop: [28, -8, 84],
+  halo: [70, 18, 21],
+  rays: [16, 1.5],
+  colors: { top: '#5e3a10', bottom: '#170f08', halo: '#6e4713', haloEdge: '#c98829', skyline: '#24160a', frameDark: '#100904', frame: '#4a2e0e', frameLight: '#8a5a1e' },
+  skyline: [[0.05, 0.05, 0.62, 0.28], [0.13, 0.07, 0.48, 0.16], [0.9, 0.06, 0.56, 0.24], [0.97, 0.05, 0.7, 0.3]],
+});
+
+/** Паладин; рост в покое — `HERO_BODY_HEIGHT.paladin` (132) в пикселе `HERO_PIXEL`. `avatar` — вариант портрета. */
+export function paladinModel(avatar: PaladinAvatar = 'A'): HeroModel {
   return {
     id: 'paladin',
     own: ['smite'],
-    avatar: AVATAR,
+    avatar: avatarOf(avatar),
     probe: paladinProbe,
     w: 132,
     h: 140,
@@ -866,6 +886,7 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
       });
       if (front) {
         drawWeapon(near.hx, near.hy, SW);
+        headGlow(p, near.hx, near.hy, SW, headLen, P.glow, P.burst, (rot * 180) / Math.PI);
         fist();
       }
     });
@@ -891,7 +912,11 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
       const [hwx, hwy] = toWorld(near.hx, near.hy);
       // Запястье — угол молота к предплечью, локоть — угол между плечом и предплечьем (180 — прямая рука).
       const wrist = nrm(SW - near.a2), elbow = 180 - Math.abs(nrm(near.a2 - near.a1));
-      paladinProbe.on({ ...probeInfo, hipX: hipX + P.x, hipY: hipY + P.y, handX: hwx + P.x, handY: hwy + P.y, tipX: tipX + P.x, tipY: tipY + P.y, ground: G, wrist, elbow });
+      const [swx, swy] = toWorld(near.sx, near.sy), [ewx, ewy] = toWorld(near.ex, near.ey), [bwx, bwy] = toWorld(...at(near.hx, near.hy, SW, -13.5));
+      paladinProbe.on({
+        ...probeInfo, hipX: hipX + P.x, hipY: hipY + P.y, handX: hwx + P.x, handY: hwy + P.y, tipX: tipX + P.x, tipY: tipY + P.y, ground: G, wrist, elbow,
+        shX: swx + P.x, shY: swy + P.y, elX: ewx + P.x, elY: ewy + P.y, butX: bwx + P.x, butY: bwy + P.y,
+      });
     }
   });
 }

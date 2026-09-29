@@ -6,7 +6,10 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { paladinModel } from '../../src/ui/heroes/paladin';
+import { paladinModel, PALADIN_AVATARS, type PaladinAvatar } from '../../src/ui/heroes/paladin';
+import { warriorModel } from '../../src/ui/heroes/warrior';
+import { renderAvatar } from '../../src/ui/heroes/avatar';
+import type { HeroModel } from '../../src/ui/heroes/model';
 import { HERO_CLIPS, HERO_STYLE, type SculptClip } from '../../src/ui/heroes/clips';
 import { Actor, heroSet, later, mobSet, setSpeed, type Anim, type ActorSet } from './anim';
 
@@ -14,7 +17,7 @@ type Loc = 'forest' | 'crypt' | 'caves';
 type Hero = 'sculpt' | 'ref';
 
 declare global {
-  interface Window { ASSETS: { bg: Record<Loc, string>; ref: string; avatar: string } }
+  interface Window { ASSETS: { bg: Record<Loc, string>; ref: string; avatar: string; others: Record<string, string> } }
 }
 
 const LOCS: Record<Loc, { name: string; foes: string[]; models: Record<string, Model> }> = {
@@ -340,6 +343,97 @@ const CLIP_NOTE: Partial<Record<SculptClip, string>> = {
   death: 'Отбросило, молот выскользнул, колено на землю, упал на спину — щит на груди, молот рядом. Последний кадр держится.',
 };
 
+// ─── Аватарка ───────────────────────────────────────────────────────────────
+
+/** Что в варианте портрета, чем хорош и чем плох; `rec` — рекомендация. */
+const AVATAR_INFO: Record<PaladinAvatar, { rec?: true; desc: string; plus: string[]; minus: string[] }> = {
+  A: { desc: 'Кулак перед грудью, боёк лежит на ближнем наплечнике у шлема — как меч на плече у Воина.', plus: ['спокойный, «парадный» портрет', 'крест табарда на виду'], minus: ['та же поза, что у Воина: в ряду выбора два героя с оружием на плече'] },
+  B: { rec: true, desc: 'Молот отвесно перед грудью, боёк раскалён светом и светит крестом лучей — как в его Молоте света.', plus: ['самое яркое пятно в ряду выбора — Паладин узнаётся сразу', 'портрет о его приёме', 'крест табарда на виду'], minus: ['молот закрывает ближний наплечник'] },
+  C: { desc: 'Щит поднят к груди и развёрнут к зрителю, крест залит светом, как в его лечении; молот на плече.', plus: ['крест щита — главный знак, как на прежнем портрете', 'связан с клипом лечения'], minus: ['щит закрывает табард', 'светлое пятно щита спорит с ореолом'] },
+};
+
+const avatarModels = new Map<string, HeroModel>();
+/** Модель под портрет: варианты Паладина и Воин из своей лепки. */
+function portraitModel(id: string): HeroModel {
+  let m = avatarModels.get(id);
+  if (!m) avatarModels.set(id, (m = id === 'warrior' ? warriorModel() : paladinModel(id as PaladinAvatar)));
+  return m;
+}
+
+/** Холст аватарки: `px` — размер в игре (112, 80, 44), клетки — как в игре (`avatarCells`), `k` — увеличение. */
+function avatarCanvas(model: HeroModel, px: number, k: number, label: string): HTMLCanvasElement {
+  const n = px >= 64 ? Math.round(px / 2) : 44;
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  c.getContext('2d')?.putImageData(new ImageData(renderAvatar(model, n), n, n), 0, 0);
+  c.style.width = `${px * k}px`;
+  c.style.imageRendering = px >= 64 ? 'pixelated' : 'auto';
+  c.setAttribute('role', 'img');
+  c.setAttribute('aria-label', label);
+  return c;
+}
+
+/** Выбранный в ряду выбора вариант. */
+let rowPick: PaladinAvatar = 'B';
+
+/**
+ * Карточки вариантов (`#avatars`): три размера игры ×2, как на FullHD, и ряд выбора героя (`#avatar-row`) — шесть
+ * героев по 112 в порядке игры, Паладин — в выбранном варианте, остальные — как в игре сейчас.
+ */
+function drawAvatars(): void {
+  const host = document.getElementById('avatars')!;
+  host.replaceChildren();
+  for (const v of ['A', 'B', 'C'] as PaladinAvatar[]) {
+    const info = AVATAR_INFO[v];
+    const card = h('article', `look${info.rec ? ' rec' : ''}${rowPick === v ? ' shown' : ''}`);
+    const title = h('h3', '', v);
+    title.appendChild(h('span', '', `«${PALADIN_AVATARS[v]}»`));
+    if (info.rec) title.appendChild(h('span', 'badge', 'рекомендую'));
+    const sizes = h('div', 'av-sizes');
+    for (const px of [112, 80, 44]) {
+      const f = h('figure');
+      f.append(avatarCanvas(portraitModel(v), px, 2, `Вариант ${v}, ${px} точек`), h('figcaption', '', px === 112 ? '112 выбор' : px === 80 ? '80 лист' : '44 консоль'));
+      sizes.appendChild(f);
+    }
+    const pros = h('ul', 'pros');
+    for (const t of info.plus) pros.appendChild(h('li', 'plus', t));
+    for (const t of info.minus) pros.appendChild(h('li', 'minus', t));
+    const btn = h('button', 'pick', rowPick === v ? 'в ряду' : 'в ряд выбора');
+    btn.type = 'button';
+    btn.setAttribute('aria-pressed', String(rowPick === v));
+    btn.addEventListener('click', () => {
+      rowPick = v;
+      drawAvatars();
+    });
+    card.append(title, sizes, h('p', '', info.desc), pros, btn);
+    host.appendChild(card);
+  }
+  const row = document.getElementById('avatar-row')!;
+  row.replaceChildren();
+  const heroes: Array<[string, string]> = [['warrior', 'Воин'], ['mage', 'Маг'], ['assassin', 'Ассасин'], ['paladin', 'Паладин'], ['berserk', 'Берсерк'], ['archer', 'Лучник']];
+  for (const [id, name] of heroes) {
+    const f = h('figure', id === 'paladin' ? 'me' : '');
+    if (id === 'warrior' || id === 'paladin') f.appendChild(avatarCanvas(portraitModel(id === 'warrior' ? 'warrior' : rowPick), 112, 1, `${name}, аватарка из лепки`));
+    else {
+      const img = h('img');
+      img.src = window.ASSETS.others[id];
+      img.width = img.height = 112;
+      img.alt = `${name}, рисованный портрет`;
+      f.appendChild(img);
+    }
+    f.appendChild(h('figcaption', '', name));
+    row.appendChild(f);
+  }
+  const old = document.getElementById('avatar-old');
+  if (old) {
+    const img = h('img');
+    img.src = window.ASSETS.avatar;
+    img.width = img.height = 224;
+    img.alt = 'Прежний рисованный портрет Паладина';
+    old.replaceChildren(img);
+  }
+}
+
 function start(): void {
   const on = (id: string, fn: (v: string) => void): void => {
     document.getElementById(id)!.addEventListener('click', (e) => {
@@ -377,6 +471,7 @@ function start(): void {
   drawScene();
   drawTiles();
   drawClips();
+  drawAvatars();
 }
 
 function boot(): void {
