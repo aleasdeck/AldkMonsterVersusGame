@@ -66,7 +66,7 @@ interface LookSpec {
   blade: 'dagger' | 'hook' | 'stiletto';
   /** Снаряжение: кошели на поясе, склянки на поясе и перевязи, метательные ножи на перевязи. */
   gear: 'pouches' | 'flasks' | 'knives';
-  /** Низ: бёдра в широких штанах с полосой и концом кушака (лист), с кожаной набедренной пластиной, длинные рваные полы. */
+  /** Низ: бёдра в широких штанах с полосой и концом кушака (лист), с кожаной набедренной полосой, длинные рваные полы. */
   skirt: 'trim' | 'tasset' | 'ragged';
 }
 
@@ -101,7 +101,7 @@ const LOOKS: Record<AssassinLook, LookSpec> = {
   },
   // B «Отравитель»: черта героя — яд (черта «Отравитель»); чёрно-бурая кожа и сукно, красного нет вовсе — цветное
   // пятно одно: мутная жёлто-зелёная отрава в склянках и на кривых клинках. Кожаная полумаска с коротким клювом-
-  // респиратором, рваная пелерина вместо шарфа, склянки на поясе и перевязи, кожаная набедренная пластина. Зелёная
+  // респиратором, рваная пелерина вместо шарфа, склянки на поясе и перевязи, кожаная набедренная полоса. Зелёная
   // ткань и хвост капюшона были в первом проходе — отказались: так уже одет Лучник («Следопыт», «Ворон»).
   b: {
     hood: ['#17120f', '#2a221b', '#3e3227', '#554536', '#6e5b48'],
@@ -165,7 +165,7 @@ export const ASSASSIN_LOOKS: readonly { id: AssassinLook; name: string; note: st
   {
     id: 'b',
     name: 'Отравитель',
-    note: 'Чёрно-бурая кожа без красного, цветное пятно — мутная отрава в склянках и на кривых клинках. Кожаная полумаска с коротким клювом-респиратором, рваная пелерина вместо шарфа, кожаная набедренная пластина.',
+    note: 'Чёрно-бурая кожа без красного, цветное пятно — мутная отрава в склянках и на клинках-когтях. Кожаная полумаска с коротким клювом-респиратором, рваная пелерина вместо шарфа, кожаная набедренная полоса.',
   },
   {
     id: 'c',
@@ -212,7 +212,7 @@ function matsOf(L: LookSpec) {
     glass: { base: L.poison[1], ramp: [L.mask[0], L.poison[0], L.poison[1], L.poison[2], L.poison[4]], dither: 0 } as Mat,
     skinN: skin(),
     wrapN: rough(L.wrap, 0.14, 1.8),
-    mantle: cloth(L.hood, 1.1, 0.12),
+    mantle: { ...cloth(L.hood, 1.1, 0.12), dither: 0.3 } as Mat,
     /**
      * Капюшон без дизеринга: при сдвиге дыхания на пиксель дизеринг перекрашивал пятую часть его клеток — купол рябил
      * (у шлемов Воина и Паладина 8–11 %).
@@ -310,13 +310,13 @@ function ragged(pts: number[], amp: number, step: number, side: 1 | -1, lean = 0
 
 /**
  * Клинок обратным хватом: из-под мизинца кулака наружу и вниз, по линии предплечья. Станции — [s — вдоль клинка от
- * середины кулака, полуширина, сдвиг середины поперёк: плюс — в сторону загиба `bend`]; до s ≈ 5 клинок под кулаком.
+ * середины кулака, полуширина, сдвиг середины поперёк: плюс — к врагам]; до s ≈ 5 клинок под кулаком.
  * Прямой кинжал листа — листовидный, шире у гарды; крюк — кривой по всей длине, как коготь; стилет — длинный и узкий
  * (последняя треть не уже пикселя: на пикселе 1,5 острие рвалось пунктиром).
  */
 const BLADES: Record<LookSpec['blade'], Array<[number, number, number]>> = {
   dagger: [[4, 2, 0], [8.5, 3, 0], [14, 2.9, 0], [21, 2.1, 0], [27, 1, 0], [31, 0, 0]],
-  hook: [[4, 1.8, 0], [9, 2.4, 1.2], [15, 2.4, 2.8], [21, 1.9, 4.2], [25.5, 1.1, 5.2], [28.5, 0, 5.8]],
+  hook: [[4, 1.8, 0], [9, 2.4, 0.8], [15, 2.4, 2.6], [21, 1.9, 5], [25.5, 1.1, 7.4], [28.5, 0, 9.4]],
   stiletto: [[4, 1.5, 0], [11, 1.4, 0], [22, 1.1, 0], [30, 0.7, 0], [33, 0, 0]],
 };
 /** Длина клинка от середины кулака до острия — конец оружия для зонда. */
@@ -327,20 +327,22 @@ const bladeTip = (L: LookSpec): [number, number] => {
 /** Свет сцены на плоскости рисунка — сверху слева: по нему выбирается освещённая кромка клинка. */
 const LIGHT2 = [-0.49, -0.87];
 /**
- * Загиб крюка: у ближнего клинка — наружу, от тела (к врагам он выпрямлялся в отвесную палку), у дальнего — к врагам.
+ * Оси клинка под углом `a`: вдоль и поперёк — к врагам (x растёт), туда загибается крюк: у обоих клинков вогнутая
+ * кромка смотрит на врагов, как коготь. У кривого клинка основание повёрнуто против загиба так, чтобы острие легло на
+ * линию `a` (хорда — как у прямого клинка листа): без этого ближний крюк выпрямлялся в отвесную палку, а дальний
+ * смотрел остриём вперёд, как нож прямым хватом.
  */
-const BEND = { near: -1, far: 1 } as const;
-
-/** Оси клинка под углом `a`: вдоль и поперёк — в сторону загиба (`bend` 1 — к врагам, x растёт; −1 — от них). */
-function bladeAxes(a: number, bend: number): { u: number[]; n: number[] } {
-  const u = [Math.cos(a * DEG), Math.sin(a * DEG)];
-  let n = [-u[1], u[0]];
-  if (n[0] * bend < 0) n = [-n[0], -n[1]];
+function bladeAxes(a: number, L: LookSpec): { u: number[]; n: number[] } {
+  const side = Math.sin(a * DEG) > 0 ? -1 : 1;
+  const [ts, tc] = bladeTip(L);
+  const b = (a - (side * Math.atan2(tc, ts)) / DEG) * DEG;
+  const u = [Math.cos(b), Math.sin(b)];
+  const n = [-u[1] * side, u[0] * side];
   return { u, n };
 }
 
-function blade(p: Painter, m: Mats, L: LookSpec, x: number, y: number, a: number, part: string, tone: number, bend: number): void {
-  const { u, n } = bladeAxes(a, bend);
+function blade(p: Painter, m: Mats, L: LookSpec, x: number, y: number, a: number, part: string, tone: number): void {
+  const { u, n } = bladeAxes(a, L);
   const q = (s: number, t: number): [number, number] => [x + u[0] * s + n[0] * t, y + u[1] * s + n[1] * t];
   const st = BLADES[L.blade];
   const one: number[] = [], two: number[] = [];
@@ -390,11 +392,11 @@ const HOODS: Record<LookSpec['hoodKind'], HoodSpec> = {
   sheet: {
     outline: [84, 47, 81, 40, 81, 32, 81, 26, 85, 21, 89, 17, 95, 14.5, 100, 13, 106, 12, 112, 12, 118, 14, 123, 18, 127, 22, 129, 26, 131, 30, 131, 35, 130, 40, 128, 46, 125, 52, 118, 56, 108, 58, 98, 55, 90, 51],
     dome: [103, 31, 21, 18],
-    face: [118, 28, 125, 27, 129, 30, 130, 36, 129, 43, 127, 49, 124, 54, 116, 56, 108, 53, 105, 46, 106, 40, 110, 34, 113, 31],
-    eyes: [110, 40, 114, 37, 119, 35, 124, 35.5, 123, 39, 118, 42, 111, 42.5],
-    eye: [114, 39.5, 120, 38],
+    face: [118, 28, 123, 27, 126, 30, 127, 36, 126, 43, 124, 49, 121, 54, 116, 56, 108, 53, 105, 46, 106, 40, 110, 34, 113, 31],
+    eyes: [109, 41, 113, 37, 119, 35, 124, 35.5, 124, 40, 118, 43, 111, 43.5],
+    eye: [117, 38.5, 121, 38],
     glint: [121, 40],
-    mask: [105, 44, 111, 43, 118, 43, 123, 41, 129, 40, 129, 47, 126, 53, 118, 56, 108, 53],
+    mask: [105, 44, 111, 43, 118, 43, 123, 41, 126, 40, 126, 47, 123, 53, 118, 56, 108, 53],
     rim: [105, 47, 105, 40, 109, 33, 114, 29.5, 120, 27.5, 126, 26.5],
     folds: [[98, 15, 91, 26, 88, 38]],
   },
@@ -408,7 +410,7 @@ const HOODS: Record<LookSpec['hoodKind'], HoodSpec> = {
     glint: [122, 42.5],
     mask: [106, 45, 112, 44, 120, 44, 126, 43, 130, 43, 129, 48, 125, 54, 118, 56, 108, 53],
     rim: [106, 47, 107, 42, 111, 37, 117, 34, 124, 33, 130, 34.5],
-    folds: [[98, 15, 91, 26, 88, 38]],
+    folds: [[98, 15, 91, 26, 88, 38], [112, 14, 116, 20, 118, 27, 117, 32], [122, 18, 127, 24, 129, 31]],
   },
 };
 
@@ -422,7 +424,7 @@ function drawHead(p: Painter, m: Mats, L: LookSpec): void {
   for (const f of H.folds) stroke(p, S(...f), L.hood[1], 'hood');
   // Проём: тень, полоса кожи у глаз с прищуром и бликом скулы; ниже маска.
   p.poly(S(...H.face), m.shade, { part: 'face', bevel: 1.5, flat: 0.8 });
-  p.poly(S(...H.eyes), m.face, { part: 'face', paint: true, tone: -0.12 });
+  p.poly(S(...H.eyes), m.face, { part: 'face', paint: true, tone: 0.18 });
   stroke(p, S(...H.eye), m.skinDark, 'face');
   p.px(X(H.glint[0]), Y(H.glint[1]), L.skin[3]);
   if (L.maskKind === 'beak') {
@@ -434,22 +436,26 @@ function drawHead(p: Painter, m: Mats, L: LookSpec): void {
     stroke(p, S(107, 45, 116, 43.5, 123, 42.5), L.leather[3], 'mask');
     stroke(p, S(111, 53, 112, 44), m.seam, 'mask');
   } else {
-    p.poly(S(...H.mask), m.mask, { part: 'mask', bevel: 1.5, flat: 0.5, tone: L.maskKind === 'veil' ? 0.08 : 0 });
+    p.poly(S(...H.mask), m.mask, { part: 'mask', bevel: 1.5, flat: 0.5, tone: L.maskKind === 'veil' ? -0.1 : 0 });
     // Складки ткани поперёк маски.
     stroke(p, S(109, 49, 119, 50, 127, 47), L.mask[0], 'mask');
     if (L.maskKind === 'veil') stroke(p, S(108, 46, 118, 46.5, 129, 44.5), L.mask[4], 'mask');
   }
-  stroke(p, S(...H.rim), L.hood[3], 'hood');
+  stroke(p, S(...H.rim), L.hood[L.hoodKind === 'deep' ? 2 : 3], 'hood');
+  // Ткань капюшона спереди — полутоном обрамляет проём: без неё проём доходил до края силуэта, и голова читалась
+  // вязаной шапкой с балаклавой.
+  if (L.hoodKind === 'sheet') stroke(p, S(125, 26, 128, 32, 128, 42, 126, 49, 123, 54), L.hood[2], 'hood');
 }
 
 // ─── Шея: шарф, пелерина ────────────────────────────────────────────────────
 
 /**
  * Шарф листа: петля вокруг шеи поверх низа капюшона и правой стороны маски, концы закинуты на ближнее плечо (лежат
- * на накидке). Узкая лента (облик C) — та же петля вдвое уже, без концов на плече.
+ * на накидке). Узкая лента (облик C) — та же петля вдвое уже, без концов на плече, низко на шее, под краем повязки: у
+ * подбородка она читалась улыбкой поперёк лица.
  */
 const SCARF_LOOP = [66, 39, 69, 36, 76, 35, 82, 38, 89, 43, 97, 50, 105, 55, 113, 57, 120, 54, 124, 48, 128, 46, 131, 51, 133, 58, 133, 64, 128, 68, 117, 70, 105, 71, 96, 67, 88, 60, 80, 52, 72, 45, 68, 43];
-const SCARF_BAND = [84, 44, 90, 47, 97, 52, 105, 56, 113, 57, 120, 54, 124, 49, 128, 48, 130, 52, 130, 59, 126, 63, 117, 65, 106, 65, 98, 61, 90, 55, 84, 50];
+const SCARF_BAND = [84, 47, 90, 51, 97, 56, 105, 60, 113, 62, 120, 61, 124, 59, 127, 62, 127, 67, 122, 69, 114, 70, 106, 69, 98, 65, 90, 59, 84, 53];
 
 function drawScarf(p: Painter, m: Mats, L: LookSpec): void {
   if (L.neck === 'loop') {
@@ -459,7 +465,7 @@ function drawScarf(p: Painter, m: Mats, L: LookSpec): void {
     stroke(p, S(102, 68, 116, 68, 127, 63), m.scarfFold, 'scarf');
   } else if (L.neck === 'band') {
     p.poly(S(...SCARF_BAND), m.scarf, { part: 'scarf', bevel: 2.5, flat: 0.3, lift: 1.5 });
-    stroke(p, S(90, 51, 100, 58, 112, 61, 124, 58, 129, 53), m.scarfFold, 'scarf');
+    stroke(p, S(90, 55, 100, 62, 112, 66, 121, 65, 125, 63), m.scarfFold, 'scarf');
   }
 }
 
@@ -553,9 +559,19 @@ function idlePose(p: Painter): AssassinPose {
   P.nhy -= 0.6 * bodyY;
   P.fhx -= 0.6 * bodyX;
   P.fhy -= 0.6 * bodyY;
+  // Рука почти прямая (сгиб 165° и 174°), и у предела длины ik неустойчив: сдвиг кисти на 60 % движения корпуса гонял
+  // локоть на 4 пикселя. Длина плечо — кисть держится как в стойке, кисть качается вокруг плеча — сгиб постоянный.
+  const keep = (sh: readonly number[], hand: readonly number[], x: number, y: number): [number, number] => {
+    const l0 = Math.hypot(hand[0] - sh[0], hand[1] - sh[1]), a = Math.atan2(y - sh[1], x - sh[0]);
+    return [sh[0] + l0 * Math.cos(a), sh[1] + l0 * Math.sin(a)];
+  };
+  [P.nhx, P.nhy] = keep(M.armN.sh, M.armN.hand, P.nhx, P.nhy);
+  [P.fhx, P.fhy] = keep(M.armF.sh, M.armF.hand, P.fhx, P.fhy);
   P.nsw += 2.5 * p.wave(1, 0.45);
   P.fsw += 2.5 * p.wave(1, 0.7);
   P.turn = p.blink(0.62, 0.16);
+  // Взгляд: голова подаётся к врагам и чуть клонится — один сдвиг без кивка читался «курицей».
+  P.head += 2.5 * P.turn;
   P.cape = 0.5 - 0.5 * p.wave(1, 0.25);
   return P;
 }
@@ -587,7 +603,7 @@ const BOOT_F = [-13, 17, -15, 9, -13, 2, -8, -1, 1, -2, 9, -1, 15, 3, 21, 5, 25,
  */
 const HEM_N = [56, 94, 80, 96, 84, 104, 70, 111, 56, 118, 42, 125, 32, 131, 29, 127, 35, 117, 43, 107, 50, 100];
 const SASH = [84, 98, 80, 105, 70, 111, 56, 118, 42, 125, 29, 133, 30, 138, 43, 133, 57, 126, 71, 119, 81, 113, 87, 105];
-const LOIN = [83, 96, 101, 96, 102, 116, 100, 135, 96, 138, 91, 146, 86, 138, 82, 135, 81, 116];
+const LOIN = [84, 96, 100, 96, 99, 110, 97, 124, 94, 136, 90, 143, 87, 135, 85, 123, 84, 110];
 const BACK = [72, 106, 116, 106, 116, 126, 114, 142, 108, 138, 104, 143, 99, 137, 90, 143, 82, 138, 76, 143, 72, 126];
 
 function drawAssassin(p: Painter, P: AssassinPose, m: Mats, L: LookSpec): void {
@@ -608,7 +624,7 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats, L: LookSpec): void {
     // ── Ноги: бедро от таза, колено — ik в больших сдвигах (шаг), в покое идёт за тазом наполовину; стопы стоят.
     //    Штаны тёмного сукна, наколенник, голень в обмотках, сапог. Дальняя (к врагам) — раньше и темнее. ──
     const legs = [
-      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.12, boot: BOOT_F, bend: [1, -0.2], foot: P.footF, lift: P.liftF, out: 1, shin: m.shinF, bootM: m.bootF, pad: m.padF },
+      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.2, boot: BOOT_F, bend: [1, -0.2], foot: P.footF, lift: P.liftF, out: 1, shin: m.shinF, bootM: m.bootF, pad: m.padF },
       { g: M.legN, L2: LEG_N, side: 'near', tone: 0, boot: BOOT_N, bend: [-0.6, -1], foot: P.footN, lift: P.liftN, out: -1, shin: m.shinN, bootM: m.bootN, pad: m.padN },
     ] as const;
     for (const lg of legs) {
@@ -697,15 +713,16 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats, L: LookSpec): void {
         }
       }
       if (L.skirt === 'tasset') {
-        // Кожаная набедренная пластина с заклёпками вместо красной полосы.
-        p.poly(sway(S(84, 96, 100, 96, 101, 114, 98, 128, 92, 132, 86, 128, 83, 114)), m.pouch, { part: 'cloth', bevel: 2.5, tone: -0.12 });
-        stroke(p, sway(S(83, 113, 101, 113)), m.seam, 'cloth');
-        for (const [x, y] of [[87, 100], [97, 100], [92, 124]]) p.px(X(x), Y(y), m.stud);
+        // Кожаная набедренная полоса клином, как красная у листа, — с заклёпками и швом поперёк. Прямоугольная пластина
+        // читалась большим кошелём.
+        p.poly(sway(S(...LOIN)), m.pouch, { part: 'cloth', bevel: 2.2, tone: -0.1 });
+        stroke(p, sway(S(85, 112, 99, 112)), m.seam, 'cloth');
+        for (const [x, y] of [[88, 100], [96, 100], [92, 126]]) p.px(X(x), Y(y), m.stud);
       } else {
         const hem = L.skirt === 'ragged' ? [...S(83, 96, 101, 96, 103, 118), ...ragged(S(102, 134, 82, 134), R(6), R(4), 1, 0), ...S(81, 118)] : S(...LOIN);
         p.poly(sway(hem), L.skirt === 'trim' ? m.accent : m.skirtN, { part: 'cloth', bevel: 2.2, tone: L.skirt === 'trim' ? 0 : -0.06 });
-        stroke(p, sway(S(88, 100, 87, 134)), L.skirt === 'trim' ? L.accent[1] : m.fold, 'cloth');
-        stroke(p, sway(S(96, 100, 97, 130)), L.skirt === 'trim' ? L.accent[1] : m.fold, 'cloth');
+        stroke(p, sway(L.skirt === 'trim' ? S(89, 100, 89, 130) : S(88, 100, 87, 134)), L.skirt === 'trim' ? L.accent[1] : m.fold, 'cloth');
+        stroke(p, sway(L.skirt === 'trim' ? S(95, 100, 94, 126) : S(96, 100, 97, 130)), L.skirt === 'trim' ? L.accent[1] : m.fold, 'cloth');
       }
 
       // Пояс; у облика A — кошели и латунная пряжка, у B — склянки, у C — простая пряжка.
@@ -728,16 +745,14 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats, L: LookSpec): void {
 
       // Накидка плеча (или пелерина) поверх верха руки; голова; шарф поверх низа капюшона и маски.
       drawMantle(p, m, L);
-      p.pose({ dx: 1.5 * P.turn, rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => drawHead(p, m, L));
+      p.pose({ dx: p.snap(1.5 * P.turn), rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => drawHead(p, m, L));
       drawScarf(p, m, L);
     });
 
     if (assassinProbe.on) {
       const [tx, tt] = bladeTip(L);
       const tipAt = (a: ArmSolve, sw: number): [number, number] => {
-        const u = [Math.cos(sw * DEG), Math.sin(sw * DEG)];
-        let n = [-u[1], u[0]];
-        if (n[0] < 0) n = [-n[0], -n[1]];
+        const { u, n } = bladeAxes(sw, L);
         return toWorld(a.hx + u[0] * tx + n[0] * tt, a.hy + u[1] * tx + n[1] * tt);
       };
       const nrm = (v: number): number => { v = ((v % 360) + 360) % 360; return v > 180 ? v - 360 : v; };
@@ -760,7 +775,8 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats, L: LookSpec): void {
  */
 function drawForearm(p: Painter, m: Mats, L: LookSpec, a: ArmSolve, side: 'near' | 'far', sw: number): void {
   const far = side === 'far';
-  const part = `${side}Wrap`, tone = far ? -0.08 : 0;
+  // Дальняя рука заметно темнее ближней, как на листе (при −0,08 обмотка и кулак были светлы почти как ближние).
+  const part = `${side}Wrap`, tone = far ? -0.16 : 0;
   const wrap = far ? m.wrapF : m.wrapN;
   const fa = a.a2, fl = len([a.ex, a.ey], [a.hx, a.hy]);
   const [wx, wy] = at(a.ex, a.ey, a.a1 + 180, R(1.5));
@@ -771,13 +787,23 @@ function drawForearm(p: Painter, m: Mats, L: LookSpec, a: ArmSolve, side: 'near'
     stroke(p, [...at(cx, cy, fa - 90, r), ...at(cx, cy, fa + 90 - 20, r)], m.wrapGap, part);
     if (k % 2) stroke(p, [...at(cx, cy, fa - 90, r * 0.85), ...at(cx - 0.8, cy - 0.8, fa + 90 - 20, r * 0.4)], m.wrapLit, part);
   }
-  blade(p, m, L, a.hx, a.hy, sw, `${side}Blade`, far ? -0.08 : 0);
-  // Кулак: шире предплечья, костяшки наружу, пальцы — тёмные черты поперёк, лента обмотки через тыльную сторону.
+  if (far) {
+    // Локоть дальней руки — кожа в прорехе рукава, как на листе: иначе рука начиналась шаром обмотки из-под шарфа.
+    const q = (f: number, off: number): [number, number] => at(...at(a.ex, a.ey, fa, fl * f), fa - 90, off);
+    p.poly([...q(-0.12, R(9)), ...q(-0.12, -R(9)), ...q(0.2, -R(9)), ...q(0.14, R(9))], m.skinF, { part, paint: true, tone: -0.02 });
+  }
+  blade(p, m, L, a.hx, a.hy, sw, `${side}Blade`, far ? -0.16 : 0);
+  // Кулак: шире предплечья, лента обмотки через тыльную сторону; пальцы обхватили рукоять — ряд костяшек поперёк
+  // клинка у его корня, щели между ними, навершие под большим пальцем. Черты пальцев вдоль предплечья читались шариком.
   const r = R(8.2), skin = far ? m.skinF : m.skinN;
   p.ellipse(a.hx, a.hy, r * 1.15, r * 0.82, skin, { part: `${side}Fist`, lift: 1.2, tone: tone - 0.04, rot: (fa + 90) * DEG });
   const ux = Math.cos(fa * DEG), uy = Math.sin(fa * DEG), nx = -uy, ny = ux;
   p.poly([a.hx - ux * r * 0.55 + nx * r * 1.1, a.hy - uy * r * 0.55 + ny * r * 1.1, a.hx - ux * r * 0.05 + nx * r * 1.1, a.hy - uy * r * 0.05 + ny * r * 1.1, a.hx - ux * r * 0.05 - nx * r * 1.1, a.hy - uy * r * 0.05 - ny * r * 1.1, a.hx - ux * r * 0.55 - nx * r * 1.1, a.hy - uy * r * 0.55 - ny * r * 1.1], wrap, { part: `${side}Fist`, paint: true, tone });
-  for (const t of [-0.4, 0.05, 0.5]) stroke(p, [a.hx + nx * r * t + ux * r * 0.25, a.hy + ny * r * t + uy * r * 0.25, a.hx + nx * r * t + ux * r * 0.8, a.hy + ny * r * t + uy * r * 0.8], m.skinDark, `${side}Fist`);
+  const bu = [Math.cos(sw * DEG), Math.sin(sw * DEG)], bn = [-bu[1], bu[0]];
+  const on = (s: number, t: number): [number, number] => [a.hx + bu[0] * r * s + bn[0] * r * t, a.hy + bu[1] * r * s + bn[1] * r * t];
+  for (const t of [-0.6, -0.2, 0.2, 0.6]) p.ellipse(...on(0.5, t), r * 0.24, r * 0.3, skin, { part: `${side}Fist`, lift: 0.7, tone: tone + 0.1, rot: sw * DEG });
+  for (const t of [-0.4, 0, 0.4]) stroke(p, [...on(0.3, t), ...on(0.72, t)], m.skinDark, `${side}Fist`);
+  p.ellipse(...on(-0.8, 0), 1.4, 1.4, m.steel, { part: `${side}Pommel`, lift: 0.8, tone: tone - 0.05 });
 }
 
 /** Снаряжение на поясе и перевязи: кошели (A), склянки с отравой (B), метательные ножи (C). */

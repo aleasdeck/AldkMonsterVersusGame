@@ -174,11 +174,13 @@ const LOOKS: Record<MageLook, LookSpec> = { a: LOOK_A, b: LOOK_B, c: LOOK_C };
 /**
  * Материалы облика — свой объект на каждую часть (движок заводит зерно фактуры на объект). Ткань — вытянутые волокна
  * вдоль падения складок (`fur` со `stretch`, угол ≈ 90°; полосы `stripes` рябили частоколом светлых черт), рваный
- * край — `shag` облика; кожа лица и кистей — без дизеринга: мелкое
- * пятно, тон которого иначе перебрасывался бы с дыханием; свет посоха светится сам (`glow`).
+ * край — `shag` облика; свет посоха светится сам (`glow`). Дизеринга нет ни у ткани, ни у кожи, ни у древка
+ * (`dither: 0`): сетка Байера движка стоит по месту фигуры, и когда верх сдвигается на пиксель (12 переходов из 24
+ * в покое), капюшон, пелерина и кошель перебрасывали тон целиком — 13 % пикселей на сдвиг против 0,6 % без дизеринга
+ * (ревью моделлера; общий вопрос движка вынесен пользователю).
  */
 function matsOf(L: LookSpec) {
-  const cloth = (ramp: string[], angle: number, shag = 0, amp = 0.1): Mat => ({ base: ramp[2], ramp, shag, tex: { kind: 'fur', scale: 2.6, amp, stretch: 3, angle } });
+  const cloth = (ramp: string[], angle: number, shag = 0, amp = 0.1): Mat => ({ base: ramp[2], ramp, shag, dither: 0, tex: { kind: 'fur', scale: 2.6, amp, stretch: 3, angle } });
   const flat = (c: string): Mat => ({ base: c, ramp: [c, c, c, c, c], dither: 0 });
   const light = (ramp: string[], outline = true): Mat => ({ base: ramp[2], ramp, glow: true, dither: 0, noOutline: !outline });
   return {
@@ -193,18 +195,18 @@ function matsOf(L: LookSpec) {
     flap: cloth(L.cloak, 0.95, L.shag),
     capelet: cloth(L.cloak, 0.7, L.shag * 0.5),
     /** Капюшон глаже рясы: волокна на крупной форме головы рябят. */
-    hood: { base: L.cloak[2], ramp: L.cloak, shag: L.shag * 0.5, tex: { kind: 'noise', scale: 2.6, amp: 0.1 } } as Mat,
+    hood: { base: L.cloak[2], ramp: L.cloak, shag: L.shag * 0.5, dither: 0, tex: { kind: 'noise', scale: 2.6, amp: 0.1 } } as Mat,
     trim: L.trim ? ({ base: L.trim[2], ramp: L.trim, dither: 0 } as Mat) : null,
     trimLit: L.trim ? L.trim[4] : L.lit,
-    leather: { base: L.leather[2], ramp: L.leather, tex: { kind: 'noise', scale: 2, amp: 0.16 } } as Mat,
-    pouch: { base: L.leather[2], ramp: L.leather, tex: { kind: 'noise', scale: 2.2, amp: 0.18 } } as Mat,
-    boot: { base: (L.boot ?? L.leather)[2], ramp: L.boot ?? L.leather, tex: { kind: 'noise', scale: 2, amp: 0.14 } } as Mat,
+    leather: { base: L.leather[2], ramp: L.leather, dither: 0, tex: { kind: 'noise', scale: 2, amp: 0.16 } } as Mat,
+    pouch: { base: L.leather[2], ramp: L.leather, dither: 0, tex: { kind: 'noise', scale: 2.2, amp: 0.18 } } as Mat,
+    boot: { base: (L.boot ?? L.leather)[2], ramp: L.boot ?? L.leather, dither: 0, tex: { kind: 'noise', scale: 2, amp: 0.14 } } as Mat,
     fistN: { base: L.skin[2], ramp: L.skin, dither: 0 } as Mat,
     fistF: { base: L.skin[2], ramp: L.skin, dither: 0 } as Mat,
     face: { base: L.skin[2], ramp: L.skin, dither: 0 } as Mat,
     staff: L.id === 'b'
-      ? ({ base: L.staff[2], ramp: L.staff, dither: 0.2, metal: 0.35, tex: { kind: 'spots', scale: 2.2, amp: 0.16, density: 0.18 } } as Mat)
-      : ({ base: L.staff[2], ramp: L.staff, tex: { kind: 'stripes', scale: 1.6, amp: 0.18, angle: 0.4 } } as Mat),
+      ? ({ base: L.staff[2], ramp: L.staff, dither: 0, metal: 0.35, tex: { kind: 'spots', scale: 2.2, amp: 0.16, density: 0.18 } } as Mat)
+      : ({ base: L.staff[2], ramp: L.staff, dither: 0, tex: { kind: 'stripes', scale: 1.6, amp: 0.18, angle: 0.4 } } as Mat),
     fireOuter: light(L.fire[0]),
     fireMid: light(L.fire[1], false),
     fireCore: light(L.fire[2], false),
@@ -238,6 +240,8 @@ const PT = (px: number, py: number): [number, number] => [X(px), Y(py)];
 const S = (...pts: number[]): number[] => pts.map((v, i) => (i % 2 ? Y(v) : X(v)));
 /** Размер в точках листа → в единицах. */
 const R = (v: number): number => v * K;
+/** Нижний край висящей ткани — пиксель над землёй (см. `hang` в `drawMage`). */
+const HEM_FLOOR = G - 1.5;
 
 /**
  * Суставы стойки — точки кадра листа. Таз под пряжкой; дальняя рука с посохом: плечевой сустав под краем капюшона,
@@ -251,7 +255,7 @@ const M = {
   /** Опора наклона головы — под клином воротника. */
   neck: PT(95, 92),
   armF: { sh: PT(103, 89), el: PT(113, 109), hand: PT(130, 103) },
-  armN: { sh: PT(70, 90), el: PT(61, 106), hand: PT(58, 118) },
+  armN: { sh: PT(70, 90), el: PT(60, 103), hand: PT(57.5, 120) },
   ankN: PT(50, 151),
   ankF: PT(127, 151),
 };
@@ -398,19 +402,20 @@ function staff(p: Painter, m: Mats, L: LookSpec, x: number, y: number, a: number
       p.limb(b0x, b0y, 2.6, b1x, b1y, 2.6, m.trim, { part: 'staffBand', lift: 0.6 });
     }
   }
-  // Полумесяц рогами вверх: внешняя дуга от правого рога через низ к левому (20…160°), внутренняя — обратно через низ,
-  // выше и уже; рога острые — обе дуги сходятся в них. Дуга −15…195° почти замыкалась в кольцо, и навершие с звездой
-  // внутри читалось лупой (ревью моделлера); звезда стоит над рогами (`staffLight`).
+  // Полумесяц рогами вверх — круг без такого же круга, сдвинутого вверх на 0,7 радиуса: низ толстый, рога сужаются
+  // к остриям над серединой. Дуга −15…195° с тонкой каймой почти замыкалась в кольцо, и навершие со звездой внутри
+  // читалось лупой (ревью моделлера); тонкие рога на пикселе 1,5 пропадали, и оставалась плоская чаша. Звезда стоит
+  // над рогами (`staffLight`).
   const [cx, cy] = q(RING_C[0], RING_C[1]);
-  const ro = R(12), thick = R(4), yt = cy + Math.sin(20 * DEG) * ro, xr = Math.cos(20 * DEG) * ro, ry = cy + ro - thick - yt;
+  const ro = R(11), off = 0.7 * ro, tip = Math.asin(off / 2 / ro) / DEG;
   const moon: number[] = [];
-  for (let k = 0; k <= 12; k++) {
-    const t = (20 + (140 * k) / 12) * DEG;
+  for (let k = 0; k <= 14; k++) {
+    const t = (-tip + ((180 + 2 * tip) * k) / 14) * DEG;
     moon.push(cx + ro * Math.cos(t), cy + ro * Math.sin(t));
   }
-  for (let k = 1; k < 12; k++) {
-    const f = (180 - (180 * k) / 12) * DEG;
-    moon.push(cx + xr * Math.cos(f), yt + ry * Math.sin(f));
+  for (let k = 13; k >= 1; k--) {
+    const t = (tip + ((180 - 2 * tip) * k) / 14) * DEG;
+    moon.push(cx + ro * Math.cos(t), cy - off + ro * Math.sin(t));
   }
   if (m.trim) p.poly(moon, m.trim, { part: 'staffTop', bevel: 1.2, lift: 0.8 });
 }
@@ -437,7 +442,7 @@ function staffLight(p: Painter, m: Mats, L: LookSpec, cx: number, cy: number, gl
   if (L.id === 'b') {
     // Звезда: ядро, четыре длинных луча и четыре коротких косых — восьмилучевая, чтобы не читаться крестом (крест лучей —
     // свет Паладина); мерцает.
-    cy -= R(1);
+    cy -= R(8.5);
     p.glow(cx, cy, R(13) * glow, m.halo, 0.26);
     const r = R(3.2) + 0.4 * w1;
     const d = Math.SQRT1_2;
@@ -633,10 +638,18 @@ function avatarOf(m: Mats, L: LookSpec): AvatarSpec {
   };
 }
 
-/** Маг облика `look`; рост в покое — `HERO_BODY_HEIGHT.mage` (120) в пикселе `HERO_PIXEL`. */
-export function mageModel(look: MageLook = MAGE_RECOMMENDED): HeroModel {
+/**
+ * Маг облика `look`; рост в покое — `height` единиц поля в пикселе `HERO_PIXEL`, по умолчанию `HERO_BODY_HEIGHT.mage`
+ * (120). Другой рост — для страницы обсуждения: прежний лист в бою стоял ниже таблицы (≈ 96: мерка листа 134 снята
+ * с искрами пламени), и пользователь выбирает между 120, 106 и 98. Масштаб — вокруг середины стопы на земле (`p.scope`),
+ * поэтому мерки, пиксель и земля не меняются; поза кадра считается внутри масштаба — сдвиги покоя остаются целыми
+ * пикселями. Аватарка от роста не зависит.
+ */
+export function mageModel(look: MageLook = MAGE_RECOMMENDED, height = 120): HeroModel {
   const L = LOOKS[look];
   const m = matsOf(L);
+  const s = height / 120, ox = X(90) * (1 - s), oy = G * (1 - s);
+  const map = (x: number, y: number): [number, number] => [x * s + ox, y * s + oy];
   return {
     id: 'mage',
     avatar: avatarOf(m, L),
@@ -645,13 +658,14 @@ export function mageModel(look: MageLook = MAGE_RECOMMENDED): HeroModel {
     h: 132,
     ground: G,
     pad: 80,
-    draw: (p: Painter) => drawMage(p, framePose(p), m, L),
+    draw: (p: Painter) => (s === 1 ? drawMage(p, framePose(p), m, L) : p.scope(s, ox, oy, () => drawMage(p, framePose(p), m, L, map))),
   };
 }
 
 // ─── Рисунок ────────────────────────────────────────────────────────────────
 
-function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec): void {
+/** Маг в позе `P`; `map` — точки зонда в кадр, когда модель нарисована в своём масштабе (рост не по таблице). */
+function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: number, y: number): [number, number] => [x, y]): void {
   const breath = p.bob(2, 2);
   const rot = P.lean * DEG;
   // Верх: таз с приседом, сдвиг веса и дыхание — целыми пикселями (поза их прижимает к сетке, ткань — тоже).
@@ -679,7 +693,9 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec): void {
       const [wx, wy] = toWorld(x, y);
       const lo = 1 - w;
       // Сдвиг — целыми пикселями: дробный сдвиг точек у подола перекатывал край и фактуру клиньев на каждом вдохе.
-      out.push(x + p.snap(w * (wx - x) - P.cape * 8 * lo * lo), y + p.snap(w * (wy - y)));
+      // Край ткани у земли — на пиксель выше неё: пряди `shag` свисают вниз, и с подолом ровно на земле они уходили
+      // под пол на два-три пикселя (тест «стопы на земле» допускает два).
+      out.push(x + p.snap(w * (wx - x) - P.cape * 8 * lo * lo), Math.min(y + p.snap(w * (wy - y)), closed ? HEM_FLOOR : G));
     }
     return out;
   };
@@ -873,11 +889,13 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec): void {
   staffLight(p, m, L, lx, ly, P.glow);
 
   if (mageProbe.on) {
-    const [hwx, hwy] = toWorld(far.hx, far.hy), [swx, swy] = toWorld(M.armF.sh[0], M.armF.sh[1]), [ewx, ewy] = toWorld(far.ex, far.ey);
-    const [bwx, bwy] = toWorld(...staffPt(far.hx, far.hy, SW, -STAFF_BUTT, 0));
+    const W = (x: number, y: number): [number, number] => map(...toWorld(x, y));
+    const [hwx, hwy] = W(far.hx, far.hy), [swx, swy] = W(M.armF.sh[0], M.armF.sh[1]), [ewx, ewy] = W(far.ex, far.ey);
+    const [bwx, bwy] = W(...staffPt(far.hx, far.hy, SW, -STAFF_BUTT, 0));
+    const [hipX, hipY] = map(PELVIS[0] + udx, PELVIS[1] + udy), [tipX, tipY] = map(lx, ly);
     const nrm = (a: number): number => { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
     mageProbe.on({
-      ...probeInfo, hipX: PELVIS[0] + udx, hipY: PELVIS[1] + udy, handX: hwx, handY: hwy, tipX: lx, tipY: ly, ground: G,
+      footF: map(probeInfo.footF, G)[0], footN: map(probeInfo.footN, G)[0], hipX, hipY, handX: hwx, handY: hwy, tipX, tipY, ground: G,
       shX: swx, shY: swy, elX: ewx, elY: ewy, butX: bwx, butY: bwy, wrist: nrm(SW - far.a2), elbow: 180 - Math.abs(nrm(far.a2 - far.a1)),
     });
   }
@@ -890,8 +908,10 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec): void {
  */
 function hood(p: Painter, m: Mats, L: LookSpec): void {
   if (L.id === 'c') {
-    // Хвост капюшона отшельника — висит от макушки по спине на пелерину.
-    p.poly([...S(80, 57, 74, 59, 67, 65, 61, 74, 57.5, 84), ...tatters(S(57.5, 84, 56, 93, 60, 93), R(2), R(2.2), 1).slice(2), ...S(63, 86, 68, 76, 74, 68, 80, 63)], m.hood, { part: 'hood', bevel: 3, tone: -0.06 });
+    // Хвост капюшона отшельника — висит от макушки по спине на пелерину: узкий, сужается к рваному концу, складка
+    // посередине и своя часть с тенью — широкий хвост в тон капюшона лежал на плече плоской «доской» (ревью моделлера).
+    p.poly([...S(80, 57, 74, 59.5, 67.5, 65.5, 62, 74, 59, 83), ...tatters(S(59, 83, 58, 91, 61.5, 90), R(1.6), R(2), 1).slice(2), ...S(63, 83, 67, 75, 73, 68, 80, 62.5)], m.hood, { part: 'hoodTail', bevel: 2.4, tone: -0.12 });
+    stroke(p, S(77, 61, 70, 67, 65, 75, 61.5, 85), m.fold, 'hoodTail');
   }
   p.poly(S(...HOOD), m.hood, { part: 'hood', bevel: 7, lift: 1.5 });
   // Голова под тканью — купол: капюшон круглится по черепу, а не плоский лоскут.

@@ -33,10 +33,10 @@ interface LookInfo { id: Look; name: string; note: string }
  * Герои страницы: облики и рекомендация лепщика — из файла модели; ряд прежнего листа, по которому снимались мерки
  * (у Мага — ряд боевой стойки `battle`, у остальных на листе только покой), и его частота, как в игре (CLIP_MS).
  */
-const HEROES: Record<HeroId, { name: string; looks: readonly LookInfo[]; rec: Look; model: (look: Look) => HeroModel; cell: number; row: number; fps: number }> = {
-  mage: { name: 'Маг', looks: MAGE_LOOKS, rec: MAGE_RECOMMENDED, model: (l) => mageModel(l), cell: 186, row: 1, fps: 8000 / 1300 },
-  assassin: { name: 'Ассасин', looks: ASSASSIN_LOOKS, rec: ASSASSIN_RECOMMENDED, model: (l) => assassinModel(l), cell: 182, row: 0, fps: 5 },
-  archer: { name: 'Лучник', looks: ARCHER_LOOKS, rec: ARCHER_RECOMMENDED, model: (l) => archerModel(l), cell: 186, row: 0, fps: 5 },
+const HEROES: Record<HeroId, { name: string; looks: readonly LookInfo[]; rec: Look; model: (look: Look, height: number) => HeroModel; cell: number; row: number; fps: number; body: number }> = {
+  mage: { name: 'Маг', looks: MAGE_LOOKS, rec: MAGE_RECOMMENDED, model: (l, height) => mageModel(l, height), cell: 186, row: 1, fps: 8000 / 1300, body: 134 },
+  assassin: { name: 'Ассасин', looks: ASSASSIN_LOOKS, rec: ASSASSIN_RECOMMENDED, model: (l) => assassinModel(l), cell: 182, row: 0, fps: 5, body: 166 },
+  archer: { name: 'Лучник', looks: ARCHER_LOOKS, rec: ARCHER_RECOMMENDED, model: (l) => archerModel(l), cell: 186, row: 0, fps: 5, body: 170 },
 };
 const HERO_IDS = Object.keys(HEROES) as HeroId[];
 
@@ -49,9 +49,14 @@ const GROUND = 282;
 const HERO_X = 130;
 const FOE_X = [380, 600, 823];
 
-const state: { loc: Loc; hero: HeroId; pick: Record<HeroId, Pick> } = {
+/**
+ * `mageH` — рост Мага на выбор: 120 по таблице игры, 106 — площадь Воина, 98 — как прежний лист стоял в бою
+ * (`body` 134 в HERO_SHEETS снят вместе с искрами пламени, и фигура в бою выходила около 96).
+ */
+const state: { loc: Loc; hero: HeroId; pick: Record<HeroId, Pick>; mageH: number } = {
   loc: 'forest',
   hero: 'mage',
+  mageH: 120,
   pick: { mage: MAGE_RECOMMENDED, assassin: ASSASSIN_RECOMMENDED, archer: ARCHER_RECOMMENDED },
 };
 
@@ -83,13 +88,14 @@ function alphaBox(c: HTMLCanvasElement): Box {
 }
 
 /**
- * Прежний рисованный лист: 8 кадров ряда стойки. Масштаб — как мерки лепки (рост фигуры первого кадра → рост героя
- * в игре, HERO_BODY_HEIGHT), опора — середина рамки фигуры и её низ (земля).
+ * Прежний рисованный лист: 8 кадров ряда стойки, опора — середина рамки фигуры и её низ (земля). Масштаб на плитках —
+ * как мерки лепки (рост фигуры первого кадра → HERO_BODY_HEIGHT), в сцене и отряде (`game`) — как лист стоял в игре:
+ * `body` из HERO_SHEETS → HERO_BODY_HEIGHT.
  */
-function refSet(id: HeroId): ActorSet {
+function refSet(id: HeroId, game: boolean): ActorSet {
   const frames = Array.from({ length: 8 }, (_, i) => refFrame(id, i));
   const b = alphaBox(frames[0]);
-  const k = HERO_BODY_HEIGHT[id] / (b.y1 + 1 - b.y0);
+  const k = HERO_BODY_HEIGHT[id] / (game ? HEROES[id].body : b.y1 + 1 - b.y0);
   const cell = HEROES[id].cell;
   const idle: Anim = { frames, fps: HEROES[id].fps, loop: true, hold: false };
   return {
@@ -100,18 +106,26 @@ function refSet(id: HeroId): ActorSet {
 }
 
 const sets = new Map<string, ActorSet>();
-/** Набор кадров по ключу: `mage:a` — облик лепки, `mage:ref` — прежний лист, `warrior` — герой из игры. Рисуется при первом запросе. */
+/**
+ * Набор кадров по ключу: `mage:a@106` — облик лепки и рост, `mage:ref` — прежний лист в масштабе мерок, `mage:game` —
+ * как лист стоял в игре, `warrior` — герой из игры. Рисуется при первом запросе.
+ */
 function setOf(key: string): ActorSet {
   let set = sets.get(key);
   if (set) return set;
-  const [id, look] = key.split(':') as [string, Pick | undefined];
-  if (look === 'ref') set = refSet(id as HeroId);
-  else if (look) set = heroSet(HEROES[id as HeroId].model(look), HERO_STYLE);
+  const [id, rest] = key.split(':') as [string, string | undefined];
+  const [look, height] = (rest ?? '').split('@');
+  if (look === 'ref' || look === 'game') set = refSet(id as HeroId, look === 'game');
+  else if (look) set = heroSet(HEROES[id as HeroId].model(look as Look, Number(height)), HERO_STYLE);
   else set = heroSet(id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : berserkModel(), HERO_STYLE);
   sets.set(key, set);
   return set;
 }
-const pickKey = (id: HeroId, pick: Pick = state.pick[id]): string => `${id}:${pick}`;
+const heightOf = (id: HeroId): number => (id === 'mage' ? state.mageH : HERO_BODY_HEIGHT[id]);
+/** Ключ плитки: облик в выбранном росте или лист в масштабе мерок. */
+const tileKey = (id: HeroId, pick: Pick): string => (pick === 'ref' ? `${id}:ref` : `${id}:${pick}@${heightOf(id)}`);
+/** Ключ сцены и отряда: облик из карточек или лист — таким, каким он стоял в игре. */
+const liveKey = (id: HeroId): string => (state.pick[id] === 'ref' ? `${id}:game` : tileKey(id, state.pick[id]));
 
 const foeSets = new Map<string, ActorSet>();
 function foeAnim(loc: Loc, id: string): ActorSet {
@@ -199,7 +213,7 @@ function drawOverlay(id: HeroId): void {
   if (!host) return;
   const pick = state.pick[id];
   const look: Look = pick === 'ref' ? HEROES[id].rec : pick;
-  const m = HEROES[id].model(look);
+  const m = HEROES[id].model(look, HERO_BODY_HEIGHT[id]);
   const p = new Painter(m, HERO_STYLE, 0);
   m.draw(p);
   const fig = p.finish();
@@ -291,7 +305,7 @@ function toggle(group: HTMLElement, value: string): void {
 /** Сцена: выбранный герой в выбранном облике против трёх врагов локации. */
 function drawScene(): void {
   const host = document.getElementById('scene')!;
-  const actors = [{ set: setOf(pickKey(state.hero)), x: HERO_X }, ...LOCS[state.loc].foes.map((id, i) => ({ set: foeAnim(state.loc, id), x: FOE_X[i] }))];
+  const actors = [{ set: setOf(liveKey(state.hero)), x: HERO_X }, ...LOCS[state.loc].foes.map((id, i) => ({ set: foeAnim(state.loc, id), x: FOE_X[i] }))];
   fitWindow(host, field(state.loc, actors), 0, 960, 320);
   toggle(document.getElementById('scene-hero')!, state.hero);
   toggle(document.getElementById('scene-loc')!, state.loc);
@@ -317,14 +331,15 @@ const SQUAD: Array<{ key: string | HeroId; name: string }> = [
 ];
 function drawSquad(): void {
   const host = document.getElementById('squad')!;
-  const actors = SQUAD.map((s, i) => ({ set: setOf(s.key in HEROES ? pickKey(s.key as HeroId) : s.key), x: 78 + i * 161 }));
+  const actors = SQUAD.map((s, i) => ({ set: setOf(s.key in HEROES ? liveKey(s.key as HeroId) : s.key), x: 78 + i * 161 }));
   fitWindow(host, field(state.loc, actors), 0, 960, 200);
   const cap = document.getElementById('squad-names')!;
   cap.replaceChildren(...SQUAD.map((s) => {
     const pick = s.key in HEROES ? state.pick[s.key as HeroId] : null;
     const look = pick && pick !== 'ref' ? HEROES[s.key as HeroId].looks.find((l) => l.id === pick) : null;
     const el = h('span', pick ? 'new' : '');
-    el.append(h('b', '', s.name), h('span', '', pick === 'ref' ? 'лист' : look ? `${look.id.toUpperCase()} «${look.name}»` : 'в игре'));
+    const size = s.key === 'mage' && pick !== 'ref' ? `, рост ${state.mageH}` : '';
+    el.append(h('b', '', s.name), h('span', '', pick === 'ref' ? 'лист, как в игре' : look ? `${look.id.toUpperCase()} «${look.name}»${size}` : 'в игре'));
     return el;
   }));
 }
@@ -350,7 +365,7 @@ function drawCards(id: HeroId, jobs: Array<() => void>): void {
     btn.addEventListener('click', () => choose(id, e.pick));
     card.append(view, head, h('p', '', e.note), btn);
     host.appendChild(card);
-    jobs.push(() => tile(view, setOf(pickKey(id, e.pick))));
+    jobs.push(() => tile(view, setOf(tileKey(id, e.pick))));
   }
   markCards(id);
 }
@@ -424,6 +439,21 @@ function start(): void {
     state.loc = v as Loc;
     drawAll();
   });
+  // Рост Мага — две группы кнопок (в отряде и в разделе Мага), обе с `data-mageh`.
+  for (const g of document.querySelectorAll<HTMLElement>('[data-mageh]')) {
+    g.addEventListener('click', (e) => {
+      const v = (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v;
+      if (!v) return;
+      state.mageH = Number(v);
+      for (const other of document.querySelectorAll<HTMLElement>('[data-mageh]')) toggle(other, v);
+      drawScene();
+      drawSquad();
+      const jobs: Array<() => void> = [];
+      drawCards('mage', jobs);
+      queue(jobs);
+    });
+    toggle(g, String(state.mageH));
+  }
   on('speed', (v) => {
     setSpeed(Number(v));
     toggle(document.getElementById('speed')!, v);
