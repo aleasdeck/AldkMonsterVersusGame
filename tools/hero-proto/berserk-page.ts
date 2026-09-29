@@ -222,13 +222,18 @@ function drawScene(): void {
  */
 let tileRun = 0;
 function drawTiles(): void {
-  drawOverlay();
   const run = ++tileRun;
   const hosts = [...document.querySelectorAll<HTMLElement>('[data-tile]')];
   for (const el of hosts) if (!el.firstChild) el.textContent = 'рисую кадры…';
   let i = 0;
   const next = (): void => {
     if (run !== tileRun) return;
+    // Сверка силуэта — последней, своим шагом: иначе она достраивается вместе с первой плиткой.
+    if (i === hosts.length) {
+      i++;
+      drawOverlay();
+      return;
+    }
     const el = hosts[i++];
     if (!el) return;
     const spec = el.dataset.tile!;
@@ -269,8 +274,13 @@ function start(): void {
       drawTiles();
     });
   }
-  drawScene();
-  drawTiles();
+  // Сначала показать текст, потом рисовать: сцена — полсекунды–две работы главного потока на слабом телефоне, и
+  // страница с ней в первом кадре выглядела «не загрузившейся».
+  document.getElementById('scene')!.textContent = 'рисую кадры…';
+  window.requestAnimationFrame(() => window.setTimeout(() => {
+    drawScene();
+    drawTiles();
+  }, 60));
 }
 
 function boot(): void {

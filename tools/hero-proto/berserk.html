@@ -50,6 +50,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* ─── Поле ─── */
 .bench { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px; }
 .stage { position: relative; width: 100%; overflow: hidden; border-radius: 4px; background: #0b0a0b; }
+/* Заглушка, пока рисуются кадры: высота кадра 3 : 1, текст по центру. */
+.stage:not(:has(.field)) { aspect-ratio: 3 / 1; display: grid; place-items: center; color: var(--faint); font-size: 13px; }
 .field { position: absolute; left: 0; top: 0; width: 960px; height: 320px; transform-origin: 0 0; overflow: hidden; }
 .field .bg { position: absolute; inset: 0; width: 960px; height: 320px; max-width: none; image-rendering: pixelated; }
 .fig { position: absolute; max-width: none; image-rendering: pixelated; }
