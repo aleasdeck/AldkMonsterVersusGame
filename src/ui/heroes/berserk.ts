@@ -482,14 +482,18 @@ const CLIPS: Record<BerserkClip, PoseKeys<BerserkPose>> = {
     [5, { x: 10, crouch: 7, lean: 16, head: -6, nsx: 12, nhx: 100, nhy: 88, fhx: 96, fhy: 76, aback: 1, wr: -75, footF: 12, liftN: 3, cape: 0.7 }],
     [6, { ws: 1, x: 4, crouch: 3, lean: 5, head: -1, nsx: 4, nhx: 58, nhy: 88, aback: 0, wr: -66, footF: 5, liftF: 3, liftN: 0, cape: 0.3 }],
   ],
-  // Лечение A «Второе дыхание»: выпрямился, кулак к груди, голова назад — глубокий вдох; топор висит.
+  // Лечение A «Второе дыхание»: осел на выдохе — в кадр контакта выпрямился: ближний кулак к груди, голова запрокинута —
+  // глубокий вдох, держит (голова уходит назад ещё чуть); выдох — голова вперёд, кулак вниз, в стойку. Топор висит:
+  // кисть расслаблена, лезвие опускается к горизонту (−15° → 2° в мире), рука не распрямляется. Стопы стоят, таз
+  // поднят на единицу — выше ноги в широкой стойке растягивались больше, чем в покое.
   heal: [
-    [0, { crouch: 2, lean: 2, head: 4, ws: 1 }],
-    [1, { y: -1, crouch: 3, lean: -2, head: -8, nhx: 70, nhy: 58, cape: 0.1 }],
-    [2, { y: -2, crouch: 0, lean: -6, head: -14, nhx: 74, nhy: 54, cape: 0.3 }],
-    [7, { y: -2, crouch: 0, lean: -6, head: -14, nhx: 74, nhy: 54, cape: 0.35 }],
-    [8, { y: -1, crouch: 2, lean: -2, head: -4, nhx: 62, nhy: 70, cape: 0.2 }],
-    [9, { crouch: 1, lean: 0, head: 0, ws: 1 }],
+    [1, { crouch: 3, lean: 5, head: 8, ws: 1, fhy: 78, fl: 1.05, wr: -56, nhx: 56, nhy: 74, cape: 0 }],
+    [2, { y: -1, crouch: 0, lean: -6, head: -16, fhy: 78, fl: 1.1, wr: -36, nhx: 74, nhy: 62, cape: 0.15 }],
+    [3, { y: -1, crouch: 0, lean: -7, head: -17, fhy: 78, fl: 1.1, wr: -35, nhx: 74, nhy: 61, cape: 0.2 }],
+    [6, { y: -1, crouch: 0, lean: -8, head: -20, fhy: 78, fl: 1.1, wr: -35, nhx: 74, nhy: 61, cape: 0.15 }],
+    [7, { y: -0.5, crouch: 0.5, lean: -4, head: -8, fhy: 78, fl: 1.1, wr: -40, nhx: 71, nhy: 64, cape: 0.1 }],
+    [8, { crouch: 2, lean: 3, head: 5, fhy: 78, fl: 1.05, wr: -52, nhx: 60, nhy: 74, cape: 0.05 }],
+    [9, { crouch: 1, lean: 1, head: 1, ws: 1, wr: -60, nhx: 45, nhy: 82 }],
   ],
   // Клич «Ярость»: сжался (кулак к животу, голова вниз, топор чуть подобран) — выпрямляясь, заносит ближний кулак над
   // горбом, топор идёт вверх перед собой — в кадр контакта кулак с размаху бьёт в грудину (предплечье поперёк груди,
@@ -576,14 +580,18 @@ const CLIPS_B: Record<'attack' | 'heavy' | 'heal', PoseKeys<BerserkPose>> = {
     [7, { x: 13, crouch: 15, lean: 18, head: 8, fhx: 135, fhy: 76, fl: 1.45, wr: -42, footF: 16, footN: 2, cape: 0.6, dust: 0.6 }],
     [8, { x: 6, crouch: 6, lean: 8, head: 4, ws: 1, fhx: 116, fhy: 76, fl: 1.15, wr: -60, ng: 0.3, nd: -18, footF: 8, cape: 0.3, dust: 0.15 }],
   ],
-  // Лечение B «На колено»: опустился на ближнее колено, топор лезвием в землю, голова склонена — отдышался и встал.
+  // Лечение B «На колено»: за два кадра — на ближнее колено, топор лезвием в землю перед дальним сапогом, пыль; ближний
+  // кулак на бедре, голова склонена — вдох и выдох, пока топор стоит (кисть держится в одной точке мира, `wr` гасит
+  // поворот предплечья); встал, оттолкнувшись от носка. Колено касается земли при приседе 12,5 (crouch + y): бедро
+  // Берсерка длинное и встаёт почти отвесно — присед Воина ~23 уводил колено на 10 под землю.
   heal: [
-    [0, { crouch: 3, lean: 4, ws: 1 }],
-    [1, { crouch: 12, lean: 8, head: 6, kneel: 0.5, fhx: 116, fhy: 88, fl: 1.2, wr: -80, nhx: 60, nhy: 88 }],
-    [2, { crouch: 22, lean: 6, head: 14, kneel: 1, fhx: 118, fhy: 94, fl: 1.25, wr: -95, nhx: 66, nhy: 92 }],
-    [7, { crouch: 22, lean: 6, head: 12, kneel: 1, fhx: 118, fhy: 94, fl: 1.25, wr: -95, nhx: 66, nhy: 92 }],
-    [8, { crouch: 14, lean: 6, head: 8, kneel: 0.6, fhx: 116, fhy: 88, fl: 1.2, wr: -80, nhx: 60, nhy: 88 }],
-    [9, { crouch: 6, lean: 3, head: 3, kneel: 0.2, ws: 1, wr: -66 }],
+    [1, { x: -2, crouch: 6, lean: 5, head: 6, kneel: 0.6, ws: 1, fhx: 122, fhy: 82, fl: 1.3, wr: -48, nhx: 58, nhy: 90, cape: 0.1, dust: 0 }],
+    [2, { x: -4, crouch: 12.5, lean: 9, head: 14, kneel: 1, fhx: 128, fhy: 83, fl: 1.44, wr: -34, nhx: 65, nhy: 92, cape: 0.25, dust: 0.45 }],
+    [3, { x: -4, crouch: 12.5, lean: 10, head: 16, kneel: 1, fhx: 128.2, fhy: 82.1, fl: 1.44, wr: -31, nhx: 65, nhy: 92, cape: 0.15, dust: 0.15 }],
+    [5, { x: -4, crouch: 12.5, lean: 7, head: 10, kneel: 1, fhx: 128, fhy: 84.7, fl: 1.44, wr: -41, nhx: 64, nhy: 90, cape: 0.1, dust: 0 }],
+    [7, { x: -4, crouch: 12.5, lean: 9, head: 13, kneel: 1, fhx: 128, fhy: 83, fl: 1.44, wr: -34, nhx: 65, nhy: 92, cape: 0.1 }],
+    [8, { x: -2, crouch: 8, lean: 12, head: 8, kneel: 0.7, fhx: 124, fhy: 78, fl: 1.3, wr: -38, nhx: 60, nhy: 90, cape: 0.2 }],
+    [9, { crouch: 3, lean: 5, head: 3, kneel: 0.1, liftN: 3, ws: 1, fhx: 114, fhy: 80, fl: 1.1, wr: -62, nhx: 46, nhy: 86, cape: 0.15 }],
   ],
 };
 
@@ -724,6 +732,19 @@ export function berserkModel(variants: Partial<BerserkVariants> = {}): HeroModel
  */
 const BOOT_N = [13, -10, 14, 0, 13, 8, 11, 13, -19, 13, -21, 9, -19, 4, -13, 0, -6, -3, -2, -9];
 const BOOT_F = [-13, -11, 5, -11, 8, -6, 16, -2, 24, 1, 30, 5, 32, 10, 31, 13, -13, 13, -15, 6, -14, -4];
+/**
+ * Колено на земле: сапог встаёт на носок — поворот `KNEEL_TOE` (доля, как `toe`: угол 0,9·toe радиана, носком вниз), а
+ * щиколотка поднята ровно на низ повёрнутого сапога (`kneelAnkle`), и носок касается земли. Щиколотка на `R(9)` над
+ * землёй (голень плашмя) с тем же поворотом уводила носок ближнего сапога на 9 единиц под землю, дальнего — на 13.
+ */
+const KNEEL_TOE = 0.6;
+function kneelAnkle(boot: readonly number[], out: number): number {
+  const a = KNEEL_TOE * 0.9 * out, c = Math.cos(a), s = Math.sin(a);
+  let low = 0;
+  for (let k = 0; k < boot.length; k += 2) low = Math.max(low, R(boot[k]) * s + R(boot[k + 1]) * c);
+  return low;
+}
+const KNEEL_ANKLE = { far: kneelAnkle(BOOT_F, 1), near: kneelAnkle(BOOT_N, -1) };
 
 /** Верхний край горба (точки листа) — от шлема к левому краю; по нему — зубцы прядей. */
 const MANTLE_TOP = [108, 28, 104, 23, 97, 21, 90, 20, 83, 21, 75, 21, 66, 23, 57, 26, 50, 31, 44, 36, 38, 41, 33, 46, 29, 52];
@@ -804,21 +825,28 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       const hx = lg.g.hip[0] + dhx, hy = lg.g.hip[1] + dhy;
       const floor = lg.g.ank[1] - P.y;
       let ax = lg.g.ank[0] + lg.foot - P.x, ay = floor - lg.lift;
-      let bend: [number, number] = [lg.bend[0], lg.bend[1]];
       let toe = 0;
+      const kneelY = G - P.y - KNEEL_ANKLE[lg.side];
       if (lg.kneel > 0) {
-        // Колено на земле под бедром, голень лежит назад по земле, носок упёрт.
+        // Колено на земле под бедром, голень назад по земле к сапогу, упёртому носком.
         ax = lerp(ax, hx - lg.L2.l2 * 0.95 + R(6), lg.kneel);
-        ay = lerp(ay, G - P.y - R(9), lg.kneel);
-        bend = [lerp(bend[0], 0.3, lg.kneel), lerp(bend[1], 1, lg.kneel)];
-        toe += 0.6 * lg.kneel;
+        ay = lerp(ay, kneelY, lg.kneel);
+        toe += KNEEL_TOE * lg.kneel;
       }
       const dax = ax - lg.g.ank[0], day = ay - lg.g.ank[1];
       const big = Math.max(Math.hypot(dhx, dhy), Math.hypot(dax, day));
       const w = lg.kneel > 0 ? 1 : Math.max(0, Math.min(1, (big - 3) / 4));
       if (w > 0) [ax, ay] = reachFoot(hx, hy, ax, ay, lg.L2.l1 + lg.L2.l2 - 0.2);
-      toe += w * Math.max(0, floor - ay - lg.kneel * (floor - (G - P.y - R(9)))) / 16;
-      const [ikx, iky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, bend[0], bend[1]);
+      toe += w * Math.max(0, floor - ay - lg.kneel * (floor - kneelY)) / 16;
+      // Колено в стойке смотрит назад-наружу, на земле — вниз, по другую сторону линии бедро — щиколотка: сгиб ik
+      // перескакивал бы на другую сторону за кадр (колено прыгало на 40 единиц). На переходе колено идёт между
+      // обоими решениями — нога поворачивается в глубину и в проекции короче.
+      let [ikx, iky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, lg.bend[0], lg.bend[1]);
+      if (lg.kneel > 0) {
+        const [qx, qy] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, 0.3, 1);
+        ikx = lerp(ikx, qx, lg.kneel);
+        iky = lerp(iky, qy, lg.kneel);
+      }
       const kx = lerp(lg.g.knee[0] + (dhx + dax) / 2, ikx, w), ky = lerp(lg.g.knee[1] + (dhy + day) / 2, iky, w);
       if (lg.side === 'far') probeInfo.footF = ax + P.x;
       else probeInfo.footN = ax + P.x;
@@ -842,9 +870,11 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       });
       // Мех на колене и голени: крупные клочья вдоль голени, низ поперёк неё — пряди свисают по голени. Ровный низ и
       // отвесные пряди читались «забором».
-      const cx = kx + R(far ? 1 : 2), cy = ky + R(far ? 7 : 9);
-      const rx = R(far ? 19 : 19), ry = R(far ? 10 : 11);
+      // Колено на земле: мех идёт за голенью (лежит назад), а не висит под коленом — иначе он уходил в землю.
       const sa = Math.atan2(ay - ky, ax - kx) / DEG;
+      const ko = (sa - 90) * lg.kneel * DEG, ox = R(far ? 1 : 2), oy = R(far ? 7 : 9);
+      const cx = kx + ox * Math.cos(ko) - oy * Math.sin(ko), cy = ky + ox * Math.sin(ko) + oy * Math.cos(ko);
+      const rx = R(far ? 19 : 19), ry = R(far ? 10 : 11);
       const tc = Math.cos((sa - 90) * DEG), ts = Math.sin((sa - 90) * DEG);
       const turnPts = (pts: number[]): number[] => pts.map((v, i) => (i % 2 ? cy + (pts[i - 1] - cx) * ts + (v - cy) * tc : cx + (v - cx) * tc - (pts[i + 1] - cy) * ts));
       const arc: number[] = [];
