@@ -24,9 +24,8 @@ type Look = 'a' | 'b' | 'c';
 /** Что стоит у героя в сцене и в отряде: облик лепки или прежний лист. */
 type Pick = Look | 'ref';
 
-declare global {
-  interface Window { ASSETS: { bg: Record<Loc, string>; refs: Record<HeroId, string>; avatars: Record<HeroId, string> } }
-}
+/** Фоны, прежние листы и портреты — data URI из build.mjs. Свой тип, а не `Window.ASSETS`: у страниц одиночных героев он другой. */
+const ASSETS = (window as unknown as { ASSETS: { bg: Record<Loc, string>; refs: Record<HeroId, string>; avatars: Record<HeroId, string> } }).ASSETS;
 
 interface LookInfo { id: Look; name: string; note: string }
 
@@ -135,7 +134,7 @@ function field(loc: Loc, actors: Array<{ set: ActorSet; x: number }>): HTMLEleme
   tintVar(loc);
   const f = h('div', 'field');
   const bg = h('img', 'bg');
-  bg.src = window.ASSETS.bg[loc];
+  bg.src = ASSETS.bg[loc];
   bg.alt = '';
   f.appendChild(bg);
   const filter = `url(#mv-tint-${loc})`;
@@ -160,18 +159,20 @@ function fitWindow(host: HTMLElement, f: HTMLElement, left: number, cw: number, 
   const win = h('div', 'win');
   win.appendChild(f);
   host.replaceChildren(win);
+  // Низ окна — чуть ниже земли, но не ниже кадра: сцена во всю высоту показывает поле целиком.
+  const top = Math.max(0, Math.min(320 - ch, GROUND + 14 - ch));
   observe(host, () => {
     const k = host.clientWidth / cw;
     win.style.height = `${ch * k}px`;
-    f.style.transform = `scale(${k}) translate(${-left}px, ${-(GROUND + 14 - ch)}px)`;
+    f.style.transform = `scale(${k}) translate(${-left}px, ${-top}px)`;
   });
 }
 
 /**
- * Крупный план: кусок поля 150 × 180 вокруг героя целым увеличением — ×2, как кадр игры на FullHD (пиксель 1,5 —
+ * Крупный план: кусок поля 160 × 184 вокруг героя целым увеличением — ×2, как кадр игры на FullHD (пиксель 1,5 —
  * ровно три точки экрана). Не влезает в ширину плитки — ×1.
  */
-const TW = 150, TH = 180;
+const TW = 160, TH = 184;
 function tile(host: HTMLElement, set: ActorSet): void {
   const f = field(state.loc, [{ set, x: HERO_X }]);
   const win = h('div', 'tile-win');
@@ -400,7 +401,7 @@ function drawPortraits(): void {
     const host = document.querySelector<HTMLElement>(`[data-portrait="${id}"]`);
     if (!host || host.firstChild) continue;
     const img = h('img');
-    img.src = window.ASSETS.avatars[id];
+    img.src = ASSETS.avatars[id];
     img.width = img.height = 112;
     img.alt = `${HEROES[id].name}, прежний рисованный портрет`;
     host.appendChild(img);
@@ -443,7 +444,7 @@ function boot(): void {
       REF_IMG.set(id, img);
       if (--left === 0) start();
     };
-    img.src = window.ASSETS.refs[id];
+    img.src = ASSETS.refs[id];
   }
 }
 

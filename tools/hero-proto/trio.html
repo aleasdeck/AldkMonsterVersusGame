@@ -63,6 +63,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fig { position: absolute; max-width: none; image-rendering: pixelated; }
 .fig.smooth { image-rendering: auto; }
 .tint-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+/* Отряд на телефоне — не мельче 640 точек, с прокруткой по горизонтали. */
+#squad-bench { overflow-x: auto; }
+#squad, #squad-names { min-width: 640px; }
 .squad-names { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 8px; font-size: 13px; text-align: center; }
 .squad-names span { display: grid; color: var(--faint); min-width: 0; }
 .squad-names b { color: var(--muted); font-weight: 500; }
@@ -75,14 +78,16 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .portrait { margin: 0; display: grid; gap: 4px; }
 .portrait img { display: block; border-radius: 3px; }
 .portrait figcaption { font-size: 12px; color: var(--faint); }
-.looks { display: grid; gap: 14px; margin-top: 16px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.look-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+/* Карточка облика: плитка ×2 слева (320 × 368 — кусок поля 160 × 184), текст справа; две карточки в ряд, на узком — одна,
+   на телефоне плитка над текстом. */
+.looks { display: grid; gap: 14px; margin-top: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.look-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); grid-template-rows: auto auto 1fr; gap: 8px 14px; align-content: start; align-items: start; min-width: 0; }
 .look-card.on { border-color: var(--accent); }
-.look-view { min-height: 180px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; width: 100%; }
+.look-view { grid-row: span 3; min-height: 184px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; width: 100%; }
 .look-head { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
 .look-head b { font-size: 16px; }
 .look-letter { font-family: var(--mono); font-size: 13px; color: var(--accent); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; }
-.badge { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.03em; margin-left: auto; }
+.badge { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.03em; flex-basis: 100%; }
 .look-card p { margin: 0; font-size: 14px; color: var(--muted); }
 .look-card .pick { justify-self: start; font-size: 13px; }
 
@@ -118,11 +123,12 @@ td.p1 { color: var(--minus); }
 .steps { padding-left: 1.4em; margin: 0; display: grid; gap: 10px; }
 .steps li::marker { font-family: var(--mono); color: var(--accent); }
 
-@media (max-width: 1240px) {
-  .looks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1180px) {
+  .looks { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
-  .looks { grid-template-columns: 1fr; }
+  .look-card { grid-template-columns: 1fr; grid-template-rows: none; }
+  .look-view { grid-row: auto; }
   .squad-names { font-size: 11px; }
   body { font-size: 15px; }
 }
@@ -167,13 +173,56 @@ td.p1 { color: var(--minus); }
   <section aria-labelledby="squad-h">
     <h2 id="squad-h">Отряд</h2>
     <p class="prose">Шесть героев на одном полу в порядке выбора героя: Воин, Паладин и Берсерк — как в игре, трое новых — в обликах из карточек. Проверка стиля: один свет, одна сетка пикселя, рост по таблице игры, никто не ярче сцены и не путается с соседом.</p>
-    <div class="bench">
+    <div class="bench" id="squad-bench">
       <div class="stage" id="squad"></div>
       <div class="squad-names" id="squad-names"></div>
     </div>
   </section>
 
-  <!--HEROES-->
+  <section id="mage" aria-labelledby="mage-h">
+    <div class="hero-head">
+      <figure class="portrait"><div data-portrait="mage"></div><figcaption>прежний портрет</figcaption></figure>
+      <div>
+        <h2 id="mage-h">Маг</h2>
+        <!--INTRO:mage-->
+      </div>
+    </div>
+    <div class="looks" data-cards="mage"></div>
+    <h3>Сверка силуэта с листом</h3>
+    <p class="note prose">Кадр боевой стойки прежнего листа, пересчитанный в сетку лепки, лепка (первый кадр покоя облика из сцены) и карта расхождений: красное — только на листе, голубое — только в лепке. Сетка — через 10 единиц поля.</p>
+    <div class="overlay" data-overlay="mage"></div>
+    <!--REVIEW:mage-->
+  </section>
+
+  <section id="assassin" aria-labelledby="assassin-h">
+    <div class="hero-head">
+      <figure class="portrait"><div data-portrait="assassin"></div><figcaption>прежний портрет</figcaption></figure>
+      <div>
+        <h2 id="assassin-h">Ассасин</h2>
+        <!--INTRO:assassin-->
+      </div>
+    </div>
+    <div class="looks" data-cards="assassin"></div>
+    <h3>Сверка силуэта с листом</h3>
+    <p class="note prose">Первый кадр прежнего листа, пересчитанный в сетку лепки, лепка (первый кадр покоя облика из сцены) и карта расхождений: красное — только на листе, голубое — только в лепке. Сетка — через 10 единиц поля.</p>
+    <div class="overlay" data-overlay="assassin"></div>
+    <!--REVIEW:assassin-->
+  </section>
+
+  <section id="archer" aria-labelledby="archer-h">
+    <div class="hero-head">
+      <figure class="portrait"><div data-portrait="archer"></div><figcaption>прежний портрет</figcaption></figure>
+      <div>
+        <h2 id="archer-h">Лучник</h2>
+        <!--INTRO:archer-->
+      </div>
+    </div>
+    <div class="looks" data-cards="archer"></div>
+    <h3>Сверка силуэта с листом</h3>
+    <p class="note prose">Первый кадр прежнего листа, пересчитанный в сетку лепки, лепка (первый кадр покоя облика из сцены) и карта расхождений: красное — только на листе, голубое — только в лепке. Сетка — через 10 единиц поля.</p>
+    <div class="overlay" data-overlay="archer"></div>
+    <!--REVIEW:archer-->
+  </section>
 
   <section id="process" aria-labelledby="process-h">
     <h2 id="process-h">Как делали</h2>
