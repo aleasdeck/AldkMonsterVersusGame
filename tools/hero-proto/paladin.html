@@ -92,6 +92,22 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .card-desc { font-size: 14px; color: var(--muted); }
 .card-desc b { color: var(--text); font-weight: 500; }
 
+/* ─── Клипы ─── */
+.clip-controls { margin: 10px 0 0; }
+#scene-clips button.own { border-color: var(--brass); color: var(--brass); }
+#scene-clips.muted { pointer-events: none; }
+.pair { margin-top: 26px; }
+.pair-head { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin-bottom: 4px; }
+.pair-head h3 { font-size: 18px; margin: 0; }
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; margin-top: 12px; }
+.clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.clip-view { min-height: 250px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; }
+.clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.clip-head b { font-size: 16px; }
+.clip-head .mono { color: var(--muted); font-size: 12px; }
+.clip-card p { margin: 0; font-size: 14px; color: var(--muted); }
+.pick[aria-pressed="true"] { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+
 /* ─── Сверка силуэта ─── */
 .overlay { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 18px; }
 .overlay figure { margin: 0; display: grid; gap: 4px; }
@@ -142,20 +158,22 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
 <div class="wrap">
   <header>
     <h1>Лепка Паладина</h1>
-    <p class="lead">Облик выбран: Пепельный храмовник в топхельме с вырезом крестом и с молотом. Шаги 2 и 3 рецепта пройдены — модель в стойке по контурам прежнего листа. Дальше — клипы, аватарка и игра.</p>
-    <div class="meta"><span>Рост в бою <b>132</b></span><span>Пиксель <b>1,5</b> — 88 точек роста</span><span>Модель <b>src/ui/heroes/paladin.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
+    <p class="lead">Шаг 4 рецепта — клипы. Девять общих и свой «Молот света» — удар с сиянием. У удара, сильного удара, лечения и Молота света по два варианта: выберите по одному.</p>
+    <div class="meta"><span>Рост в бою <b>132</b></span><span>Пиксель <b>1,5</b></span><span>Клипов <b>10</b>, из них свой <b>1</b></span><span>Модель <b>src/ui/heroes/paladin.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
     <div class="fix">
-      <h3>Поправлено по отзыву</h3>
+      <h3>Сделано по запросу</h3>
       <ul class="list">
-        <li><b>Рука с молотом висит, а не приклеена к корпусу.</b> Кисть повторяет только 40 % движения корпуса — дыхания, оседания и переноса веса: корпус гуляет на 3 единицы, кисть — на 1,2, локоть сгибается сам. Молот качается маятником на ±2° с запаздыванием за переносом веса, боёк у колена сдвигается на 1–2 пикселя.</li>
-        <li><b>Выбор закреплён:</b> облик B, вырез крестом, молот. Облики A и C, другие разрезы и булава убраны из модели — они в истории ветки.</li>
+        <li><b>Свой клип «Молот света».</b> Приём и бьёт, и лечит: по правилу игры герой сыграл бы лечение на колено. Теперь у приёма свой клип <code>smite</code> (10 кадров по 12, контакт на шестом — 417 мс). У Воина вместо него — сильный удар, рисованные герои играют то же, что раньше.</li>
+        <li><b>Свет Паладина — крестом.</b> Боёк раскаляется латунью до белого золота, вокруг ореол, лучи встают крестом и стоят прямо, как бы ни наклонился корпус; в кадр удара — вспышка в восемь лучей.</li>
+        <li><b>Щит уходит за корпус на размахе.</b> Щит висит перед грудью и в кадр удара закрывал боёк целиком — на ударах корпус разворачивается, дальнее плечо уходит назад, и щит оказывается за телом.</li>
+        <li><b>В землю молот не бьёт.</b> Молот короткий (от кулака до бойка 31, у меча Воина — 70) и рука короче: даже из глубокого выпада боёк висел над землёй, а фигура сминалась в ком. Сильные удары бьют врага в корпус.</li>
       </ul>
     </div>
   </header>
 
   <section aria-labelledby="battle-h">
     <h2 id="battle-h">В бою</h2>
-    <p class="prose">Кадр поля 960 × 320, как в игре: фон и тонировка локации, враги-лепка в пикселе 2. Пока только покой: дыхание, таз оседает на пиксель, вес переходит с ноги на ногу, рука с молотом висит и отстаёт от корпуса, молот и щит покачиваются, плащ колышется, раз за цикл шлем поворачивается к врагам.</p>
+    <p class="prose">Кадр поля 960 × 320, как в игре: фон и тонировка локации, враги-лепка в пикселе 2. Кнопка клипа играет его так, как покажет игра: на удар первый враг вздрагивает в кадр контакта, на блок, урон и смерть сначала бьёт враг. Скорость ¼ — разобрать кадры.</p>
     <div class="bench">
       <div class="controls">
         <span class="tog" id="scene-hero" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
@@ -169,6 +187,37 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         </span>
       </div>
       <div class="stage" id="scene"></div>
+      <div class="controls clip-controls">
+        <span class="tog" id="scene-clips" role="group" aria-label="Клип героя"><span class="tog-label">Клип</span></span>
+        <span class="tog" id="speed" role="group" aria-label="Скорость"><span class="tog-label">Скорость</span>
+          <button type="button" data-v="1">1×</button>
+          <button type="button" data-v="0.5">½</button>
+          <button type="button" data-v="0.25">¼</button>
+        </span>
+      </div>
+      <p class="caption" id="scene-picks"></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="variants-h">
+    <h2 id="variants-h">Варианты на выбор</h2>
+    <p class="prose">Каждая пара — один клип по кругу на локации из сцены, ×2, как кадр игры на FullHD. «В сцену» ставит вариант в поле выше и сразу его играет.</p>
+    <div id="variants"></div>
+  </section>
+
+  <section aria-labelledby="clips-h">
+    <h2 id="clips-h">Остальные клипы</h2>
+    <p class="prose">Здесь выбора нет — ключи перенесены с Воина и подогнаны под короткий молот и большой щит.</p>
+    <div class="clips" id="clips"></div>
+  </section>
+
+  <section aria-labelledby="ask-h">
+    <h2 id="ask-h">Вопросы</h2>
+    <div class="qs">
+      <div class="q"><h3>Удар</h3><p>Обычная атака — самый частый клип.</p><ul class="opts"><li class="rec"><b>A</b>«Сверху»: молот через верх</li><li><b>B</b>«Снизу»: боёк снизу вверх</li></ul></div>
+      <div class="q"><h3>Сильный удар</h3><p>Приёмы оружием вплотную. Рекомендую так, чтобы он не повторял удар силуэтом.</p><ul class="opts"><li><b>A</b>«Сверху с шагом»: как удар, но с широким шагом</li><li class="rec"><b>B</b>«Прыжок»: удар с приземлением</li></ul></div>
+      <div class="q"><h3>Лечение</h3><p>Приёмы с лечением и зелья.</p><ul class="opts"><li><b>A</b>«На колено»: свет из бойка</li><li class="rec"><b>B</b>«Свет щита»: светится крест</li></ul></div>
+      <div class="q"><h3>Молот света</h3><p>Свой клип — удар с сиянием.</p><ul class="opts"><li><b>A</b>«Крест лучей»: боёк раскаляется сам</li><li class="rec"><b>B</b>«Луч с неба»: свет падает на молот</li></ul></div>
     </div>
   </section>
 
@@ -219,6 +268,7 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
           <tr><td>Оружие</td><td>молот с листа: золотая обмотка древка, боёк-барабан с ободом грани</td><td>булава (стартовое оружие в игре)</td></tr>
           <tr><td>Пиксель</td><td>1,5, как у Воина</td><td>—</td></tr>
           <tr><td>Анатомия</td><td>контуры частей по листу; плечи ниже и меньше, ближний наплечник над плечом; рука прижата к боку</td><td>суставы с листа и формы на глаз («анатомия вышла из чата»)</td></tr>
+          <tr><td>Молот света</td><td>свой клип «удар с сиянием» (<code>smite</code>)</td><td>сильный удар; лечение на колено (так сыграл бы по правилу игры)</td></tr>
           <tr><td>Покой</td><td>таз на пиксель, перенос веса, колени идут за тазом; рука висит и отстаёт от корпуса, молот маятником</td><td>ноги неподвижны; присед через ik (колени врозь); рука заодно с корпусом</td></tr>
         </tbody>
       </table>
@@ -228,7 +278,7 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
   <section aria-labelledby="next-h">
     <h2 id="next-h">Дальше</h2>
     <ol class="steps prose">
-      <li><b>Клипы.</b> Поля позы у Паладина те же, что у Воина, и его ключи переносятся почти целиком. Отдельно — пара вариантов на удар, сильный удар и лечение. «Молот света» бьёт и лечит; по правилу игры он сыграет лечение (на колено), поэтому нужно выбрать: сильный удар или свой клип «удар с сиянием». «Ореол возмездия» — клич.</li>
+      <li><b>Выбор вариантов</b> — четыре вопроса выше. Отвергнутые варианты уйдут из модели в историю ветки, как облики и шлемы.</li>
       <li><b>Аватарка.</b> Своя поза портрета и цвета прежнего золотого портрета с ореолом.</li>
       <li><b>Игра.</b> Строка в <code>HERO_MODELS</code>, рисованный лист убрать из сборки, тесты и снимки.</li>
     </ol>

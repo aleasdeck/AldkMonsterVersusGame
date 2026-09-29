@@ -1,14 +1,15 @@
-// Страница обсуждения «Лепка Паладина» — шаги 2–3 рецепта (docs/lepka-geroev.md) пройдены: модель в стойке по контурам
-// прежнего листа, облик выбран (варианты — в истории ветки). Клипов пока нет — следующий шаг. Модель — src/ui/heroes/paladin.ts
-// (в игру ещё не входит), враги и фоны — из игры, тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero paladin.
+// Страница обсуждения «Лепка Паладина» — шаг 4 рецепта (docs/lepka-geroev.md): клипы. Облик и шлем выбраны раньше
+// (варианты — в истории ветки), модель — src/ui/heroes/paladin.ts (в игру ещё не входит); у удара, сильного удара,
+// лечения и своего Молота света по два варианта — `paladinModel(pick)`. Враги и фоны — из игры, тонировка — та же,
+// что в бою (tint.ts). Сборка — build.mjs --hero paladin.
 import { Painter, type Model } from '../../src/ui/mobs/pixel';
 import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { paladinModel } from '../../src/ui/heroes/paladin';
-import { HERO_STYLE } from '../../src/ui/heroes/clips';
-import { Actor, heroSet, mobSet, type Anim, type ActorSet } from './anim';
+import { paladinModel, PALADIN_VARIANTS, type PaladinChoice, type PaladinVariant } from '../../src/ui/heroes/paladin';
+import { HERO_CLIPS, HERO_STYLE, type SculptClip } from '../../src/ui/heroes/clips';
+import { Actor, heroSet, later, mobSet, setSpeed, type Anim, type ActorSet } from './anim';
 
 type Loc = 'forest' | 'crypt' | 'caves';
 type Hero = 'sculpt' | 'ref';
@@ -26,8 +27,11 @@ const GROUND = 282;
 const HERO_X = 130;
 const FOE_X = [357, 590, 823];
 
-/** Что сейчас в сцене: лепка или прежний лист, локация (она же — у плиток «Рядом с листом»). */
-const state: { hero: Hero; loc: Loc } = { hero: 'sculpt', loc: 'forest' };
+type Pick = Required<PaladinChoice>;
+/** Что сейчас в сцене: лепка или прежний лист, локация (она же — у плиток), варианты клипов в сцене. */
+const state: { hero: Hero; loc: Loc; pick: Pick } = { hero: 'sculpt', loc: 'forest', pick: { attack: 'A', heavy: 'A', heal: 'A', smite: 'A' } };
+const ALL_A: Pick = { attack: 'A', heavy: 'A', heal: 'A', smite: 'A' };
+const ALL_B: Pick = { attack: 'B', heavy: 'B', heal: 'B', smite: 'B' };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
 
@@ -60,11 +64,12 @@ function refSet(img: HTMLImageElement): ActorSet {
   };
 }
 
-const sets = new Map<Hero, ActorSet>();
-/** Набор кадров героя: прежний лист или лепка. Лепка рисуется при первом запросе. */
-function heroAnim(hero: Hero): ActorSet {
-  let set = sets.get(hero);
-  if (!set) sets.set(hero, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(paladinModel(), HERO_STYLE)));
+const sets = new Map<string, ActorSet>();
+/** Набор кадров героя: прежний лист или лепка с вариантами `pick`. Лепка рисуется при первом запросе. */
+function heroAnim(hero: Hero, pick: Pick = state.pick): ActorSet {
+  const key = hero === 'ref' ? 'ref' : `sculpt:${Object.values(pick).join('')}`;
+  let set = sets.get(key);
+  if (!set) sets.set(key, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(paladinModel(pick), HERO_STYLE)));
   return set;
 }
 const foeSets = new Map<string, ActorSet>();
@@ -83,8 +88,10 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): 
   return el;
 }
 
+interface Scene { hero: Actor; foes: Actor[] }
+
 /** Поле 960 × 320: фон локации, тонировка, враги (если нужны) и герой — живые холсты общего цикла кадров. */
-function liveField(loc: Loc, hero: ActorSet, foes: boolean): HTMLElement {
+function liveField(loc: Loc, hero: ActorSet, foes: boolean): { f: HTMLElement; scene: Scene } {
   tintVar(loc);
   const f = h('div', 'field');
   const bg = h('img', 'bg');
@@ -92,9 +99,45 @@ function liveField(loc: Loc, hero: ActorSet, foes: boolean): HTMLElement {
   bg.alt = '';
   f.appendChild(bg);
   const filter = `url(#mv-tint-${loc})`;
-  if (foes) LOCS[loc].foes.forEach((id, i) => f.appendChild(new Actor(foeAnim(loc, id), FOE_X[i], GROUND, filter).el));
-  f.appendChild(new Actor(hero, HERO_X, GROUND, filter).el);
-  return f;
+  const foeActors = foes ? LOCS[loc].foes.map((id, i) => new Actor(foeAnim(loc, id), FOE_X[i], GROUND, filter)) : [];
+  for (const a of foeActors) f.appendChild(a.el);
+  const heroActor = new Actor(hero, HERO_X, GROUND, filter);
+  f.appendChild(heroActor.el);
+  return { f, scene: { hero: heroActor, foes: foeActors } };
+}
+
+/** Момент контакта клипа от его начала, мс. */
+function contactMs(set: ActorSet, clip: string): number {
+  const a = set.get(clip);
+  return a?.contact !== undefined ? (a.contact * 1000) / a.fps : 0;
+}
+
+/**
+ * Сыграть клип героя в бою так, как его покажет игра (app.ts): удар — враг вздрагивает в кадр контакта героя; блок,
+ * урон и смерть — сначала бьёт враг, и удар о щит или отдача приходятся на его контакт.
+ */
+function perform(sc: Scene, clip: SculptClip): void {
+  const foe = sc.foes[0];
+  const hero = sc.hero;
+  const foeHit = foe ? contactMs(foe.set, 'attack') : 0;
+  switch (clip) {
+    case 'attack': case 'heavy': case 'power': case 'smite':
+      hero.play(clip);
+      if (foe) later(contactMs(hero.set, clip), () => foe.play('hurt'));
+      break;
+    case 'block':
+      if (!foe) { hero.play(clip); break; }
+      foe.play('attack');
+      later(Math.max(0, foeHit - contactMs(hero.set, clip)), () => hero.play(clip));
+      break;
+    case 'hurt': case 'death':
+      if (!foe) { hero.play(clip); break; }
+      foe.play('attack');
+      later(foeHit, () => hero.play(clip));
+      break;
+    default:
+      hero.play(clip);
+  }
 }
 
 const observers = new WeakMap<HTMLElement, ResizeObserver>();
@@ -122,7 +165,7 @@ function fitStage(host: HTMLElement, f: HTMLElement): void {
  */
 function tile(host: HTMLElement, loc: Loc, set: ActorSet): void {
   const CW = 160, CH = 190;
-  const f = liveField(loc, set, false);
+  const { f } = liveField(loc, set, false);
   const win = h('div', 'tile-win');
   win.appendChild(f);
   host.replaceChildren(win);
@@ -140,10 +183,37 @@ function toggle(group: HTMLElement, value: string): void {
   for (const b of group.querySelectorAll<HTMLButtonElement>('button[data-v]')) b.setAttribute('aria-pressed', String(b.dataset.v === value));
 }
 
+let scene: Scene | null = null;
 function drawScene(): void {
-  fitStage(document.getElementById('scene')!, liveField(state.loc, heroAnim(state.hero), true));
+  const live = liveField(state.loc, heroAnim(state.hero), true);
+  scene = live.scene;
+  fitStage(document.getElementById('scene')!, live.f);
   toggle(document.getElementById('scene-hero')!, state.hero);
   toggle(document.getElementById('scene-loc')!, state.loc);
+  // Клипы есть только у лепки: у прежнего листа — один покой.
+  document.getElementById('scene-clips')!.classList.toggle('muted', state.hero === 'ref');
+  const shown = Object.entries(state.pick).map(([c, v]) => `${HERO_CLIPS[c as SculptClip].name} — ${v} «${PALADIN_VARIANTS[c as PaladinVariant][v]}»`).join(', ');
+  document.getElementById('scene-picks')!.textContent = `В сцене: ${shown}. Вариант меняется кнопкой «в сцену» у пары ниже.`;
+}
+
+/**
+ * Плитка клипа: кусок поля 240 × 250 вокруг героя, клип повторяется с паузой в покое. ×2, как кадр игры на FullHD,
+ * если влезает в ширину.
+ */
+function animTile(host: HTMLElement, loc: Loc, set: ActorSet, clip: SculptClip): void {
+  const CW = 240, CH = 250;
+  const { f, scene: sc } = liveField(loc, set, false);
+  sc.hero.auto = { clip, gap: 700 };
+  sc.hero.play(clip);
+  const win = h('div', 'tile-win');
+  win.appendChild(f);
+  host.replaceChildren(win);
+  observe(host, () => {
+    const z = Math.max(1, Math.min(2, Math.floor(host.clientWidth / CW)));
+    win.style.width = `${CW * z}px`;
+    win.style.height = `${CH * z}px`;
+    f.style.transform = `scale(${z}) translate(${-(HERO_X - 105)}px, ${-(GROUND + 14 - CH)}px)`;
+  });
 }
 
 /**
@@ -161,7 +231,7 @@ function drawTiles(): void {
     if (run !== tileRun) return;
     const el = hosts[i++];
     if (!el) return;
-    tile(el, (el.dataset.loc as Loc | undefined) ?? state.loc, heroAnim(el.dataset.tile as Hero));
+    tile(el, (el.dataset.loc as Loc | undefined) ?? state.loc, heroAnim(el.dataset.tile as Hero, ALL_A));
     window.setTimeout(next, 20);
   };
   window.setTimeout(next, 30);
@@ -223,6 +293,118 @@ function drawOverlay(): void {
   }));
 }
 
+// ─── Клипы: пары вариантов и остальные ────────────────────────────────────
+
+/** Пары на выбор: что в клипе, чем хорош и чем плох; `rec` — рекомендация. */
+const VARIANT_INFO: Record<PaladinVariant, { rec: 'A' | 'B'; A: { desc: string; plus: string[]; minus: string[] }; B: { desc: string; plus: string[]; minus: string[] } }> = {
+  attack: {
+    rec: 'A',
+    A: { desc: 'Кисть над плечом, боёк за шлемом — шаг, и молот через верх на врага; щит на размахе уходит за корпус.', plus: ['читается ударом молота с первого взгляда'], minus: ['похож на сильный удар A — отличается размахом и шагом'] },
+    B: { desc: 'Молот уходит назад к земле — шаг, и боёк снизу вверх, под щит врага.', plus: ['не спорит с сильным ударом и Молотом света — оба сверху'], minus: ['в кадр удара боёк у шлема: на миг закрывает лицо'] },
+  },
+  heavy: {
+    rec: 'B',
+    A: { desc: 'Привстал на носки, молот за спиной — широкий шаг, молот через верх на врага, из-под шага пыль.', plus: ['тот же рисунок, что у сильного удара Воина'], minus: ['от удара A отличается силой, а не силуэтом'] },
+    B: { desc: 'Присел, молот назад к земле — прыжок с молотом над головой и приземление с ударом, пыль.', plus: ['сразу видно, что удар сильный', 'не спорит ни с ударом, ни с Молотом света'], minus: ['в землю боёк не бьёт — короткий молот не достаёт'] },
+  },
+  heal: {
+    rec: 'B',
+    A: { desc: 'На заднее колено, молот бойком вниз перед собой, шлем склонён — боёк раскаляется светом.', plus: ['смирение, свет из молота'], minus: ['почти поза лечения Воина', 'боёк за щитом виден наполовину'] },
+    B: { desc: 'Стоя: щит поднят к груди, шлем склонён — крест на щите заливается светом, лучи выходят за кромку.', plus: ['своё у Паладина: светит его крест', 'щит на виду, а не за телом'], minus: ['молот в лечении не участвует'] },
+  },
+  smite: {
+    rec: 'B',
+    A: { desc: 'Молот к небу — боёк раскаляется, свет встаёт крестом лучей; удар через верх со вспышкой.', plus: ['свет рождается в самом молоте — «Молот света» буквально'], minus: ['сам удар — тот же, что сильный удар A'] },
+    B: { desc: 'Молот к небу, на боёк падает луч света — и удар с шагом в грудь врага, боёк вспыхивает.', plus: ['святость читается сразу', 'не похож ни на один другой клип'], minus: ['луч уходит под верх кадра — на 80 единиц над шлемом'] },
+  },
+};
+
+/** Подпись клипа: кадры, частота, длительность, контакт. */
+function clipMeta(id: SculptClip): string {
+  const spec = HERO_CLIPS[id];
+  return `${spec.frames} × ${spec.fps} к/с · ${Math.round((spec.frames * 1000) / spec.fps)} мс${spec.contact !== undefined ? ` · контакт ${spec.contact + 1}-й кадр, ${Math.round((spec.contact * 1000) / spec.fps)} мс` : ''}${spec.hold ? ' · держит последний кадр' : ''}`;
+}
+
+/** Очередь плиток клипов: рисуются по одной, чтобы страница не вставала на время отрисовки кадров. */
+let clipRun = 0;
+function queue(jobs: Array<() => void>): void {
+  const run = ++clipRun;
+  let i = 0;
+  const next = (): void => {
+    if (run !== clipRun) return;
+    const job = jobs[i++];
+    if (!job) return;
+    job();
+    window.setTimeout(next, 30);
+  };
+  window.setTimeout(next, 60);
+}
+
+/** Пары вариантов (`#variants`) и остальные клипы (`#clips`) — плитки с клипом по кругу на локации из сцены. */
+function drawClips(): void {
+  const jobs: Array<() => void> = [];
+  const pairs = document.getElementById('variants')!;
+  pairs.replaceChildren();
+  for (const clip of Object.keys(PALADIN_VARIANTS) as PaladinVariant[]) {
+    const info = VARIANT_INFO[clip];
+    const spec = HERO_CLIPS[clip];
+    const block = h('div', 'pair');
+    const head = h('div', 'pair-head');
+    head.append(h('h3', '', spec.name), h('span', 'mono note', clipMeta(clip)));
+    const cards = h('div', 'cards two');
+    for (const v of ['A', 'B'] as const) {
+      const card = h('article', `look${info.rec === v ? ' rec' : ''}${state.pick[clip] === v ? ' shown' : ''}`);
+      const title = h('h3', '', v);
+      title.appendChild(h('span', '', `«${PALADIN_VARIANTS[clip][v]}»`));
+      if (info.rec === v) title.appendChild(h('span', 'badge', 'рекомендую'));
+      const view = h('div', 'clip-view', 'рисую кадры…');
+      const pros = h('ul', 'pros');
+      for (const t of info[v].plus) pros.appendChild(h('li', 'plus', t));
+      for (const t of info[v].minus) pros.appendChild(h('li', 'minus', t));
+      const btn = h('button', 'pick', state.pick[clip] === v ? 'в сцене' : 'в сцену');
+      btn.type = 'button';
+      btn.setAttribute('aria-pressed', String(state.pick[clip] === v));
+      btn.addEventListener('click', () => {
+        state.pick = { ...state.pick, [clip]: v };
+        drawScene();
+        for (const c of block.querySelectorAll('.look')) c.classList.toggle('shown', c === card);
+        for (const b of block.querySelectorAll<HTMLButtonElement>('.pick')) {
+          b.setAttribute('aria-pressed', String(b === btn));
+          b.textContent = b === btn ? 'в сцене' : 'в сцену';
+        }
+        if (scene) perform(scene, clip);
+      });
+      card.append(title, view, h('p', '', info[v].desc), pros, btn);
+      cards.appendChild(card);
+      jobs.push(() => animTile(view, state.loc, heroAnim('sculpt', v === 'A' ? ALL_A : ALL_B), clip));
+    }
+    block.append(head, cards);
+    pairs.appendChild(block);
+  }
+  const rest = document.getElementById('clips')!;
+  rest.replaceChildren();
+  for (const clip of ['power', 'buff', 'block', 'hurt', 'death'] as SculptClip[]) {
+    const spec = HERO_CLIPS[clip];
+    const card = h('article', 'clip-card');
+    const view = h('div', 'clip-view', 'рисую кадры…');
+    const head = h('div', 'clip-head');
+    head.append(h('b', '', spec.name), h('span', 'mono', clipMeta(clip)));
+    card.append(view, head, h('p', '', CLIP_NOTE[clip] ?? spec.when));
+    rest.appendChild(card);
+    jobs.push(() => animTile(view, state.loc, heroAnim('sculpt', ALL_A), clip));
+  }
+  queue(jobs);
+}
+
+/** Что показывает клип у Паладина — вместо общей подписи из HERO_CLIPS (там — у Воина). */
+const CLIP_NOTE: Partial<Record<SculptClip, string>> = {
+  power: 'Заклинание, бросок: молот вскинут к небу, свет собирается на бойке — и боёк на цель, рука во всю длину.',
+  buff: 'Ореол возмездия, Боевой клич и прочие приёмы на себя: молот к небу, щит в сторону, шлем запрокинут, боёк светится.',
+  block: '«Защититься» и удар, погашенный блоком: щит к лицу, присел, молот отведён к бедру; в кадр удара — искры о кромку.',
+  hurt: 'Удар прошёл в HP: отбросило назад, шлем запрокинут, молот отлетел назад, щит в сторону; белую вспышку добавляет движок.',
+  death: 'Отбросило, молот выскользнул, колено на землю, упал на спину — щит на груди, молот рядом. Последний кадр держится.',
+};
+
 function start(): void {
   const on = (id: string, fn: (v: string) => void): void => {
     document.getElementById(id)!.addEventListener('click', (e) => {
@@ -238,9 +420,28 @@ function start(): void {
     state.loc = v as Loc;
     drawScene();
     drawTiles();
+    drawClips();
   });
+  // Кнопки клипов под полем: клип героя с реакцией первого врага; свой клип Паладина — отдельным цветом.
+  const clipGroup = document.getElementById('scene-clips')!;
+  for (const [id, spec] of Object.entries(HERO_CLIPS) as Array<[SculptClip, (typeof HERO_CLIPS)[SculptClip]]>) {
+    if (id === 'idle' || (spec.own && id !== 'smite')) continue;
+    const b = h('button', spec.own ? 'own' : '', spec.name);
+    b.type = 'button';
+    b.dataset.v = id;
+    clipGroup.appendChild(b);
+  }
+  on('scene-clips', (v) => {
+    if (scene && state.hero === 'sculpt') perform(scene, v as SculptClip);
+  });
+  on('speed', (v) => {
+    setSpeed(Number(v));
+    toggle(document.getElementById('speed')!, v);
+  });
+  toggle(document.getElementById('speed')!, '1');
   drawScene();
   drawTiles();
+  drawClips();
 }
 
 function boot(): void {

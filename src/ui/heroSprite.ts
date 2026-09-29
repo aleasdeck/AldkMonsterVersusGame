@@ -19,7 +19,7 @@ import { avatarCells, hasHeroArt, heroAvatarUrl, heroClipContact, heroFrameMs, h
  * Клипы названы по роли, а не по рисунку: `battle` — покой в бою, `buff` — клич и бафы, `bash` и `riposte` —
  * личные приёмы Воина. Чего у рисованного героя нет — подменяется по цепочке `FALLBACK`.
  */
-export type HeroClip = 'idle' | 'battle' | 'attack' | 'heavy' | 'power' | 'heal' | 'buff' | 'block' | 'hurt' | 'death' | 'bash' | 'riposte';
+export type HeroClip = 'idle' | 'battle' | 'attack' | 'heavy' | 'power' | 'heal' | 'buff' | 'block' | 'hurt' | 'death' | 'bash' | 'riposte' | 'smite';
 
 export interface HeroSheet {
   url: string;
@@ -59,13 +59,13 @@ const HERO_AVATARS: Record<string, string> = {
 };
 
 /** Длительность клипа, мс. У боевых — под тайминг боя: удар приходится на середину клипа, к попаданию снаряда (FLIGHT в fx.ts). */
-const CLIP_MS: Record<HeroClip, number> = { idle: 1600, battle: 1300, attack: 520, heavy: 640, power: 560, heal: 800, buff: 560, block: 560, hurt: 400, death: 1000, bash: 640, riposte: 560 };
+const CLIP_MS: Record<HeroClip, number> = { idle: 1600, battle: 1300, attack: 520, heavy: 640, power: 560, heal: 800, buff: 560, block: 560, hurt: 400, death: 1000, bash: 640, riposte: 560, smite: 830 };
 
 /**
  * Чем заменить клип, которого у героя нет: тяжёлый удар — обычным, лечение — приёмом. Без замены клип не играется:
  * клич рисованный герой не играет, как и до лепки, — его приём на себя светится эффектом.
  */
-const FALLBACK: Partial<Record<HeroClip, HeroClip>> = { heavy: 'attack', heal: 'power', power: 'attack', bash: 'heavy', riposte: 'block', battle: 'idle' };
+const FALLBACK: Partial<Record<HeroClip, HeroClip>> = { heavy: 'attack', heal: 'power', power: 'attack', bash: 'heavy', riposte: 'block', smite: 'heavy', battle: 'idle' };
 
 /** Зацикленные клипы; остальные играются один раз и замирают на последнем кадре. */
 const LOOPS = new Set<HeroClip>(['idle', 'battle']);
