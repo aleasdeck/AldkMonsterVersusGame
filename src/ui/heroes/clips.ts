@@ -13,7 +13,7 @@ import { MOB_STYLE } from '../mobs/styles';
  * Painter принимает имя клипа строкой — его типы знают только `idle | attack | hurt`, поэтому здесь приведение:
  * движку имя клипа не нужно, его читает модель (`clipAt`).
  */
-export type SculptClip = 'idle' | 'attack' | 'heavy' | 'power' | 'heal' | 'buff' | 'block' | 'hurt' | 'death' | 'bash' | 'riposte';
+export type SculptClip = 'idle' | 'attack' | 'heavy' | 'power' | 'heal' | 'buff' | 'block' | 'hurt' | 'death' | 'bash' | 'riposte' | 'smite';
 
 /** Пиксель героя в пикселях поля: 85 точек роста у Воина, на FullHD ровно три точки экрана на пиксель. */
 export const HERO_PIXEL = 1.5;
@@ -40,7 +40,8 @@ export interface HeroClipSpec {
 /**
  * Клипы героя. Удар и урон — те же 8 и 5 кадров по 12 в секунду, что у врагов: контакт на пятом кадре (333 мс).
  * Смерть держит последний кадр. Общие клипы (без `own`) рисует каждый герой-лепка; личные — только свои
- * (у Воина — пара сигнатур: Щитовой удар и Ответный удар), новый личный клип — строка здесь с `own` и `instead`.
+ * (у Воина — пара сигнатур: Щитовой удар и Ответный удар, у Паладина — Молот света), новый личный клип — строка здесь
+ * с `own` и `instead`.
  */
 export const HERO_CLIPS: Record<SculptClip, HeroClipSpec> = {
   idle: { frames: 24, fps: 8, name: 'Покой', when: 'стойка в бою и на экранах вне боя; 3 с цикл' },
@@ -54,6 +55,7 @@ export const HERO_CLIPS: Record<SculptClip, HeroClipSpec> = {
   death: { frames: 14, fps: 12, hold: true, name: 'Смерть', when: 'гибель; последний кадр держится до итогов' },
   bash: { frames: 8, fps: 12, contact: 4, own: true, instead: 'heavy', name: 'Щитовой удар', when: 'сигнатура Воина: удар щитом, цель отлетает' },
   riposte: { frames: 8, fps: 12, contact: 4, own: true, instead: 'block', name: 'Ответный удар', when: 'сигнатура Воина: блок погасил удар — ответ мечом' },
+  smite: { frames: 10, fps: 12, contact: 5, own: true, instead: 'heavy', name: 'Молот света', when: 'сигнатура Паладина: удар с сиянием — боёк загорается светом и бьёт, свет лечит' },
 };
 
 /** Длительность клипа и момент контакта от его начала, мс. */

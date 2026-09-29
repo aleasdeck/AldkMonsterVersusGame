@@ -561,7 +561,8 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'light_hammer',
-    fx: { color: '#ffe9a0' },
+    // Свой клип — удар с сиянием: по лечению в эффектах приём сыграл бы лечение на колено.
+    fx: { color: '#ffe9a0', clip: 'smite' },
     name: 'Молот света',
     glyph: '✠',
     kind: 'active',

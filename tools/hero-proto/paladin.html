@@ -1,0 +1,299 @@
+<title>Лепка Паладина</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Tiny5&display=swap">
+<style>
+/* Одна тёмная сцена под игру, как у «Лепки Воина»: страница нарочно без светлой темы — пиксель-арт сверяется на тёмном. */
+:root {
+  color-scheme: dark;
+  --ink: #121016;
+  --panel: #1b181f;
+  --panel-2: #231f28;
+  --line: #2f2a35;
+  --text: #e8e2d6;
+  --muted: #a59dab;
+  --faint: #6f6877;
+  --brass: #d6a050;
+  --brass-ink: #1e1408;
+  --plus: #8fd06a;
+  --minus: #e07a6a;
+  --display: 'Tiny5', 'IBM Plex Mono', ui-monospace, monospace;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+body { background: var(--ink); color: var(--text); font: 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 64px; }
+.wrap { max-width: 1120px; margin: 0 auto; }
+.prose { max-width: 72ch; }
+h1, h2 { font-family: var(--display); font-weight: 400; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.05; margin: 40px 0 12px; color: var(--brass); }
+h2 { font-size: clamp(24px, 3.4vw, 30px); line-height: 1.15; margin: 60px 0 12px; }
+h3 { font-size: 17px; font-weight: 600; margin: 0 0 6px; text-wrap: balance; }
+p { margin: 0 0 12px; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.lead { font-size: 18px; max-width: 70ch; }
+.meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 20px; }
+.meta b { color: var(--text); font-weight: 500; }
+.note { color: var(--muted); font-size: 14px; }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+.tog { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; transition: opacity 0.2s; }
+.tog.muted { opacity: 0.4; }
+.tog-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.tog button, .pick { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 14px; line-height: 1.3; }
+.tog button:hover, .pick:hover { border-color: var(--faint); }
+.tog button[aria-pressed="true"] { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-bottom: 10px; }
+
+/* ─── Поле ─── */
+.bench { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px; }
+.stage { position: relative; width: 100%; overflow: hidden; border-radius: 4px; background: #0b0a0e; }
+.field { position: absolute; left: 0; top: 0; width: 960px; height: 320px; transform-origin: 0 0; overflow: hidden; }
+.field .bg { position: absolute; inset: 0; width: 960px; height: 320px; max-width: none; image-rendering: pixelated; }
+.fig { position: absolute; max-width: none; image-rendering: pixelated; }
+.fig.smooth { image-rendering: auto; }
+.tint-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.caption { font-size: 14px; color: var(--muted); margin: 10px 0 0; }
+
+/* ─── Крупные планы ─── */
+.tile-win { position: relative; overflow: hidden; border-radius: 4px; background: #0b0a0e; margin: 0 auto; }
+[data-tile] { width: 100%; min-height: 190px; display: grid; place-items: center; color: var(--faint); font-size: 13px; }
+.tiles { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tile { min-width: 0; display: grid; gap: 6px; justify-items: center; align-content: start; }
+.tile-label { display: flex; justify-content: space-between; gap: 8px; width: 100%; max-width: 320px; font-size: 13px; color: var(--muted); }
+.tile-label b { color: var(--text); font-weight: 500; }
+
+/* ─── Облики ─── */
+.looks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+.look { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 12px; display: grid; gap: 10px; align-content: start; }
+.look.rec { border-color: color-mix(in srgb, var(--brass) 55%, var(--line)); }
+.look.shown { outline: 2px solid var(--brass); outline-offset: -1px; }
+.look h3 { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--brass); margin: 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.look h3 span { font-family: var(--body); font-weight: 500; font-size: 15px; color: var(--text); }
+.badge { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--brass-ink); background: var(--brass); padding: 1px 6px; border-radius: 3px; }
+.look p { font-size: 14px; margin: 0; }
+.pros { list-style: none; padding: 0; margin: 0; font-size: 14px; display: grid; gap: 4px; }
+.pros li { padding-left: 18px; position: relative; }
+.pros li::before { position: absolute; left: 0; font-family: var(--mono); }
+.pros .plus::before { content: '+'; color: var(--plus); }
+.pros .minus::before { content: '−'; color: var(--minus); }
+.look .pick { justify-self: start; }
+
+/* ─── Шлемы и оружие — плитки-кнопки ─── */
+.cards { display: grid; gap: 16px; margin-top: 12px; }
+.cards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cards.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.card-btn { display: grid; gap: 6px; justify-items: stretch; align-content: start; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-width: 0; }
+.card-btn:hover { border-color: var(--faint); }
+.card-btn[aria-pressed="true"] { border-color: var(--brass); }
+.card-name { display: flex; gap: 8px; align-items: baseline; font-weight: 600; font-size: 15px; }
+.card-btn[aria-pressed="true"] .card-name::after { content: 'в сцене'; margin-left: auto; font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--brass-ink); background: var(--brass); padding: 1px 6px; border-radius: 3px; }
+.card-desc { font-size: 14px; color: var(--muted); }
+.card-desc b { color: var(--text); font-weight: 500; }
+
+/* ─── Клипы ─── */
+.clip-controls { margin: 10px 0 0; }
+#scene-clips button.own { border-color: var(--brass); color: var(--brass); }
+#scene-clips.muted { pointer-events: none; }
+.pair { margin-top: 26px; }
+.pair-head { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; margin-bottom: 4px; }
+.pair-head h3 { font-size: 18px; margin: 0; }
+.clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; margin-top: 12px; }
+.clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.clip-card.own { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); }
+.clip-view { min-height: 250px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; }
+.clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.clip-head b { font-size: 16px; }
+.clip-head .mono { color: var(--muted); font-size: 12px; }
+.clip-card p { margin: 0; font-size: 14px; color: var(--muted); }
+.pick[aria-pressed="true"] { background: var(--brass); color: var(--brass-ink); border-color: var(--brass); }
+
+/* ─── Аватарка ─── */
+.av-sizes { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.av-sizes figure, .avatar-row figure, .av-old figure { margin: 0; display: grid; gap: 4px; justify-items: start; }
+.av-sizes canvas, .avatar-row canvas, .avatar-row img, .av-old img { display: block; max-width: 100%; height: auto; border-radius: 2px; }
+.av-sizes figcaption, .avatar-row figcaption, .av-old figcaption { font-size: 12px; color: var(--muted); }
+.avatar-row { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px; background: #0b0a0e; border: 1px solid var(--line); border-radius: 6px; margin-top: 10px; }
+.avatar-row figure.me figcaption { color: var(--brass); font-weight: 600; }
+.avatar-row figure.me canvas { outline: 2px solid var(--brass); outline-offset: 2px; }
+.av-old { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; margin-top: 18px; }
+.av-old p { max-width: 52ch; font-size: 14px; color: var(--muted); }
+
+/* ─── Сверка силуэта ─── */
+.overlay { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0 18px; }
+.overlay figure { margin: 0; display: grid; gap: 4px; }
+.overlay canvas { display: block; image-rendering: pixelated; max-width: 100%; height: auto; border-radius: 4px; }
+.overlay figcaption { font-size: 13px; color: var(--muted); }
+
+/* ─── Поправлено по отзыву ─── */
+.fix { border-left: 2px solid var(--brass); padding: 4px 0 4px 14px; max-width: 76ch; margin-top: 8px; }
+.fix h3 { font-size: 15px; color: var(--brass); margin-bottom: 4px; }
+.fix .list { font-size: 15px; margin: 0; }
+.fix b { font-weight: 600; }
+
+/* ─── Вопросы ─── */
+.qs { display: grid; gap: 14px; margin-top: 16px; counter-reset: q; }
+.q { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px 16px; }
+.q h3 { display: flex; gap: 10px; align-items: baseline; }
+.q h3::before { counter-increment: q; content: 'В' counter(q); font-family: var(--mono); font-size: 12px; color: var(--brass); font-weight: 500; }
+.q > p { font-size: 14px; color: var(--muted); }
+.opts { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.opts li { margin: 0; padding: 6px 10px; border-radius: 4px; background: var(--panel-2); font-size: 14px; }
+.opts li b { font-family: var(--mono); font-weight: 500; margin-right: 6px; }
+.opts li.rec { outline: 1px solid var(--brass); }
+.opts li.rec::after { content: 'рекомендую'; float: right; font-size: 11px; font-family: var(--mono); color: var(--brass); letter-spacing: 0.05em; margin-left: 10px; }
+.opts li.chosen { background: var(--brass); color: var(--brass-ink); }
+.opts li.chosen::after { content: 'решено'; float: right; font-size: 11px; font-family: var(--mono); letter-spacing: 0.05em; margin-left: 10px; }
+
+.list { padding-left: 1.2em; margin: 0 0 12px; }
+.list li { margin: 4px 0; }
+.steps { padding-left: 1.4em; margin: 0; display: grid; gap: 10px; }
+.steps li::marker { font-family: var(--mono); color: var(--brass); }
+.steps b { font-weight: 600; }
+
+.scroll { overflow-x: auto; margin: 10px 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+
+@media (max-width: 900px) {
+  .looks, .cards.three { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .tiles, .cards.two { grid-template-columns: 1fr; }
+  body { font-size: 15px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Лепка Паладина</h1>
+    <p class="lead">Паладин в игре с v0.54.5 — вместо рисованного листа и портрета. Аватарка — поза покоя в кадре бюста, как прежний портрет. Клипы: удар «Сверху», сильный удар «Сверху с шагом», лечение «Свет щита», свой Молот света «Крест лучей», клич молотом над головой.</p>
+    <div class="meta"><span>Рост в бою <b>132</b></span><span>Пиксель <b>1,5</b></span><span>Клипов <b>10</b>, из них свой <b>1</b></span><span>Модель <b>src/ui/heroes/paladin.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
+    <div class="fix">
+      <h3>Сделано по запросу</h3>
+      <ul class="list">
+        <li><b>Паладин в игре</b> (версия 0.54.5): бой, выбор героя, лист персонажа, консоль и итоги — эта лепка; Молот света играет свой клип, блок и латы — по силуэту, при гибели падает и лежит до итогов. Рисованные лист и портрет из сборки убраны — здесь они остались для сравнения.</li>
+        <li><b>Аватарка — поза покоя.</b> Молот висит у колена, как в бою, и в кадр бюста не входит — «колотушка занимала половину аватарки».</li>
+      </ul>
+    </div>
+  </header>
+
+  <section aria-labelledby="avatar-h">
+    <h2 id="avatar-h">Аватарка</h2>
+    <p class="prose">Бюст из той же лепки, что в бою, в позе покоя. Размеры — как в игре: 112 — плитка выбора героя, 80 — лист персонажа, 44 — консоль; здесь ×2, как на FullHD.</p>
+    <div class="av-sizes" id="avatars"></div>
+    <h3 style="margin-top:22px">В ряду выбора героя</h3>
+    <p class="prose note">Шесть героев по 112 в порядке игры. Воин — из своей лепки, Маг, Ассасин, Берсерк и Лучник — пока рисованные портреты.</p>
+    <div class="avatar-row" id="avatar-row"></div>
+    <div class="av-old">
+      <figure><div id="avatar-old"></div><figcaption>Было — рисованный портрет</figcaption></figure>
+      <p>С прежнего портрета взято устройство фона: тёмное золото, ореол-солнце с лучами за шлемом, шпили по краям. Цвета сняты с его пикселей, рамка — темнее фона: яркая рамка выделяла бы лепку в ряду рисованных.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="battle-h">
+    <h2 id="battle-h">В бою</h2>
+    <p class="prose">Кадр поля 960 × 320, как в игре: фон и тонировка локации, враги-лепка в пикселе 2. Кнопка клипа играет его так, как покажет игра: на удар первый враг вздрагивает в кадр контакта, на блок, урон и смерть сначала бьёт враг. Скорость ¼ — разобрать кадры.</p>
+    <div class="bench">
+      <div class="controls">
+        <span class="tog" id="scene-hero" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
+          <button type="button" data-v="sculpt">Лепка</button>
+          <button type="button" data-v="ref">Лист (было)</button>
+        </span>
+        <span class="tog" id="scene-loc" role="group" aria-label="Локация"><span class="tog-label">Локация</span>
+          <button type="button" data-v="forest">Лес</button>
+          <button type="button" data-v="crypt">Склеп</button>
+          <button type="button" data-v="caves">Пещеры</button>
+        </span>
+      </div>
+      <div class="stage" id="scene"></div>
+      <div class="controls clip-controls">
+        <span class="tog" id="scene-clips" role="group" aria-label="Клип героя"><span class="tog-label">Клип</span></span>
+        <span class="tog" id="speed" role="group" aria-label="Скорость"><span class="tog-label">Скорость</span>
+          <button type="button" data-v="1">1×</button>
+          <button type="button" data-v="0.5">½</button>
+          <button type="button" data-v="0.25">¼</button>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="clips-h">
+    <h2 id="clips-h">Клипы</h2>
+    <p class="prose">Каждый клип по кругу на локации из сцены, ×2, как кадр игры на FullHD. Первым — свой приём Паладина.</p>
+    <div class="clips" id="clips"></div>
+  </section>
+
+  <section aria-labelledby="idle-h">
+    <h2 id="idle-h">Покой крупно</h2>
+    <p class="prose">Кусок поля вокруг героя в масштабе ×2 — как кадр игры на FullHD — на трёх локациях с их тонировкой. Цикл покоя — 3 секунды.</p>
+    <div class="cards three">
+      <div class="tile"><div data-tile="sculpt" data-loc="forest"></div><div class="tile-label"><b>Лес</b></div></div>
+      <div class="tile"><div data-tile="sculpt" data-loc="crypt"></div><div class="tile-label"><b>Склеп</b></div></div>
+      <div class="tile"><div data-tile="sculpt" data-loc="caves"></div><div class="tile-label"><b>Пещеры огня</b></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="ref-h">
+    <h2 id="ref-h">Рядом с листом</h2>
+    <p class="prose">Локация — из сцены выше. Контур каждой части обведён по первому кадру прежнего листа в его точках и переведён в единицы поля: x = 5 + (px − 12)·k, y = 136 − (184 − py)·k, k = 132 / 180. Плечи и рука потом сдвинуты по отзывам.</p>
+    <div class="tiles">
+      <div class="tile"><div data-tile="ref"></div><div class="tile-label"><b>Лист</b><span>было, генератор</span></div></div>
+      <div class="tile"><div data-tile="sculpt"></div><div class="tile-label"><b>Лепка</b><span>пиксель 1,5</span></div></div>
+    </div>
+    <h3 style="margin-top:22px">Сверка силуэта</h3>
+    <p class="prose">Лист пересчитан в сетку лепки, рядом лепка и карта расхождений: серое — есть и там и там, красное — только на листе, голубое — только в лепке. Сетка — через 10 единиц поля. Красное над плечами — наплечники нарочно ниже и меньше листа («плечи высоко»).</p>
+    <div class="overlay" id="overlay"></div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Что</th><th>На листе, точки</th><th>В лепке, единицы поля</th></tr></thead>
+        <tbody>
+          <tr><td>Шлем</td><td class="n">x 84…117, y 4…47</td><td class="n">x 58…81, y 4…33 — скос низа от затылка к подбородку</td></tr>
+          <tr><td>Ближний наплечник</td><td class="n">x 43…76, y 21…58</td><td class="n">x 28…49, y 27…51 — ×0,88, верх на уровне подбородка</td></tr>
+          <tr><td>Наруч, кулак</td><td class="n">x 24…48, y 63…91; кулак (32, 99)</td><td class="n">x 17…38, y 55…76; кулак (25, 76) — на 6 ближе к телу</td></tr>
+          <tr><td>Боёк молота</td><td class="n">x 55…90, y 110…145</td><td class="n">барабан вдоль древка, середина ≈ (50, 95)</td></tr>
+          <tr><td>Щит</td><td class="n">x 124…177, y 50…147</td><td class="n">x 87…125, y 38…109 — 38 × 71</td></tr>
+          <tr><td>Наколенники</td><td class="n">(52, 136), (140, 132)</td><td class="n">(35, 101), (100, 98), ≈ 17 × 16</td></tr>
+          <tr><td>Башмаки</td><td class="n">x 22…52 и 128…163, y 163…183</td><td class="n">x 12…35 и 92…115, y 120…136</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="q-h">
+    <h2 id="q-h">Решено</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Что</th><th>Выбрано</th><th>Отвергнуто</th></tr></thead>
+        <tbody>
+          <tr><td>Облик</td><td>B «Пепельный храмовник»: тусклая побитая сталь, латунь вместо золота, табард цвета пепла, крест и плащ цвета запёкшейся крови</td><td>A «Храмовник» (как на листе, светлый), C «Светоносец» (белое и золото)</td></tr>
+          <tr><td>Шлем</td><td>топхельм по контуру листа: скруглённый верх, прямой скос низа, бармица; вырез крестом в золотой кромке, золотое ребро по куполу</td><td>ведро, «сахарная голова», плюмаж, цилиндр-«сфера», барбют; Т-крест, широкая щель, венец</td></tr>
+          <tr><td>Оружие</td><td>молот с листа: золотая обмотка древка, боёк-барабан с ободом грани</td><td>булава (стартовое оружие в игре)</td></tr>
+          <tr><td>Пиксель</td><td>1,5, как у Воина</td><td>—</td></tr>
+          <tr><td>Анатомия</td><td>контуры частей по листу; плечи ниже и меньше, ближний наплечник над плечом; рука прижата к боку</td><td>суставы с листа и формы на глаз («анатомия вышла из чата»)</td></tr>
+          <tr><td>Молот света</td><td>свой клип <code>smite</code> «Крест лучей»: боёк раскаляется, лучи крестом, вспышка в кадр удара</td><td>сильный удар; лечение на колено (так сыграл бы по правилу игры); «Луч с неба»</td></tr>
+          <tr><td>Удар</td><td>«Сверху»: молот за головой — через верх на врага</td><td>«Снизу»</td></tr>
+          <tr><td>Сильный удар</td><td>«Сверху с шагом»</td><td>«Прыжок»</td></tr>
+          <tr><td>Лечение</td><td>«Свет щита»: светится крест на щите</td><td>«На колено» со светом из бойка</td></tr>
+          <tr><td>Клич</td><td>молот отвесно над головой</td><td>молот, заваленный назад</td></tr>
+          <tr><td>Аватарка</td><td>поза покоя в кадре бюста, как прежний портрет: молот у колена в кадр не входит; ореол с лучами</td><td>молот на плече, «Молот света», «Крест щита» — поднятый молот занимал полкадра</td></tr>
+          <tr><td>Покой</td><td>таз на пиксель, перенос веса, колени идут за тазом; рука висит и отстаёт от корпуса, молот маятником</td><td>ноги неподвижны; присед через ik (колени врозь); рука заодно с корпусом</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="next-h">
+    <h2 id="next-h">Дальше</h2>
+    <ol class="steps prose">
+      <li><b>Публикация</b> — merge в <code>main</code> с постом v54.5.</li>
+      <li><b>Следующий герой</b> по тому же рецепту: Маг, Лучник, Ассасин или Берсерк.</li>
+    </ol>
+  </section>
+</div>
+
+<script>window.ASSETS = {{ASSETS}};</script>
+<script>{{BUNDLE}}</script>

@@ -16,7 +16,7 @@ type Loc = 'forest' | 'crypt' | 'caves';
 type Look = 'ref' | 'sculpt';
 
 declare global {
-  interface Window { ASSETS: { bg: Record<Loc, string>; ref: string; avatar: string } }
+  interface Window { ASSETS: { bg: Record<Loc, string>; ref: string; avatar: string; others: Record<string, string> } }
 }
 
 const LOCS: Record<Loc, { name: string; foes: string[]; models: Record<string, Model> }> = {

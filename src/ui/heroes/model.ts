@@ -25,7 +25,12 @@ export function modelClip(m: HeroModel, clip: SculptClip): SculptClip {
   return !spec.own || m.own?.includes(clip) ? clip : spec.instead ?? 'attack';
 }
 
-/** Точки кадра в единицах поля: таз, кисть с оружием, конец оружия (острие, навершие посоха, стрела), линия земли. */
+/**
+ * Точки кадра в единицах поля: таз, кисть с оружием, конец оружия (острие, навершие посоха, стрела), линия земли.
+ * Риг руки — по желанию модели (у Паладина есть): плечевой сустав `shX`/`shY`, локоть `elX`/`elY`, другой конец
+ * оружия `butX`/`butY` (навершие), угол оружия к предплечью `wrist` и сгиб локтя `elbow` (180 — прямая рука), градусы.
+ * По ним `tools/hero-proto/rig.mjs` печатает суставы и рисует кости поверх кадров — для ревью риггинга.
+ */
 export interface ProbeInfo extends Record<string, number> {
   hipX: number; hipY: number;
   handX: number; handY: number;
