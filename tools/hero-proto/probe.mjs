@@ -20,6 +20,8 @@ const opt = (name, def) => {
 };
 const ONLY = opt('clips', '');
 const HERO = opt('hero', 'warrior');
+/** Облик модели на обсуждении: `<герой>Model(look)`. */
+const LOOK = opt('look', '');
 
 const bundle = await build({
   stdin: {
@@ -42,7 +44,7 @@ const bundle = await build({
 });
 const { own, modelClips, HERO_MODELS, HERO_CLIPS, renderHeroClip, MOB_STYLE } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 
-const model = HERO_MODELS[HERO] ?? own[`${HERO}Model`]?.();
+const model = (LOOK ? undefined : HERO_MODELS[HERO]) ?? own[`${HERO}Model`]?.(LOOK || undefined);
 if (!model?.probe) throw new Error(`У героя «${HERO}» нет модели с зондом probe: ни в HERO_MODELS, ни ${HERO}Model() в src/ui/heroes/${HERO}.ts`);
 const probe = model.probe;
 const r = (v) => String(Math.round(v)).padStart(4);

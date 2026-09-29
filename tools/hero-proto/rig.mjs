@@ -23,6 +23,8 @@ const opt = (name, def) => {
   return i >= 0 ? args[i + 1] : def;
 };
 const HERO = opt('hero', 'warrior');
+/** Облик модели на обсуждении: `<герой>Model(look)`. */
+const LOOK = opt('look', '');
 const Z = Number(opt('zoom', 5));
 const [WR0, WR1] = opt('wrist', '-125,-25').split(',').map(Number);
 const FRAMES = (opt('frames', '') || '').split(',').filter(Boolean).map((s) => {
@@ -49,7 +51,7 @@ const bundle = await build({
 });
 const { own, modelClips, HERO_MODELS, HERO_CLIPS, HERO_STYLE, renderHeroClip } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 
-const model = HERO_MODELS[HERO] ?? own[`${HERO}Model`]?.();
+const model = (LOOK ? undefined : HERO_MODELS[HERO]) ?? own[`${HERO}Model`]?.(LOOK || undefined);
 if (!model?.probe) throw new Error(`У героя «${HERO}» нет модели с зондом probe`);
 const clips = (opt('clips', '') || modelClips(model).filter((c) => c !== 'idle').join(',')).split(',');
 const r = (v, w = 5) => (v === undefined ? '—' : Math.round(v).toString()).padStart(w);
@@ -152,7 +154,7 @@ if (FRAMES.length) {
   hd.writeUInt32BE(H, 4);
   hd[8] = 8;
   hd[9] = 6;
-  const file = resolve(opt('out', join(ROOT, 'hero-preview', `${HERO}-rig.png`)));
+  const file = resolve(opt('out', join(ROOT, 'hero-preview', `${LOOK ? `${HERO}-${LOOK}` : HERO}-rig.png`)));
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', hd), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
   console.log(`\nкадры с костями → ${file}`);
