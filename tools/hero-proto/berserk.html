@@ -111,15 +111,39 @@ th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom
 th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
 td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
 
-/* ─── Клипы: пары вариантов и сетка ─── */
-.pairs { display: grid; gap: 22px; margin-top: 12px; }
-.pair { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.pair-title { margin: 6px 0 0; font-size: 17px; font-weight: 600; }
+/* ─── Аватарка: карточки вариантов, ряд выбора, прежний портрет ─── */
+.looks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+.look { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 12px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.look.rec { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.look.shown { outline: 2px solid var(--accent); outline-offset: -1px; }
+.look h3 { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--accent); margin: 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.look h3 span { font-family: var(--body); font-weight: 500; font-size: 15px; color: var(--text); }
+.badge { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--accent-ink); background: var(--accent); padding: 1px 6px; border-radius: 3px; }
+.look p { font-size: 14px; margin: 0; }
+.pros { list-style: none; padding: 0; margin: 0; font-size: 14px; display: grid; gap: 4px; }
+.pros li { padding-left: 18px; position: relative; }
+.pros li::before { position: absolute; left: 0; font-family: var(--mono); }
+.pros .plus::before { content: '+'; color: var(--plus); }
+.pros .minus::before { content: '−'; color: var(--minus); }
+.look .pick { justify-self: start; }
+.pick[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.av-sizes { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.av-sizes figure, .avatar-row figure, .av-old figure { margin: 0; display: grid; gap: 4px; justify-items: start; }
+.av-sizes canvas, .avatar-row canvas, .avatar-row img, .av-old img { display: block; max-width: 100%; height: auto; border-radius: 2px; }
+.av-sizes figcaption, .avatar-row figcaption, .av-old figcaption { font-size: 12px; color: var(--muted); }
+.avatar-row { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px; background: #0b0a0e; border: 1px solid var(--line); border-radius: 6px; margin-top: 10px; }
+.avatar-row figure.me figcaption { color: var(--accent); font-weight: 600; }
+.avatar-row figure.me canvas { outline: 2px solid var(--accent); outline-offset: 2px; }
+.av-old { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; margin-top: 18px; }
+.av-old p { max-width: 52ch; font-size: 14px; color: var(--muted); }
+#avatar-old { min-height: 224px; }
+
+/* ─── Клипы ─── */
 .clip-controls { margin: 10px 0 0; }
 #scene-clips.muted { pointer-events: none; }
 .clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; margin-top: 12px; }
 .clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; min-width: 0; }
-.clip-view, [data-var] { min-height: 250px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; width: 100%; }
+.clip-view { min-height: 250px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; width: 100%; }
 .clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
 .clip-head b { font-size: 16px; }
 .clip-head .mono { color: var(--muted); font-size: 12px; }
@@ -131,10 +155,7 @@ table.rig td p { margin: 6px 0 0; color: var(--muted); }
 details.history summary { cursor: pointer; color: var(--muted); }
 
 @media (max-width: 900px) {
-  .cards { grid-template-columns: 1fr; }
-}
-@media (max-width: 640px) {
-  .pair { grid-template-columns: 1fr; }
+  .cards, .looks { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .tiles { grid-template-columns: 1fr; }
@@ -148,13 +169,13 @@ details.history summary { cursor: pointer; color: var(--muted); }
 <div class="wrap">
   <header>
     <h1>Лепка Берсерка</h1>
-    <p class="lead">Берсерк — третий герой на пиксельную лепку, по рецепту Воина и Паладина. Облик «Северянин», волчья голова и хват «как на листе» выбраны; здесь шаг 4 — клипы. Девять общих: покой, удар, сильный удар, приём, лечение, клич, блок, урон, смерть; на удар, сильный удар и лечение — по два варианта. Каждый клип разобрал свой агент-риггер без контекста разговора. Аватарка и игра — после выбора.</p>
+    <p class="lead">Берсерк — третий герой на пиксельную лепку, по рецепту Воина и Паладина. Облик «Северянин», волчья голова, хват «как на листе» и все девять клипов выбраны — каждый клип разобрал свой агент-риггер. Здесь шаг 5 — аватарка: три позы портрета рядом с прежним портретом и рядом выбора героя. Игра — после выбора.</p>
     <div class="meta"><span>Рост в бою <b>136</b></span><span>Пиксель <b>1,5</b> — 91 точка роста</span><span>Модель <b>src/ui/heroes/berserk.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
   </header>
 
   <section aria-labelledby="battle-h">
     <h2 id="battle-h">В бою</h2>
-    <p class="prose">Кадр поля 960 × 320, как в игре: фон и тонировка локации, враги-лепка в пикселе 2. Кнопка клипа играет его так, как покажет игра: на удар первый враг вздрагивает в кадр контакта, на блок, урон и смерть сначала бьёт враг. Варианты удара, сильного удара и лечения — переключателями или карточками ниже. Скорость ¼ — разобрать кадры.</p>
+    <p class="prose">Кадр поля 960 × 320, как в игре: фон и тонировка локации, враги-лепка в пикселе 2. Кнопка клипа играет его так, как покажет игра: на удар первый враг вздрагивает в кадр контакта, на блок, урон и смерть сначала бьёт враг. Скорость ¼ — разобрать кадры.</p>
     <div class="bench">
       <div class="controls">
         <span class="tog" id="scene-hero" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
@@ -165,17 +186,6 @@ details.history summary { cursor: pointer; color: var(--muted); }
           <button type="button" data-v="forest">Лес</button>
           <button type="button" data-v="crypt">Склеп</button>
           <button type="button" data-v="caves">Пещеры</button>
-        </span>
-      </div>
-      <div class="controls">
-        <span class="tog" id="scene-v-attack" role="group" aria-label="Удар"><span class="tog-label">Удар</span>
-          <button type="button" data-v="A">A</button><button type="button" data-v="B">B</button>
-        </span>
-        <span class="tog" id="scene-v-heavy" role="group" aria-label="Сильный удар"><span class="tog-label">Сильный</span>
-          <button type="button" data-v="A">A</button><button type="button" data-v="B">B</button>
-        </span>
-        <span class="tog" id="scene-v-heal" role="group" aria-label="Лечение"><span class="tog-label">Лечение</span>
-          <button type="button" data-v="A">A</button><button type="button" data-v="B">B</button>
         </span>
       </div>
       <div class="stage" id="scene"></div>
@@ -190,37 +200,28 @@ details.history summary { cursor: pointer; color: var(--muted); }
     </div>
   </section>
 
-  <section aria-labelledby="var-h">
-    <h2 id="var-h">Варианты</h2>
-    <p class="prose">Каждая пара — один клип двумя способами, по кругу, ×2, как кадр игры на FullHD. Карточка ставит вариант в сцену и в сетку клипов. Все три риггера рекомендуют A — «рекомендую» в «Что решаем».</p>
-    <div class="pairs">
-    <h3 class="pair-title">Удар — обычная атака оружием, 8 кадров, контакт на 5-м</h3>
-    <div class="pair">
-      <button type="button" class="card-btn" data-pick="attack:A"><div data-var="attack:A"></div><span class="card-name">A «Сверху»</span><span class="card-desc">Вес назад, топор на плечо — замах: кулак над шлемом, древко за головой — шаг, рука прямая вверх-вперёд — в кадр удара рука прямая на врага, кромка на уровне груди; ближний кулак отброшен назад, проводка вниз.</span><span class="card-anim"><b>Ревью риггера:</b> <span data-review="attack:A">рекомендует: читается в масштабе боя сразу, рука одной цепью на своей глубине, бьёт кромка. Было: древко торчало палкой над головой, в контакт рука согнута и опущена.</span></span></button>
-      <button type="button" class="card-btn" data-pick="attack:B"><div data-var="attack:B"></div><span class="card-name">B «Наотмашь»</span><span class="card-desc">Присел и закрутился: рука поперёк груди к ближнему бедру, кисть провёрнута — шаг, топор маятником у колен — в кадр удара рука прямая на врага, кромка режет снизу вверх.</span><span class="card-anim"><b>Ревью риггера:</b> <span data-review="attack:B">другой силуэт, но топор низко у колен и за ближней рукой, лезвие на контакте вверх, кисть переворачивается дважды; рука поперёк груди близка к прошлой жалобе «рука спереди».</span></span></button>
-    </div>
-    <h3 class="pair-title">Сильный удар — приёмы оружием вплотную, 10 кадров, контакт на 6-м</h3>
-    <div class="pair">
-      <button type="button" class="card-btn" data-pick="heavy:A"><div data-var="heavy:A"></div><span class="card-name">A «Двумя руками»</span><span class="card-desc">Ближний кулак берёт древко у конца, топор вверх перед грудью — замах над головой, корпус прогнут — шаг, и топор одним рывком в землю, пыль; держит и выдёргивает.</span><span class="card-anim"><b>Ревью риггера:</b> <span data-review="heavy:A">рекомендует: как сильные удары Воина и Паладина, тяжесть — три кадра замаха и рывок. Было: ближняя рука не держала древко, топор на замахе лежал лезвием вверх, локоть «куриным крылом».</span></span></button>
-      <button type="button" class="card-btn" data-pick="heavy:B"><div data-var="heavy:B"></div><span class="card-name">B «С прыжка»</span><span class="card-desc">Глубокий присед — толчок — верх прыжка с поджатыми коленями и топором над головой — приземление в присед с рубкой в землю, пыль; подскоком в стойку.</span><span class="card-anim"><b>Ревью риггера:</b> <span data-review="heavy:B">эффектнее и не спутать с ударом, но в воздухе всего 3 кадра — прыжок резкий; на каждый приём вплотную может приесться. Брать, если удар и сильный удар окажутся похожи.</span></span></button>
-    </div>
-    <h3 class="pair-title">Лечение — приёмы с лечением и зелья, 12 кадров, контакт на 3-м</h3>
-    <div class="pair">
-      <button type="button" class="card-btn" data-pick="heal:A"><div data-var="heal:A"></div><span class="card-name">A «Второе дыхание»</span><span class="card-desc">Осел на выдохе — в кадр лечения рывком выпрямился: ближний кулак к груди, голова запрокинута, держит вдох; выдох и в стойку. Топор висит расслабленно.</span><span class="card-anim"><b>Ревью риггера:</b> <span data-review="heal:A">рекомендует: приём так и называется, Воин уже лечится на колене, а B первыми кадрами похож на начало смерти. Было: ближний локоть «куриным крылом», топор задирался, 0,6 с неподвижности.</span></span></button>
-      <button type="button" class="card-btn" data-pick="heal:B"><div data-var="heal:B"></div><span class="card-name">B «На колено»</span><span class="card-desc">За два кадра — на ближнее колено, топор лезвием в землю перед сапогом, пыль; вдох и выдох, пока топор стоит; встал, оттолкнувшись от носка.</span><span class="card-anim"><b>Ревью риггера:</b> <span data-review="heal:B">было: колено на 10 под землёй, носок сапога в земле, колено прыгало на 40 за кадр. Каркас ног поправлен — колено на земле, сапог на носке.</span></span></button>
-    </div>
+  <section aria-labelledby="avatar-h">
+    <h2 id="avatar-h">Аватарка</h2>
+    <p class="prose">Аватарка рисуется из той же лепки и заменит прежний портрет везде: плитка выбора героя (112), лист персонажа (80), консоль (44). Фон — с прежнего портрета: кровавое небо, луна за головой, частокол по краям. Каждый вариант — своя поза в кадре бюста, три размера игры ×2, как на FullHD. Кнопка ставит вариант в ряд выбора ниже.</p>
+    <div class="looks" id="avatars"></div>
+    <h3 style="margin-top:22px">Ряд выбора героя</h3>
+    <p class="prose note">Шесть плиток по 112 в порядке игры: Воин и Паладин — из лепки, Маг, Ассасин и Лучник — рисованные портреты, как в игре сейчас.</p>
+    <div class="avatar-row" id="avatar-row"></div>
+    <div class="av-old">
+      <figure><div id="avatar-old"></div><figcaption>Было — рисованный портрет</figcaption></figure>
+      <p>Прежний портрет: рогатый шлем, огромная шкура на плечах, голый торс с перевязью и бляхой, окровавленное лезвие в правом нижнем углу; кровавая луна, вороны и пики. У лепки на месте шлема — волчья шкура (выбор облика), пики — частоколом по краям; ворон фон аватарки рисовать не умеет — если нужны, добавлю.</p>
     </div>
   </section>
 
   <section aria-labelledby="clips-h">
     <h2 id="clips-h">Все клипы</h2>
-    <p class="prose">Каждый клип по кругу на локации из сцены, ×2; удар, сильный удар и лечение — в вариантах из сцены.</p>
+    <p class="prose">Каждый клип по кругу на локации из сцены, ×2. Удар, сильный удар и лечение — выбранные варианты A.</p>
     <div class="clips" id="clips"></div>
   </section>
 
   <section aria-labelledby="rig-h">
     <h2 id="rig-h">Ревью риггинга</h2>
-    <p class="prose">По просьбе пользователя каждый клип разобрал свой агент-риггер без контекста разговора: цепь суставов, плечевой пояс, локоть, запястье, слои, дуги и тайминг, ноги, стык с покоем. Что нашли и что поправлено:</p>
+    <p class="prose">По просьбе пользователя каждый клип разобрал свой агент-риггер без контекста разговора: цепь суставов, плечевой пояс, локоть, запястье, слои, дуги и тайминг, ноги, стык с покоем. Что нашли и что поправлено (варианты B удара, сильного удара и лечения отвергнуты — они в истории ветки):</p>
     <div id="rig-notes"><div class="scroll">
     <table class="rig">
       <thead><tr><th>Клип</th><th>Что нашёл риггер</th><th>Что стало</th></tr></thead>
@@ -247,6 +248,10 @@ details.history summary { cursor: pointer; color: var(--muted); }
           <tr><td>Облик</td><td>B «Северянин»: палитра листа, приглушённая под сцену, — пепельно-бурый мех, обветренная кожа, повязка цвета запёкшейся крови, тёмная сталь</td><td>A «С листа», C «Вайда»</td></tr>
           <tr><td>Голова</td><td>Волчья шкура капюшоном: уши торчком, морда с клыками над лицом, пустые глазницы; лицо под челюстью — глазница в тени, нос, скула, борода</td><td>рогатый шлем с листа, грива</td></tr>
           <tr><td>Хват</td><td>Как на листе: топор в дальней руке, рука висит у дальнего бока, ближний кулак свободен</td><td>секира двумя руками, два топора</td></tr>
+          <tr><td>Удар</td><td>A «Сверху»: топор на плечо — замах над шлемом — шаг, рука прямая на врага, бьёт кромка</td><td>B «Наотмашь снизу»</td></tr>
+          <tr><td>Сильный удар</td><td>A «Двумя руками»: топор над головой в двух кулаках — рубка в землю, пыль</td><td>B «С прыжка»</td></tr>
+          <tr><td>Лечение</td><td>A «Второе дыхание»: стоя, кулак к груди, вдох — выдох</td><td>B «На колено»</td></tr>
+          <tr><td>Остальные клипы</td><td>По одному варианту, как прошли ревью: бросок сверху, клич «Ярость» (кулак в грудь, топор вскинут), блок «секирой щитом», урон, смерть ничком на коленях</td><td></td></tr>
           <tr><td>Пиксель</td><td class="n">1,5</td><td></td></tr>
         </tbody>
       </table>
@@ -318,32 +323,13 @@ details.history summary { cursor: pointer; color: var(--muted); }
     <h2 id="q-h">Что решаем</h2>
     <div class="qs">
       <div class="q">
-        <h3>Удар</h3>
-        <p>Обычная атака — клип, который игрок видит чаще всех.</p>
-        <ul class="opts" id="q-attack">
-          <li data-opt="A" class="rec"><b>A</b>Сверху</li>
-          <li data-opt="B"><b>B</b>Наотмашь</li>
+        <h3>Аватарка</h3>
+        <p>Поза портрета. Паладину выбрали покой — «колотушка занимает половину аватарки»; у Берсерка топор в покое висит у бедра, и в кадр бюста входит только лезвие в углу.</p>
+        <ul class="opts" id="q-avatar">
+          <li data-opt="A" class="rec"><b>A</b>Как в покое</li>
+          <li data-opt="B"><b>B</b>Ярость</li>
+          <li data-opt="C"><b>C</b>Секира щитом</li>
         </ul>
-      </div>
-      <div class="q">
-        <h3>Сильный удар</h3>
-        <p>Приёмы оружием вплотную: Вихрь, Порез, Таран…</p>
-        <ul class="opts" id="q-heavy">
-          <li data-opt="A" class="rec"><b>A</b>Двумя руками</li>
-          <li data-opt="B"><b>B</b>С прыжка</li>
-        </ul>
-      </div>
-      <div class="q">
-        <h3>Лечение</h3>
-        <p>Второе дыхание, зелья.</p>
-        <ul class="opts" id="q-heal">
-          <li data-opt="A" class="rec"><b>A</b>Второе дыхание</li>
-          <li data-opt="B"><b>B</b>На колено</li>
-        </ul>
-      </div>
-      <div class="q">
-        <h3>Остальные клипы</h3>
-        <p>Приём (бросок), клич «Ярость», блок «секирой щитом», урон, смерть ничком — по одному варианту, каждый прошёл своего риггера; если что-то не так — скажите, переделаю. Спорное из ревью: последний кадр смерти — «куча» на коленях, а не лёгшее тело; наклон вскинутого топора в кличе.</p>
       </div>
     </div>
   </section>
@@ -351,8 +337,7 @@ details.history summary { cursor: pointer; color: var(--muted); }
   <section aria-labelledby="next-h">
     <h2 id="next-h">Дальше</h2>
     <ol class="steps prose">
-      <li><b>Выбор вариантов</b> и правки по клипам, ещё один круг риггеров по тем, что поменялись.</li>
-      <li><b>Аватарка.</b> Своя поза и цвета прежнего портрета: кровавое небо, луна, вороны, топор у края кадра.</li>
+      <li><b>Выбор аватарки</b> и правки кадра, цвета и фона по нему.</li>
       <li><b>Игра.</b> Строка в <code>HERO_MODELS</code>, рисованный лист и портрет — из сборки, тесты и снимки.</li>
     </ol>
   </section>

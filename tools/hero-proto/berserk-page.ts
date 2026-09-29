@@ -1,5 +1,6 @@
-// Страница обсуждения «Лепка Берсерка» — шаг 4 рецепта (docs/lepka-geroev.md): клипы. Облик B «Северянин», волчья
-// голова и хват «как на листе» выбраны (отвергнутые — в истории ветки); на удар, сильный удар и лечение — по два варианта.
+// Страница обсуждения «Лепка Берсерка» — шаг 5 рецепта (docs/lepka-geroev.md): аватарка. Облик B «Северянин», волчья
+// голова, хват «как на листе» и клипы (удар, сильный удар и лечение — варианты A) выбраны, отвергнутое — в истории ветки;
+// на портрет — три позы рядом с прежним портретом и рядом выбора героя.
 // Модель — src/ui/heroes/berserk.ts (в игру ещё не входит), враги и фоны — из игры, тонировка — та же, что в бою
 // (tint.ts). Сборка — build.mjs --hero berserk.
 import { Painter, type Model } from '../../src/ui/mobs/pixel';
@@ -7,7 +8,11 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { berserkModel, type BerserkVariants } from '../../src/ui/heroes/berserk';
+import { BERSERK_AVATARS, berserkModel, type BerserkAvatar } from '../../src/ui/heroes/berserk';
+import { warriorModel } from '../../src/ui/heroes/warrior';
+import { paladinModel } from '../../src/ui/heroes/paladin';
+import { renderAvatar } from '../../src/ui/heroes/avatar';
+import type { HeroModel } from '../../src/ui/heroes/model';
 import { HERO_CLIPS, HERO_STYLE, type SculptClip } from '../../src/ui/heroes/clips';
 import { Actor, heroSet, later, mobSet, setSpeed, type Anim, type ActorSet } from './anim';
 
@@ -27,9 +32,8 @@ const GROUND = 282;
 const HERO_X = 130;
 const FOE_X = [380, 600, 823];
 
-type Variant = 'A' | 'B';
-/** Что сейчас в сцене: лепка или прежний лист, локация (она же — у плиток), варианты клипов. */
-const state: { hero: Hero; loc: Loc; v: BerserkVariants } = { hero: 'sculpt', loc: 'forest', v: { attack: 'A', heavy: 'A', heal: 'A' } };
+/** Что сейчас в сцене: лепка или прежний лист, локация (она же — у плиток). */
+const state: { hero: Hero; loc: Loc } = { hero: 'sculpt', loc: 'forest' };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
 
@@ -66,12 +70,11 @@ function refSet(img: HTMLImageElement): ActorSet {
   };
 }
 
-const sets = new Map<string, ActorSet>();
-/** Набор кадров героя: прежний лист или лепка с вариантами клипов. Лепка рисуется при первом запросе. */
-function heroAnim(hero: Hero, v: BerserkVariants = state.v): ActorSet {
-  const key = hero === 'ref' ? 'ref' : `${v.attack}${v.heavy}${v.heal}`;
-  let set = sets.get(key);
-  if (!set) sets.set(key, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(berserkModel(v), HERO_STYLE)));
+const sets = new Map<Hero, ActorSet>();
+/** Набор кадров героя: прежний лист или лепка. Лепка рисуется при первом запросе. */
+function heroAnim(hero: Hero): ActorSet {
+  let set = sets.get(hero);
+  if (!set) sets.set(hero, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(berserkModel(), HERO_STYLE)));
   return set;
 }
 const foeSets = new Map<string, ActorSet>();
@@ -252,13 +255,8 @@ function drawScene(): void {
   fitStage(document.getElementById('scene')!, live.f);
   toggle(document.getElementById('scene-hero')!, state.hero);
   toggle(document.getElementById('scene-loc')!, state.loc);
-  for (const c of ['attack', 'heavy', 'heal'] as const) toggle(document.getElementById(`scene-v-${c}`)!, state.v[c]);
   // Клипы есть только у лепки: у прежнего листа — один покой.
   document.getElementById('scene-clips')!.classList.toggle('muted', state.hero === 'ref');
-  for (const card of document.querySelectorAll<HTMLElement>('[data-pick]')) {
-    const [clip, v] = card.dataset.pick!.split(':') as ['attack' | 'heavy' | 'heal', Variant];
-    card.setAttribute('aria-pressed', String(state.v[clip] === v));
-  }
 }
 
 /**
@@ -302,8 +300,11 @@ function clipMeta(id: SculptClip): string {
   return `${spec.frames} × ${spec.fps} к/с · ${Math.round((spec.frames * 1000) / spec.fps)} мс${spec.contact !== undefined ? ` · контакт ${spec.contact + 1}-й кадр, ${Math.round((spec.contact * 1000) / spec.fps)} мс` : ''}${spec.hold ? ' · держит последний кадр' : ''}`;
 }
 
-/** Что показывает клип у Берсерка — подписи плиток; варианты — у своих карточек в разметке. */
+/** Что показывает клип у Берсерка — подписи плиток. */
 const CLIP_NOTE: Partial<Record<SculptClip, string>> = {
+  attack: 'Удар «Сверху»: вес назад, топор на плечо — замах, кулак над шлемом — шаг, в кадр удара рука прямая на врага, кромка на уровне груди, ближний кулак отброшен назад; проводка вниз.',
+  heavy: 'Сильный удар «Двумя руками»: ближний кулак берёт древко у конца, топор вверх перед грудью — замах над головой, корпус прогнут — шаг, и топор одним рывком в землю, пыль; держит и выдёргивает.',
+  heal: 'Лечение «Второе дыхание»: осел на выдохе — в кадр лечения рывком выпрямился, ближний кулак к груди, голова запрокинута, держит вдох; выдох и в стойку. Топор висит расслабленно.',
   power: 'Бросок (склянки, бомбы — всё, что летит): вес назад, кулак заносится за голову над горбом, шаг — в кадр броска рука прямая к врагу на высоте плеча, проводка вниз; топор в дальней руке — противовес.',
   buff: '«Ярость» и прочие приёмы на себя: сжался — кулак занесён над горбом, топор вверх перед грудью — в кадр контакта кулак с размаху бьёт в грудину, топор вскинут, голова запрокинута; рёв рисует слой эффектов.',
   block: '«Защититься» и удар, погашенный блоком: «секира щитом» — обе руки на древке, древко наискось перед грудью, лезвие закрывает корпус со стороны врага; в кадр удара — толчок и искры о древко.',
@@ -311,17 +312,9 @@ const CLIP_NOTE: Partial<Record<SculptClip, string>> = {
   death: 'Отдача, ноги подкосились, топор выскальзывает и ложится плашмя за телом; колени о землю, сел на пятки — и рухнул ничком: горб шкуры на спине, голова на вытянутой руке. Последний кадр держится.',
 };
 
-/**
- * Все плитки страницы: пары вариантов (`data-var="attack:A"`), все клипы (`#clips`, с вариантами из сцены), «рядом с
- * листом» (`data-tile`) и сверка силуэта.
- */
+/** Все плитки страницы: все клипы (`#clips`), «рядом с листом» (`data-tile`) и сверка силуэта. */
 function drawTiles(): void {
   const jobs: Array<() => void> = [];
-  for (const el of document.querySelectorAll<HTMLElement>('[data-var]')) {
-    el.textContent = 'рисую кадры…';
-    const [clip, v] = el.dataset.var!.split(':') as ['attack' | 'heavy' | 'heal', Variant];
-    jobs.push(() => animTile(el, state.loc, heroAnim('sculpt', { ...state.v, [clip]: v }), clip));
-  }
   const host = document.getElementById('clips')!;
   host.replaceChildren();
   for (const clip of ['attack', 'heavy', 'power', 'heal', 'buff', 'block', 'hurt', 'death'] as SculptClip[]) {
@@ -329,9 +322,8 @@ function drawTiles(): void {
     const card = h('article', 'clip-card');
     const view = h('div', 'clip-view', 'рисую кадры…');
     const head = h('div', 'clip-head');
-    const vName = clip === 'attack' || clip === 'heavy' || clip === 'heal' ? ` ${state.v[clip]}` : '';
-    head.append(h('b', '', spec.name + vName), h('span', 'mono', clipMeta(clip)));
-    card.append(view, head, h('p', '', CLIP_NOTE[clip] ?? 'Вариант выбран в сцене — пары вариантов выше.'));
+    head.append(h('b', '', spec.name), h('span', 'mono', clipMeta(clip)));
+    card.append(view, head, h('p', '', CLIP_NOTE[clip] ?? ''));
     host.appendChild(card);
     jobs.push(() => animTile(view, state.loc, heroAnim('sculpt'), clip));
   }
@@ -341,6 +333,110 @@ function drawTiles(): void {
   }
   jobs.push(drawOverlay);
   queue(jobs);
+}
+
+// ─── Аватарка ───────────────────────────────────────────────────────────────
+
+/** Что в варианте портрета, чем хорош и чем плох; `rec` — рекомендация. */
+const AVATAR_INFO: Record<BerserkAvatar, { rec?: true; desc: string; plus: string[]; minus: string[] }> = {
+  A: {
+    rec: true,
+    desc: 'Покой в кадре бюста, как прежний портрет: волчья голова у дальнего плеча, горб шкуры слева, торс с перевязью, лезвие топора в правом нижнем углу; кровавая луна — за мордой волка.',
+    plus: ['та же поза, что игрок видит в бою', 'одна манера с Паладином: в ряду выбора портреты в покое', 'лезвие в углу — как на прежнем портрете'],
+    minus: ['спокойный: ярости не видно', 'лицо под волчьей челюстью мелкое'],
+  },
+  B: {
+    desc: 'Кадр удара клича «Ярость»: кулак бьёт в грудь, рука с топором вскинута, голова запрокинута в рёве; окровавленное лезвие — над головой, на фоне луны.',
+    plus: ['самый «берсерковый»: портрет о его приёме', 'лезвие и луна — два ярких пятна, узнаётся издалека'],
+    minus: ['рука и топор занимают верх кадра, горб шкуры почти ушёл', 'запрокинутая голова в профиль — лицо читается хуже'],
+  },
+  C: {
+    desc: 'Кадр блока «секира щитом»: обе руки на древке перед грудью, лезвие-«борода» стоит справа почти во всю высоту кадра, морда волка над древком.',
+    plus: ['лезвие справа во весь рост — ближе всех к прежнему портрету', 'голова крупно, горб шкуры на месте'],
+    minus: ['кулаки и древко поперёк груди — торса и перевязи не видно', 'в центре кадра тесно'],
+  },
+};
+
+const avatarModels = new Map<string, HeroModel>();
+/** Модель под портрет: варианты Берсерка, Воин и Паладин из своей лепки. */
+function portraitModel(id: string): HeroModel {
+  let m = avatarModels.get(id);
+  if (!m) avatarModels.set(id, (m = id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : berserkModel(id as BerserkAvatar)));
+  return m;
+}
+
+/** Холст аватарки: `px` — размер в игре (112, 80, 44), клетки — как в игре (`avatarCells`), `k` — увеличение. */
+function avatarCanvas(model: HeroModel, px: number, k: number, label: string): HTMLCanvasElement {
+  const n = px >= 64 ? Math.round(px / 2) : 44;
+  const c = document.createElement('canvas');
+  c.width = c.height = n;
+  c.getContext('2d')?.putImageData(new ImageData(renderAvatar(model, n), n, n), 0, 0);
+  c.style.width = `${px * k}px`;
+  c.style.imageRendering = px >= 64 ? 'pixelated' : 'auto';
+  c.setAttribute('role', 'img');
+  c.setAttribute('aria-label', label);
+  return c;
+}
+
+/** Вариант в ряду выбора. */
+let rowPick: BerserkAvatar = 'A';
+
+/**
+ * Карточки вариантов (`#avatars`): три размера игры ×2, как на FullHD, и ряд выбора героя (`#avatar-row`) — шесть
+ * героев по 112 в порядке игры, Берсерк — в выбранном варианте, Воин и Паладин — из лепки, остальные — как в игре.
+ */
+function drawAvatars(): void {
+  const host = document.getElementById('avatars')!;
+  host.replaceChildren();
+  for (const v of Object.keys(BERSERK_AVATARS) as BerserkAvatar[]) {
+    const info = AVATAR_INFO[v];
+    const card = h('article', `look${info.rec ? ' rec' : ''}${rowPick === v ? ' shown' : ''}`);
+    const title = h('h3', '', v);
+    title.appendChild(h('span', '', `«${BERSERK_AVATARS[v]}»`));
+    if (info.rec) title.appendChild(h('span', 'badge', 'рекомендую'));
+    const sizes = h('div', 'av-sizes');
+    for (const px of [112, 80, 44]) {
+      const f = h('figure');
+      f.append(avatarCanvas(portraitModel(v), px, 2, `Вариант ${v}, ${px} точек`), h('figcaption', '', px === 112 ? '112 выбор' : px === 80 ? '80 лист' : '44 консоль'));
+      sizes.appendChild(f);
+    }
+    const pros = h('ul', 'pros');
+    for (const t of info.plus) pros.appendChild(h('li', 'plus', t));
+    for (const t of info.minus) pros.appendChild(h('li', 'minus', t));
+    const btn = h('button', 'pick', rowPick === v ? 'в ряду' : 'в ряд выбора');
+    btn.type = 'button';
+    btn.setAttribute('aria-pressed', String(rowPick === v));
+    btn.addEventListener('click', () => {
+      rowPick = v;
+      drawAvatars();
+    });
+    card.append(title, sizes, h('p', '', info.desc), pros, btn);
+    host.appendChild(card);
+  }
+  const row = document.getElementById('avatar-row')!;
+  row.replaceChildren();
+  const heroes: Array<[string, string]> = [['warrior', 'Воин'], ['mage', 'Маг'], ['assassin', 'Ассасин'], ['paladin', 'Паладин'], ['berserk', 'Берсерк'], ['archer', 'Лучник']];
+  for (const [id, name] of heroes) {
+    const f = h('figure', id === 'berserk' ? 'me' : '');
+    if (id === 'warrior' || id === 'paladin' || id === 'berserk') f.appendChild(avatarCanvas(portraitModel(id === 'berserk' ? rowPick : id), 112, 1, `${name}, аватарка из лепки`));
+    else {
+      const img = h('img');
+      img.src = window.ASSETS.others[id];
+      img.width = img.height = 112;
+      img.alt = `${name}, рисованный портрет`;
+      f.appendChild(img);
+    }
+    f.appendChild(h('figcaption', '', name));
+    row.appendChild(f);
+  }
+  const old = document.getElementById('avatar-old');
+  if (old && !old.firstChild) {
+    const img = h('img');
+    img.src = window.ASSETS.avatar;
+    img.width = img.height = 224;
+    img.alt = 'Прежний рисованный портрет Берсерка';
+    old.appendChild(img);
+  }
 }
 
 function start(): void {
@@ -359,22 +455,6 @@ function start(): void {
     drawScene();
     drawTiles();
   });
-  for (const c of ['attack', 'heavy', 'heal'] as const) {
-    on(`scene-v-${c}`, (v) => {
-      state.v = { ...state.v, [c]: v as Variant };
-      drawScene();
-      drawTiles();
-    });
-  }
-  // Карточка варианта ставит его в сцену и в сетку клипов.
-  for (const card of document.querySelectorAll<HTMLButtonElement>('[data-pick]')) {
-    card.addEventListener('click', () => {
-      const [clip, v] = card.dataset.pick!.split(':') as ['attack' | 'heavy' | 'heal', Variant];
-      state.v = { ...state.v, [clip]: v };
-      drawScene();
-      drawTiles();
-    });
-  }
   // Кнопки клипов под полем: клип героя с реакцией первого врага.
   const clipGroup = document.getElementById('scene-clips')!;
   for (const id of Object.keys(HERO_CLIPS) as SculptClip[]) {
@@ -396,6 +476,7 @@ function start(): void {
   // страница с ней в первом кадре выглядела «не загрузившейся».
   document.getElementById('scene')!.textContent = 'рисую кадры…';
   window.requestAnimationFrame(() => window.setTimeout(() => {
+    drawAvatars();
     drawScene();
     drawTiles();
   }, 60));

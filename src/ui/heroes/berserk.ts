@@ -5,10 +5,10 @@ import { clipAt, HERO_CLIPS, poseAt, type PoseKeys, type SculptClip } from './cl
 import { at, DEG, ease, ik, lerp, reachFoot, solid, stroke } from './rig';
 
 /**
- * Берсерк пиксельной лепкой — шаги 2–3 рецепта (docs/lepka-geroev.md): модель в стойке, облик и голова выбраны.
+ * Берсерк пиксельной лепкой — рецепт docs/lepka-geroev.md: модель в стойке, облик, голова и хват выбраны, девять
+ * клипов прошли ревью агента-риггера (свой агент на каждый клип), варианты удара, сильного удара и лечения выбраны.
  * В игру ещё не входит: записи в `HERO_MODELS` нет, инструменты находят модель по имени файла (`berserkModel()`),
- * страница обсуждения — tools/hero-proto/berserk-page.ts. Шаг 4 — клипы: черновик девяти общих, на удар, сильный
- * удар и лечение по два варианта (`berserkModel({ attack: 'B' })`), каждый клип — через ревью агента-риггера.
+ * страница обсуждения — tools/hero-proto/berserk-page.ts.
  *
  * Референс — прежний рисованный лист `src/assets/heroes/berserk.png` (один ряд покоя, ячейка 194, фигура первого
  * кадра 182 точки: x 6…186, y 7…188). Контуры частей обведены по первому кадру в точках листа и переводятся в
@@ -284,13 +284,13 @@ const AXE_BUTT = 29;
  * топор за голову или за корпус. На размахе кулак съезжает к концу древка (его видно за кулаком), в стойку — обратно.
  */
 const AXE_SLIDE = 22;
-function axe(p: Painter, m: Mats, x: number, y: number, a: number, slide = 0, flip = false, flat = 1): void {
+function axe(p: Painter, m: Mats, x: number, y: number, a: number, slide = 0, flat = 1): void {
   const size = 1, g = slide * AXE_SLIDE, butt = AXE_BUTT - g, grip = AXE_GRIP + g, id = 'axe';
   const mat = m.axe;
   const u: [number, number] = [Math.cos(a * DEG), Math.sin(a * DEG)];
-  // Поперёк древка: «борода» уходит вниз от древка; перевёрнутый топор — к другой стороне. `flat` — голова повёрнута
-  // в глубину: 1 — плашмя к зрителю, 0 — ребром, минус — на другую сторону (выпавший топор опрокинулся и лёг плашмя).
-  const n: [number, number] = flip ? [u[1], -u[0]] : [-u[1], u[0]];
+  // Поперёк древка: «борода» уходит вниз от древка. `flat` — голова повёрнута в глубину: 1 — плашмя к зрителю,
+  // 0 — ребром, минус — на другую сторону (выпавший топор опрокинулся и лёг плашмя).
+  const n: [number, number] = [-u[1], u[0]];
   const nf: [number, number] = [n[0] * flat, n[1] * flat];
   const [ex, ey] = at(x, y, a, grip);
   /** Точка головы в координатах топора → кадр. */
@@ -400,16 +400,6 @@ export interface BerserkPose extends Record<string, number> {
   aback: number; afront: number;
   /** Хват вдоль древка: 0 — кулак под головой топора (стойка), 1 — у окованного конца (размах удара), `AXE_SLIDE`. */
   slide: number;
-  /**
-   * Топор перевёрнут (`aflip` 1): кисть провёрнута, борода — по другую сторону древка. Кромка ведёт удар, только когда
-   * топор в рисунке поворачивается к бороде (по часовой — рубка сверху); удар снизу вверх неперевёрнутым топором ведёт обух.
-   */
-  aflip: number;
-  /**
-   * Дальняя рука поперёк груди (`across` 1 — замах наотмашь к ближнему бедру): плечо и начало предплечья рисуются после
-   * торса, а не до него, — иначе торс закрывает плечо, и предплечье растёт из живота.
-   */
-  across: number;
   /** Ближняя рука: кисть точкой; хват древка — доля `ng` и место `nd` вдоль древка от дальнего кулака (минус — к концу). */
   nhx: number; nhy: number; ng: number; nd: number;
   /**
@@ -449,7 +439,7 @@ const FORE_F = dir(M.armF.el, M.armF.hand);
 const REST: BerserkPose = {
   x: 0, y: 0, crouch: 0, lean: 0, head: 0,
   fhx: M.armF.hand[0], fhy: M.armF.hand[1], fl: 1,
-  sw: AXE_ANGLE, wr: AXE_ANGLE - FORE_F, ws: 0, aback: 0, afront: 0, slide: 0, aflip: 0, across: 0,
+  sw: AXE_ANGLE, wr: AXE_ANGLE - FORE_F, ws: 0, aback: 0, afront: 0, slide: 0,
   nhx: M.armN.hand[0], nhy: M.armN.hand[1], ng: 0, nd: 0, nfur: 0, nsx: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
   cape: 0, fall: 0, drop: 0, kneelF: 0, sit: 0, limp: 0, dust: 0, spark: 0,
@@ -457,16 +447,14 @@ const REST: BerserkPose = {
 
 /** Клипы Берсерка — все общие; своих нет (Ярость — клич, Боевой транс — пассивка). */
 type BerserkClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite'>;
-/** Клипы с вариантами на обсуждении и их варианты. */
-export type BerserkVariants = { attack: 'A' | 'B'; heavy: 'A' | 'B'; heal: 'A' | 'B' };
-export const BERSERK_DEFAULT: BerserkVariants = { attack: 'A', heavy: 'A', heal: 'A' };
 
 /**
  * Ключи клипов по кадрам (номер кадра с нуля; кадр контакта — `contact` в HERO_CLIPS). Поле без ключа держит свою
  * интерполяцию, после последнего ключа — покой к последнему кадру (смерть держится). Топор в клипах — от предплечья
  * (`ws: 1` на первом и последнем ключе, угол к предплечью `wr` в пределах запястья `WRIST`), как молот Паладина.
  *
- * Черновик шага 4: каждый клип проходит ревью отдельного агента-риггера (решение пользователя: «по каждому клипу»).
+ * Каждый клип прошёл ревью своего агента-риггера (решение пользователя: «по каждому клипу»); что нашли и что стало —
+ * таблица «Ревью риггинга» на странице обсуждения. Удар, сильный удар и лечение — варианты A (выбор пользователя).
  */
 const CLIPS: Record<BerserkClip, PoseKeys<BerserkPose>> = {
   // Удар A «Сверху» — рубка через верх одной рукой, контакт в кадре 4. 1 — вес назад, топор вскинут на плечо: кулак у
@@ -610,75 +598,18 @@ const CLIPS: Record<BerserkClip, PoseKeys<BerserkPose>> = {
   ],
 };
 
-/** Варианты B на обсуждении: удар, сильный удар, лечение. */
-const CLIPS_B: Record<'attack' | 'heavy' | 'heal', PoseKeys<BerserkPose>> = {
-  // Удар B «Наотмашь» — снизу вверх с разворота, контакт в кадре 4. 1–2 — присел и закрутился: дальняя рука поперёк
-  // груди (`across`) к ближнему бедру, топор у бедра головой назад-вниз, ближняя рука висит назад, ближнее плечо назад
-  // (`nsx`), передняя стопа оторвалась; 3 — шаг: рука маятником вниз-вперёд, кулак у дальнего бедра, топор отстаёт
-  // головой вниз и проходит у колен; 4 — встаёт с заднего бедра (таз выше), рука прямая на врага на высоте груди, топор
-  // догнал её (запястье −25), кромка режет снизу; ближний кулак назад, плечо вперёд; 5 — проводка вверх; 6 — кисть
-  // провернулась обратно, шаг назад. Кадр 0 — покой.
-  // Топор за корпусом (как в черновике, `aback`) не читается: спину закрывают горб и плащ, а голова топора внизу
-  // ложилась бы поверх ближней ноги — ноги рисуются раньше руки. Поэтому замах — поперёк груди к ближнему бедру, перед
-  // телом. Удар снизу вверх в рисунке поворачивает топор против часовой, и неперевёрнутый топор бил бы обухом (борода —
-  // позади движения): кисть провёрнута (`aflip`), борода смотрит вперёд на размахе и вверх в контакте.
-  attack: [
-    [1, { x: -2, crouch: 6, lean: 5, head: 5, ws: 1, fhx: 77, fhy: 72, fl: 1.5, wr: -60, slide: 0.7, aflip: 1, across: 1, nsx: -2, nhx: 30, nhy: 92, footF: 0, liftF: 1, cape: 0.15 }],
-    [2, { x: -3, crouch: 8, lean: 7, head: 7, fhx: 70, fhy: 75, fl: 1.5, wr: -75, slide: 0.7, aflip: 1, across: 1, nsx: -3, nhx: 26, nhy: 94, footF: 1, liftF: 3, cape: 0.2 }],
-    [3, { x: 3, crouch: 6, lean: 4, head: 3, fhx: 117, fhy: 75, fl: 1.3, wr: -68, slide: 0.7, aflip: 1, across: 1, nsx: 0, nhx: 24, nhy: 90, footF: 6, liftF: 3, cape: 0.5 }],
-    [4, { x: 9, crouch: 3, lean: 5, head: 1, fhx: 145, fhy: 47, fl: 1.35, wr: -25, slide: 1, aflip: 1, across: 0, nsx: 2, nhx: 14, nhy: 84, footF: 12, liftF: 0, cape: 0.9 }],
-    [5, { x: 9, crouch: 2, lean: 4, head: -1, fhx: 141, fhy: 40, fl: 1.35, wr: -25, slide: 1, aflip: 1, nsx: 2, nhx: 12, nhy: 84, footF: 12, liftF: 0, cape: 0.8 }],
-    [6, { x: 4, crouch: 4, lean: 4, head: 2, ws: 1, fhx: 117, fhy: 71, fl: 1.15, wr: -58, slide: 0.3, aflip: 0, nsx: 0, footF: 6, liftF: 3, cape: 0.4 }],
-  ],
-  // Сильный удар B «С прыжка»: присел — прыжок с топором над головой в обеих руках — приземление с рубкой в землю.
-  // 1 — глубокий присед, корпус вперёд, ближний кулак взял древко, топор висит лезвием к земле; 2 — толчок: ноги
-  // выпрямились и оторвались, топор идёт вверх перед грудью; 3 — верх прыжка (таз на ~25 выше покоя): колени поджаты,
-  // топор занесён над головой, как в замахе A; 4 — падает, ноги тянутся к земле, руки вверх-вперёд, топор отстаёт;
-  // 5 — приземлился на обе стопы в глубокий присед и в тот же кадр рубанул в землю, пыль гуще, чем у A; 6–7 — держит;
-  // 8 — выпрямляется и подскоком возвращается в стойку. Стопы в воздухе — `liftF`/`liftN` (они стоят в мире, `y` двигает только
-  // таз), поэтому на первом ключе подъём, шаг и `y` — нулём: иначе интерполяция отрывала стопу и таз уже в приседе.
-  heavy: [
-    [1, { ws: 1, x: -2, y: 0, crouch: 12, lean: 10, head: 6, fhx: 112, fhy: 82, fl: 1.1, wr: -62, ng: 1, nd: -22, nsx: 4, liftF: 0, liftN: 0, footF: 0, footN: 0, cape: 0.1, dust: 0 }],
-    [2, { x: 1, y: -13, crouch: -4, lean: -6, head: -2, fhx: 114, fhy: 62, fl: 0.9, wr: -45, ng: 1, nd: -18, nsx: 12, liftF: 8, liftN: 4, footF: 3, footN: 1, cape: 0.2 }],
-    [3, { x: 5, y: -27, crouch: 2, lean: -18, head: -6, fhx: 114, fhy: 18, fl: 1.1, wr: -30, ng: 1, nd: -16.5, nsx: 18, liftF: 31, liftN: 25, footF: 9, footN: 4, cape: 0.45 }],
-    [4, { x: 10, y: -15, crouch: -2, lean: 4, head: 3, fhx: 124, fhy: 26, fl: 0.85, wr: -30, ng: 1, nd: -16, nsx: 16, liftF: 12, liftN: 14, footF: 13, footN: 7, cape: 0.85, dust: 0 }],
-    [5, { x: 14, y: 0, crouch: 18, lean: 26, head: 8, fhx: 122, fhy: 70, fl: 0.95, wr: -35, ng: 1, nd: -20, nsx: 8, liftF: 0, liftN: 0, footF: 14, footN: 8, cape: 1, dust: 1.3 }],
-    [6, { x: 14, crouch: 18, lean: 26, head: 9, fhx: 122, fhy: 70, fl: 0.95, wr: -35, ng: 1, nd: -20, nsx: 8, liftF: 0, liftN: 0, footF: 14, footN: 8, cape: 0.8, dust: 1.8 }],
-    [7, { x: 13, crouch: 16, lean: 23, head: 8, fhx: 121, fhy: 70, fl: 0.95, wr: -37, ng: 1, nd: -20, nsx: 7, liftF: 0, liftN: 0, footF: 14, footN: 8, cape: 0.6, dust: 1.2 }],
-    [8, { x: 6, crouch: 7, lean: 9, head: 4, ws: 1, fhx: 114, fhy: 76, fl: 1.05, wr: -58, ng: 0.3, nd: -20, nsx: 3, liftF: 3, liftN: 3, footF: 7, footN: 3, cape: 0.3, dust: 0.4 }],
-  ],
-  // Лечение B «На колено»: за два кадра — на ближнее колено, топор лезвием в землю перед дальним сапогом, пыль; ближний
-  // кулак на бедре, голова склонена — вдох и выдох, пока топор стоит (кисть держится в одной точке мира, `wr` гасит
-  // поворот предплечья); встал, оттолкнувшись от носка. Колено касается земли при приседе 12,5 (crouch + y): бедро
-  // Берсерка длинное и встаёт почти отвесно — присед Воина ~23 уводил колено на 10 под землю.
-  heal: [
-    [1, { x: -2, crouch: 6, lean: 5, head: 6, kneel: 0.6, ws: 1, fhx: 122, fhy: 82, fl: 1.3, wr: -48, nhx: 58, nhy: 90, cape: 0.1, dust: 0 }],
-    [2, { x: -4, crouch: 12.5, lean: 9, head: 14, kneel: 1, fhx: 128, fhy: 83, fl: 1.44, wr: -34, nhx: 65, nhy: 92, cape: 0.25, dust: 0.45 }],
-    [3, { x: -4, crouch: 12.5, lean: 10, head: 16, kneel: 1, fhx: 128.2, fhy: 82.1, fl: 1.44, wr: -31, nhx: 65, nhy: 92, cape: 0.15, dust: 0.15 }],
-    [5, { x: -4, crouch: 12.5, lean: 7, head: 10, kneel: 1, fhx: 128, fhy: 84.7, fl: 1.44, wr: -41, nhx: 64, nhy: 90, cape: 0.1, dust: 0 }],
-    [7, { x: -4, crouch: 12.5, lean: 9, head: 13, kneel: 1, fhx: 128, fhy: 83, fl: 1.44, wr: -34, nhx: 65, nhy: 92, cape: 0.1 }],
-    [8, { x: -2, crouch: 8, lean: 12, head: 8, kneel: 0.7, fhx: 124, fhy: 78, fl: 1.3, wr: -38, nhx: 60, nhy: 90, cape: 0.2 }],
-    [9, { crouch: 3, lean: 5, head: 3, kneel: 0.1, liftN: 3, ws: 1, fhx: 114, fhy: 80, fl: 1.1, wr: -62, nhx: 46, nhy: 86, cape: 0.15 }],
-  ],
-};
-
 /**
  * Предел запястья: угол топора к предплечью (`sw` − угол предплечья) — по ту же сторону, что в стойке (≈ −63°), и не
  * дальше, чем отклоняется кисть. Вне предела топор встаёт в продолжение руки или уходит «за» предплечье.
  */
 const WRIST: [number, number] = [-125, -25];
 const nrm = (a: number): number => { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
-/**
- * Угол топора в координатах верха: покой — `sw`, клип — от предплечья (`a2 + wr`) с пределом запястья. У перевёрнутого
- * топора (`aflip`) кисть провёрнута, и угол к предплечью в рисунке зеркальный: `wr` и предел — в кисти, как у
- * неперевёрнутого.
- */
+/** Угол топора в координатах верха: покой — `sw`, клип — от предплечья (`a2 + wr`) с пределом запястья. */
 function axeAngle(P: BerserkPose, a2: number): number {
-  const f = P.aflip > 0.5 ? -1 : 1;
-  const sw = lerp(P.sw, a2 + f * P.wr, P.ws);
+  const sw = lerp(P.sw, a2 + P.wr, P.ws);
   if (P.ws <= 0) return sw;
-  const d = f * nrm(sw - a2), c = Math.max(WRIST[0], Math.min(WRIST[1], d));
-  return sw + f * (c - d);
+  const d = nrm(sw - a2), c = Math.max(WRIST[0], Math.min(WRIST[1], d));
+  return sw + (c - d);
 }
 
 interface ArmSolve { sx: number; sy: number; ex: number; ey: number; hx: number; hy: number; a1: number; a2: number }
@@ -743,14 +674,13 @@ function idlePose(p: Painter): BerserkPose {
   return P;
 }
 
-/** Поза кадра: ключи клипа (с вариантом) поверх покоя в фазе 0 или сам покой. */
-function framePose(p: Painter, v: BerserkVariants): BerserkPose {
+/** Поза кадра: ключи клипа поверх покоя в фазе 0 или сам покой. */
+function framePose(p: Painter): BerserkPose {
   const base = idlePose(p);
   const c = clipAt(p);
   let P = base;
   if (c) {
-    const clip = c.clip as BerserkClip;
-    const keys = (clip === 'attack' || clip === 'heavy' || clip === 'heal') && v[clip] === 'B' ? CLIPS_B[clip] : CLIPS[clip];
+    const keys = CLIPS[c.clip as BerserkClip];
     if (keys) P = poseAt(base, keys, c.f, c.n, HERO_CLIPS[c.clip].hold);
   } else {
     P.cape += 0.06 * (1 - Math.cos(2 * Math.PI * p.t));
@@ -764,35 +694,47 @@ export const berserkProbe: HeroProbe = { grounded: ['death', 'heavy', 'heal'] };
 // ─── Модель ─────────────────────────────────────────────────────────────────
 
 /**
- * Аватарка — шаг 5 рецепта; пока бюст из покоя в кадре прежнего портрета (шлем, горб меха, перевязь, край топора)
- * и цвета с него — тёмно-красное небо, кровавая луна.
+ * Варианты портрета на обсуждении (шаг 5 рецепта): поза, кадр бюста (левый верхний угол и сторона, единицы модели) и
+ * луна за головой — у каждого свои. A — покой, как прежний портрет: голова у дальнего плеча, горб шкуры слева, лезвие
+ * топора в правом нижнем углу; B — кадр удара клича «Ярость» (кулак в грудь, топор вскинут, голова запрокинута);
+ * C — кадр блока «секира щитом» (лезвие стоит справа во весь рост кадра).
  */
-function avatarOf(m: Mats): AvatarSpec {
+export type BerserkAvatar = 'A' | 'B' | 'C';
+export const BERSERK_AVATARS: Record<BerserkAvatar, string> = { A: 'Как в покое', B: 'Ярость', C: 'Секира щитом' };
+interface Portrait { pose: BerserkPose; crop: [number, number, number]; halo: [number, number, number] }
+const PORTRAITS: Record<BerserkAvatar, Portrait> = {
+  A: { pose: REST, crop: [48, -4, 84], halo: [102, 10, 28] },
+  B: { pose: { ...REST, y: -1, crouch: 0, lean: -8, head: -20, nhx: 83, nhy: 52, fhx: 124.7, fhy: 10.8, fl: 1.45, ws: 1, wr: -52, cape: 0.85 }, crop: [46, -26, 96], halo: [96, -2, 28] },
+  C: { pose: { ...REST, crouch: 5, lean: 3, head: 8, nsx: 6, sw: -33, fhx: 121, fhy: 43, fl: 1.1, afront: 1, ng: 1, nd: -26 }, crop: [60, -2, 86], halo: [102, 10, 28] },
+};
+
+/**
+ * Аватарка — фон с прежнего портрета: тёмно-красное небо, кровавая луна за головой, частокол по краям (на портрете —
+ * пики; вороны в 56 клетках не нарисованы). Силуэты почти чёрные: тоном ближе к небу их не было видно.
+ */
+function avatarOf(m: Mats, v: BerserkAvatar): AvatarSpec {
+  const P = PORTRAITS[v];
   return {
-    draw: (p) => drawBerserk(p, REST, m),
-    crop: [36, -8, 90],
-    halo: [84, 20, 24],
-    colors: { top: '#5a1a16', bottom: '#1c0a08', halo: '#7a2218', haloEdge: '#a2361f', skyline: '#260c0a', frameDark: '#120606', frame: '#46140f', frameLight: '#7a2a1e' },
-    skyline: [[0.06, 0.05, 0.5, 0.3], [0.94, 0.05, 0.55, 0.32]],
+    draw: (p) => drawBerserk(p, P.pose, m),
+    crop: P.crop,
+    halo: P.halo,
+    colors: { top: '#5a1a16', bottom: '#1c0a08', halo: '#7a2218', haloEdge: '#a2361f', skyline: '#150605', frameDark: '#120606', frame: '#46140f', frameLight: '#7a2a1e' },
+    skyline: [[0.04, 0.06, 0.5, 0.14], [0.11, 0.05, 0.4, 0.12], [0.9, 0.06, 0.52, 0.14], [0.97, 0.05, 0.62, 0.16]],
   };
 }
 
-/**
- * Берсерк; рост в покое — `HERO_BODY_HEIGHT.berserk` (136) в пикселе `HERO_PIXEL`. `variants` — варианты удара,
- * сильного удара и лечения на обсуждении (по умолчанию A).
- */
-export function berserkModel(variants: Partial<BerserkVariants> = {}): HeroModel {
+/** Берсерк; рост в покое — `HERO_BODY_HEIGHT.berserk` (136) в пикселе `HERO_PIXEL`. `avatar` — вариант портрета. */
+export function berserkModel(avatar: BerserkAvatar = 'A'): HeroModel {
   const m = matsOf(LOOK);
-  const v: BerserkVariants = { ...BERSERK_DEFAULT, ...variants };
   return {
     id: 'berserk',
-    avatar: avatarOf(m),
+    avatar: avatarOf(m, avatar),
     probe: berserkProbe,
     w: 146,
     h: 144,
     ground: G,
     pad: 80,
-    draw: (p: Painter) => drawBerserk(p, framePose(p, v), m),
+    draw: (p: Painter) => drawBerserk(p, framePose(p), m),
   };
 }
 
@@ -838,8 +780,8 @@ const AXE_TIP: [number, number] = (() => {
   return [(s * 2) / AXE_EDGE.length, (t * 2) / AXE_EDGE.length];
 })();
 /** Точка топора (s — вдоль древка от проушины, t — поперёк, вниз от древка) в кадре от кулака (x, y) под углом `a`. */
-function axePoint(x: number, y: number, a: number, s: number, t: number, slide = 0, flip = false): [number, number] {
-  const u = [Math.cos(a * DEG), Math.sin(a * DEG)], n = flip ? [u[1], -u[0]] : [-u[1], u[0]];
+function axePoint(x: number, y: number, a: number, s: number, t: number, slide = 0): [number, number] {
+  const u = [Math.cos(a * DEG), Math.sin(a * DEG)], n = [-u[1], u[0]];
   const [ex, ey] = at(x, y, a, AXE_GRIP + slide * AXE_SLIDE);
   return [ex + u[0] * s + n[0] * t, ey + u[1] * s + n[1] * t];
 }
@@ -1094,7 +1036,7 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       const x = lerp(lerp(hx0, AXE_LAND[0] - 6, k), AXE_LAND[0], tip), y = lerp(lerp(hy0, floorY - AXE_LAND[1], k * k), floorY - AXE_LIE, tip);
       const a = lerp(lerp(SW + rot / DEG, AXE_LAND[2], k), 0, ease(tip));
       const flat = lerp(1, AXE_FLAT, ease(tip));
-      axe(p, m, x, y, a, 0, false, flat);
+      axe(p, m, x, y, a, 0, flat);
       const [px2, py2] = axePoint(x, y, a, AXE_TIP[0], 0), na2 = (a + 90) * DEG;
       dropTip = [px2 + Math.cos(na2) * AXE_TIP[1] * flat, py2 + Math.sin(na2) * AXE_TIP[1] * flat];
       dropButt = at(x, y, a, -AXE_BUTT);
@@ -1105,7 +1047,7 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
     const foA = farA.a2, foL = len([farA.ex, farA.ey], [farA.hx, farA.hy]);
     // Предплечье от середины, наруч у запястья и кулак на древке; топор — под кулаком.
     const farHand = (): void => {
-      if (held) axe(p, m, farA.hx, farA.hy, SW, P.slide, P.aflip > 0.5);
+      if (held) axe(p, m, farA.hx, farA.hy, SW, P.slide);
       p.limb(...at(farA.ex, farA.ey, foA, foL * 0.45), R(7), farA.hx, farA.hy, R(5.5), m.armF, { part: 'farArm', tone: 0.04, lift: 1, flat: 0.55 });
       stroke(p, [...at(farA.ex, farA.ey, foA - 90, R(3)), ...at(farA.ex, farA.ey, foA - 60, R(8))], m.skinDark, 'farArm');
       bracer(p, m, farA.ex, farA.ey, farA.hx, farA.hy, R(7.5), R(6.5), 0.12, 'farBracer', 0.5);
@@ -1131,14 +1073,10 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       // и свет площе, чем у ближней руки: видна теневая сторона цилиндра, и при её тоне рука читалась тенью. Дельта под
       // мехом и бицепс — буграми вперёд, к врагам: гладкая труба читалась протезом.
       const farUp = (f: number): [number, number] => at(...at(farA.sx, farA.sy, upA, upL * f), upA - 90, R(1.5));
-      const farUpper = (): void => {
-        p.limb(farA.sx, farA.sy, R(9.5), farA.ex, farA.ey, R(7.5), m.armF, { part: 'farArm', tone: 0.1, lift: 1, flat: 0.55 });
-        p.ellipse(...farUp(0.18), R(10), R(9), m.armF, { part: 'farArm', tone: 0.12, lift: 2, flat: 0.45, rot: upA * DEG });
-        p.ellipse(...farUp(0.58), R(8.5), R(7), m.armF, { part: 'farArm', tone: 0.1, lift: 2.2, flat: 0.45, rot: upA * DEG });
-        p.limb(farA.ex, farA.ey, R(7.5), ...at(farA.ex, farA.ey, foA, foL * 0.4), R(7), m.armF, { part: 'farArm', tone: 0.06, lift: 1, flat: 0.55 });
-      };
-      const across = P.across > 0.5;
-      if (!across) farUpper();
+      p.limb(farA.sx, farA.sy, R(9.5), farA.ex, farA.ey, R(7.5), m.armF, { part: 'farArm', tone: 0.1, lift: 1, flat: 0.55 });
+      p.ellipse(...farUp(0.18), R(10), R(9), m.armF, { part: 'farArm', tone: 0.12, lift: 2, flat: 0.45, rot: upA * DEG });
+      p.ellipse(...farUp(0.58), R(8.5), R(7), m.armF, { part: 'farArm', tone: 0.1, lift: 2.2, flat: 0.45, rot: upA * DEG });
+      p.limb(farA.ex, farA.ey, R(7.5), ...at(farA.ex, farA.ey, foA, foL * 0.4), R(7), m.armF, { part: 'farArm', tone: 0.06, lift: 1, flat: 0.55 });
       // Замах назад: топор и кисть за туловищем.
       if (layer === 'back') farHand();
       // Торс — широкий, от ближнего плеча до дальнего; грудь и пресс буграми одной части.
@@ -1198,8 +1136,6 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       // них, но той же частью `farArm`: без линии на стыке кожа идёт одной поверхностью от плеча до обмотки (отдельная
       // часть давала шов на локте — рука читалась сломанной). Складка — с внутренней стороны сгиба. Предплечье голое,
       // наруч — только у запястья: тёмный наруч во всё предплечье сливался с кожей юбки, и кулак висел сам по себе.
-      // Наотмашь рука идёт поперёк груди — плечо поверх торса, под мехом дальнего плеча.
-      if (across) farUpper();
       if (layer === 'mid') farHand();
 
       // Горб меха на плечах — выше головы, пряди от шеи вниз; нижний край рваный над грудью и плечом.
@@ -1274,7 +1210,7 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       }
     });
 
-    const [tipX, tipY] = held ? toWorld(...axePoint(farA.hx, farA.hy, SW, AXE_TIP[0], AXE_TIP[1], P.slide, P.aflip > 0.5)) : dropTip;
+    const [tipX, tipY] = held ? toWorld(...axePoint(farA.hx, farA.hy, SW, AXE_TIP[0], AXE_TIP[1], P.slide)) : dropTip;
     if (P.dust > 0.05) {
       // Пыль от лезвия, ударившего в землю.
       const dx0 = Math.min(tipX, 160);
@@ -1286,9 +1222,8 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
 
     if (berserkProbe.on) {
       const [hwx, hwy] = toWorld(farA.hx, farA.hy);
-      // Запястье — угол топора к предплечью, локоть — угол между плечом и предплечьем (180 — прямая рука). У
-      // перевёрнутого топора (`aflip`) угол в рисунке зеркальный — зонд отдаёт его в кисти, как у неперевёрнутого.
-      const wrist = (P.aflip > 0.5 ? -1 : 1) * nrm(SW - farA.a2), elbow = 180 - Math.abs(nrm(farA.a2 - farA.a1));
+      // Запястье — угол топора к предплечью, локоть — угол между плечом и предплечьем (180 — прямая рука).
+      const wrist = nrm(SW - farA.a2), elbow = 180 - Math.abs(nrm(farA.a2 - farA.a1));
       const [swx, swy] = toWorld(farA.sx, farA.sy), [ewx, ewy] = toWorld(farA.ex, farA.ey), [bwx, bwy] = held ? toWorld(...at(farA.hx, farA.hy, SW, -AXE_BUTT + P.slide * AXE_SLIDE)) : dropButt;
       const [nwx, nwy] = toWorld(na.hx, na.hy), [nex, ney] = toWorld(na.ex, na.ey), [nsx, nsy] = toWorld(na.sx, na.sy);
       berserkProbe.on({
