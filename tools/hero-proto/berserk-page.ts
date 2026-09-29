@@ -1,17 +1,17 @@
 // Страница обсуждения «Лепка Берсерка» — шаги 2–3 рецепта (docs/lepka-geroev.md): модель в стойке по контурам прежнего
-// листа, три облика одной лепкой, голова и хват оружия. Клипов пока нет — сначала модель. Модель — src/ui/heroes/berserk.ts
+// листа. Облик B «Северянин» и волчья голова выбраны (отвергнутые — в истории ветки), открыт хват оружия. Клипов пока нет. Модель — src/ui/heroes/berserk.ts
 // (в игру ещё не входит), враги и фоны — из игры, тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero berserk.
 import { Painter, type Model } from '../../src/ui/mobs/pixel';
 import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { berserkModel, type BerserkHead, type BerserkLookId, type BerserkWeapon } from '../../src/ui/heroes/berserk';
+import { berserkModel, type BerserkWeapon } from '../../src/ui/heroes/berserk';
 import { HERO_STYLE } from '../../src/ui/heroes/clips';
 import { Actor, heroSet, mobSet, type Anim, type ActorSet } from './anim';
 
 type Loc = 'forest' | 'crypt' | 'caves';
-type Look = BerserkLookId | 'ref';
+type Hero = 'sculpt' | 'ref';
 
 declare global {
   interface Window { ASSETS: { bg: Record<Loc, string>; ref: string; avatar: string; others: Record<string, string> } }
@@ -26,8 +26,8 @@ const GROUND = 282;
 const HERO_X = 130;
 const FOE_X = [380, 600, 823];
 
-/** Что сейчас выбрано в сцене; карточки голов и оружия рисуются в выбранном облике. */
-const state: { look: Look; head: BerserkHead; weapon: BerserkWeapon; loc: Loc } = { look: 'B', head: 'horns', weapon: 'axe', loc: 'forest' };
+/** Что сейчас в сцене: лепка или прежний лист, хват оружия, локация (она же — у плиток). */
+const state: { hero: Hero; weapon: BerserkWeapon; loc: Loc } = { hero: 'sculpt', weapon: 'axe', loc: 'forest' };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
 
@@ -65,11 +65,11 @@ function refSet(img: HTMLImageElement): ActorSet {
 }
 
 const sets = new Map<string, ActorSet>();
-/** Набор кадров героя: прежний лист или лепка в облике, с головой и оружием. Лепка рисуется при первом запросе. */
-function heroAnim(look: Look, head: BerserkHead, weapon: BerserkWeapon): ActorSet {
-  const key = look === 'ref' ? 'ref' : `${look}:${head}:${weapon}`;
+/** Набор кадров героя: прежний лист или лепка с хватом оружия. Лепка рисуется при первом запросе. */
+function heroAnim(hero: Hero, weapon: BerserkWeapon): ActorSet {
+  const key = hero === 'ref' ? 'ref' : weapon;
   let set = sets.get(key);
-  if (!set) sets.set(key, (set = look === 'ref' ? refSet(REF_IMG) : heroSet(berserkModel(look, head, weapon), HERO_STYLE)));
+  if (!set) sets.set(key, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(berserkModel(weapon), HERO_STYLE)));
   return set;
 }
 const foeSets = new Map<string, ActorSet>();
@@ -149,8 +149,7 @@ function tile(host: HTMLElement, loc: Loc, set: ActorSet): void {
 function drawOverlay(): void {
   const host = document.getElementById('overlay');
   if (!host) return;
-  const look = state.look === 'ref' ? 'B' : state.look;
-  const m = berserkModel(look, state.head, state.weapon);
+  const m = berserkModel(state.weapon);
   const p = new Painter(m, HERO_STYLE, 0);
   m.draw(p);
   const fig = p.finish();
@@ -206,26 +205,20 @@ function toggle(group: HTMLElement, value: string): void {
   for (const b of group.querySelectorAll<HTMLButtonElement>('button[data-v]')) b.setAttribute('aria-pressed', String(b.dataset.v === value));
 }
 
-/** Облик плиток голов и оружия — из сцены; у листа — рекомендованный B. */
-const tileLook = (): BerserkLookId => (state.look === 'ref' ? 'B' : state.look);
-
 function drawScene(): void {
-  const { look, head, weapon, loc } = state;
-  fitStage(document.getElementById('scene')!, liveField(loc, heroAnim(look, head, weapon), true));
-  toggle(document.getElementById('scene-look')!, look);
-  toggle(document.getElementById('scene-head')!, head);
+  const { hero, weapon, loc } = state;
+  fitStage(document.getElementById('scene')!, liveField(loc, heroAnim(hero, weapon), true));
+  toggle(document.getElementById('scene-hero')!, hero);
   toggle(document.getElementById('scene-weapon')!, weapon);
   toggle(document.getElementById('scene-loc')!, loc);
-  // Голова и оружие у листа не меняются — переключатели гаснут.
-  for (const id of ['scene-head', 'scene-weapon']) document.getElementById(id)!.classList.toggle('muted', look === 'ref');
-  for (const card of document.querySelectorAll<HTMLElement>('[data-look-card]')) card.classList.toggle('shown', card.dataset.lookCard === look);
-  for (const card of document.querySelectorAll<HTMLElement>('[data-head-card]')) card.setAttribute('aria-pressed', String(card.dataset.headCard === head));
+  // Хват у листа не меняется — переключатель гаснет.
+  document.getElementById('scene-weapon')!.classList.toggle('muted', hero === 'ref');
   for (const card of document.querySelectorAll<HTMLElement>('[data-weapon-card]')) card.setAttribute('aria-pressed', String(card.dataset.weaponCard === weapon));
 }
 
 /**
- * Плитки: `data-tile="A:horns:axe"` — облик, голова, оружие; `*` — взять из сцены (карточки голов и оружия
- * показывают выбранный облик); `ref` — прежний лист. Рисуются по одной, чтобы страница не вставала на кадрах.
+ * Плитки: `data-tile="axe"` — лепка с этим хватом, `*` — с хватом из сцены, `ref` — прежний лист. Рисуются по одной,
+ * чтобы страница не вставала на кадрах.
  */
 let tileRun = 0;
 function drawTiles(): void {
@@ -239,16 +232,11 @@ function drawTiles(): void {
     const el = hosts[i++];
     if (!el) return;
     const spec = el.dataset.tile!;
-    if (spec === 'ref') tile(el, state.loc, heroAnim('ref', 'horns', 'axe'));
-    else {
-      const [lk, hd, wp] = spec.split(':');
-      const look = (lk === '*' ? tileLook() : lk) as BerserkLookId;
-      tile(el, state.loc, heroAnim(look, (hd === '*' ? state.head : hd) as BerserkHead, (wp === '*' ? state.weapon : wp) as BerserkWeapon));
-    }
+    if (spec === 'ref') tile(el, state.loc, heroAnim('ref', 'axe'));
+    else tile(el, state.loc, heroAnim('sculpt', (spec === '*' ? state.weapon : spec) as BerserkWeapon));
     window.setTimeout(next, 20);
   };
   window.setTimeout(next, 30);
-  for (const el of document.querySelectorAll<HTMLElement>('[data-look-name]')) el.textContent = tileLook();
 }
 
 function start(): void {
@@ -259,17 +247,9 @@ function start(): void {
       if (v) fn(v);
     });
   };
-  on('scene-look', (v) => {
-    const was = tileLook();
-    state.look = v as Look;
+  on('scene-hero', (v) => {
+    state.hero = v as Hero;
     drawScene();
-    // Карточки голов и оружия показывают выбранный облик.
-    if (tileLook() !== was) drawTiles();
-  });
-  on('scene-head', (v) => {
-    state.head = v as BerserkHead;
-    drawScene();
-    drawTiles();
   });
   on('scene-weapon', (v) => {
     state.weapon = v as BerserkWeapon;
@@ -281,23 +261,7 @@ function start(): void {
     drawScene();
     drawTiles();
   });
-  // Кнопки на карточках: облик — в сцену и прокрутка к ней; голова и оружие — в сцену.
-  const scene = document.getElementById('battle-h')!;
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-show-look]')) {
-    b.addEventListener('click', () => {
-      state.look = b.dataset.showLook as Look;
-      drawScene();
-      drawTiles();
-      scene.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-    });
-  }
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-head-card]')) {
-    b.addEventListener('click', () => {
-      state.head = b.dataset.headCard as BerserkHead;
-      drawScene();
-      drawTiles();
-    });
-  }
+  // Карточка хвата ставит его в сцену.
   for (const b of document.querySelectorAll<HTMLButtonElement>('[data-weapon-card]')) {
     b.addEventListener('click', () => {
       state.weapon = b.dataset.weaponCard as BerserkWeapon;

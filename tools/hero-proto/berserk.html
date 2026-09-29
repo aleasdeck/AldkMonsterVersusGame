@@ -65,23 +65,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .tile-label { display: flex; justify-content: space-between; gap: 8px; width: 100%; max-width: 340px; font-size: 13px; color: var(--muted); }
 .tile-label b { color: var(--text); font-weight: 500; }
 
-/* ─── Облики ─── */
-.looks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
-.look { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 12px; display: grid; gap: 10px; align-content: start; min-width: 0; }
-.look.rec { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
-.look.shown { outline: 2px solid var(--accent); outline-offset: -1px; }
-.look h3 { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--accent); margin: 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-.look h3 span { font-family: var(--body); font-weight: 500; font-size: 15px; color: var(--text); }
-.badge { margin-left: auto; font-family: var(--mono); font-size: 11px; font-style: normal; letter-spacing: 0.05em; color: var(--accent-ink); background: var(--accent); padding: 1px 6px; border-radius: 3px; }
-.look p { font-size: 14px; margin: 0; }
-.pros { list-style: none; padding: 0; margin: 0; font-size: 14px; display: grid; gap: 4px; }
-.pros li { padding-left: 18px; position: relative; }
-.pros li::before { position: absolute; left: 0; font-family: var(--mono); }
-.pros .plus::before { content: '+'; color: var(--plus); }
-.pros .minus::before { content: '−'; color: var(--minus); }
-.look .pick { justify-self: start; }
-
-/* ─── Головы и оружие — плитки-кнопки ─── */
+/* ─── Хват оружия — плитки-кнопки ─── */
 .cards { display: grid; gap: 16px; margin-top: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .card-btn { display: grid; gap: 6px; justify-items: stretch; align-content: start; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-width: 0; }
 .card-btn:hover { border-color: var(--faint); }
@@ -126,7 +110,7 @@ th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.0
 td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
 
 @media (max-width: 900px) {
-  .looks, .cards { grid-template-columns: 1fr; }
+  .cards { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .tiles { grid-template-columns: 1fr; }
@@ -140,7 +124,7 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
 <div class="wrap">
   <header>
     <h1>Лепка Берсерка</h1>
-    <p class="lead">Берсерк — третий герой на пиксельную лепку, по рецепту Воина и Паладина. Здесь шаги 2 и 3: модель в стойке по контурам прежнего листа и варианты облика, головы и хвата оружия. Анимации, аватарка и игра — после выбора.</p>
+    <p class="lead">Берсерк — третий герой на пиксельную лепку, по рецепту Воина и Паладина. Здесь шаги 2 и 3: модель в стойке по контурам прежнего листа. Облик «Северянин» и волчья голова выбраны; открыт хват оружия. Анимации, аватарка и игра — после него.</p>
     <div class="meta"><span>Рост в бою <b>136</b></span><span>Пиксель <b>1,5</b> — 91 точка роста</span><span>Модель <b>src/ui/heroes/berserk.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
   </header>
 
@@ -155,6 +139,7 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
       <li>Штаны, сапоги и повязка — на ступень светлее: низ был вдвое темнее листа, ноги не читались.</li>
       <li>Волчья голова и грива — тоже левее, морда волка короче и своим серым тоном; топорик во втором хвате — лезвием к врагам и у бедра, а не на колене.</li>
       <li>Лицо (второе ревью: «лица вообще не видно» — от него оставалось 3 тёмных пикселя): мех дальнего плеча закрывал его и бороду — теперь рисуется до головы; шлем открыт спереди до скулы, как на листе, наносник убран; лицо — своя часть поверх шлема: глазница в тени, светлые спинка носа и скула, борода. У волка и гривы — так же.</li>
+      <li>Дальняя рука (отзыв «как будто спереди, анатомически неправильно»): светлый бугор плеча был нарисован поверх груди, а локоть стоял посреди торса — рука читалась впереди тела. Теперь плечо и локоть за торсом, плечо закрыто мехом дальнего плеча, дальний бок торса уже и в тени, из-за бока выходят только предплечье с наручем и кулак — как на листе, где светлый бугор справа — дальняя грудная мышца.</li>
       <li>Покой больше не «кипит»: число прядей плаща менялось с дыханием и перебрасывало зерно фактуры всего, что нарисовано после.</li>
       <li>Мелочи: кивок в покое — сдвигом на пиксель, а не поворотом (шлем «кипел»); пряди меха свисают наружу, а не внутрь; мех на коленях — клочьями вдоль голени; подол плаща у колен больше не качается с дыханием.</li>
     </ul>
@@ -165,16 +150,9 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <p class="prose">Кадр поля 960 × 320, как в игре: фон и тонировка локации, враги-лепка в пикселе 2. Герой — лепка в выбранном варианте или прежний рисованный лист. Пока только покой: берсерк тяжело дышит — грудь и горб меха поднимаются, таз оседает на четверть вдоха позже, вес переходит с ноги на ногу, топор качается маятником, раз за цикл голова подаётся к врагам на пиксель.</p>
     <div class="bench">
       <div class="controls">
-        <span class="tog" id="scene-look" role="group" aria-label="Облик"><span class="tog-label">Облик</span>
-          <button type="button" data-v="A">A</button>
-          <button type="button" data-v="B">B</button>
-          <button type="button" data-v="C">C</button>
+        <span class="tog" id="scene-hero" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
+          <button type="button" data-v="sculpt">Лепка</button>
           <button type="button" data-v="ref">Лист (было)</button>
-        </span>
-        <span class="tog" id="scene-head" role="group" aria-label="Голова"><span class="tog-label">Голова</span>
-          <button type="button" data-v="horns">Рогатый шлем</button>
-          <button type="button" data-v="wolf">Волчья голова</button>
-          <button type="button" data-v="mane">Грива</button>
         </span>
         <span class="tog" id="scene-weapon" role="group" aria-label="Оружие"><span class="tog-label">Оружие</span>
           <button type="button" data-v="axe">Как на листе</button>
@@ -188,58 +166,21 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
         </span>
       </div>
       <div class="stage" id="scene"></div>
-      <p class="caption">Выбор здесь управляет всеми плитками ниже: облики показываются с выбранными головой и оружием, головы и оружие — в выбранном облике.</p>
+      <p class="caption">Локация здесь — и у плиток ниже; хват — у плитки «Лепка» рядом с листом и в сверке силуэта.</p>
     </div>
   </section>
 
-  <section aria-labelledby="looks-h">
-    <h2 id="looks-h">Облики</h2>
-    <p class="prose">Одна лепка и одна стойка, разные материалы. Клипы у обликов будут общими, так что выбор облика ничего не стоит в работе. Плитки — кусок поля вокруг героя в масштабе ×2, как кадр игры на FullHD.</p>
-    <div class="looks">
-      <article class="look" data-look-card="A">
-        <h3>A <span>С листа</span></h3>
-        <div data-tile="A:*:*"></div>
-        <p>Палитра прежнего листа: светлый розовато-бежевый мех, розовая загорелая кожа, алая повязка, светлая сталь.</p>
-        <ul class="pros">
-          <li class="plus">узнаётся сразу, ближе всех к листу</li>
-          <li class="plus">голая кожа — самое тёплое пятно на поле, герой виден издалека</li>
-          <li class="minus">розовая кожа и светлый мех ярче врагов и фонов, особенно в Склепе</li>
-        </ul>
-        <button type="button" class="pick" data-show-look="A">Показать в бою</button>
-      </article>
-      <article class="look rec" data-look-card="B">
-        <h3>B <span>Северянин</span><em class="badge">рекомендую</em></h3>
-        <div data-tile="B:*:*"></div>
-        <p>Палитра листа, приглушённая под дарк фэнтези, как у Чёрного рыцаря и Пепельного храмовника: пепельно-бурый мех, обветренная кожа без розового, повязка цвета запёкшейся крови, тёмная сталь, рог — жёлтая кость.</p>
-        <ul class="pros">
-          <li class="plus">в тон врагам и фонам, встаёт в ряд с Воином и Паладином</li>
-          <li class="plus">кожа всё ещё самое светлое на фигуре — голый торс читается</li>
-          <li class="minus">мех серее листа, «звериного» меньше</li>
-        </ul>
-        <button type="button" class="pick" data-show-look="B">Показать в бою</button>
-      </article>
-      <article class="look" data-look-card="C">
-        <h3>C <span>Вайда</span></h3>
-        <div data-tile="C:*:*"></div>
-        <p>Тёмный волчий мех, бледная кожа в синих полосах вайды — боевая раскраска на груди, руках и на глазах у гривы. Повязка тёмно-красная, сталь холодная.</p>
-        <ul class="pros">
-          <li class="plus">самый мрачный и самый непохожий на других героев</li>
-          <li class="plus">синяя раскраска — единственное холодное пятно, запоминается</li>
-          <li class="minus">дальше всех от листа</li>
-          <li class="minus">бледная кожа на чёрном мехе — фигура пятнистая</li>
-        </ul>
-        <button type="button" class="pick" data-show-look="C">Показать в бою</button>
-      </article>
-    </div>
-  </section>
-
-  <section aria-labelledby="head-h">
-    <h2 id="head-h">Голова</h2>
-    <p class="prose">Лицо у всех трёх в тени — глаза у героя не светятся. Голова сидит низко и впереди горба меха, как на листе. Клик по плитке ставит голову в сцену; облик плиток — <b data-look-name>B</b>, как в сцене.</p>
-    <div class="cards">
-      <button type="button" class="card-btn" data-head-card="horns"><div data-tile="*:horns:*"></div><span class="card-name">Рогатый шлем</span><span class="card-desc">С листа: круглый шлем с ободом, спереди под ободом открыт до скулы — в проёме лицо: глазница в тени, нос, скула, борода. Один рог — светлая кость назад-вверх, выше горба меха. Из-под шлема назад торчит ухо.</span></button>
-      <button type="button" class="card-btn" data-head-card="wolf"><div data-tile="*:wolf:*"></div><span class="card-name">Волчья голова</span><span class="card-desc">Шкура волка капюшоном: уши торчком, морда с клыками поверх лба, глазницы пустые. Мех головы — тот же, что на плечах: шкура и капюшон — одна вещь, воин-волк из саг.</span></button>
-      <button type="button" class="card-btn" data-head-card="mane"><div data-tile="*:mane:*"></div><span class="card-name">Грива</span><span class="card-desc">Без шлема: грива назад с узлом на макушке, борода с косицей, на глазах полоса сажи (у вайды — синяя). Лицо в профиль к врагам.</span></button>
+  <section aria-labelledby="done-h">
+    <h2 id="done-h">Решено</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Что</th><th>Выбор</th><th>Отвергнуто — в истории ветки</th></tr></thead>
+        <tbody>
+          <tr><td>Облик</td><td>B «Северянин»: палитра листа, приглушённая под сцену, — пепельно-бурый мех, обветренная кожа, повязка цвета запёкшейся крови, тёмная сталь</td><td>A «С листа», C «Вайда»</td></tr>
+          <tr><td>Голова</td><td>Волчья шкура капюшоном: уши торчком, морда с клыками над лицом, пустые глазницы; лицо под челюстью — глазница в тени, нос, скула, борода</td><td>рогатый шлем с листа, грива</td></tr>
+          <tr><td>Пиксель</td><td class="n">1,5</td><td></td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -247,9 +188,9 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <h2 id="weapon-h">Оружие</h2>
     <p class="prose">На листе топор в дальней руке; стартовое оружие Берсерка в игре — тоже топор, тяжёлый. Хват решает, какими пойдут анимации: их делаем следующим шагом, поэтому под каждой плиткой — что он даст в клипах.</p>
     <div class="cards">
-      <button type="button" class="card-btn" data-weapon-card="axe"><div data-tile="*:*:axe"></div><span class="card-name">Как на листе</span><span class="card-desc">Топор в дальней руке впереди-внизу: древко почти горизонтально к врагам, лезвие-«борода» висит вниз, в крови. Ближний кулак свободен.</span><span class="card-anim"><b>В клипах:</b> рубка дальней рукой через голову, как у правши; свободный кулак — «Ярость» ударом в грудь.</span></button>
-      <button type="button" class="card-btn" data-weapon-card="great"><div data-tile="*:*:great"></div><span class="card-name">Двумя руками</span><span class="card-desc">Секира: ближняя кисть держит древко у бедра, дальняя — у головы. Древко длиннее и идёт перед поясом, голова крупнее на восьмую часть.</span><span class="card-anim"><b>В клипах:</b> самые широкие и тяжёлые замахи; обе руки на древке — риг сложнее, ближняя рука закрывает торс.</span></button>
-      <button type="button" class="card-btn" data-weapon-card="pair"><div data-tile="*:*:pair"></div><span class="card-name">Два топора</span><span class="card-desc">Как на листе, и ещё топорик в ближней руке — висит вниз-вперёд, лезвием к врагам.</span><span class="card-anim"><b>В клипах:</b> серия ударов — родная механика Берсерка: бьёт одним, добивает другим.</span></button>
+      <button type="button" class="card-btn" data-weapon-card="axe"><div data-tile="axe"></div><span class="card-name">Как на листе</span><span class="card-desc">Топор в дальней руке впереди-внизу: древко почти горизонтально к врагам, лезвие-«борода» висит вниз, в крови. Рука за торсом: плечо под мехом, из-за бока выходят предплечье и кулак. Ближний кулак свободен.</span><span class="card-anim"><b>В клипах:</b> рубка дальней рукой через голову, как у правши; свободный кулак — «Ярость» ударом в грудь.</span></button>
+      <button type="button" class="card-btn" data-weapon-card="great"><div data-tile="great"></div><span class="card-name">Двумя руками</span><span class="card-desc">Секира: ближняя кисть держит древко у бедра, дальняя — у головы. Древко длиннее и идёт перед поясом, голова крупнее на восьмую часть.</span><span class="card-anim"><b>В клипах:</b> самые широкие и тяжёлые замахи; обе руки на древке — риг сложнее, ближняя рука закрывает торс.</span></button>
+      <button type="button" class="card-btn" data-weapon-card="pair"><div data-tile="pair"></div><span class="card-name">Два топора</span><span class="card-desc">Как на листе, и ещё топорик в ближней руке — висит вниз-вперёд, лезвием к врагам.</span><span class="card-anim"><b>В клипах:</b> серия ударов — родная механика Берсерка: бьёт одним, добивает другим.</span></button>
     </div>
   </section>
 
@@ -258,18 +199,17 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <p class="prose">Один кусок поля вокруг героя в масштабе ×2. Контуры частей обведены по первому кадру прежнего листа в его точках и стоят в коде числами листа: перевод в единицы поля — x = 4 + (px − 6)·k, y = 140 − (189 − py)·k, k = 136 / 182.</p>
     <div class="tiles">
       <div class="tile"><div data-tile="ref"></div><div class="tile-label"><b>Лист</b><span>было, генератор</span></div></div>
-      <div class="tile"><div data-tile="*:*:*"></div><div class="tile-label"><b>Лепка</b><span>выбор из сцены</span></div></div>
+      <div class="tile"><div data-tile="*"></div><div class="tile-label"><b>Лепка</b><span>выбор из сцены</span></div></div>
     </div>
     <div class="scroll">
       <table>
         <thead><tr><th>Что</th><th>На листе, точки</th><th>В лепке, единицы поля</th></tr></thead>
         <tbody>
-          <tr><td>Шлем</td><td class="n">центр (120, 34), 29 × 39</td><td class="n">центр (88.4, 24.9), 22 × 29</td></tr>
+          <tr><td>Голова (шлем листа; у лепки на его месте волчья шкура)</td><td class="n">центр (120, 34), 29 × 39</td><td class="n">центр (88.4, 24.9), 22 × 29</td></tr>
           <tr><td>Шея в тени за шлемом</td><td class="n">x 100–108, y 40–62</td><td class="n">x 74.2–80.2, y 28.7–45.1</td></tr>
-          <tr><td>Рог, острие</td><td class="n">(101, 4)</td><td class="n">(75, 2) — выше горба</td></tr>
           <tr><td>Горб меха: верх, левый край</td><td class="n">(83, 21), (29, 52)</td><td class="n">(61.5, 14.4), (21.2, 37.6)</td></tr>
           <tr><td>Ближняя рука: плечо, локоть, кулак</td><td class="n">(68, 65), (42, 78), (50, 117)</td><td class="n">(50.3, 47.3), (30.9, 57.1), (36.9, 86.2)</td></tr>
-          <tr><td>Дальняя рука: плечо, локоть, кулак</td><td class="n">(127, 72), (127, 87), (146, 104)</td><td class="n">(94.4, 52.6), (94.4, 63.8), (108.6, 76.5)</td></tr>
+          <tr><td>Дальняя рука: плечо (под мехом), локоть (на боку), кулак</td><td class="n">(134, 72), (129, 88), (146, 104)</td><td class="n">(99.6, 52.6), (95.9, 64.5), (108.6, 76.5)</td></tr>
           <tr><td>Топор: проушина, нижний рог лезвия</td><td class="n">(156, 99), (177, 147)</td><td class="n">(116.1, 72.7), (131.8, 108.6)</td></tr>
           <tr><td>Колени</td><td class="n">(48, 143), (130, 143)</td><td class="n">(35.4, 105.6), (96.7, 105.6)</td></tr>
           <tr><td>Щиколотки</td><td class="n">(38, 176), (132, 176)</td><td class="n">(27.9, 130.3), (98.2, 130.3)</td></tr>
@@ -279,9 +219,9 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <h3>Что взято с листа</h3>
     <ul class="list prose">
       <li>Огромная шкура: горб меха выше головы, плащ за спиной до колен, рваный край прядями.</li>
-      <li>Маленький рогатый шлем низко и впереди, у дальнего плеча; рог выше горба.</li>
+      <li>Голова низко и впереди, у дальнего плеча, над шеей в тени; на листе — рогатый шлем, у лепки — волчья шкура (выбор).</li>
       <li>Голый торс с перевязью наискось, пояс из круглых бляшек с ромбом-пряжкой, красная повязка между ног.</li>
-      <li>Ближняя рука голая до кожаного наруча, пустой кулак у бедра; дальняя держит топор впереди, лезвием вниз.</li>
+      <li>Ближняя рука голая до кожаного наруча, пустой кулак у бедра; дальняя — за торсом, из-за бока выходит предплечье, кулак держит топор впереди, лезвием вниз.</li>
       <li>Штаны тёмной кожи, светлый мех на коленях и голенях, крупные сапоги, широкая низкая стойка.</li>
     </ul>
     <h3>Чем лепка отличается</h3>
@@ -302,21 +242,10 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
     <h2 id="q-h">Что решаем</h2>
     <div class="qs">
       <div class="q">
-        <h3>Облик</h3>
-        <p>Материалы и цвет; силуэт у всех трёх один.</p>
+        <h3>Облик и голова</h3>
+        <p>Решено пользователем.</p>
         <ul class="opts">
-          <li><b>A</b>С листа — светлый мех, розовая кожа, алая повязка</li>
-          <li class="rec"><b>B</b>Северянин — палитра листа, приглушённая под сцену, как у Воина и Паладина</li>
-          <li><b>C</b>Вайда — чёрный волчий мех, бледная кожа, синяя раскраска</li>
-        </ul>
-      </div>
-      <div class="q">
-        <h3>Голова</h3>
-        <p>Лицо в тени у всех; различается, что на голове.</p>
-        <ul class="opts">
-          <li class="rec"><b>Рогатый шлем</b>как на листе и на прежнем портрете, рог — главный знак силуэта</li>
-          <li><b>Волчья голова</b>шкура продолжается капюшоном — самый «звериный»</li>
-          <li><b>Грива</b>без шлема, лицо и борода</li>
+          <li class="chosen"><b>B</b>Северянин с волчьей головой</li>
         </ul>
       </div>
       <div class="q">
