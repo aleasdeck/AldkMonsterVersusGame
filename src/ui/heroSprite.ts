@@ -3,21 +3,19 @@ import archerSheet from '../assets/heroes/archer.png';
 import assassinAvatar from '../assets/heroes/assassin-avatar.png';
 import berserkAvatar from '../assets/heroes/berserk-avatar.png';
 import mageAvatar from '../assets/heroes/mage-avatar.png';
-import paladinAvatar from '../assets/heroes/paladin-avatar.png';
 import assassinSheet from '../assets/heroes/assassin.png';
 import berserkSheet from '../assets/heroes/berserk.png';
 import mageSheet from '../assets/heroes/mage.png';
-import paladinSheet from '../assets/heroes/paladin.png';
 import { avatarCells, hasHeroArt, heroAvatarUrl, heroClipContact, heroFrameMs, heroSheetSprite, playHeroSculptClip } from './heroes';
 
 /**
- * Герои на поле. Воин — пиксельной лепкой (heroes/, свои одиннадцать клипов), остальные — рисованными листами
+ * Герои на поле. Воин и Паладин — пиксельной лепкой (heroes/, свои клипы у каждого), остальные — рисованными листами
  * (`src/assets/heroes/<id>.png`, ряд — клип, 8 кадров в ряду), собранными из картинки генератора скриптом
  * `tools/hero-sheet.py` — цифры манифеста печатает он же. Кадры листает CSS (`.hero-sprite` и `.hero-sheet`
  * в style.css), клипы боя запускает `playHeroClip` — одинаково для обоих.
  *
  * Клипы названы по роли, а не по рисунку: `battle` — покой в бою, `buff` — клич и бафы, `bash` и `riposte` —
- * личные приёмы Воина. Чего у рисованного героя нет — подменяется по цепочке `FALLBACK`.
+ * личные приёмы Воина, `smite` — Паладина. Чего у рисованного героя нет — подменяется по цепочке `FALLBACK`.
  */
 export type HeroClip = 'idle' | 'battle' | 'attack' | 'heavy' | 'power' | 'heal' | 'buff' | 'block' | 'hurt' | 'death' | 'bash' | 'riposte' | 'smite';
 
@@ -35,7 +33,6 @@ export interface HeroSheet {
 const HERO_SHEETS: Record<string, HeroSheet> = {
   mage: { url: mageSheet, clips: ['idle', 'battle', 'attack', 'power', 'block', 'hurt', 'death'], frames: 8, cell: 186, body: 134 },
   assassin: { url: assassinSheet, clips: ['idle'], frames: 8, cell: 182, body: 166 },
-  paladin: { url: paladinSheet, clips: ['idle'], frames: 8, cell: 188, body: 180 },
   berserk: { url: berserkSheet, clips: ['idle'], frames: 8, cell: 194, body: 186 },
   archer: { url: archerSheet, clips: ['idle'], frames: 8, cell: 186, body: 170 },
 };
@@ -47,13 +44,12 @@ export function heroSheetInfo(heroId: string): Readonly<HeroSheet> | undefined {
 
 /**
  * Аватарки героев (v0.41.1): портрет в рисованной рамке, лист генератора режет `tools/hero-avatars.py`.
- * Рамка — часть рисунка и заодно цвет героя, поэтому своей в разметке нет. У героев-лепки (v0.54.4, Воин)
+ * Рамка — часть рисунка и заодно цвет героя, поэтому своей в разметке нет. У героев-лепки (Воин с v0.54.3, Паладин с v0.54.5)
  * аватарка рисуется из модели (heroes/avatar.ts) — рисованной у них нет.
  */
 const HERO_AVATARS: Record<string, string> = {
   mage: mageAvatar,
   assassin: assassinAvatar,
-  paladin: paladinAvatar,
   berserk: berserkAvatar,
   archer: archerAvatar,
 };

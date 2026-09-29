@@ -3,12 +3,13 @@ import { packMask, type MobMask } from '../mobs';
 import { renderAvatar } from './avatar';
 import { clipMs, contactMs, HERO_CLIPS, HERO_STYLE, renderHeroClip, type SculptClip } from './clips';
 import { modelClip, modelClips, type HeroModel } from './model';
+import { paladinModel } from './paladin';
 import { warriorModel } from './warrior';
 import { canvasUrl } from '../preload';
 
 /**
- * Герои пиксельной лепкой в игре (Воин первым; остальные пока рисованными листами — heroSprite.ts).
- * Каждый клип — своя картинка в ряд кадров (blob-ссылка, `canvasUrl`): клипов у героя одиннадцать, и рисовать их все разом —
+ * Герои пиксельной лепкой в игре (Воин с v0.54.3, Паладин с v0.54.5; остальные пока рисованными листами — heroSprite.ts).
+ * Каждый клип — своя картинка в ряд кадров (blob-ссылка, `canvasUrl`): клипов у героя десять–одиннадцать, и рисовать их все разом —
  * больше секунды, поэтому они запекаются по одному (`warmHero` — очередью из `App.warmArt()`, покой первым),
  * а клип, которого ещё нет, — сразу, когда понадобился. Кадры листает CSS (`.hero-sheet::before` в style.css).
  *
@@ -16,7 +17,7 @@ import { canvasUrl } from '../preload';
  * квадрата, земля — по его низу, а кадр целиком (с полем под выпад, замах и падение) рисуется `::before` поверх.
  * Идущий клип переживает `App.render()`: состояние лежит на герое, новый спрайт продолжает его с той же точки.
  */
-export const HERO_MODELS: Record<string, HeroModel> = { warrior: warriorModel() };
+export const HERO_MODELS: Record<string, HeroModel> = { warrior: warriorModel(), paladin: paladinModel() };
 
 /** Рисуется ли герой лепкой. */
 export function hasHeroArt(id: string): boolean {
