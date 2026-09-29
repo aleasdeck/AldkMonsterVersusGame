@@ -363,9 +363,9 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
   // Удар A «Сверху»: кисть над плечом, боёк за шлемом — шаг, и молот через верх на врага; щит прижат.
   attack: [
     [0, { x: -1, crouch: 2, lean: -3, hx: 30, hy: 56, sw: -40, cape: 0.1 }],
-    [1, { x: -4, crouch: 3, lean: -8, head: -4, hx: 36, hy: 14, sw: -150, f1: 60, f2: 30, sh: -4, liftF: 2, cape: 0.25 }],
-    [2, { x: -5, crouch: 3, lean: -10, head: -6, hx: 38, hy: 11, sw: -170, f1: 60, f2: 30, sh: -4, liftF: 3, cape: 0.3 }],
-    [3, { x: 4, crouch: 4, lean: 2, head: 0, hx: 60, hy: 16, sw: -55, f1: 80, f2: 55, sh: 4, liftF: 4, footF: 7, cape: 0.6 }],
+    [1, { x: -4, crouch: 3, lean: -8, head: -4, hx: 25, hy: 22, sw: -150, f1: 60, f2: 30, sh: -4, liftF: 2, cape: 0.25 }],
+    [2, { x: -5, crouch: 3, lean: -10, head: -6, hx: 23, hy: 20, sw: -172, f1: 60, f2: 30, sh: -4, liftF: 3, cape: 0.3 }],
+    [3, { x: 4, crouch: 4, lean: 2, head: 0, hx: 50, hy: 4, sw: -60, f1: 80, f2: 55, sh: 4, liftF: 4, footF: 7, cape: 0.6 }],
     [4, { x: 11, crouch: 8, lean: 12, head: 6, hx: 72, hy: 50, sw: 30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 12, cape: 1 }],
     [5, { x: 11, crouch: 8, lean: 12, head: 6, hx: 71, hy: 52, sw: 36, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 12, cape: 0.85 }],
     [6, { x: 5, crouch: 4, lean: 5, head: 3, hx: 46, hy: 66, sw: 40, liftF: 3, footF: 6, cape: 0.4 }],
@@ -374,10 +374,10 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
   // щит уходит вниз и назад, чтобы не закрыть удар; из-под шага — пыль.
   heavy: [
     [0, { x: -1, crouch: 4, lean: 2, head: 2, hx: 34, hy: 50, sw: -40, cape: 0.1, dust: 0 }],
-    [1, { x: -5, y: -2, crouch: 1, lean: -12, head: -8, hx: 38, hy: 9, sw: -160, f1: 60, f2: 30, sh: 2, liftF: 1, cape: 0.3 }],
-    [2, { x: -6, y: -4, crouch: 0, lean: -15, head: -10, hx: 40, hy: 6, sw: -200, f1: 60, f2: 30, sh: 2, liftF: 3, footF: -2, cape: 0.4 }],
-    [3, { x: -4, y: -4, crouch: 0, lean: -14, head: -9, hx: 41, hy: 6, sw: -206, f1: 62, f2: 32, sh: 3, liftF: 5, footF: 2, cape: 0.45 }],
-    [4, { x: 6, y: -2, crouch: 4, lean: 4, head: 2, hx: 66, hy: 14, sw: -110, f1: 78, f2: 55, sh: 8, liftF: 6, footF: 12, cape: 0.7, dust: 0 }],
+    [1, { x: -5, y: -2, crouch: 1, lean: -12, head: -8, hx: 25, hy: 21, sw: -160, f1: 60, f2: 30, sh: 2, liftF: 1, cape: 0.3 }],
+    [2, { x: -6, y: -4, crouch: 0, lean: -15, head: -10, hx: 22, hy: 19, sw: -186, f1: 60, f2: 30, sh: 2, liftF: 3, footF: -2, cape: 0.4 }],
+    [3, { x: -4, y: -4, crouch: 0, lean: -14, head: -9, hx: 22, hy: 19, sw: -192, f1: 62, f2: 32, sh: 3, liftF: 5, footF: 2, cape: 0.45 }],
+    [4, { x: 6, y: -2, crouch: 4, lean: 4, head: 2, hx: 52, hy: 3, sw: -100, f1: 78, f2: 55, sh: 8, liftF: 6, footF: 12, cape: 0.7, dust: 0 }],
     [5, { x: 16, y: 0, crouch: 10, lean: 16, head: 8, hx: 74, hy: 44, sw: 30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 18, footN: -2, cape: 0.8, dust: 0 }],
     [6, { x: 17, crouch: 12, lean: 18, head: 10, hx: 72, hy: 52, sw: 55, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 18, footN: -2, cape: 0.7, dust: 1 }],
     [7, { x: 16, crouch: 12, lean: 17, head: 10, hx: 71, hy: 54, sw: 58, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 18, footN: -2, cape: 0.6, dust: 0.6 }],
@@ -448,8 +448,8 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
     [0, { lean: -2, hx: 36, hy: 46, sw: -50, glow: 0.1 }],
     [1, { x: -3, y: -2, lean: -10, head: -10, hx: 44, hy: 7, sw: -92, f1: 30, f2: 10, sh: -10, glow: 0.5, cape: 0.3 }],
     [2, { x: -3, y: -3, lean: -12, head: -14, hx: 45, hy: 5, sw: -94, f1: 25, f2: 5, sh: -12, glow: 0.95, cape: 0.45 }],
-    [3, { x: -4, y: -4, lean: -14, head: -12, hx: 42, hy: 6, sw: -150, f1: 40, f2: 15, sh: -6, glow: 1.2, liftF: 3, cape: 0.5, burst: 0 }],
-    [4, { x: 6, y: -2, crouch: 4, lean: 4, head: 2, hx: 66, hy: 14, sw: -100, f1: 78, f2: 55, sh: 8, glow: 1.3, liftF: 6, footF: 12, cape: 0.7, dust: 0, burst: 0 }],
+    [3, { x: -4, y: -4, lean: -14, head: -12, hx: 26, hy: 18, sw: -160, f1: 40, f2: 15, sh: -6, glow: 1.2, liftF: 3, cape: 0.5, burst: 0 }],
+    [4, { x: 6, y: -2, crouch: 4, lean: 4, head: 2, hx: 52, hy: 3, sw: -95, f1: 78, f2: 55, sh: 8, glow: 1.3, liftF: 6, footF: 12, cape: 0.7, dust: 0, burst: 0 }],
     [5, { x: 16, y: 0, crouch: 10, lean: 16, head: 8, hx: 74, hy: 44, sw: 30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.6, liftF: 0, footF: 18, footN: -2, cape: 0.8, burst: 1 }],
     [6, { x: 17, crouch: 12, lean: 18, head: 10, hx: 72, hy: 52, sw: 55, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.1, footF: 18, footN: -2, cape: 0.7, burst: 0.6 }],
     [7, { x: 16, crouch: 12, lean: 17, head: 10, hx: 71, hy: 54, sw: 58, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 0.6, footF: 18, footN: -2, cape: 0.6, burst: 0.2 }],
@@ -473,9 +473,9 @@ const CLIPS_B: Record<PaladinVariant, PoseKeys<PaladinPose>> = {
   heavy: [
     [0, { x: -1, crouch: 6, lean: 4, head: 2, hx: 32, hy: 60, sw: 70, cape: 0.1, dust: 0 }],
     [1, { x: -3, crouch: 13, lean: 10, head: 4, hx: 26, hy: 68, sw: 130, f1: 82, f2: 62, cape: 0.2 }],
-    [2, { x: 4, y: -14, crouch: -2, lean: -10, head: -8, hx: 40, hy: 8, sw: -150, f1: 55, f2: 25, sh: -4, liftF: 12, liftN: 10, footF: 6, footN: 2, cape: 0.6 }],
-    [3, { x: 10, y: -18, crouch: -2, lean: -12, head: -10, hx: 42, hy: 6, sw: -200, f1: 55, f2: 25, sh: -4, liftF: 14, liftN: 12, footF: 10, footN: 5, cape: 0.8 }],
-    [4, { x: 14, y: -8, crouch: 3, lean: 6, head: 4, hx: 64, hy: 14, sw: -100, f1: 78, f2: 55, sh: 8, liftF: 6, liftN: 4, footF: 14, footN: 8, cape: 1, dust: 0 }],
+    [2, { x: 4, y: -14, crouch: -2, lean: -10, head: -8, hx: 25, hy: 21, sw: -150, f1: 55, f2: 25, sh: -4, liftF: 12, liftN: 10, footF: 6, footN: 2, cape: 0.6 }],
+    [3, { x: 10, y: -18, crouch: -2, lean: -12, head: -10, hx: 22, hy: 19, sw: -190, f1: 55, f2: 25, sh: -4, liftF: 14, liftN: 12, footF: 10, footN: 5, cape: 0.8 }],
+    [4, { x: 14, y: -8, crouch: 3, lean: 6, head: 4, hx: 52, hy: 3, sw: -95, f1: 78, f2: 55, sh: 8, liftF: 6, liftN: 4, footF: 14, footN: 8, cape: 1, dust: 0 }],
     [5, { x: 18, y: 0, crouch: 11, lean: 15, head: 9, hx: 74, hy: 40, sw: 18, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, liftN: 0, footF: 14, footN: 8, cape: 0.8, dust: 0 }],
     [6, { x: 18, crouch: 14, lean: 18, head: 12, hx: 72, hy: 52, sw: 55, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 14, footN: 8, cape: 0.7, dust: 1 }],
     [7, { x: 17, crouch: 13, lean: 17, head: 11, hx: 71, hy: 54, sw: 58, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 14, footN: 8, cape: 0.6, dust: 0.6 }],
@@ -499,7 +499,7 @@ const CLIPS_B: Record<PaladinVariant, PoseKeys<PaladinPose>> = {
     [1, { x: -2, y: -1, lean: -8, head: -14, hx: 44, hy: 7, sw: -92, f1: 40, f2: 15, sh: -8, glow: 0.4, beam: 0.3, cape: 0.2 }],
     [2, { x: -2, y: -2, lean: -10, head: -18, hx: 45, hy: 5, sw: -93, f1: 35, f2: 10, sh: -10, glow: 1, beam: 1, cape: 0.3 }],
     [3, { x: -3, y: -2, lean: -11, head: -16, hx: 44, hy: 6, sw: -110, f1: 40, f2: 15, sh: -8, glow: 1.3, beam: 0.5, cape: 0.35, burst: 0 }],
-    [4, { x: 5, crouch: 4, lean: 2, head: 0, hx: 62, hy: 16, sw: -70, f1: 80, f2: 55, sh: 4, glow: 1.3, beam: 0, liftF: 4, footF: 8, cape: 0.6, burst: 0 }],
+    [4, { x: 5, crouch: 4, lean: 2, head: 0, hx: 52, hy: 4, sw: -70, f1: 80, f2: 55, sh: 4, glow: 1.3, beam: 0, liftF: 4, footF: 8, cape: 0.6, burst: 0 }],
     [5, { x: 12, crouch: 9, lean: 13, head: 6, hx: 73, hy: 48, sw: 25, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.6, liftF: 0, footF: 13, cape: 0.9, burst: 1 }],
     [6, { x: 12, crouch: 9, lean: 13, head: 6, hx: 72, hy: 50, sw: 30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.1, footF: 13, cape: 0.85, burst: 0.6 }],
     [7, { x: 10, crouch: 8, lean: 11, head: 5, hx: 70, hy: 52, sw: 33, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 0.6, footF: 12, cape: 0.7, burst: 0.2 }],
@@ -515,18 +515,30 @@ export const PALADIN_VARIANTS: Record<PaladinVariant, { A: string; B: string }> 
   smite: { A: 'Крест лучей', B: 'Луч с неба' },
 };
 
-function nearArm(P: PaladinPose): { ex: number; ey: number; hx: number; hy: number; a1: number; a2: number } {
-  const [sx, sy] = M.armN.sh;
-  const byAngle = limb2(sx, sy, P.n1, ARM_N.l1, P.n2, ARM_N.l2);
-  if (P.nh < 0.001) return { ...byAngle, a1: P.n1, a2: P.n2 };
-  let tx = lerp(byAngle.hx, P.hx, P.nh), ty = lerp(byAngle.hy, P.hy, P.nh);
-  const vx = tx - sx, vy = ty - sy, d = Math.hypot(vx, vy), reach = ARM_N.l1 + ARM_N.l2 - 0.05;
-  if (d > reach) {
-    tx = sx + (vx * reach) / d;
-    ty = sy + (vy * reach) / d;
-  }
-  const [ex, ey] = ik(sx, sy, tx, ty, ARM_N.l1, ARM_N.l2, -vy, vx);
-  return { ex, ey, hx: tx, hy: ty, a1: Math.atan2(ey - sy, ex - sx) / DEG, a2: Math.atan2(ty - ey, tx - ex) / DEG };
+/**
+ * Ближняя рука: углами `n1`/`n2` или кистью в точке (`hx`, `hy`, доля `nh`). Локоть — ik с изгибом наружу, как у
+ * живой руки. Плечевой сустав ходит за рукой: поднятый локоть поднимает его до 3 единиц, кисть, вынесенная к врагам, —
+ * выносит вперёд до 2,5; в покое рука висит, и плечо стоит на мерке. С неподвижным суставом рука на замахе уходила
+ * вверх из-под наплечника, а плечо и пластина плеча оставались внизу («предплечье живёт само по себе»).
+ */
+function nearArm(P: PaladinPose): { sx: number; sy: number; ex: number; ey: number; hx: number; hy: number; a1: number; a2: number } {
+  const solve = (sx: number, sy: number): { sx: number; sy: number; ex: number; ey: number; hx: number; hy: number; a1: number; a2: number } => {
+    const byAngle = limb2(sx, sy, P.n1, ARM_N.l1, P.n2, ARM_N.l2);
+    if (P.nh < 0.001) return { sx, sy, ...byAngle, a1: P.n1, a2: P.n2 };
+    let tx = lerp(byAngle.hx, P.hx, P.nh), ty = lerp(byAngle.hy, P.hy, P.nh);
+    const vx = tx - sx, vy = ty - sy, d = Math.hypot(vx, vy), reach = ARM_N.l1 + ARM_N.l2 - 0.05;
+    if (d > reach) {
+      tx = sx + (vx * reach) / d;
+      ty = sy + (vy * reach) / d;
+    }
+    const [ex, ey] = ik(sx, sy, tx, ty, ARM_N.l1, ARM_N.l2, -vy, vx);
+    return { sx, sy, ex, ey, hx: tx, hy: ty, a1: Math.atan2(ey - sy, ex - sx) / DEG, a2: Math.atan2(ty - ey, tx - ex) / DEG };
+  };
+  const [sx0, sy0] = M.armN.sh;
+  const first = solve(sx0, sy0);
+  const lift = Math.max(0, Math.min(1, (sy0 - first.ey) / ARM_N.l1 + 0.3));
+  const fwd = Math.max(0, Math.min(1, (first.hx - sx0 - 8) / 26));
+  return lift > 0 || fwd > 0 ? solve(sx0 + 2.5 * fwd, sy0 - 3 * lift) : first;
 }
 
 /** Зонд: точки кадра — таз, кисть, середина бойка, стопы. Боёк у земли нарочно — лечение на колене, падение. */
@@ -837,7 +849,7 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
         drawWeapon(near.hx, near.hy, P.sw);
         headGlow(p, near.hx, near.hy, P.sw, headLen, P.glow, P.burst, (rot * 180) / Math.PI);
       }
-      p.limb(M.armN.sh[0], M.armN.sh[1], 8.2, near.ex, near.ey, 8, MAT.limb, { part: 'nearArm' });
+      p.limb(near.sx, near.sy, 8.2, near.ex, near.ey, 8, MAT.limb, { part: 'nearArm' });
       p.limb(near.ex, near.ey, 8.4, near.hx, near.hy, 7, MAT.limb, { part: 'nearArm' });
       const [ex, ey] = at(near.ex, near.ey, near.a2, 4), [hx2, hy2] = at(near.hx, near.hy, near.a2, -8);
       stroke(p, [ex - 3.5, ey + 1, hx2 - 3, hy2], MAT.edge, 'nearArm');
@@ -855,23 +867,33 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
         p.poly([near.hx - 4, near.hy - 3, near.hx - 1.5, near.hy - 5.5, near.hx + 1, near.hy - 5, near.hx - 2, near.hy - 2], MAT.limb, { part: 'fist', paint: true, tone: 0.28 });
       };
       if (!front) fist();
+      // Пластина плеча и наплечник сидят на плечевой кости, а не на корпусе: пластина поворачивается вместе с ней
+      // вокруг плечевого сустава, наплечник — на треть и не больше 30° (он лежит на суставе и только приподнимается),
+      // оба едут за суставом. Поворот до 10° (покой: рука висит и чуть сгибается, плечо гуляет на −6…9°) гасится —
+      // покой остаётся прежним до пикселя, латы не рябят.
+      const [sx0, sy0] = M.armN.sh;
+      const turnUp = ((((near.a1 - ARM_N.a1 + 270) % 360) + 360) % 360) - 270;
+      const settle = (d: number, dead: number): number => d * Math.max(0, Math.min(1, (Math.abs(d) - dead) / 6));
+      const shoulder = (k: number, dead: number, cap = 360): { dx: number; dy: number; rot: number; px: number; py: number } => ({ dx: near.sx - sx0, dy: near.sy - sy0, rot: Math.max(-cap, Math.min(cap, k * settle(turnUp, dead))) * DEG, px: sx0, py: sy0 });
       // Пластина плеча — ступенью под наплечником, золото по верхней кромке; мельче, чем по контуру листа (вторым
       // куполом рядом с наплечником она делала плечо огромным), и вместе с рукой ближе к телу.
-      p.scope(0.8, 24 * 0.2 + 6, 50 * 0.2 + 5.5, () => {
-        p.poly([14.5, 45.1, 18.2, 40.7, 24.1, 38.5, 29.2, 39.9, 31.4, 45.1, 28.5, 49.5, 21.9, 50.9, 16, 50.2], MAT.limb, { part: 'pLame', bevel: 2.6, tone: -0.06 });
-        edgeBand(p, [29.2, 40.4, 24.1, 39, 18.2, 41.2, 14.9, 45.3], 2.4, MAT.gold, 'pLame');
+      p.pose(shoulder(1, 10), () => {
+        p.scope(0.8, 24 * 0.2 + 6, 50 * 0.2 + 5.5, () => {
+          p.poly([14.5, 45.1, 18.2, 40.7, 24.1, 38.5, 29.2, 39.9, 31.4, 45.1, 28.5, 49.5, 21.9, 50.9, 16, 50.2], MAT.limb, { part: 'pLame', bevel: 2.6, tone: -0.06 });
+          edgeBand(p, [29.2, 40.4, 24.1, 39, 18.2, 41.2, 14.9, 45.3], 2.4, MAT.gold, 'pLame');
+        });
       });
       // Ближний наплечник — купол по контуру листа (≈ 24 × 27) с толстой золотой каймой слева, снизу и справа
       // у шеи и бликом посередине: так он читается латным наплечником, а не шаром. Масштаб 0,88, верх на уровне
       // подбородка шлема (в мерку листа купол был «большим и выше, чем должен» — на уровне глаз), середина — над
       // плечевым суставом (x ≈ 38): сдвинутый к шее, он садился на угол груди, а рука торчала из-под него слева.
-      p.scope(0.88, 3.5, 13, () => {
+      p.pose(shoulder(0.35, 10, 30), () => p.scope(0.88, 3.5, 13, () => {
         p.poly([27.7, 36.3, 28.5, 28.9, 32.1, 23.1, 37.3, 18.7, 43.1, 16.5, 47.5, 17.9, 50.5, 23.1, 51.9, 30.4, 50.5, 37.7, 46.1, 42.1, 38.7, 43.6, 31.4, 41.4], MAT.limb, { part: 'pauldron', bevel: 7, lift: 2.5 });
         p.poly([35, 26, 39, 22, 43, 21.5, 44, 25, 40.5, 29.5, 36.5, 30.5], MAT.limb, { part: 'pauldron', paint: true, tone: 0.34 });
         p.poly([33, 37.5, 40, 39.5, 46, 37.5, 49.5, 33, 50.5, 37.7, 46.1, 42.1, 38.7, 43.6, 31.4, 41.4], MAT.limb, { part: 'pauldron', paint: true, tone: -0.2 });
         edgeBand(p, [29.2, 26, 28, 30, 27.8, 36.3, 31.4, 41.4, 38.7, 43.6, 46.1, 42.1, 50.5, 37.7, 51.9, 30.4, 50.5, 23.1, 47.5, 18.2], 3.5, MAT.gold, 'pauldron');
         stroke(p, [28.6, 36.6, 31.8, 41.6, 38.7, 43.8], MAT.goldLit, 'pauldron');
-      });
+      }));
       if (front) {
         drawWeapon(near.hx, near.hy, P.sw);
         fist();
