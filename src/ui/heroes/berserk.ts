@@ -5,10 +5,9 @@ import { clipAt, HERO_CLIPS, poseAt, type PoseKeys, type SculptClip } from './cl
 import { at, DEG, ease, ik, lerp, reachFoot, solid, stroke } from './rig';
 
 /**
- * Берсерк пиксельной лепкой — рецепт docs/lepka-geroev.md: модель в стойке, облик, голова и хват выбраны, девять
- * клипов прошли ревью агента-риггера (свой агент на каждый клип), варианты удара, сильного удара и лечения выбраны.
- * В игру ещё не входит: записи в `HERO_MODELS` нет, инструменты находят модель по имени файла (`berserkModel()`),
- * страница обсуждения — tools/hero-proto/berserk-page.ts.
+ * Берсерк пиксельной лепкой (v0.54.6, третий по рецепту docs/lepka-geroev.md после Воина и Паладина): облик
+ * «Северянин», волчья шкура капюшоном, топор в дальней руке, как на листе; девять общих клипов, каждый прошёл ревью
+ * своего агента-риггера; аватарка — поза покоя. Решения — на странице обсуждения tools/hero-proto/berserk-page.ts.
  *
  * Референс — прежний рисованный лист `src/assets/heroes/berserk.png` (один ряд покоя, ячейка 194, фигура первого
  * кадра 182 точки: x 6…186, y 7…188). Контуры частей обведены по первому кадру в точках листа и переводятся в
@@ -694,41 +693,28 @@ export const berserkProbe: HeroProbe = { grounded: ['death', 'heavy', 'heal'] };
 // ─── Модель ─────────────────────────────────────────────────────────────────
 
 /**
- * Варианты портрета на обсуждении (шаг 5 рецепта): поза, кадр бюста (левый верхний угол и сторона, единицы модели) и
- * луна за головой — у каждого свои. A — покой, как прежний портрет: голова у дальнего плеча, горб шкуры слева, лезвие
- * топора в правом нижнем углу; B — кадр удара клича «Ярость» (кулак в грудь, топор вскинут, голова запрокинута);
- * C — кадр блока «секира щитом» (лезвие стоит справа во весь рост кадра).
+ * Аватарка — поза покоя в кадре бюста, как прежний портрет (решение пользователя; «Ярость» и «Секира щитом» отвергнуты):
+ * волчья голова у дальнего плеча, горб шкуры слева, торс с перевязью, лезвие топора в правом нижнем углу. Кадр — левый
+ * верхний угол и сторона в единицах модели. Фон — с прежнего портрета: тёмно-красное небо, кровавая луна за мордой
+ * волка, частокол по краям (на портрете — пики; вороны в 56 клетках не нарисованы). Силуэты почти чёрные: тоном ближе
+ * к небу их не было видно.
  */
-export type BerserkAvatar = 'A' | 'B' | 'C';
-export const BERSERK_AVATARS: Record<BerserkAvatar, string> = { A: 'Как в покое', B: 'Ярость', C: 'Секира щитом' };
-interface Portrait { pose: BerserkPose; crop: [number, number, number]; halo: [number, number, number] }
-const PORTRAITS: Record<BerserkAvatar, Portrait> = {
-  A: { pose: REST, crop: [48, -4, 84], halo: [102, 10, 28] },
-  B: { pose: { ...REST, y: -1, crouch: 0, lean: -8, head: -20, nhx: 83, nhy: 52, fhx: 124.7, fhy: 10.8, fl: 1.45, ws: 1, wr: -52, cape: 0.85 }, crop: [46, -26, 96], halo: [96, -2, 28] },
-  C: { pose: { ...REST, crouch: 5, lean: 3, head: 8, nsx: 6, sw: -33, fhx: 121, fhy: 43, fl: 1.1, afront: 1, ng: 1, nd: -26 }, crop: [60, -2, 86], halo: [102, 10, 28] },
-};
-
-/**
- * Аватарка — фон с прежнего портрета: тёмно-красное небо, кровавая луна за головой, частокол по краям (на портрете —
- * пики; вороны в 56 клетках не нарисованы). Силуэты почти чёрные: тоном ближе к небу их не было видно.
- */
-function avatarOf(m: Mats, v: BerserkAvatar): AvatarSpec {
-  const P = PORTRAITS[v];
+function avatarOf(m: Mats): AvatarSpec {
   return {
-    draw: (p) => drawBerserk(p, P.pose, m),
-    crop: P.crop,
-    halo: P.halo,
+    draw: (p) => drawBerserk(p, REST, m),
+    crop: [48, -4, 84],
+    halo: [102, 10, 28],
     colors: { top: '#5a1a16', bottom: '#1c0a08', halo: '#7a2218', haloEdge: '#a2361f', skyline: '#150605', frameDark: '#120606', frame: '#46140f', frameLight: '#7a2a1e' },
     skyline: [[0.04, 0.06, 0.5, 0.14], [0.11, 0.05, 0.4, 0.12], [0.9, 0.06, 0.52, 0.14], [0.97, 0.05, 0.62, 0.16]],
   };
 }
 
-/** Берсерк; рост в покое — `HERO_BODY_HEIGHT.berserk` (136) в пикселе `HERO_PIXEL`. `avatar` — вариант портрета. */
-export function berserkModel(avatar: BerserkAvatar = 'A'): HeroModel {
+/** Берсерк; рост в покое — `HERO_BODY_HEIGHT.berserk` (136) в пикселе `HERO_PIXEL`. */
+export function berserkModel(): HeroModel {
   const m = matsOf(LOOK);
   return {
     id: 'berserk',
-    avatar: avatarOf(m, avatar),
+    avatar: avatarOf(m),
     probe: berserkProbe,
     w: 146,
     h: 144,

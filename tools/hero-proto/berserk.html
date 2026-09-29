@@ -111,22 +111,7 @@ th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom
 th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
 td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
 
-/* ─── Аватарка: карточки вариантов, ряд выбора, прежний портрет ─── */
-.looks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
-.look { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 12px; display: grid; gap: 10px; align-content: start; min-width: 0; }
-.look.rec { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
-.look.shown { outline: 2px solid var(--accent); outline-offset: -1px; }
-.look h3 { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--accent); margin: 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-.look h3 span { font-family: var(--body); font-weight: 500; font-size: 15px; color: var(--text); }
-.badge { margin-left: auto; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; color: var(--accent-ink); background: var(--accent); padding: 1px 6px; border-radius: 3px; }
-.look p { font-size: 14px; margin: 0; }
-.pros { list-style: none; padding: 0; margin: 0; font-size: 14px; display: grid; gap: 4px; }
-.pros li { padding-left: 18px; position: relative; }
-.pros li::before { position: absolute; left: 0; font-family: var(--mono); }
-.pros .plus::before { content: '+'; color: var(--plus); }
-.pros .minus::before { content: '−'; color: var(--minus); }
-.look .pick { justify-self: start; }
-.pick[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+/* ─── Аватарка: три размера, ряд выбора, прежний портрет ─── */
 .av-sizes { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
 .av-sizes figure, .avatar-row figure, .av-old figure { margin: 0; display: grid; gap: 4px; justify-items: start; }
 .av-sizes canvas, .avatar-row canvas, .avatar-row img, .av-old img { display: block; max-width: 100%; height: auto; border-radius: 2px; }
@@ -155,7 +140,7 @@ table.rig td p { margin: 6px 0 0; color: var(--muted); }
 details.history summary { cursor: pointer; color: var(--muted); }
 
 @media (max-width: 900px) {
-  .cards, .looks { grid-template-columns: 1fr; }
+  .cards { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .tiles { grid-template-columns: 1fr; }
@@ -169,7 +154,7 @@ details.history summary { cursor: pointer; color: var(--muted); }
 <div class="wrap">
   <header>
     <h1>Лепка Берсерка</h1>
-    <p class="lead">Берсерк — третий герой на пиксельную лепку, по рецепту Воина и Паладина. Облик «Северянин», волчья голова, хват «как на листе» и все девять клипов выбраны — каждый клип разобрал свой агент-риггер. Здесь шаг 5 — аватарка: три позы портрета рядом с прежним портретом и рядом выбора героя. Игра — после выбора.</p>
+    <p class="lead">Берсерк в игре с v0.54.6 — вместо рисованного листа и портрета; третий герой на пиксельной лепке после Воина и Паладина. Облик «Северянин» с волчьей шкурой капюшоном, топор в дальней руке, как на листе. Девять клипов, каждый разобрал свой агент-риггер: удар «Сверху», сильный удар «Двумя руками», лечение «Второе дыхание», клич «Ярость» — кулак в грудь. Аватарка — поза покоя в кадре бюста, как прежний портрет.</p>
     <div class="meta"><span>Рост в бою <b>136</b></span><span>Пиксель <b>1,5</b> — 91 точка роста</span><span>Модель <b>src/ui/heroes/berserk.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
   </header>
 
@@ -202,14 +187,14 @@ details.history summary { cursor: pointer; color: var(--muted); }
 
   <section aria-labelledby="avatar-h">
     <h2 id="avatar-h">Аватарка</h2>
-    <p class="prose">Аватарка рисуется из той же лепки и заменит прежний портрет везде: плитка выбора героя (112), лист персонажа (80), консоль (44). Фон — с прежнего портрета: кровавое небо, луна за головой, частокол по краям. Каждый вариант — своя поза в кадре бюста, три размера игры ×2, как на FullHD. Кнопка ставит вариант в ряд выбора ниже.</p>
-    <div class="looks" id="avatars"></div>
+    <p class="prose">Аватарка рисуется из той же лепки и заменила прежний портрет везде: плитка выбора героя (112), лист персонажа (80), консоль (44). Поза покоя в кадре бюста: волчья голова у дальнего плеча, горб шкуры слева, торс с перевязью, лезвие топора в правом нижнем углу. Фон — с прежнего портрета: кровавое небо, луна за мордой волка, частокол по краям. Три размера игры ×2, как на FullHD.</p>
+    <div class="av-sizes" id="avatars"></div>
     <h3 style="margin-top:22px">Ряд выбора героя</h3>
-    <p class="prose note">Шесть плиток по 112 в порядке игры: Воин и Паладин — из лепки, Маг, Ассасин и Лучник — рисованные портреты, как в игре сейчас.</p>
+    <p class="prose note">Шесть плиток по 112 в порядке игры: Воин, Паладин и Берсерк — из лепки, Маг, Ассасин и Лучник — рисованные портреты, как в игре.</p>
     <div class="avatar-row" id="avatar-row"></div>
     <div class="av-old">
       <figure><div id="avatar-old"></div><figcaption>Было — рисованный портрет</figcaption></figure>
-      <p>Прежний портрет: рогатый шлем, огромная шкура на плечах, голый торс с перевязью и бляхой, окровавленное лезвие в правом нижнем углу; кровавая луна, вороны и пики. У лепки на месте шлема — волчья шкура (выбор облика), пики — частоколом по краям; ворон фон аватарки рисовать не умеет — если нужны, добавлю.</p>
+      <p>Прежний портрет: рогатый шлем, огромная шкура на плечах, голый торс с перевязью и бляхой, окровавленное лезвие в правом нижнем углу; кровавая луна, вороны и пики. У лепки на месте шлема — волчья шкура (выбор облика), пики — частоколом по краям; ворон фон аватарки рисовать не умеет.</p>
     </div>
   </section>
 
@@ -252,6 +237,7 @@ details.history summary { cursor: pointer; color: var(--muted); }
           <tr><td>Сильный удар</td><td>A «Двумя руками»: топор над головой в двух кулаках — рубка в землю, пыль</td><td>B «С прыжка»</td></tr>
           <tr><td>Лечение</td><td>A «Второе дыхание»: стоя, кулак к груди, вдох — выдох</td><td>B «На колено»</td></tr>
           <tr><td>Остальные клипы</td><td>По одному варианту, как прошли ревью: бросок сверху, клич «Ярость» (кулак в грудь, топор вскинут), блок «секирой щитом», урон, смерть ничком на коленях</td><td></td></tr>
+          <tr><td>Аватарка</td><td>Поза покоя в кадре бюста, как прежний портрет: лезвие топора в правом нижнем углу, кровавая луна за мордой волка, частокол по краям</td><td>«Ярость» (кадр удара клича), «Секира щитом» (кадр блока)</td></tr>
           <tr><td>Пиксель</td><td class="n">1,5</td><td></td></tr>
         </tbody>
       </table>
@@ -319,27 +305,15 @@ details.history summary { cursor: pointer; color: var(--muted); }
     <div class="overlay" id="overlay"></div>
   </section>
 
-  <section aria-labelledby="q-h">
-    <h2 id="q-h">Что решаем</h2>
-    <div class="qs">
-      <div class="q">
-        <h3>Аватарка</h3>
-        <p>Поза портрета. Паладину выбрали покой — «колотушка занимает половину аватарки»; у Берсерка топор в покое висит у бедра, и в кадр бюста входит только лезвие в углу.</p>
-        <ul class="opts" id="q-avatar">
-          <li data-opt="A" class="rec"><b>A</b>Как в покое</li>
-          <li data-opt="B"><b>B</b>Ярость</li>
-          <li data-opt="C"><b>C</b>Секира щитом</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
   <section aria-labelledby="next-h">
-    <h2 id="next-h">Дальше</h2>
-    <ol class="steps prose">
-      <li><b>Выбор аватарки</b> и правки кадра, цвета и фона по нему.</li>
-      <li><b>Игра.</b> Строка в <code>HERO_MODELS</code>, рисованный лист и портрет — из сборки, тесты и снимки.</li>
-    </ol>
+    <h2 id="next-h">Открыто</h2>
+    <p class="prose">Из ревью риггеров, оставлено как есть — поправлю, если в игре заметно:</p>
+    <ul class="list prose">
+      <li>Последний кадр смерти — «куча» ничком на коленях, а не лёгшее тело с вытянутыми ногами.</li>
+      <li>Сильный удар: на кадре замаха ближняя рука на ~80 мс закрывает лицо.</li>
+      <li>Клич: наклон вскинутого топора (сейчас −52° к предплечью; пробовали −40 и −62).</li>
+      <li>Блок: удар принимает скорее лезвие, чем древко, — искры можно перенести на кромку.</li>
+    </ul>
   </section>
 </div>
 

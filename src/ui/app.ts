@@ -270,10 +270,12 @@ export class App {
    * следующей локации. Проверка при каждой перерисовке: повторный заказ preload.ts отсекает сам.
    */
   private warmArt(): void {
-    // Герои-лепка рисуются кодом, одиннадцать клипов — больше секунды: запекаются очередью в фоне с первого экрана,
-    // к выбору героя и первому бою листы готовы.
-    for (const id of Object.keys(HERO_MODELS)) warmHero(id);
+    // Герои-лепка рисуются кодом, девять–одиннадцать клипов — больше секунды: запекаются очередью в фоне с первого
+    // экрана, к выбору героя листы готовы. На экранах забега — только его герой: чужие клипы там не нужны и тормозили
+    // бы бой (сохранённый забег лежит в `run` и на меню с выбором героя — там греются все).
     const run = this.run;
+    if (!run || this.screen !== 'run') for (const id of Object.keys(HERO_MODELS)) warmHero(id);
+    else warmHero(run.hero.defId, true);
     if (!run) return;
     const here = R.currentLocation(run).id;
     warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'), ...heroArtUrls(run.hero.defId));
@@ -1107,7 +1109,10 @@ export class App {
             // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит, и ответ мечом, если за
             // блоком последует Ответный удар. Лепка начинает клип сразу с удара о щит — щит поднят, когда вылетает цифра.
             // Многоударный приём: ответ один, на первый удар — следующие удары клип ответа не перебивают.
-            if (ev.target === 'hero' && heroId && !(riposte && seq > 0)) {
+            // Рана себе в свой же приём (Ярость — HP за Силу) клип приёма не перебивает: иначе вместо удара кулаком в
+            // грудь игрок видел отдачу от урона.
+            const selfWound = ev.kind === 'dot' && !!plan?.clipped;
+            if (ev.target === 'hero' && heroId && !(riposte && seq > 0) && !selfWound) {
               const clip = riposte ? 'riposte' : hurt ? 'hurt' : 'block';
               playHeroClip(this.root, heroId, clip, clip === 'riposte' ? shieldAt : clip === 'block' ? heroContactMs(heroId, 'block') : 0);
             }

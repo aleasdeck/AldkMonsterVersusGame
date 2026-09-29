@@ -2,22 +2,23 @@ import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { packMask, type MobMask } from '../mobs';
 import { renderAvatar } from './avatar';
 import { clipMs, contactMs, HERO_CLIPS, HERO_STYLE, renderHeroClip, type SculptClip } from './clips';
+import { berserkModel } from './berserk';
 import { modelClip, modelClips, type HeroModel } from './model';
 import { paladinModel } from './paladin';
 import { warriorModel } from './warrior';
 import { canvasUrl } from '../preload';
 
 /**
- * Герои пиксельной лепкой в игре (Воин с v0.54.3, Паладин с v0.54.5; остальные пока рисованными листами — heroSprite.ts).
- * Каждый клип — своя картинка в ряд кадров (blob-ссылка, `canvasUrl`): клипов у героя десять–одиннадцать, и рисовать их все разом —
- * больше секунды, поэтому они запекаются по одному (`warmHero` — очередью из `App.warmArt()`, покой первым),
+ * Герои пиксельной лепкой в игре (Воин с v0.54.3, Паладин с v0.54.5, Берсерк с v0.54.6; остальные пока рисованными
+ * листами — heroSprite.ts). Каждый клип — своя картинка в ряд кадров (blob-ссылка, `canvasUrl`): клипов у героя
+ * девять–одиннадцать, и рисовать их все разом — больше секунды, поэтому они запекаются по одному (`warmHero` — очередью из `App.warmArt()`, покой первым),
  * а клип, которого ещё нет, — сразу, когда понадобился. Кадры листает CSS (`.hero-sheet::before` в style.css).
  *
  * Спрайт занимает в разметке квадрат `px` по фигуре в покое, как прежний рисованный: середина фигуры — по середине
  * квадрата, земля — по его низу, а кадр целиком (с полем под выпад, замах и падение) рисуется `::before` поверх.
  * Идущий клип переживает `App.render()`: состояние лежит на герое, новый спрайт продолжает его с той же точки.
  */
-export const HERO_MODELS: Record<string, HeroModel> = { warrior: warriorModel(), paladin: paladinModel() };
+export const HERO_MODELS: Record<string, HeroModel> = { warrior: warriorModel(), paladin: paladinModel(), berserk: berserkModel() };
 
 /** Рисуется ли герой лепкой. */
 export function hasHeroArt(id: string): boolean {
@@ -74,11 +75,18 @@ const WARM_ORDER: SculptClip[] = ['idle', 'attack', 'block', 'hurt', 'heavy', 'p
 const queue: Array<[string, SculptClip]> = [];
 let warming = false;
 
-/** Запечь клипы героя впрок, по одному за такт: первый удар в бою начинается без заминки. */
-export function warmHero(id: string): void {
+/**
+ * Запечь клипы героя впрок, по одному за такт: первый удар в бою начинается без заминки. `only` — герой забега: в
+ * очереди остаются только его клипы. Героев-лепки трое, очередь всех — около четырёх секунд (клип — до 200 мс работы
+ * главного потока), и с `?hero=` или быстрым выбором первый удар последнего в ней запекался на месте: картинка не
+ * успевала раскодироваться, и кадр мигал пустым; а клипы чужих героев дожимались уже в первом бою.
+ */
+export function warmHero(id: string, only = false): void {
   if (!hasHeroArt(id)) return;
   const drawn = modelClips(HERO_MODELS[id]);
-  for (const clip of WARM_ORDER.filter((c) => drawn.includes(c))) if (!bakes.get(id)?.clips[clip] && !queue.some(([h, c]) => h === id && c === clip)) queue.push([id, clip]);
+  const jobs: Array<[string, SculptClip]> = WARM_ORDER.filter((c) => drawn.includes(c) && !bakes.get(id)?.clips[c]).map((c) => [id, c]);
+  if (only) queue.splice(0, queue.length, ...jobs);
+  else for (const job of jobs) if (!queue.some(([h, c]) => h === id && c === job[1])) queue.push(job);
   if (warming || queue.length === 0) return;
   warming = true;
   const next = (): void => {

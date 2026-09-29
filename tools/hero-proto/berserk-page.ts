@@ -1,6 +1,6 @@
-// Страница обсуждения «Лепка Берсерка» — шаг 5 рецепта (docs/lepka-geroev.md): аватарка. Облик B «Северянин», волчья
-// голова, хват «как на листе» и клипы (удар, сильный удар и лечение — варианты A) выбраны, отвергнутое — в истории ветки;
-// на портрет — три позы рядом с прежним портретом и рядом выбора героя.
+// Страница обсуждения «Лепка Берсерка» (docs/lepka-geroev.md): Берсерк в игре с v0.54.6. Облик B «Северянин», волчья
+// голова, хват «как на листе», клипы (удар, сильный удар и лечение — варианты A) и аватарка в покое выбраны, отвергнутое —
+// в истории ветки; страница — итог рядом с прежним листом и портретом.
 // Модель — src/ui/heroes/berserk.ts (в игру ещё не входит), враги и фоны — из игры, тонировка — та же, что в бою
 // (tint.ts). Сборка — build.mjs --hero berserk.
 import { Painter, type Model } from '../../src/ui/mobs/pixel';
@@ -8,7 +8,7 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { BERSERK_AVATARS, berserkModel, type BerserkAvatar } from '../../src/ui/heroes/berserk';
+import { berserkModel } from '../../src/ui/heroes/berserk';
 import { warriorModel } from '../../src/ui/heroes/warrior';
 import { paladinModel } from '../../src/ui/heroes/paladin';
 import { renderAvatar } from '../../src/ui/heroes/avatar';
@@ -337,31 +337,11 @@ function drawTiles(): void {
 
 // ─── Аватарка ───────────────────────────────────────────────────────────────
 
-/** Что в варианте портрета, чем хорош и чем плох; `rec` — рекомендация. */
-const AVATAR_INFO: Record<BerserkAvatar, { rec?: true; desc: string; plus: string[]; minus: string[] }> = {
-  A: {
-    rec: true,
-    desc: 'Покой в кадре бюста, как прежний портрет: волчья голова у дальнего плеча, горб шкуры слева, торс с перевязью, лезвие топора в правом нижнем углу; кровавая луна — за мордой волка.',
-    plus: ['та же поза, что игрок видит в бою', 'одна манера с Паладином: в ряду выбора портреты в покое', 'лезвие в углу — как на прежнем портрете'],
-    minus: ['спокойный: ярости не видно', 'лицо под волчьей челюстью мелкое'],
-  },
-  B: {
-    desc: 'Кадр удара клича «Ярость»: кулак бьёт в грудь, рука с топором вскинута, голова запрокинута в рёве; окровавленное лезвие — над головой, на фоне луны.',
-    plus: ['самый «берсерковый»: портрет о его приёме', 'лезвие и луна — два ярких пятна, узнаётся издалека'],
-    minus: ['рука и топор занимают верх кадра, горб шкуры почти ушёл', 'запрокинутая голова в профиль — лицо читается хуже'],
-  },
-  C: {
-    desc: 'Кадр блока «секира щитом»: обе руки на древке перед грудью, лезвие-«борода» стоит справа почти во всю высоту кадра, морда волка над древком.',
-    plus: ['лезвие справа во весь рост — ближе всех к прежнему портрету', 'голова крупно, горб шкуры на месте'],
-    minus: ['кулаки и древко поперёк груди — торса и перевязи не видно', 'в центре кадра тесно'],
-  },
-};
-
 const avatarModels = new Map<string, HeroModel>();
-/** Модель под портрет: варианты Берсерка, Воин и Паладин из своей лепки. */
-function portraitModel(id: string): HeroModel {
+/** Модель под портрет: Берсерк, Воин и Паладин из своей лепки. */
+function portraitModel(id: 'warrior' | 'paladin' | 'berserk'): HeroModel {
   let m = avatarModels.get(id);
-  if (!m) avatarModels.set(id, (m = id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : berserkModel(id as BerserkAvatar)));
+  if (!m) avatarModels.set(id, (m = id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : berserkModel()));
   return m;
 }
 
@@ -378,47 +358,24 @@ function avatarCanvas(model: HeroModel, px: number, k: number, label: string): H
   return c;
 }
 
-/** Вариант в ряду выбора. */
-let rowPick: BerserkAvatar = 'A';
-
 /**
- * Карточки вариантов (`#avatars`): три размера игры ×2, как на FullHD, и ряд выбора героя (`#avatar-row`) — шесть
- * героев по 112 в порядке игры, Берсерк — в выбранном варианте, Воин и Паладин — из лепки, остальные — как в игре.
+ * Аватарка (`#avatars`): три размера игры ×2, как на FullHD, и ряд выбора героя (`#avatar-row`) — шесть героев по 112
+ * в порядке игры: Воин, Паладин и Берсерк из лепки, остальные — рисованные портреты, как в игре.
  */
 function drawAvatars(): void {
-  const host = document.getElementById('avatars')!;
-  host.replaceChildren();
-  for (const v of Object.keys(BERSERK_AVATARS) as BerserkAvatar[]) {
-    const info = AVATAR_INFO[v];
-    const card = h('article', `look${info.rec ? ' rec' : ''}${rowPick === v ? ' shown' : ''}`);
-    const title = h('h3', '', v);
-    title.appendChild(h('span', '', `«${BERSERK_AVATARS[v]}»`));
-    if (info.rec) title.appendChild(h('span', 'badge', 'рекомендую'));
-    const sizes = h('div', 'av-sizes');
-    for (const px of [112, 80, 44]) {
-      const f = h('figure');
-      f.append(avatarCanvas(portraitModel(v), px, 2, `Вариант ${v}, ${px} точек`), h('figcaption', '', px === 112 ? '112 выбор' : px === 80 ? '80 лист' : '44 консоль'));
-      sizes.appendChild(f);
-    }
-    const pros = h('ul', 'pros');
-    for (const t of info.plus) pros.appendChild(h('li', 'plus', t));
-    for (const t of info.minus) pros.appendChild(h('li', 'minus', t));
-    const btn = h('button', 'pick', rowPick === v ? 'в ряду' : 'в ряд выбора');
-    btn.type = 'button';
-    btn.setAttribute('aria-pressed', String(rowPick === v));
-    btn.addEventListener('click', () => {
-      rowPick = v;
-      drawAvatars();
-    });
-    card.append(title, sizes, h('p', '', info.desc), pros, btn);
-    host.appendChild(card);
+  const sizes = document.getElementById('avatars')!;
+  sizes.replaceChildren();
+  for (const px of [112, 80, 44]) {
+    const f = h('figure');
+    f.append(avatarCanvas(portraitModel('berserk'), px, 2, `Аватарка Берсерка, ${px} точек`), h('figcaption', '', px === 112 ? '112 выбор' : px === 80 ? '80 лист' : '44 консоль'));
+    sizes.appendChild(f);
   }
   const row = document.getElementById('avatar-row')!;
   row.replaceChildren();
   const heroes: Array<[string, string]> = [['warrior', 'Воин'], ['mage', 'Маг'], ['assassin', 'Ассасин'], ['paladin', 'Паладин'], ['berserk', 'Берсерк'], ['archer', 'Лучник']];
   for (const [id, name] of heroes) {
     const f = h('figure', id === 'berserk' ? 'me' : '');
-    if (id === 'warrior' || id === 'paladin' || id === 'berserk') f.appendChild(avatarCanvas(portraitModel(id === 'berserk' ? rowPick : id), 112, 1, `${name}, аватарка из лепки`));
+    if (id === 'warrior' || id === 'paladin' || id === 'berserk') f.appendChild(avatarCanvas(portraitModel(id), 112, 1, `${name}, аватарка из лепки`));
     else {
       const img = h('img');
       img.src = window.ASSETS.others[id];
