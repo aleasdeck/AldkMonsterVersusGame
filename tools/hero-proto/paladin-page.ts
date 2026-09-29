@@ -1,17 +1,17 @@
-// Страница обсуждения «Лепка Паладина» — шаги 2–3 рецепта (docs/lepka-geroev.md): модель в стойке по меркам прежнего
-// листа, три облика одной лепкой, шлем и оружие. Клипов пока нет — сначала облик. Модель — src/ui/heroes/paladin.ts
+// Страница обсуждения «Лепка Паладина» — шаги 2–3 рецепта (docs/lepka-geroev.md) пройдены: модель в стойке по контурам
+// прежнего листа, облик выбран (варианты — в истории ветки). Клипов пока нет — следующий шаг. Модель — src/ui/heroes/paladin.ts
 // (в игру ещё не входит), враги и фоны — из игры, тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero paladin.
 import { Painter, type Model } from '../../src/ui/mobs/pixel';
 import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { paladinModel, type PaladinHelm, type PaladinLookId, type PaladinWeapon } from '../../src/ui/heroes/paladin';
+import { paladinModel } from '../../src/ui/heroes/paladin';
 import { HERO_STYLE } from '../../src/ui/heroes/clips';
 import { Actor, heroSet, mobSet, type Anim, type ActorSet } from './anim';
 
 type Loc = 'forest' | 'crypt' | 'caves';
-type Look = PaladinLookId | 'ref';
+type Hero = 'sculpt' | 'ref';
 
 declare global {
   interface Window { ASSETS: { bg: Record<Loc, string>; ref: string; avatar: string } }
@@ -26,8 +26,8 @@ const GROUND = 282;
 const HERO_X = 130;
 const FOE_X = [357, 590, 823];
 
-/** Что сейчас выбрано в сцене; карточки шлемов и оружия рисуются в выбранном облике. */
-const state: { look: Look; helm: PaladinHelm; weapon: PaladinWeapon; loc: Loc } = { look: 'B', helm: 'tcross', weapon: 'hammer', loc: 'forest' };
+/** Что сейчас в сцене: лепка или прежний лист, локация (она же — у плиток «Рядом с листом»). */
+const state: { hero: Hero; loc: Loc } = { hero: 'sculpt', loc: 'forest' };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
 
@@ -60,12 +60,11 @@ function refSet(img: HTMLImageElement): ActorSet {
   };
 }
 
-const sets = new Map<string, ActorSet>();
-/** Набор кадров героя: прежний лист или лепка в облике, шлеме и с оружием. Лепка рисуется при первом запросе. */
-function heroAnim(look: Look, helm: PaladinHelm, weapon: PaladinWeapon): ActorSet {
-  const key = look === 'ref' ? 'ref' : `${look}:${helm}:${weapon}`;
-  let set = sets.get(key);
-  if (!set) sets.set(key, (set = look === 'ref' ? refSet(REF_IMG) : heroSet(paladinModel(look, helm, weapon), HERO_STYLE)));
+const sets = new Map<Hero, ActorSet>();
+/** Набор кадров героя: прежний лист или лепка. Лепка рисуется при первом запросе. */
+function heroAnim(hero: Hero): ActorSet {
+  let set = sets.get(hero);
+  if (!set) sets.set(hero, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(paladinModel(), HERO_STYLE)));
   return set;
 }
 const foeSets = new Map<string, ActorSet>();
@@ -142,22 +141,14 @@ function toggle(group: HTMLElement, value: string): void {
 }
 
 function drawScene(): void {
-  const { look, helm, weapon, loc } = state;
-  fitStage(document.getElementById('scene')!, liveField(loc, heroAnim(look, helm, weapon), true));
-  toggle(document.getElementById('scene-look')!, look);
-  toggle(document.getElementById('scene-helm')!, helm);
-  toggle(document.getElementById('scene-weapon')!, weapon);
-  toggle(document.getElementById('scene-loc')!, loc);
-  // Шлем и оружие у листа не меняются — переключатели гаснут.
-  for (const id of ['scene-helm', 'scene-weapon']) document.getElementById(id)!.classList.toggle('muted', look === 'ref');
-  for (const card of document.querySelectorAll<HTMLElement>('[data-look-card]')) card.classList.toggle('shown', card.dataset.lookCard === look);
-  for (const card of document.querySelectorAll<HTMLElement>('[data-helm-card]')) card.setAttribute('aria-pressed', String(card.dataset.helmCard === helm));
-  for (const card of document.querySelectorAll<HTMLElement>('[data-weapon-card]')) card.setAttribute('aria-pressed', String(card.dataset.weaponCard === weapon));
+  fitStage(document.getElementById('scene')!, liveField(state.loc, heroAnim(state.hero), true));
+  toggle(document.getElementById('scene-hero')!, state.hero);
+  toggle(document.getElementById('scene-loc')!, state.loc);
 }
 
 /**
- * Плитки: `data-tile="A:bucket:hammer"` — облик, шлем, оружие; `*` — взять из сцены (карточки шлемов и оружия
- * показывают выбранный облик); `ref` — прежний лист. Рисуются по одной, чтобы страница не вставала на кадрах.
+ * Плитки: `data-tile="sculpt"` или `ref`, `data-loc` — своя локация (иначе — из сцены). Рисуются по одной, чтобы
+ * страница не вставала на кадрах.
  */
 let tileRun = 0;
 function drawTiles(): void {
@@ -170,19 +161,10 @@ function drawTiles(): void {
     if (run !== tileRun) return;
     const el = hosts[i++];
     if (!el) return;
-    const spec = el.dataset.tile!;
-    if (spec === 'ref') tile(el, state.loc, heroAnim('ref', 'tcross', 'hammer'));
-    else {
-      const [lk, hm, wp] = spec.split(':');
-      const look = (lk === '*' ? (state.look === 'ref' ? 'B' : state.look) : lk) as PaladinLookId;
-      tile(el, state.loc, heroAnim(look, (hm === '*' ? state.helm : hm) as PaladinHelm, (wp === '*' ? state.weapon : wp) as PaladinWeapon));
-    }
+    tile(el, (el.dataset.loc as Loc | undefined) ?? state.loc, heroAnim(el.dataset.tile as Hero));
     window.setTimeout(next, 20);
   };
   window.setTimeout(next, 30);
-  const lookName = document.querySelectorAll<HTMLElement>('[data-look-name]');
-  const name = state.look === 'ref' ? 'B' : state.look;
-  for (const el of lookName) el.textContent = name;
 }
 
 /**
@@ -192,8 +174,7 @@ function drawTiles(): void {
 function drawOverlay(): void {
   const host = document.getElementById('overlay');
   if (!host) return;
-  const look = state.look === 'ref' ? 'B' : state.look;
-  const m = paladinModel(look, state.helm, state.weapon);
+  const m = paladinModel();
   const p = new Painter(m, HERO_STYLE, 0);
   m.draw(p);
   const fig = p.finish();
@@ -225,7 +206,7 @@ function drawOverlay(): void {
       });
     }
   }
-  const names = ['Лист в пикселе 1,5', `Лепка, облик ${look}`, 'Расхождения'];
+  const names = ['Лист в пикселе 1,5', 'Лепка', 'Расхождения'];
   host.replaceChildren(...panels.map((img, n) => {
     const f = document.createElement('figure');
     const c = document.createElement('canvas');
@@ -243,59 +224,21 @@ function drawOverlay(): void {
 }
 
 function start(): void {
-  const pick = (e: Event): string | undefined => (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v;
   const on = (id: string, fn: (v: string) => void): void => {
     document.getElementById(id)!.addEventListener('click', (e) => {
-      const v = pick(e);
+      const v = (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v;
       if (v) fn(v);
     });
   };
-  on('scene-look', (v) => {
-    const was = state.look === 'ref' ? 'B' : state.look;
-    state.look = v as Look;
+  on('scene-hero', (v) => {
+    state.hero = v as Hero;
     drawScene();
-    // Карточки шлемов и оружия показывают выбранный облик.
-    if ((state.look === 'ref' ? 'B' : state.look) !== was) drawTiles();
-  });
-  on('scene-helm', (v) => {
-    state.helm = v as PaladinHelm;
-    drawScene();
-    drawTiles();
-  });
-  on('scene-weapon', (v) => {
-    state.weapon = v as PaladinWeapon;
-    drawScene();
-    drawTiles();
   });
   on('scene-loc', (v) => {
     state.loc = v as Loc;
     drawScene();
     drawTiles();
   });
-  // Кнопки на карточках: облик — в сцену и прокрутка к ней; шлем и оружие — в сцену.
-  const scene = document.getElementById('battle-h')!;
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-show-look]')) {
-    b.addEventListener('click', () => {
-      state.look = b.dataset.showLook as Look;
-      drawScene();
-      drawTiles();
-      scene.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-    });
-  }
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-helm-card]')) {
-    b.addEventListener('click', () => {
-      state.helm = b.dataset.helmCard as PaladinHelm;
-      drawScene();
-      drawTiles();
-    });
-  }
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-weapon-card]')) {
-    b.addEventListener('click', () => {
-      state.weapon = b.dataset.weaponCard as PaladinWeapon;
-      drawScene();
-      drawTiles();
-    });
-  }
   drawScene();
   drawTiles();
 }
