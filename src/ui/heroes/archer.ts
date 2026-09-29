@@ -82,18 +82,18 @@ interface ArcherLookSpec {
  * серее), бурая кожа (на листе #8b5948), сапоги светлее куртки, дерево лука, бледно-серое оперение; низ лица — тень.
  */
 const LOOK_A: ArcherLookSpec = {
-  hood: ['#1e2218', '#373d2a', '#535a3e', '#6c7251', '#888b66'],
-  cloak: ['#161a12', '#293020', '#3d452f', '#545b40', '#6c7252'],
-  leather: ['#261612', '#482b20', '#683f30', '#865642', '#a26e54'],
+  hood: ['#1e2218', '#373d2a', '#535a3e', '#777d59', '#a0a478'],
+  cloak: ['#161a12', '#293020', '#3d452f', '#5b6245', '#7b825d'],
+  leather: ['#261612', '#482b20', '#683f30', '#935f49', '#bf8263'],
   strap: ['#180e0c', '#301c17', '#4a2c22', '#643f30', '#7e5642'],
-  boot: ['#2a1812', '#52301f', '#784832', '#966046', '#b27c5c'],
-  pants: ['#181b12', '#2c3222', '#424931', '#596044', '#71775a'],
+  boot: ['#2a1812', '#52301f', '#784832', '#a2684c', '#cd8f6a'],
+  pants: ['#0f140b', '#1c2614', '#2b381e', '#42522d', '#5d7041'],
   skin: ['#3e2419', '#6e4030', '#9a6248', '#b88062', '#d2a282'],
   wood: ['#23140c', '#43281a', '#654028', '#855a38', '#a27650'],
   tip: ['#23140c', '#43281a', '#654028', '#855a38', '#a27650'],
   grip: ['#160d0b', '#2b1914', '#422920', '#5c3d2f', '#775440'],
   quiver: ['#1e120e', '#381f17', '#523024', '#6c4432', '#865a44'],
-  fletch: ['#4a4442', '#7a716c', '#a69c94', '#c6bdb4', '#ddd6ce'],
+  fletch: ['#46403e', '#716862', '#968c84', '#a89f96', '#bdb4aa'],
   shaft: '#8a6a48',
   steel: ['#1a1a1c', '#363638', '#5a5856', '#84807c', '#b0aaa4'],
   string: '#9c9484',
@@ -109,14 +109,14 @@ const LOOK_A: ArcherLookSpec = {
  * костяными концами, вороньи перья (свет перьев — сизый, иначе они пропадают на тёмном фоне); серебро пряжки тусклое.
  */
 const LOOK_B: ArcherLookSpec = {
-  hood: ['#111318', '#22262e', '#363b46', '#505662', '#707784'],
-  cloak: ['#0b0c10', '#181a20', '#272a33', '#3a3e49', '#525764'],
-  leather: ['#171211', '#2a2120', '#40332f', '#574742', '#705e56'],
-  strap: ['#0e0c0c', '#1d1818', '#2e2726', '#423837', '#584c4a'],
-  boot: ['#141011', '#2a2322', '#423836', '#5c504c', '#7a6c66'],
-  pants: ['#101114', '#1e2024', '#2f3238', '#43474e', '#5c6068'],
+  hood: ['#111318', '#22262e', '#3b414d', '#676d7c', '#9da6b5'],
+  cloak: ['#0b0c10', '#191b22', '#2c2f39', '#4e5361', '#707788'],
+  leather: ['#171211', '#2c2322', '#483935', '#67544e', '#8c766c'],
+  strap: ['#0e0c0c', '#1d1818', '#332b2a', '#4c403f', '#6a5b59'],
+  boot: ['#141011', '#2c2524', '#4a3f3c', '#6d5e5a', '#988780'],
+  pants: ['#15130f', '#27231d', '#403930', '#5c5345', '#7e7261'],
   skin: ['#3a2a28', '#6a5048', '#937262', '#b49482', '#cfb4a2'],
-  wood: ['#0e0b0b', '#1f1918', '#322a28', '#4a3f3b', '#645752'],
+  wood: ['#0e0b0b', '#1f1918', '#322a28', '#5e514b', '#7e6e66'],
   tip: ['#3e382e', '#6c6456', '#9a917e', '#bdb49e', '#d8d0bc'],
   grip: ['#3e382e', '#6c6456', '#9a917e', '#bdb49e', '#d8d0bc'],
   quiver: ['#0e0c0c', '#1c1817', '#2c2624', '#3e3634', '#544a46'],
@@ -124,7 +124,7 @@ const LOOK_B: ArcherLookSpec = {
   shaft: '#4e423c',
   steel: ['#16171a', '#2e3034', '#4e5156', '#787c82', '#a8acb2'],
   string: '#7c7e86',
-  scarf: ['#1e1614', '#3a2c28', '#5a463e', '#7a6254', '#94806e'],
+  scarf: ['#0d0a09', '#16110f', '#211916', '#2c221e', '#382c26'],
   hoodCut: 'peak',
   bowCut: 'long',
   cloakCut: 'feather',
@@ -137,12 +137,12 @@ const LOOK_B: ArcherLookSpec = {
  * обмотка; оперение ястреба с тёмными полосами.
  */
 const LOOK_C: ArcherLookSpec = {
-  hood: ['#1c0d07', '#3a1d10', '#5c321a', '#7c4a26', '#9a6636'],
-  cloak: ['#140a06', '#28140c', '#3e2314', '#55341f', '#6e482c'],
-  leather: ['#16100c', '#2c2018', '#433226', '#5a4533', '#735a44'],
+  hood: ['#190e09', '#351e14', '#593622', '#815536', '#ad7c50'],
+  cloak: ['#120a07', '#24150f', '#3c261a', '#573a28', '#78563c'],
+  leather: ['#16100c', '#2e2219', '#4b382b', '#6a513c', '#907055'],
   strap: ['#0f0d09', '#1e1a12', '#302a1d', '#443c2a', '#5a503a'],
-  boot: ['#1c140e', '#382a1e', '#56422f', '#725a40', '#8e7554'],
-  pants: ['#12130d', '#22251a', '#343928', '#484e38', '#5f6549'],
+  boot: ['#1c140e', '#3b2c20', '#5f4934', '#83674a', '#aa8c65'],
+  pants: ['#12130d', '#22251a', '#373c2a', '#51573f', '#707756'],
   skin: ['#3c2419', '#6c4332', '#95654b', '#b48463', '#cea483'],
   wood: ['#1a120c', '#33241a', '#4d3827', '#664d36', '#826649'],
   tip: ['#3a3026', '#665846', '#94846a', '#b8a988', '#d4c8a8'],
@@ -152,7 +152,7 @@ const LOOK_C: ArcherLookSpec = {
   shaft: '#6a5238',
   steel: ['#1a1816', '#343130', '#57524c', '#827a70', '#aca296'],
   string: '#968a70',
-  scarf: ['#1a0c07', '#321a0f', '#4c2a17', '#663c22', '#80522f'],
+  scarf: ['#12130d', '#22251a', '#343928', '#484e38', '#5f6549'],
   hoodCut: 'cowl',
   bowCut: 'horn',
   cloakCut: 'leaf',
@@ -206,7 +206,9 @@ function matsOf(L: ArcherLookSpec) {
     fold: L.cloak[0],
     foldLit: L.cloak[3],
     hoodDark: L.hood[0],
+    hoodFold: L.hood[1],
     hoodLit: L.hood[4],
+    hoodTailLit: L.hood[3],
     bar: L.fletch[0],
     string: L.string,
   };
@@ -395,8 +397,8 @@ function arrow(p: Painter, m: Mats, L: ArcherLookSpec, x: number, y: number, a: 
   const pt = (s: number, t: number): [number, number] => [x + u[0] * s + n[0] * t, y + u[1] * s + n[1] * t];
   p.limb(...pt(0.5, 0), 0.8, ...pt(ARROW - 4.5, 0), 0.8, m.arrow, { part: 'arrow' });
   for (const side of [-1, 1]) {
-    p.poly([...pt(2, 0.4 * side), ...pt(4.5, 2.6 * side), ...pt(10.5, 2.2 * side), ...pt(12, 0.4 * side)], m.fletch, { part: 'arrowFletch', bevel: 0.6 });
-    if (L.barred) for (const s of [6, 9]) stroke(p, [...pt(s, 0.6 * side), ...pt(s - 1, 2.2 * side)], m.bar, 'arrowFletch');
+    p.poly([...pt(3.5, 0.4 * side), ...pt(5.5, 2.6 * side), ...pt(11.5, 2.2 * side), ...pt(13, 0.4 * side)], m.fletch, { part: 'arrowFletch', bevel: 0.6 });
+    if (L.barred) for (const s of [7, 10]) stroke(p, [...pt(s, 0.6 * side), ...pt(s - 1, 2.2 * side)], m.bar, 'arrowFletch');
   }
   p.poly([...pt(ARROW - 6, 0.9), ...pt(ARROW - 5.5, 2.3), tx, ty, ...pt(ARROW - 5.5, -2.3), ...pt(ARROW - 6, -0.9)], m.head, { part: 'arrowHead', bevel: 0.8 });
   return [tx, ty];
@@ -423,18 +425,19 @@ const QUIVER = {
  */
 function quiver(p: Painter, m: Mats, L: ArcherLookSpec, look: ArcherLook): void {
   p.poly(S(...QUIVER.body), m.quiver, { part: 'quiver', bevel: 3, tone: -0.08 });
-  p.ellipse(X(57), Y(41.5), R(8.5), R(4), m.quiver, { part: 'quiver', rot: 0.62, lift: 1, tone: 0.05 });
+  p.ellipse(X(57), Y(41.5), R(8.5), R(4), m.quiver, { part: 'quiver', rot: 0.62, lift: 1, tone: -0.25 });
   const long = look === 'b';
-  const fl = long ? 17 : 15, fw = long ? 3 : 3.8;
+  const fl = long ? 20 : 19, fw = long ? 2.3 : 2.6;
   QUIVER.arrows[look].forEach(([x, y, a], k) => {
     const u = [Math.cos(a * DEG), Math.sin(a * DEG)], nn = [-u[1], u[0]];
     const pt = (s: number, t: number): [number, number] => [X(x + u[0] * s + nn[0] * t), Y(y + u[1] * s + nn[1] * t)];
     const part = `qArrow${k}`;
-    p.limb(...pt(fl - 1, 0), R(1.1), ...pt(29, 0), R(1.1), m.shaftQ, { part });
-    p.poly([...pt(0, 0), ...pt(3, fw), ...pt(fl - 3, fw * 0.85), ...pt(fl, 0.6), ...pt(fl, -0.6), ...pt(fl - 3, -fw * 0.85), ...pt(3, -fw)], m.fletch, { part, bevel: 1 });
+    p.limb(...pt(fl - 2, 0), R(1.1), ...pt(22, 0), R(1.1), m.shaftQ, { part });
+    // Перо: срез у ушка, шире всего у верха, к древку сходится остриём (тупое короткое перо читалось корзиной).
+    p.poly([...pt(0.5, fw * 0.6), ...pt(3, fw), ...pt(fl * 0.6, fw * 0.85), ...pt(fl, 0), ...pt(fl * 0.6, -fw * 0.85), ...pt(3, -fw), ...pt(0.5, -fw * 0.6)], m.fletch, { part, bevel: 0.8 });
     // Опахало от света — в тени: перо читается пером, а не плашкой.
-    p.poly([...pt(0.5, 0), ...pt(fl - 0.5, 0), ...pt(fl - 3, fw * 0.9), ...pt(3, fw * 1.05)], m.fletch, { part, paint: true, tone: -0.28 });
-    if (L.barred) for (const s of [5, 9.5]) stroke(p, [...pt(s, -fw * 0.9), ...pt(s + 1.5, fw * 0.9)], m.bar, part);
+    p.poly([...pt(0.5, 0), ...pt(fl, 0), ...pt(fl * 0.6, fw * 0.95), ...pt(3, fw * 1.1), ...pt(0.5, fw * 0.7)], m.fletch, { part, paint: true, tone: -0.28 });
+    if (L.barred) for (const s of [5, 10]) stroke(p, [...pt(s, -fw * 0.9), ...pt(s + 1.5, fw * 0.9)], m.bar, part);
   });
 }
 
@@ -509,12 +512,12 @@ const HOODS: Record<ArcherLookSpec['hoodCut'], HoodSpec> = {
     outer: [74, 46, 71, 38, 72, 29, 76, 21, 83, 15.5, 91, 13, 99, 13, 106, 15.5, 112, 20, 116, 25, 119, 30, 118, 37, 117, 44, 115, 51, 111, 56, 104, 58, 96, 57, 87, 54, 79, 50],
     crown: [95, 30, 20, 16],
     opening: [119, 30, 113, 26, 107, 28, 102, 34, 99, 42, 100, 50, 105, 56, 112, 55, 116, 47],
-    face: [100, 37.5, 105, 33, 112, 33, 117.5, 37.5, 116, 41.5, 110, 44, 102, 43],
+    face: [103, 37, 108, 33.5, 113, 33.5, 117.5, 37.5, 115, 41, 109, 42, 104, 40.5],
     nose: [110, 34.5, 117.5, 37.8, 115.5, 41, 110.5, 39.5],
     brow: [101, 36.5, 106, 34, 112, 34],
     scarf: [100, 43.5, 106, 44.5, 113, 43, 117, 44, 115, 51, 110, 56, 103, 55, 100, 50],
     scarfFolds: [],
-    fold: [91, 19, 86, 29, 86, 40, 90, 50],
+    fold: [86, 33, 86, 40, 90, 50],
     lit: [106, 16, 112, 21, 116, 26, 118.5, 30],
   },
   peak: {
@@ -522,12 +525,12 @@ const HOODS: Record<ArcherLookSpec['hoodCut'], HoodSpec> = {
     crown: [94, 30, 19, 15],
     tail: [78, 17, 72, 25, 66, 37, 61, 51, 58, 64, 59, 71, 63, 58, 68, 45, 74, 33, 80, 26],
     opening: [121, 35.5, 114, 28.5, 107, 29.5, 102, 34.5, 99, 42, 100, 50, 105, 56, 112, 55, 116, 47, 118, 38.5],
-    face: [105, 40.5, 111, 37.5, 116, 39, 118, 41.5, 113, 44, 107, 44.5],
+    face: [109, 40, 114, 38.5, 118, 41.5, 114, 43.5, 110, 43],
     nose: [114, 38.5, 118, 41.5, 115, 43],
-    brow: [106, 40, 110, 38.5, 115, 38.5],
+    brow: [109.5, 39.6, 115, 38.4],
     scarf: [101, 44.5, 108, 45.5, 114, 44, 117.5, 45.5, 115, 51, 110, 56, 103, 55, 100, 50],
     scarfFolds: [],
-    fold: [89, 13, 85, 25, 85, 39, 89, 50],
+    fold: [85, 32, 85, 39, 89, 50],
     lit: [95, 12.5, 103, 14.5, 110, 18.5, 116, 23.5, 121, 28.5, 126, 33],
   },
   cowl: {
@@ -540,7 +543,7 @@ const HOODS: Record<ArcherLookSpec['hoodCut'], HoodSpec> = {
     brow: [104, 36.5, 109, 34.8, 114, 35],
     scarf: [101, 40.5, 110, 40.8, 117.5, 38.8, 118.5, 44, 116, 51, 111, 56, 104, 55, 101, 48],
     scarfFolds: [[104, 47, 110, 49, 116, 45]],
-    fold: [90, 16, 85, 28, 85, 40, 89, 51],
+    fold: [85, 33, 85, 40, 89, 51],
     lit: [101, 12.5, 108, 16.5, 114, 22.5, 118, 29],
   },
 };
@@ -549,21 +552,25 @@ function head(p: Painter, m: Mats, L: ArcherLookSpec): void {
   const h = HOODS[L.hoodCut];
   if (h.tail) {
     p.poly(S(...h.tail), m.hood, { part: 'hoodTail', bevel: 2, tone: 0.04 });
-    stroke(p, S(77, 19, 71, 27, 65, 39, 61, 52, 58.5, 65), m.hoodLit, 'hoodTail');
+    stroke(p, S(77, 19, 71, 27, 65, 39, 62.5, 48), m.hoodTailLit, 'hoodTail');
   }
   p.poly(S(...h.outer), m.hood, { part: 'hood', bevel: 5, flat: 0.25 });
   p.ellipse(X(h.crown[0]), Y(h.crown[1]), R(h.crown[2]), R(h.crown[3]), m.hood, { part: 'hood', lift: 2, flat: 0.2 });
-  stroke(p, S(...h.fold), m.hoodDark, 'hood');
+  stroke(p, S(...h.fold), m.hoodFold, 'hood');
   stroke(p, S(...h.lit), m.hoodLit, 'hood');
   if (h.rim) p.poly(S(...h.rim), m.hood, { part: 'hood', paint: true, tone: 0.14 });
   p.poly(S(...h.opening), m.dark, { part: 'hood', paint: true });
   // Лицо: скула и нос из тени, брови и глаза — тёмной чертой под козырьком.
-  const deep = L.hoodCut === 'peak' ? -0.22 : 0;
+  // Лицо «Следопыта» — узкий яркий блик скулы и носа (как на листе), «Ворона» — только нос и скула в тени.
+  const deep = L.hoodCut === 'round' ? 0.12 : L.hoodCut === 'peak' ? -0.05 : 0;
   p.poly(S(...h.face), m.face, { part: 'face', bevel: 1.2, flat: 0.6, tone: deep });
   p.poly(S(...h.nose), m.face, { part: 'face', paint: true, tone: 0.26 + deep });
   stroke(p, S(...h.brow), '#140c0a', 'face');
-  // Низ лица: платок (ткань) или щетина в тени.
-  p.poly(S(...h.scarf), m.scarf, { part: 'scarf', bevel: 1.6, flat: 0.5, tone: L.hoodCut === 'peak' ? -0.25 : 0 });
+  // Низ лица: у «Следопыта» — провал капюшона (обведённый блок светлее провала читался повязкой, как у разбойника-
+  // лучника Леса), у «Ворона» — щетина в глубокой тени, у «Листопада» — платок другой тканью, в тон штанов (в тон
+  // капюшона голова читалась ржавым шлемом с прорезью).
+  if (L.hoodCut === 'round') p.poly(S(...h.scarf), m.dark, { part: 'hood', paint: true });
+  else p.poly(S(...h.scarf), m.scarf, { part: 'scarf', bevel: 1.6, flat: 0.5, tone: L.hoodCut === 'peak' ? -0.25 : 0 });
   for (const f of h.scarfFolds) stroke(p, S(...f), L.scarf[0], 'scarf');
 }
 
@@ -572,21 +579,24 @@ function head(p: Painter, m: Mats, L: ArcherLookSpec): void {
  * «Ворона», листьями у «Листопада» (у него ниже, до груди).
  */
 function mantle(p: Painter, m: Mats, L: ArcherLookSpec): void {
-  const top = S(58, 52, 63, 44, 72, 39, 84, 40, 96, 45, 108, 49, 118, 52, 124, 57, 125, 63);
+  // На дальней стороне пелерина спускается ниже (до y 69 листа) и закрывает плечо до руки с луком, как на листе:
+  // узкой лентой под рукой она не давала торсу плеч.
+  const top = S(58, 52, 63, 44, 72, 39, 84, 40, 96, 45, 108, 49, 118, 52, 124, 57, 127, 64);
+  const low = S(126, 69, 116, 67, 106, 63, 95, 60, 80, 58, 66, 56, 57, 53);
   let edge: number[];
-  if (L.cloakCut === 'rag') edge = ragEdge(S(125, 63, 110, 62, 95, 60, 80, 58, 66, 56, 57, 53), R(4), R(5), 1, 0);
-  else if (L.cloakCut === 'feather') edge = ragEdge(S(125, 63, 110, 62, 95, 60, 80, 58, 66, 56, 57, 53), R(6.5), R(6.5), 1, -R(2.5));
-  else edge = leafEdge(S(127, 67, 112, 68, 96, 66, 80, 63, 64, 60, 55, 56), R(5), R(7), 1);
+  if (L.cloakCut === 'rag') edge = ragEdge(low, R(4), R(5), 1, 0);
+  else if (L.cloakCut === 'feather') edge = ragEdge(low, R(6.5), R(6.5), 1, -R(2.5));
+  else edge = leafEdge(S(128, 71, 114, 70, 100, 67, 86, 64, 72, 61, 60, 58, 55, 56), R(5), R(7), 1);
   p.poly([...top, ...edge], m.mantle, { part: 'mantle', bevel: 4, flat: 0.3, lift: 1.5 });
   // Складки пелерины от шеи вниз и светлый край на ближнем плече.
   stroke(p, S(80, 44, 76, 55), m.hoodDark, 'mantle');
   stroke(p, S(92, 48, 90, 58), m.hoodDark, 'mantle');
   stroke(p, S(64, 45, 72, 41, 82, 42), m.hoodLit, 'mantle');
   // Дальнее плечо под пелериной — в тени.
-  p.poly(S(110, 50, 125, 56, 126, 66, 112, 62), m.mantle, { part: 'mantle', paint: true, tone: -0.22 });
+  p.poly(S(108, 50, 125, 56, 128, 66, 127, 73, 110, 66), m.mantle, { part: 'mantle', paint: true, tone: -0.22 });
   if (L.hoodCut === 'peak') {
-    // Застёжка «Ворона» — тусклое серебро у горла.
-    p.ellipse(X(106), Y(57), R(3), R(3), m.buckle, { part: 'clasp', lift: 1 });
+    // Застёжка «Ворона» — тусклое серебро на пелерине у дальнего плеча (у горла её закрывала тянущая рука).
+    p.ellipse(X(124.5), Y(58.5), R(2.8), R(2.8), m.buckle, { part: 'clasp', lift: 1 });
   }
 }
 
@@ -745,8 +755,12 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
       });
       p.pose({ rot, px: PELVIS[0], py: PELVIS[1] }, () => {
         p.poly(sway(cloakOutline(L.cloakCut)), m.cloak, { part: 'cloak', tone: -0.06, bevel: 5 });
+        // Изнанка плаща между ногами — в тени: освещённая, как наружная сторона, она сливала бёдра с плащом в один ком.
+        p.poly(sway(S(70, 96, 124, 92, 126, 160, 64, 160)), m.cloak, { part: 'cloak', paint: true, tone: -0.35 });
         for (const f of CLOAK_FOLDS) stroke(p, sway(S(...f)), m.fold, 'cloak');
         for (const f of CLOAK_LIT) stroke(p, sway(S(...f)), m.foldLit, 'cloak');
+        // Светлая кромка по внешнему краю к свету: тёмный плащ «Ворона» без неё тонул в фоне.
+        if (L.cloakCut === 'feather') stroke(p, sway(S(...CLOAK_SIDE.map((v, i) => (i % 2 ? v : v + 3.5)))), m.foldLit, 'cloak');
       });
     }
 
@@ -756,8 +770,8 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
     // ── Ноги: бедро от таза, колено — ik в больших сдвигах (шаг), в малых идёт за тазом и стопой наполовину; стопы
     //    стоят. Штаны в тон плаща, высокие сапоги с обмоткой, наколенники. ──
     const legs = [
-      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.1, boot: BOOT_F, bend: [1, -0.2], foot: P.footF, lift: P.liftF, out: 1, rt: [10, 8, 7, 6], pants: m.pantsF },
-      { g: M.legN, L2: LEG_N, side: 'near', tone: 0, boot: BOOT_N, bend: [-1, -0.3], foot: P.footN, lift: P.liftN, out: -1, rt: [11, 8.5, 7.5, 6.2], pants: m.pantsN },
+      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.1, boot: BOOT_F, bend: [1, -0.2], foot: P.footF, lift: P.liftF, out: 1, rt: [10, 8.5, 8.5, 8], pants: m.pantsF },
+      { g: M.legN, L2: LEG_N, side: 'near', tone: 0, boot: BOOT_N, bend: [-1, -0.3], foot: P.footN, lift: P.liftN, out: -1, rt: [11, 9, 9, 8.5], pants: m.pantsN },
     ] as const;
     for (const lg of legs) {
       const dhy = hipY - PELVIS[1];
@@ -778,25 +792,26 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
       p.limb(hx, hy, R(lg.rt[0]), kx, ky, R(lg.rt[1]), lg.pants, { part: leg, tone, flat: 0.3 });
       // Голень — обмотка высокого сапога: ремни поперёк.
       p.limb(kx, ky, R(lg.rt[2]), ax, ay, R(lg.rt[3]), m.boot, { part: shin, tone: tone + 0.06, flat: 0.3 });
-      // Обмотка наискось: тёмный стык и светлый ремень над ним.
+      // Обмотка наискось: стык и ремень тонами самого сапога, не во всю ширину — чёрно-светлые полосы «зеброй»
+      // были самой контрастной деталью фигуры.
       for (const f of [0.3, 0.52, 0.74]) {
         const [cx, cy] = [lerp(kx, ax, f), lerp(ky, ay, f)];
         const r = R(lerp(lg.rt[2], lg.rt[3], f));
-        stroke(p, [cx - r, cy + 1.4, cx + r, cy - 1], m.seam, shin);
-        stroke(p, [cx - r * 0.75, cy - 0.4, cx + r * 0.75, cy - 2.4], m.lace, shin);
+        stroke(p, [cx - r * 0.8, cy + 1.2, cx + r * 0.8, cy - 0.8], L.boot[1], shin);
+        stroke(p, [cx - r * 0.6, cy - 0.4, cx + r * 0.6, cy - 2], L.boot[3], shin);
       }
       // Сапог: подошва на земле; оторванная пятка — поворот вокруг щиколотки.
       p.pose({ rot: toe * lg.out * 0.9, px: ax, py: ay }, () => {
         const b: number[] = [];
         for (let k = 0; k < lg.boot.length; k += 2) b.push(ax + R(lg.boot[k]), toe > 0.02 ? ay + R(lg.boot[k + 1]) : Math.min(floorY, ay + R(lg.boot[k + 1])));
-        p.poly(b, m.boot, { part: foot, bevel: 3, tone: tone - 0.02 });
-        // Отворот голенища, свет по подъёму к носку, подошва.
-        stroke(p, [ax - R(8), ay - R(3), ax + R(8), ay - R(3.5)], m.seam, foot);
+        // Стопа без линии о голенище: с ней сапог читался отдельным сабо под «ходулей» голени.
+        p.poly(b, m.boot, { part: foot, bevel: 3, tone: tone - 0.02, noLine: true });
+        // Свет по подъёму к носку, подошва.
         stroke(p, lg.out > 0 ? [ax + R(10), ay + R(2), ax + R(20), ay + R(8.5)] : [ax - R(12), ay + R(6), ax - R(20), ay + R(10.5)], m.lace, foot);
         stroke(p, lg.out > 0 ? [ax - R(9), ay + R(15.5), ax + R(22), ay + R(15.5)] : [ax - R(20), ay + R(15.5), ax + R(8), ay + R(15.5)], m.seam, foot);
       });
       // Отворот сапога под коленом и наколенник — кожаная чашка.
-      p.ellipse(kx + R(lg.out > 0 ? 1 : 0), ky, R(lg.out > 0 ? 6 : 6.6), R(lg.out > 0 ? 5 : 5.6), m.knee, { part: knee, lift: 0.6, flat: 0.45, tone: tone + 0.1 });
+      p.ellipse(kx + R(lg.out > 0 ? 1 : 0), ky, R(lg.out > 0 ? 7 : 7.4), R(lg.out > 0 ? 6 : 6.4), m.knee, { part: knee, lift: 0.6, flat: 0.45, tone: tone + 0.1 });
       stroke(p, [kx - R(4.5), ky + R(3.8), kx + R(4.5), ky + R(3.4)], m.seam, knee);
     }
 
@@ -825,12 +840,15 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
       // Грудь к свету — вверху слева, под тянущей рукой — тень от неё, дальний бок в тени; талия уже плеч.
       p.poly(S(66, 62, 76, 56, 88, 54, 100, 54, 112, 56, 120, 61, 123, 70, 121, 80, 116, 88, 100, 90, 82, 90, 68, 88, 63, 76), m.torso, { part: 'torso', bevel: 5, lift: 1 });
       p.ellipse(X(88), Y(71), R(17), R(11), m.torso, { part: 'torso', lift: 2.2, flat: 0.45, tone: 0.05 });
-      p.poly(S(66, 68, 120, 67, 121, 73, 68, 75), m.torso, { part: 'torso', paint: true, tone: -0.3 });
+      // Тень под тянущей рукой — клином под предплечьем, а не полосой во всю грудь (стопка полос читалась бочкой с
+      // обручами); ближний бок в тени — торс круглится.
+      p.poly(S(78, 67, 119, 66.5, 113, 72.5, 86, 72.5), m.torso, { part: 'torso', paint: true, tone: -0.3 });
+      p.poly(S(63, 62, 70, 60, 70, 90, 64, 90), m.torso, { part: 'torso', paint: true, tone: -0.24 });
       p.poly(S(76, 58, 82, 56, 124, 80, 121, 85), m.belt, { part: 'torso', paint: true });
       stroke(p, S(80, 57, 123, 81), m.lace, 'torso');
       stroke(p, S(99, 74, 99, 87), m.seam, 'torso');
       for (const y of [77, 82]) stroke(p, S(97, y, 101, y + 1), m.lace, 'torso');
-      p.poly(S(113, 64, 123, 70, 121, 80, 116, 88, 111, 88), m.torso, { part: 'torso', paint: true, tone: -0.25 });
+      p.poly(S(113, 64, 123, 70, 121, 80, 116, 88, 111, 88), m.torso, { part: 'torso', paint: true, tone: -0.42 });
 
       // Полоса ткани спереди — из-под пояса до голени, рваный конец; на выпаде относит назад.
       const tf = P.cape * 5;
@@ -867,13 +885,19 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
         stroke(p, [...at(cx, cy, na - 90, R(5.5)), ...at(cx, cy, na + 90, R(5))], m.seam, 'nearBracer');
       }
       stroke(p, [...at(ne.ex, ne.ey, na - 90, R(5)), ...at(P.nhx, P.nhy, na - 90, R(4.5))], m.lace, 'nearBracer');
-      p.ellipse(P.nhx, P.nhy, R(4.6), R(4.2), m.hand, { part: 'fistN', lift: 1 });
+      p.ellipse(P.nhx, P.nhy, R(5.2), R(4.8), m.hand, { part: 'fistN', lift: 1, tone: 0.1 });
       stroke(p, [P.nhx - R(2), P.nhy - R(1), P.nhx + R(2.5), P.nhy + R(1)], L.skin[1], 'fistN');
 
-      // Тетива — линия в пиксель поверх всего: от узлов на концах плеч к ушку стрелы.
+      // Тетива — линия в пиксель поверх всего: от узлов на концах плеч к ушку стрелы, но обрывается на краю кулака —
+      // линия поверх всего резала тянущую кисть, самое светлое пятно у тетивы на листе.
       const [sx, sy] = P.draw > 0.02 ? nock : [lerp(b.top[0], b.bot[0], 0.53), lerp(b.top[1], b.bot[1], 0.53)];
-      p.line(b.top[0], b.top[1], sx, sy, m.string);
-      p.line(sx, sy, b.bot[0], b.bot[1], m.string);
+      const cut = P.draw > 0.02 ? R(7) : 0;
+      const edge = (tx: number, ty: number): [number, number] => {
+        const l = Math.hypot(tx - sx, ty - sy) || 1;
+        return [sx + ((tx - sx) / l) * cut, sy + ((ty - sy) / l) * cut];
+      };
+      p.line(b.top[0], b.top[1], ...edge(b.top[0], b.top[1]), m.string);
+      p.line(...edge(b.bot[0], b.bot[1]), b.bot[0], b.bot[1], m.string);
     });
 
     if (archerProbe.on) {
