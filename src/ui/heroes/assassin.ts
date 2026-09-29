@@ -47,7 +47,9 @@ interface LookSpec {
   mask: string[];
   /** Ремни, пояс, кошели. */
   leather: string[];
+  /** Сталь гард, пряжек и ножей перевязи; клинки — своя сталь (у C гарды воронёные, а клинок светлее тела). */
   steel: string[];
+  blades: string[];
   brass: string[];
   /** Шарф и цветные полосы одежды (набедренная, кант пол). */
   scarf: string[];
@@ -85,8 +87,9 @@ const LOOKS: Record<AssassinLook, LookSpec> = {
     mask: ['#070506', '#100b0d', '#1c1417', '#2a2024', '#3a2e32'],
     leather: ['#150e0c', '#2a1c18', '#433027', '#5e4435', '#7a5c48'],
     steel: ['#18161a', '#3a363a', '#666064', '#968e8e', '#c4bcb6'],
+    blades: ['#18161a', '#3a363a', '#666064', '#968e8e', '#c4bcb6'],
     brass: BRASS,
-    scarf: ['#1e0a0a', '#3e1616', '#602420', '#7e342c', '#9a483a'],
+    scarf: ['#2a0e0c', '#4c1c18', '#6e2c24', '#8c3e30', '#a85640'],
     accent: ['#1c0a0a', '#381414', '#58211e', '#723029', '#8a4236'],
     poison: ['#1c220c', '#3a4614', '#5c6a22', '#808e36', '#a4b04e'],
     hoodKind: 'sheet',
@@ -101,9 +104,9 @@ const LOOKS: Record<AssassinLook, LookSpec> = {
   // респиратором, рваная пелерина вместо шарфа, склянки на поясе и перевязи, кожаная набедренная пластина. Зелёная
   // ткань и хвост капюшона были в первом проходе — отказались: так уже одет Лучник («Следопыт», «Ворон»).
   b: {
-    hood: ['#0e0b09', '#1c1612', '#2d241d', '#40342a', '#56473a'],
-    cloth: ['#0c0a08', '#18130f', '#271f19', '#382d24', '#4b3d31'],
-    pants: ['#0a0908', '#15120f', '#221d18', '#312a23', '#433a31'],
+    hood: ['#17120f', '#2a221b', '#3e3227', '#554536', '#6e5b48'],
+    cloth: ['#14100d', '#251d17', '#372c23', '#4c3d30', '#63503f'],
+    pants: ['#110f0c', '#211c17', '#312922', '#443a30', '#5a4d40'],
     wrap: ['#141310', '#29261f', '#403c31', '#5a5545', '#76705c'],
     boot: ['#0f0b09', '#1f1712', '#32261d', '#46362a', '#5e4a3a'],
     pad: ['#131009', '#2a2218', '#40352a', '#584a3c', '#726252'],
@@ -111,6 +114,7 @@ const LOOKS: Record<AssassinLook, LookSpec> = {
     mask: ['#060504', '#0d0b09', '#171410', '#221e19', '#302a23'],
     leather: ['#140c08', '#2c1b11', '#48301f', '#66462e', '#865f42'],
     steel: ['#141416', '#322f33', '#58534f', '#847c74', '#aaa296'],
+    blades: ['#141416', '#322f33', '#58534f', '#847c74', '#aaa296'],
     brass: BRASS,
     scarf: ['#14110e', '#29231c', '#40372b', '#584d3c', '#716552'],
     accent: ['#140c08', '#2c1b11', '#48301f', '#66462e', '#865f42'],
@@ -127,9 +131,9 @@ const LOOKS: Record<AssassinLook, LookSpec> = {
   // Глубокий капюшон нависает над лицом, лицо закрыто повязкой в цвет капюшона, длинные рваные полы куртки поверх
   // бёдер, метательные ножи на перевязи.
   c: {
-    hood: ['#0c0d12', '#1a1c24', '#2a2d38', '#3c404d', '#535866'],
-    cloth: ['#0b0c10', '#17191f', '#252830', '#353944', '#484d59'],
-    pants: ['#08090c', '#121318', '#1d1f26', '#2a2d36', '#3a3e49'],
+    hood: ['#141620', '#242836', '#363a4c', '#4b5064', '#646a80'],
+    cloth: ['#12141c', '#20232e', '#30343f', '#424756', '#585e6e'],
+    pants: ['#0f1016', '#1a1c24', '#282b35', '#383c48', '#4c505e'],
     wrap: ['#141416', '#28282c', '#3e3e44', '#56565c', '#707074'],
     boot: ['#0c0c10', '#18181e', '#26262e', '#36363f', '#4a4a54'],
     pad: ['#111217', '#22242c', '#353843', '#4a4e5b', '#636876'],
@@ -137,9 +141,10 @@ const LOOKS: Record<AssassinLook, LookSpec> = {
     mask: ['#07080a', '#0f1014', '#1a1c22', '#262930', '#353941'],
     leather: ['#0d0d10', '#1b1a1f', '#2d2b32', '#423f47', '#5a5660'],
     steel: ['#101014', '#26262c', '#44444c', '#6c6c74', '#96969c'],
+    blades: ['#18161a', '#3a363a', '#666064', '#968e8e', '#c4bcb6'],
     brass: BRASS,
     scarf: ['#18060d', '#320c19', '#4e1426', '#681f33', '#822d42'],
-    accent: ['#0b0c10', '#17191f', '#252830', '#353944', '#484d59'],
+    accent: ['#12141c', '#20232e', '#30343f', '#424756', '#585e6e'],
     poison: ['#1c220c', '#3a4614', '#5c6a22', '#808e36', '#a4b04e'],
     hoodKind: 'deep',
     maskKind: 'veil',
@@ -195,19 +200,24 @@ function matsOf(L: LookSpec) {
     skinF: skin(),
     coat: cloth(L.cloth, 1.5, 0.1),
     back: cloth(L.accent, 1.57, 0.12),
-    skirtF: cloth(L.cloth, 0.7),
-    skirtN: cloth(L.cloth, 0.95),
-    accent: cloth(L.accent, 1.57, 0.14),
+    skirtF: { ...cloth(L.cloth, 0.7), dither: 0.3 } as Mat,
+    skirtN: { ...cloth(L.cloth, 0.95), dither: 0.3 } as Mat,
+    accent: { ...cloth(L.accent, 1.57, 0.14), dither: 0.3 } as Mat,
     belt: { base: L.leather[2], ramp: L.leather, dither: 0.2 } as Mat,
     pouch: rough(L.leather, 0.12, 2),
     wrapF: rough(L.wrap, 0.14, 1.8),
     steel: { base: L.steel[2], ramp: L.steel, dither: 0, metal: 0.45, tex: { kind: 'spots', scale: 2, amp: 0.14, density: 0.18 } } as Mat,
+    blade: { base: L.blades[2], ramp: L.blades, dither: 0, metal: 0.45, tex: { kind: 'spots', scale: 2, amp: 0.14, density: 0.18 } } as Mat,
     brass: { base: L.brass[2], ramp: L.brass, dither: 0, metal: 0.5 } as Mat,
     glass: { base: L.poison[1], ramp: [L.mask[0], L.poison[0], L.poison[1], L.poison[2], L.poison[4]], dither: 0 } as Mat,
     skinN: skin(),
     wrapN: rough(L.wrap, 0.14, 1.8),
     mantle: cloth(L.hood, 1.1, 0.12),
-    hood: rough(L.hood, 0.1, 2.8),
+    /**
+     * Капюшон без дизеринга: при сдвиге дыхания на пиксель дизеринг перекрашивал пятую часть его клеток — купол рябил
+     * (у шлемов Воина и Паладина 8–11 %).
+     */
+    hood: { ...rough(L.hood, 0.1, 2.8), dither: 0 } as Mat,
     /** Тень в проёме капюшона — почти чёрная, с одной ступенью к краю. */
     shade: { base: L.mask[1], ramp: [L.mask[0], L.mask[0], L.mask[1], L.mask[1], L.mask[2]], dither: 0 } as Mat,
     /** Кожа у глаз — мелкое пятно: без дизеринга, иначе тон перебрасывается с каждым сдвигом дыхания. */
@@ -224,7 +234,7 @@ function matsOf(L: LookSpec) {
     hoodLit: L.hood[4],
     scarfFold: L.scarf[0],
     scarfLit: L.scarf[4],
-    edge: L.steel[4],
+    edge: L.blades[4],
     skinDark: L.skin[1],
     stud: L.brass[4],
   };
@@ -300,13 +310,14 @@ function ragged(pts: number[], amp: number, step: number, side: 1 | -1, lean = 0
 
 /**
  * Клинок обратным хватом: из-под мизинца кулака наружу и вниз, по линии предплечья. Станции — [s — вдоль клинка от
- * середины кулака, полуширина, сдвиг середины поперёк: плюс — к врагам]; до s ≈ 5 клинок под кулаком. Прямой кинжал
- * листа — листовидный, шире у гарды; крюк — кривой, остриём к врагам, как коготь; стилет — длинный и узкий.
+ * середины кулака, полуширина, сдвиг середины поперёк: плюс — в сторону загиба `bend`]; до s ≈ 5 клинок под кулаком.
+ * Прямой кинжал листа — листовидный, шире у гарды; крюк — кривой по всей длине, как коготь; стилет — длинный и узкий
+ * (последняя треть не уже пикселя: на пикселе 1,5 острие рвалось пунктиром).
  */
 const BLADES: Record<LookSpec['blade'], Array<[number, number, number]>> = {
   dagger: [[4, 2, 0], [8.5, 3, 0], [14, 2.9, 0], [21, 2.1, 0], [27, 1, 0], [31, 0, 0]],
-  hook: [[4, 1.8, 0], [9, 2.4, 0.3], [15, 2.4, 1.3], [21, 1.9, 3.2], [25.5, 1.1, 5.4], [28.5, 0, 7.8]],
-  stiletto: [[4, 1.4, 0], [11, 1.3, 0], [22, 0.85, 0], [34, 0, 0]],
+  hook: [[4, 1.8, 0], [9, 2.4, 1.2], [15, 2.4, 2.8], [21, 1.9, 4.2], [25.5, 1.1, 5.2], [28.5, 0, 5.8]],
+  stiletto: [[4, 1.5, 0], [11, 1.4, 0], [22, 1.1, 0], [30, 0.7, 0], [33, 0, 0]],
 };
 /** Длина клинка от середины кулака до острия — конец оружия для зонда. */
 const bladeTip = (L: LookSpec): [number, number] => {
@@ -315,30 +326,39 @@ const bladeTip = (L: LookSpec): [number, number] => {
 };
 /** Свет сцены на плоскости рисунка — сверху слева: по нему выбирается освещённая кромка клинка. */
 const LIGHT2 = [-0.49, -0.87];
+/**
+ * Загиб крюка: у ближнего клинка — наружу, от тела (к врагам он выпрямлялся в отвесную палку), у дальнего — к врагам.
+ */
+const BEND = { near: -1, far: 1 } as const;
 
-function blade(p: Painter, m: Mats, L: LookSpec, x: number, y: number, a: number, part: string, tone: number): void {
+/** Оси клинка под углом `a`: вдоль и поперёк — в сторону загиба (`bend` 1 — к врагам, x растёт; −1 — от них). */
+function bladeAxes(a: number, bend: number): { u: number[]; n: number[] } {
   const u = [Math.cos(a * DEG), Math.sin(a * DEG)];
-  // Поперёк — в сторону врагов (x растёт): так крюк загибается к ним у обоих клинков.
   let n = [-u[1], u[0]];
-  if (n[0] < 0) n = [-n[0], -n[1]];
+  if (n[0] * bend < 0) n = [-n[0], -n[1]];
+  return { u, n };
+}
+
+function blade(p: Painter, m: Mats, L: LookSpec, x: number, y: number, a: number, part: string, tone: number, bend: number): void {
+  const { u, n } = bladeAxes(a, bend);
   const q = (s: number, t: number): [number, number] => [x + u[0] * s + n[0] * t, y + u[1] * s + n[1] * t];
   const st = BLADES[L.blade];
   const one: number[] = [], two: number[] = [];
   for (const [s, w, c] of st) one.push(...q(s, c + w));
   for (let i = st.length - 1; i >= 0; i--) two.push(...q(st[i][0], st[i][2] - st[i][1]));
-  p.poly([...one, ...two], m.steel, { part, bevel: 1, flat: 0.75, lift: 0.6, tone });
+  p.poly([...one, ...two], m.blade, { part, bevel: 1, flat: 0.75, lift: 0.6, tone });
   // Кромка к свету — светлая черта по краю; дол — тёмная черта посередине у прямого кинжала.
   const lit = n[0] * LIGHT2[0] + n[1] * LIGHT2[1] > 0 ? 1 : -1;
   const edge: number[] = [];
   for (let i = 1; i < st.length - 1; i++) edge.push(...q(st[i][0], st[i][2] + lit * (st[i][1] - 0.6)));
   stroke(p, edge, m.edge, part);
-  if (L.blade === 'dagger') stroke(p, [...q(6, 0), ...q(19, 0)], L.steel[1], part);
+  if (L.blade === 'dagger') stroke(p, [...q(6, 0), ...q(19, 0)], L.blades[1], part);
   if (L.blade === 'hook') {
-    // Отрава — мутная полоса по вогнутой кромке и капля у острия.
+    // Отрава — мутная полоса по кромке в тени (с другой стороны от светлой) и капля у острия.
     const smear: number[] = [];
-    for (let i = 1; i < st.length - 1; i++) smear.push(...q(st[i][0], st[i][2] - (st[i][1] - 0.7)));
+    for (let i = 1; i < st.length - 1; i++) smear.push(...q(st[i][0], st[i][2] - lit * (st[i][1] - 0.7)));
     stroke(p, smear, L.poison[2], part);
-    p.px(...q(st[st.length - 2][0] + 1, st[st.length - 2][2] - 1.8), L.poison[2]);
+    p.px(...q(st[st.length - 2][0] + 1, st[st.length - 2][2] - lit * 1.8), L.poison[2]);
   }
   // Гарда: у кинжала и крюка — перекладина поперёк, у стилета — круглая чашка.
   if (L.blade === 'stiletto') p.ellipse(...q(4, 0), 2.2, 2.2, m.steel, { part: `${part}Guard`, lift: 1, tone: tone - 0.05 });
