@@ -27,7 +27,7 @@ const HERO_X = 130;
 const FOE_X = [357, 590, 823];
 
 /** Что сейчас выбрано в сцене; карточки шлемов и оружия рисуются в выбранном облике. */
-const state: { look: Look; helm: PaladinHelm; weapon: PaladinWeapon; loc: Loc } = { look: 'B', helm: 'great', weapon: 'hammer', loc: 'forest' };
+const state: { look: Look; helm: PaladinHelm; weapon: PaladinWeapon; loc: Loc } = { look: 'B', helm: 'tcross', weapon: 'hammer', loc: 'forest' };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
 
@@ -171,7 +171,7 @@ function drawTiles(): void {
     const el = hosts[i++];
     if (!el) return;
     const spec = el.dataset.tile!;
-    if (spec === 'ref') tile(el, state.loc, heroAnim('ref', 'great', 'hammer'));
+    if (spec === 'ref') tile(el, state.loc, heroAnim('ref', 'tcross', 'hammer'));
     else {
       const [lk, hm, wp] = spec.split(':');
       const look = (lk === '*' ? (state.look === 'ref' ? 'B' : state.look) : lk) as PaladinLookId;
