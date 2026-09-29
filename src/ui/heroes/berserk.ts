@@ -42,6 +42,8 @@ export interface BerserkLook {
   /** Мех горба и манжет, плаща (темнее), волосы гривы. */
   fur: string[];
   cape: string[];
+  /** Волчья шкура капюшоном — серее и светлее горба, иначе череп и уши сливаются с мехом плеч. */
+  wolf: string[];
   hair: string[];
   skin: string[];
   /** Боевая раскраска на коже (C — вайда); без поля — нет. */
@@ -64,11 +66,12 @@ export const BERSERK_LOOKS: Record<BerserkLookId, BerserkLook> = {
     name: 'С листа',
     fur: ['#3a2422', '#75554d', '#a5796a', '#c59a88', '#e2bea8'],
     cape: ['#1c0e0f', '#34201f', '#4e3431', '#6d4a44', '#8e6658'],
+    wolf: ['#2a2626', '#57504c', '#86807a', '#aaa49c', '#cac4ba'],
     hair: ['#1e0e0a', '#3e1e14', '#62321e', '#86482a', '#a8643a'],
     skin: ['#5a2a24', '#a84e40', '#e07e62', '#f4a888', '#fcd4b4'],
     mask: '#1a1012',
-    leather: ['#140a0a', '#291718', '#472a29', '#6d4a44', '#8e6658'],
-    cloth: ['#2c0a0c', '#5a181c', '#8a242a', '#a83036', '#c44844'],
+    leather: ['#1e1210', '#3a2420', '#583834', '#7e5850', '#a07868'],
+    cloth: ['#3a0e10', '#6a1c20', '#9a2a2e', '#b83a3c', '#d05248'],
     steel: ['#221a1c', '#4a3e40', '#776669', '#a89898', '#dccfcb'],
     horn: ['#3a302e', '#766a66', '#a89c98', '#d0c6c2', '#f0eae6'],
     wood: '#4a2e22',
@@ -82,11 +85,12 @@ export const BERSERK_LOOKS: Record<BerserkLookId, BerserkLook> = {
     name: 'Северянин',
     fur: ['#261c18', '#56443a', '#836b5a', '#a88c76', '#c6aa92'],
     cape: ['#140d0b', '#281c18', '#3e2f28', '#56443a', '#6e5a4c'],
+    wolf: ['#22201e', '#4a4642', '#76706a', '#9a948c', '#bab4aa'],
     hair: ['#140c08', '#2a1a12', '#46301e', '#624430', '#7e5a40'],
     skin: ['#4a2a22', '#8a4e3a', '#bc7454', '#d89a74', '#eebe98'],
     mask: '#140e0e',
-    leather: ['#110b0a', '#231816', '#3a2824', '#56403a', '#76584c'],
-    cloth: ['#1e0708', '#3e0e10', '#62171a', '#822426', '#9a3632'],
+    leather: ['#1a1210', '#33241f', '#4e3830', '#6c5246', '#8c6e5e'],
+    cloth: ['#2e0b0c', '#561618', '#7c2224', '#9a3030', '#b44640'],
     steel: ['#1a1618', '#363032', '#5a5254', '#8a8082', '#bab0ac'],
     horn: ['#2e2620', '#5e5246', '#8e806e', '#b6a892', '#d4c8b2'],
     wood: '#3a281c',
@@ -99,12 +103,13 @@ export const BERSERK_LOOKS: Record<BerserkLookId, BerserkLook> = {
     name: 'Вайда',
     fur: ['#1a1a1c', '#3a3a3e', '#5e5e62', '#86857f', '#aaa69c'],
     cape: ['#0c0c0e', '#1a1a1e', '#2a2a2e', '#3c3c40', '#525256'],
+    wolf: ['#1e1e22', '#44444a', '#6c6c72', '#929298', '#b6b6ba'],
     hair: ['#0e0c0c', '#1c1818', '#2e2826', '#443c38', '#5a504a'],
     skin: ['#3a2a2a', '#6e5250', '#a08480', '#c4aaa2', '#e0cac0'],
     paint: '#34568e',
     mask: '#2a4a80',
-    leather: ['#0e0a0a', '#1c1614', '#2e2420', '#463830', '#5e4c40'],
-    cloth: ['#1a0608', '#360c10', '#561418', '#721e22', '#8a2c2c'],
+    leather: ['#16100e', '#2a201c', '#40332c', '#5a4a40', '#766254'],
+    cloth: ['#260a0c', '#4a1216', '#6e1c20', '#8a282a', '#a43a36'],
     steel: ['#16181c', '#30343a', '#50565e', '#7c848c', '#aeb4b8'],
     horn: ['#1e1a18', '#3e3630', '#6a5e52', '#968a7a', '#bcb2a2'],
     wood: '#2e2218',
@@ -128,7 +133,7 @@ function matsOf(L: BerserkLook) {
     mantle: fur(1.35, 0.34),
     collar: fur(1.6, 0.36),
     cuff: fur(1.57, 0.42),
-    wolf: fur(0.3, 0.22),
+    wolf: fur(0.3, 0.22, L.wolf),
     hair: fur(1.2, 0.4, L.hair),
     beard: fur(1.57, 0.3, L.hair),
     torso: skin(),
@@ -193,7 +198,7 @@ const M = {
   pelvis: P(106, 108),
   legN: { hip: P(88, 110), knee: P(48, 143), ank: P(38, 176) },
   legF: { hip: P(121, 110), knee: P(130, 143), ank: P(132, 176) },
-  armN: { sh: P(76, 62), el: P(42, 78), hand: P(50, 117) },
+  armN: { sh: P(68, 65), el: P(42, 78), hand: P(50, 117) },
   armF: { sh: P(127, 72), el: P(127, 87), hand: P(146, 104) },
 };
 
@@ -317,11 +322,13 @@ const AXE_GRIP = len(M.armF.hand, AXE_EYE);
  * Топор от кулака (x, y) под углом `a` (градусы, как в `at`): древко с обмоткой, окованный конец, голова. `size` —
  * масштаб головы (топорик — 0,55), `butt` — длина древка за кулаком, `grip` — от кулака до проушины.
  */
-function axe(p: Painter, m: Mats, x: number, y: number, a: number, o: { size?: number; butt?: number; grip?: number; mat?: Mat; id?: string } = {}): void {
+function axe(p: Painter, m: Mats, x: number, y: number, a: number, o: { size?: number; butt?: number; grip?: number; mat?: Mat; id?: string; flip?: boolean } = {}): void {
   const size = o.size ?? 1, butt = o.butt ?? 29, grip = o.grip ?? AXE_GRIP, id = o.id ?? 'axe';
   const mat = o.mat ?? m.axe;
   const u: [number, number] = [Math.cos(a * DEG), Math.sin(a * DEG)];
-  const n: [number, number] = [-u[1], u[0]];
+  // Поперёк древка: у топора в дальней руке «борода» уходит вниз от древка; у топорика, висящего вниз, — отражена,
+  // иначе лезвие смотрит назад, от врагов.
+  const n: [number, number] = o.flip ? [u[1], -u[0]] : [-u[1], u[0]];
   const [ex, ey] = at(x, y, a, grip);
   /** Точка головы в координатах топора → кадр. */
   const q = (pts: number[]): number[] => {
@@ -366,21 +373,21 @@ function hornedHelm(p: Painter, m: Mats): void {
   const H = m.helm;
   const o = { part: 'helm', paint: true };
   // Купол и нащёчная часть одним контуром, сверху купол-эллипс для света.
-  p.poly(S(108, 41, 108, 32, 111, 25, 116, 20, 122, 18, 128, 19, 133, 22, 136, 28, 137, 36, 136, 44, 133, 50, 128, 53, 124, 57, 117, 57, 112, 54, 109, 48), H, { part: 'helm', bevel: 3, flat: 0.3 });
-  p.ellipse(X(122), Y(31), R(14), R(13), H, { part: 'helm', lift: 1.4 });
+  p.poly(S(104, 41, 104, 32, 107, 25, 112, 20, 118, 18, 124, 19, 129, 22, 132, 28, 133, 34, 131, 40, 128, 46, 124, 51, 120, 55, 113, 56, 108, 54, 105, 48), H, { part: 'helm', bevel: 3, flat: 0.3 });
+  p.ellipse(X(118), Y(31), R(14), R(13), H, { part: 'helm', lift: 1.4 });
   // Блик купола сверху слева, тень у лица.
-  p.poly(S(112, 27, 116, 22, 121, 20, 119, 25, 114, 30), H, { ...o, tone: 0.32 });
-  p.poly(S(131, 23, 136, 29, 137, 36, 133, 36, 132, 29), H, { ...o, tone: -0.14 });
+  p.poly(S(108, 27, 112, 22, 117, 20, 115, 25, 110, 30), H, { ...o, tone: 0.32 });
+  p.poly(S(127, 23, 132, 29, 133, 35, 129, 35, 128, 29), H, { ...o, tone: -0.14 });
   // Обод на уровне глаз — светлая полоса с заклёпками.
-  p.poly(S(108, 37, 122, 35, 137, 33, 137, 37, 122, 39, 108, 41), H, { ...o, tone: 0.16 });
-  for (const [x, y] of [[111, 38.5], [116, 38], [121, 37]]) p.px(X(x), Y(y), m.edge);
+  p.poly(S(104, 37, 118, 35, 133, 33, 133, 37, 118, 39, 104, 41), H, { ...o, tone: 0.16 });
+  for (const [x, y] of [[107, 38.5], [112, 38], [117, 37]]) p.px(X(x), Y(y), m.edge);
   // Проём лица: тень под ободом, лицо в ней — нижняя половина, нос и борода чуть светлее.
-  p.poly(S(119, 39, 134, 37.5, 134, 44, 131, 50, 127, 54, 121, 54, 118, 47), m.dark, o);
-  p.poly(S(121, 45, 132, 44, 131, 49, 127, 53, 122, 52), m.face, { ...o, tone: -0.35 });
-  p.poly(S(124, 50, 131, 48, 129, 54, 124, 55), m.beard, { ...o, tone: -0.1 });
+  p.poly(S(115, 39, 130, 37.5, 128, 43, 125, 49, 121, 53, 116, 53, 114, 47), m.dark, o);
+  p.poly(S(117, 45, 127, 44, 125, 49, 121, 52, 118, 51), m.face, { ...o, tone: -0.35 });
+  p.poly(S(119, 50, 125, 48, 123, 54, 119, 55), m.beard, { ...o, tone: -0.1 });
   // Наносник — узкая стальная полоса от обода вниз.
-  p.poly(S(127, 37, 130, 37, 130, 46, 128, 47), H, { ...o, tone: 0.08 });
-  stroke(p, S(108.5, 37.5, 122, 35.5, 136.5, 33.5), m.edge, 'helm');
+  p.poly(S(123, 37, 126, 37, 126, 46, 124, 47), H, { ...o, tone: 0.08 });
+  stroke(p, S(104.5, 37.5, 118, 35.5, 132.5, 33.5), m.edge, 'helm');
 }
 
 /**
@@ -389,28 +396,28 @@ function hornedHelm(p: Painter, m: Mats): void {
  */
 function wolfHead(p: Painter, m: Mats): void {
   // Шкура свисает по бокам к горбу меха.
-  p.poly(S(104, 30, 116, 38, 118, 56, 110, 60, 101, 48), m.wolf, { part: 'wolfSide', tone: -0.16, bevel: 3 });
+  p.poly(S(100, 30, 112, 38, 114, 56, 106, 60, 97, 48), m.wolf, { part: 'wolfSide', tone: -0.16, bevel: 3 });
   // Дальнее ухо темнее.
-  p.poly(S(120, 23, 126, 6, 132, 20), m.wolf, { part: 'wolfEarF', bevel: 1.5, tone: -0.12 });
+  p.poly(S(116, 23, 122, 6, 128, 20), m.wolf, { part: 'wolfEarF', bevel: 1.5, tone: -0.12 });
   // Лицо под челюстью: тень, борода.
-  p.poly(S(118, 42, 136, 44, 134, 50, 128, 56, 121, 55, 116, 48), m.face, { part: 'face', tone: -0.3, bevel: 2 });
-  p.poly(S(121, 49, 134, 48, 132, 55, 125, 60, 119, 56), m.beard, { part: 'beard', tone: -0.1, bevel: 2 });
+  p.poly(S(114, 42, 132, 44, 130, 50, 124, 56, 117, 55, 112, 48), m.face, { part: 'face', tone: -0.3, bevel: 2 });
+  p.poly(S(117, 49, 130, 48, 128, 55, 121, 60, 115, 56), m.beard, { part: 'beard', tone: -0.1, bevel: 2 });
   // Череп и морда — одна часть, светлее горба (морда серее и светлее — так волк читается на своём же мехе):
   // купол, длинная морда вперёд к врагам, нос на конце.
-  p.ellipse(X(120), Y(28), R(15), R(12), m.wolf, { part: 'wolf', lift: 1.2, tone: 0.1 });
-  p.limb(X(126), Y(30), R(9.5), X(147), Y(38), R(5.4), m.wolf, { part: 'wolf', lift: 1.8, tone: 0.14 });
-  p.poly(S(104, 27, 105, 7, 118, 20), m.wolf, { part: 'wolfEar', bevel: 1.6, tone: 0.08 });
-  p.poly(S(107, 22, 107, 13, 113, 20), m.dark, { part: 'wolfEar', paint: true });
+  p.ellipse(X(116), Y(28), R(15), R(12), m.wolf, { part: 'wolf', lift: 1.2, tone: 0.1 });
+  p.limb(X(122), Y(30), R(9.5), X(137), Y(37), R(5.4), m.wolf, { part: 'wolf', lift: 1.8, tone: 0.14 });
+  p.poly(S(100, 27, 101, 7, 114, 20), m.wolf, { part: 'wolfEar', bevel: 1.6, tone: 0.08 });
+  p.poly(S(103, 22, 103, 13, 109, 20), m.dark, { part: 'wolfEar', paint: true });
   // Светлая морда снизу, нос.
-  p.poly(S(132, 36, 147, 38, 146, 42, 132, 42), m.wolf, { part: 'wolf', paint: true, tone: 0.3 });
-  p.ellipse(X(149.5), Y(38), R(3.2), R(2.8), m.dark, { part: 'nose', lift: 2 });
+  p.poly(S(127, 36, 138, 37, 137, 41, 127, 42), m.wolf, { part: 'wolf', paint: true, tone: 0.3 });
+  p.ellipse(X(140), Y(37.5), R(3.2), R(2.8), m.dark, { part: 'nose', lift: 2 });
   // Верхняя челюсть: тёмная пасть в два пикселя и клыки вниз.
-  p.poly(S(127, 41, 146, 42, 145, 44.5, 127, 44), m.dark, { part: 'wolf', paint: true });
-  for (const [x, y] of [[131, 44], [138, 45], [144, 44.5]]) p.poly(S(x - 1.2, y - 1, x + 1.2, y - 1, x, y + 3.2), solid(m.glint), { part: 'fang', bevel: 0.5 });
+  p.poly(S(123, 41, 137, 41.5, 136, 44, 123, 44), m.dark, { part: 'wolf', paint: true });
+  for (const [x, y] of [[126, 44], [131, 44.5], [135, 44]]) p.poly(S(x - 1.2, y - 1, x + 1.2, y - 1, x, y + 3.2), solid(m.glint), { part: 'fang', bevel: 0.5 });
   // Пустая глазница шкуры и надбровье.
-  p.poly(S(127, 27.5, 134, 28.5, 133, 31.5, 127, 31), m.dark, { part: 'wolf', paint: true });
-  stroke(p, S(125, 26, 135, 27), m.furGap, 'wolf');
-  locks(p, m.wolf, 'wolf', S(108, 25, 118, 19, 126, 21), { step: R(6), len: R(8), w: R(2.4), dir: () => 165, gap: m.furGap, tone: 0.18 });
+  p.poly(S(123, 27.5, 130, 28.5, 129, 31.5, 123, 31), m.dark, { part: 'wolf', paint: true });
+  stroke(p, S(121, 26, 131, 27), m.furGap, 'wolf');
+  locks(p, m.wolf, 'wolf', S(104, 25, 114, 19, 122, 21), { step: R(6), len: R(8), w: R(2.4), dir: () => 165, gap: m.furGap, tone: 0.18 });
 }
 
 /**
@@ -419,20 +426,22 @@ function wolfHead(p: Painter, m: Mats): void {
  */
 function maneHead(p: Painter, m: Mats): void {
   // Грива — назад и вниз, за лицом, падает на горб меха.
-  p.poly(S(104, 50, 102, 38, 105, 28, 110, 21, 118, 17, 126, 17, 131, 20, 132, 25, 126, 26, 120, 30, 116, 38, 113, 48, 109, 56), m.hair, { part: 'hair', bevel: 3 });
-  locks(p, m.hair, 'hair', S(128, 20, 118, 20, 110, 26, 106, 36), { step: R(5), len: R(9), w: R(2), dir: () => 150, gap: m.furGap, tone: 0.16 });
+  p.poly(S(100, 50, 98, 38, 101, 28, 106, 21, 114, 17, 122, 17, 127, 20, 128, 25, 122, 26, 116, 30, 112, 38, 109, 48, 105, 56), m.hair, { part: 'hair', bevel: 3 });
+  locks(p, m.hair, 'hair', S(124, 20, 114, 20, 106, 26, 102, 36), { step: R(5), len: R(9), w: R(2), dir: () => 150, gap: m.furGap, tone: 0.16 });
   // Узел на макушке.
-  p.ellipse(X(112), Y(18), R(5), R(4.5), m.hair, { part: 'knot', lift: 1 });
+  p.ellipse(X(108), Y(18), R(5), R(4.5), m.hair, { part: 'knot', lift: 1 });
   // Лицо: лоб, надбровье, нос, щека — в профиль вправо.
-  p.poly(S(116, 30, 124, 25, 131, 26, 134, 30, 134, 35, 137, 40, 135, 42, 133, 43, 132, 47, 126, 51, 118, 50, 114, 42), m.face, { part: 'face', bevel: 2.4 });
-  p.poly(S(114, 36, 121, 33, 118, 45, 114, 44), m.face, { part: 'face', paint: true, tone: -0.2 });
+  p.poly(S(112, 30, 120, 25, 127, 26, 130, 30, 130, 35, 133, 40, 131, 42, 129, 43, 128, 47, 122, 51, 114, 50, 110, 42), m.face, { part: 'face', bevel: 2.4 });
+  p.poly(S(110, 36, 117, 33, 114, 45, 110, 44), m.face, { part: 'face', paint: true, tone: -0.2 });
   // Полоса краски на глазах и ухо.
-  p.poly(S(119, 31.5, 134, 30.5, 135, 35, 119, 36.5), solid(m.mask), { part: 'face', paint: true });
-  p.ellipse(X(116), Y(38), R(2.6), R(3.4), m.face, { part: 'ear', lift: 1, tone: -0.1 });
+  p.poly(S(111, 33.5, 130, 31, 131, 34, 111, 36.5), solid(m.mask), { part: 'face', paint: true });
+  p.poly(S(112, 38, 120, 37, 123, 46, 116, 48, 111, 44), m.face, { part: 'face', paint: true, tone: -0.16 });
+  stroke(p, S(120, 26.5, 127, 26, 130, 29), m.skinLit, 'face');
+  p.ellipse(X(112), Y(38), R(2.6), R(3.4), m.face, { part: 'ear', lift: 1, tone: -0.1 });
   // Борода с косицей.
-  p.poly(S(118, 44, 128, 47, 134, 46, 135, 51, 131, 57, 126, 62, 119, 60, 114, 52), m.beard, { part: 'beard', bevel: 2.5 });
-  p.chain([[X(125), Y(60), R(2.6)], [X(124), Y(66), R(2.2)], [X(123), Y(71), R(1.6)]], m.beard, { part: 'braid' });
-  p.px(X(123.5), Y(68.5), m.lace);
+  p.poly(S(114, 44, 124, 47, 130, 46, 131, 51, 127, 57, 122, 62, 115, 60, 110, 52), m.beard, { part: 'beard', bevel: 2.5 });
+  p.chain([[X(121), Y(60), R(2.6)], [X(120), Y(66), R(2.2)], [X(119), Y(71), R(1.6)]], m.beard, { part: 'braid' });
+  p.px(X(119.5), Y(68.5), m.lace);
 }
 
 // ─── Поза ───────────────────────────────────────────────────────────────────
@@ -470,7 +479,7 @@ const REST: BerserkPose = {
 const GREAT_LOW = 44;
 const GREAT_SIZE = 1.12;
 /** Топорик в ближней руке (`pair`): висит вниз-вперёд, лезвием к врагам. */
-const HATCHET_ANGLE = 74;
+const HATCHET_ANGLE = 64;
 
 /**
  * Покой: берсерк тяжело дышит — грудь и горб меха поднимаются на пиксель-два, таз оседает на четверть цикла позже,
@@ -496,7 +505,6 @@ function framePose(p: Painter): BerserkPose {
   const P = idlePose(p);
   if (!clipAt(p)) {
     P.cape += 0.06 * (1 - Math.cos(2 * Math.PI * p.t));
-    P.head += 3 * p.blink(0.62, 0.16);
   }
   return P;
 }
@@ -548,9 +556,9 @@ const BOOT_N = [13, -10, 14, 0, 13, 8, 11, 13, -19, 13, -21, 9, -19, 4, -13, 0, 
 const BOOT_F = [-13, -11, 5, -11, 8, -6, 16, -2, 24, 1, 30, 5, 32, 10, 31, 13, -13, 13, -15, 6, -14, -4];
 
 /** Верхний край горба (точки листа) — от шлема к левому краю; по нему — зубцы прядей. */
-const MANTLE_TOP = [108, 26, 104, 18, 97, 15, 90, 15, 83, 14, 75, 16, 66, 18, 57, 21, 50, 26, 44, 32, 38, 37, 33, 44, 29, 51];
+const MANTLE_TOP = [108, 28, 104, 23, 97, 21, 90, 20, 83, 21, 75, 21, 66, 23, 57, 26, 50, 31, 44, 36, 38, 41, 33, 46, 29, 52];
 /** Внешний край плаща — от горба вниз до подола. */
-const CAPE_EDGE = [29, 51, 24, 60, 19, 70, 15, 80, 11, 92, 8, 104, 6, 116, 7, 127, 9, 135];
+const CAPE_EDGE = [32, 52, 27.5, 61, 22.5, 71, 18.5, 81, 14.5, 93, 11.5, 105, 9.5, 117, 10.5, 127, 12.5, 135];
 
 function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): void {
   const breath = p.bob(2.5, 2);
@@ -563,11 +571,13 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
   p.pose({ dx: P.x, dy: P.y }, () => {
     p.shadow(70 - P.x * 0.5, 60, 4.5);
 
-    // ── Плащ из шкуры — за спиной от горба до колен, виден слева и между ног; рваный подол колышется. ──
-    p.pose(up, () => {
+    // ── Плащ из шкуры — за спиной от горба до колен, виден слева и между ног; рваный подол колышется. Верх висит на
+    //    плечах и дышит с ними, подол у колен стоит: в позе верха целиком подол ходил над неподвижными ногами. ──
+    const sway = (pts: number[]): number[] => pts.map((v, i) => (i % 2 ? v + up.dy * Math.max(0, Math.min(1, (Y(125) - v) / (Y(125) - Y(50)))) : v));
+    p.pose({ rot, px: PELVIS[0], py: PELVIS[1] }, () => {
       const edge = furEdge(S(...CAPE_EDGE), R(4.5), R(7), -1, R(2));
       const pts = [
-        ...S(104, 22, 92, 16, 80, 15, 68, 18, 58, 21, 50, 27, 42, 34, 35, 41),
+        ...S(104, 26, 92, 22, 80, 22, 68, 24, 58, 27, 50, 32, 42, 38, 35, 44),
         ...edge,
         ...S(12, 141, 16, 136, 20, 145, 25, 138, 30, 147, 36, 140, 44, 150, 54, 150, 62, 158, 68, 153, 74, 163, 80, 155, 86, 162, 92, 150, 98, 120, 104, 95, 110, 70, 118, 50),
       ];
@@ -575,9 +585,9 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
         const t = Math.max(0, (pts[k + 1] - 40) / 80);
         pts[k] -= P.cape * 10 * t * t;
       }
-      p.poly(pts, m.cape, { part: 'fur', tone: -0.06, bevel: 6 });
-      locks(p, m.cape, 'fur', S(30, 58, 20, 80, 14, 104, 12, 124), { step: R(10), len: R(16), w: R(4), dir: () => 100, gap: m.capeGap, tone: 0.12 });
-      locks(p, m.cape, 'fur', S(46, 62, 36, 84, 28, 110, 26, 130), { step: R(10), len: R(16), w: R(4), dir: () => 96, gap: m.capeGap, tone: 0.1, shift: 0 });
+      p.poly(sway(pts), m.cape, { part: 'fur', tone: -0.06, bevel: 6 });
+      locks(p, m.cape, 'fur', sway(S(33, 58, 23, 80, 17, 104, 15, 124)), { step: R(10), len: R(16), w: R(4), dir: () => 100, gap: m.capeGap, tone: 0.12 });
+      locks(p, m.cape, 'fur', sway(S(48, 62, 38, 84, 30, 110, 28, 130)), { step: R(10), len: R(16), w: R(4), dir: () => 96, gap: m.capeGap, tone: 0.1, shift: 0 });
     });
 
     // ── Ноги: бедро от таза, колено — ik в больших сдвигах, стопы стоят. Штаны тёмной кожи, на колене и голени
@@ -602,8 +612,8 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
       const leg = `${lg.side}Leg`, foot = `${lg.side}Foot`, cuff = `${lg.side}Cuff`;
       const tone = lg.tone;
       // Бедро толстое (у листа ≈ 22–28 точек), голень уже; ремень поперёк бедра.
-      p.limb(hx, hy, R(far ? 15 : 14), kx, ky, R(12), m.pants, { part: leg, tone });
-      p.limb(kx, ky, R(10.5), ax, ay, R(8.5), m.pants, { part: leg, tone });
+      p.limb(hx, hy, R(far ? 15 : 14), kx, ky, R(12), m.pants, { part: leg, tone: tone + 0.1, flat: 0.3 });
+      p.limb(kx, ky, R(10.5), ax, ay, R(8.5), m.pants, { part: leg, tone: tone + 0.08, flat: 0.3 });
       const [mx, my] = [lerp(hx, kx, 0.5), lerp(hy, ky, 0.5)];
       stroke(p, [mx - R(12), my - R(4), mx + R(12), my + R(1)], m.lace, leg);
       stroke(p, [mx - R(11), my - R(1), mx + R(11), my + R(4)], m.seam, leg);
@@ -614,18 +624,22 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
       stroke(p, far ? [ax - R(13), ay - R(8), ax + R(6), ay - R(8.5)] : [ax - R(3), ay - R(7), ax + R(13), ay - R(7.5)], m.lace, foot);
       stroke(p, far ? [ax - R(12), ay + R(2), ax + R(14), ay - R(1)] : [ax - R(14), ay + R(1), ax + R(12), ay + R(1)], m.seam, foot);
       stroke(p, far ? [ax + R(16), ay + R(3), ax + R(27), ay + R(7)] : [ax - R(17), ay + R(6), ax - R(10), ay + R(3)], m.lace, foot);
-      // Мех на колене и голени: пышный, низ — пряди вниз.
+      // Мех на колене и голени: крупные клочья вдоль голени, низ поперёк неё — пряди свисают по голени. Ровный низ и
+      // отвесные пряди читались «забором».
       const cx = kx + R(far ? 1 : 2), cy = ky + R(far ? 7 : 9);
       const rx = R(far ? 19 : 19), ry = R(far ? 10 : 11);
+      const sa = Math.atan2(ay - ky, ax - kx) / DEG;
+      const tc = Math.cos((sa - 90) * DEG), ts = Math.sin((sa - 90) * DEG);
+      const turnPts = (pts: number[]): number[] => pts.map((v, i) => (i % 2 ? cy + (pts[i - 1] - cx) * ts + (v - cy) * tc : cx + (v - cx) * tc - (pts[i + 1] - cy) * ts));
       const arc: number[] = [];
       for (let k = 0; k <= 6; k++) {
         const a = Math.PI + (Math.PI * k) / 6;
         arc.push(cx + rx * Math.cos(a), cy + ry * 0.8 * Math.sin(a));
       }
-      const top = furEdge(arc, R(3.5), R(5), 1, R(1.5));
-      const bottom = furEdge([cx + rx, cy + R(2), cx - rx, cy + R(2)], R(7), R(4.5), 1, 0);
+      const top = furEdge(turnPts(arc), R(3.5), R(5), 1, R(1.5));
+      const bottom = furEdge(turnPts([cx + rx, cy + R(3), cx + rx * 0.2, cy + R(5), cx - rx, cy + R(1)]), R(9), R(6.5), 1, 0);
       p.poly([...top, ...bottom], m.cuff, { part: cuff, bevel: 3, lift: 1, flat: 0.3, tone: tone - 0.02 });
-      locks(p, m.cuff, cuff, [cx - rx * 0.8, cy - ry * 0.3, cx + rx * 0.8, cy - ry * 0.3], { step: R(7), len: R(10), w: R(3), dir: () => 92, gap: m.furGap, tone: 0.14 });
+      locks(p, m.cuff, cuff, turnPts([cx - rx * 0.75, cy - ry * 0.35, cx + rx * 0.75, cy - ry * 0.35]), { step: R(9), len: R(14), w: R(4.4), dir: (x) => sa + 9 * Math.sin(x * 1.3), gap: m.furGap, tone: 0.16 });
     }
 
     // ── Верх: дыхание поднимает торс, горб меха и голову; наклон — в клипах. ──
@@ -636,9 +650,9 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
     const na = great ? arm(M.armN.sh, ...at(P.fhx, P.fhy, P.sw, -GREAT_LOW), ARM_N, -1, -0.2) : near;
     p.pose(up, () => {
       // Торс — широкий, от ближнего плеча до дальнего; грудь и пресс буграми одной части.
-      p.poly(S(73, 60, 88, 57, 104, 55, 118, 53, 128, 57, 136, 64, 140, 74, 139, 86, 137, 96, 104, 98, 76, 97, 72, 86, 70, 72), m.torso, { part: 'torso', bevel: 6, lift: 1, tone: 0.06 });
-      p.ellipse(X(96), Y(70), R(18), R(11), m.torso, { part: 'torso', lift: 2.8, flat: 0.45, tone: 0.14 });
-      p.ellipse(X(122), Y(69), R(12), R(10), m.torso, { part: 'torso', lift: 2.2, flat: 0.45, tone: 0.06 });
+      p.poly(S(73, 66, 88, 62, 104, 59, 116, 57, 128, 59, 136, 64, 140, 74, 139, 86, 137, 96, 104, 98, 76, 97, 72, 86, 70, 72), m.torso, { part: 'torso', bevel: 6, lift: 1, tone: 0.06 });
+      p.ellipse(X(96), Y(71), R(18), R(11), m.torso, { part: 'torso', lift: 2.8, flat: 0.45, tone: 0.1, rot: -0.55 });
+      p.ellipse(X(121), Y(68), R(12), R(10), m.torso, { part: 'torso', lift: 2.2, flat: 0.45, tone: 0.04, rot: -0.55 });
       p.ellipse(X(113), Y(89), R(14), R(8), m.torso, { part: 'torso', lift: 1.6, flat: 0.5, tone: 0.1 });
       stroke(p, S(86, 62, 100, 60, 110, 62), m.skinLit, 'torso');
       // Подмышка — тень между плечом и грудью: без неё рука и грудь сливались в одну полосу.
@@ -659,7 +673,7 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
       // Кожаная юбка под поясом: ближний бок со светлой меховой полосой, дальний — тёмные ремни.
       p.poly(S(106, 97, 142, 94, 145, 106, 142, 119, 136, 113, 130, 121, 124, 114, 116, 121, 108, 115), m.pants, { part: 'skirtF', bevel: 2.5, tone: -0.1 });
       p.poly(S(72, 96, 90, 98, 90, 112, 86, 123, 80, 117, 73, 126, 68, 119, 62, 122, 64, 110), m.pants, { part: 'skirtN', bevel: 2.5 });
-      p.poly([...S(56, 121, 68, 116, 80, 120, 89, 128), ...furEdge(S(89, 131, 56, 127), R(4), R(4), -1, 0)], m.cuff, { part: 'hipFur', bevel: 2 });
+      p.poly([...S(56, 121, 68, 116, 80, 120, 89, 128), ...furEdge(S(89, 131, 56, 127), R(4), R(4), 1, 0)], m.cuff, { part: 'hipFur', bevel: 2 });
       p.poly(S(68, 99, 76, 99, 78, 112, 73, 117, 69, 109), m.cuff, { part: 'hipFur', bevel: 1.6, tone: 0.05 });
 
       // Набедренная повязка — красная, рваный низ; на выпаде относит назад.
@@ -689,9 +703,9 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
 
       // Горб меха на плечах — выше головы, пряди от шеи вниз; нижний край рваный над грудью и плечом.
       const top = furEdge(S(...MANTLE_TOP), R(5), R(6), -1, -R(2));
-      const fringe = furEdge(S(29, 51, 40, 55, 52, 57, 64, 59, 76, 60, 88, 60, 100, 60, 110, 57, 116, 57), R(4), R(5), 1, 0);
-      p.poly([...top, ...fringe, ...S(118, 50, 112, 40, 110, 32)], m.mantle, { part: 'fur', bevel: 8, flat: 0.25, lift: 3 });
-      p.ellipse(X(80), Y(34), R(30), R(15), m.mantle, { part: 'fur', lift: 4, flat: 0.3 });
+      const fringe = furEdge(S(29, 51, 40, 55, 52, 57, 64, 59, 76, 60, 86, 60), R(4), R(5), -1, 0);
+      p.poly([...top, ...fringe, ...S(92, 54, 96, 46, 99, 38, 103, 31)], m.mantle, { part: 'fur', bevel: 8, flat: 0.25, lift: 3 });
+      p.ellipse(X(78), Y(38), R(30), R(14), m.mantle, { part: 'fur', lift: 4, flat: 0.3 });
       const rows: Array<[number[], number]> = [
         [[104, 23, 92, 21, 80, 20, 68, 23, 58, 26, 50, 31, 43, 37, 37, 43], 0.5],
         [[106, 35, 94, 32, 82, 31, 70, 33, 60, 36, 52, 41, 45, 47], 0],
@@ -699,30 +713,32 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
       ];
       for (const [row, shift] of rows) locks(p, m.mantle, 'fur', S(...row), { step: R(10), len: R(15), w: R(4.2), dir: fromNeck, gap: m.furGap, tone: 0.22, shift });
 
-      // Голова: раз за цикл поворачивается к врагам.
-      p.pose({ rot: 0.05 * turn + P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => {
+      p.poly(S(97, 46, 101, 40, 108, 38, 111, 50, 110, 62, 102, 66, 95, 60), m.torso, { part: 'neck', bevel: 2.5, tone: -0.32 });
+      stroke(p, S(99, 46, 97, 60), m.skinDark, 'neck');
+      // Голова: раз за цикл подаётся к врагам на пиксель.
+      p.pose({ dx: 1.5 * turn, rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => {
         if (v.head === 'wolf') wolfHead(p, m);
         else if (v.head === 'mane') maneHead(p, m);
         else hornedHelm(p, m);
       });
 
       // Мех на дальнем плече — узкой полосой вокруг шеи справа от головы, в тени; низ шлема уходит в него.
-      const collar = [...S(126, 52, 132, 45, 137, 47, 140, 55, 141, 62), ...furEdge(S(141, 66, 126, 64), R(5), R(4), -1, 0), ...S(125, 58)];
+      const collar = [...S(114, 52, 122, 48, 129, 44, 134, 44, 137, 50, 138, 58, 138, 68), ...furEdge(S(137, 74, 129, 76, 120, 66), R(5), R(4), 1, 0), ...S(113, 60)];
       p.poly(collar, m.collar, { part: 'collar', bevel: 3.5, lift: 1.5, tone: -0.1 });
-      locks(p, m.collar, 'collar', S(128, 54, 138, 60), { step: R(6), len: R(10), w: R(2.6), dir: () => 80, gap: m.furGap, tone: 0.12 });
+      locks(p, m.collar, 'collar', S(118, 54, 128, 52, 138, 60), { step: R(6), len: R(10), w: R(2.6), dir: () => 80, gap: m.furGap, tone: 0.12 });
 
       // Ближняя рука — поверх торса: голое плечо с бицепсом, кожаный наруч с обмоткой, кулак.
-      if (v.weapon === 'pair') axe(p, m, na.hx, na.hy, HATCHET_ANGLE + P.sw - AXE_ANGLE, { size: 0.55, butt: 7, grip: 17, mat: m.hatchet, id: 'hatchet' });
+      if (v.weapon === 'pair') axe(p, m, na.hx, na.hy, HATCHET_ANGLE + P.sw - AXE_ANGLE, { size: 0.55, butt: 7, grip: 13, mat: m.hatchet, id: 'hatchet', flip: true });
       const ua = Math.atan2(na.ey - na.sy, na.ex - na.sx) / DEG, ul = len([na.sx, na.sy], [na.ex, na.ey]);
       // Плечо — дельта у сустава и бицепс книзу, свет сверху: гладкая «колбаса» читалась протезом.
       const along = (f: number, off = 0): [number, number] => at(...at(na.sx, na.sy, ua, ul * f), ua + 90, off);
-      p.limb(na.sx, na.sy, R(10.5), na.ex, na.ey, R(8.5), m.armN, { part: 'nearArm', lift: 1, flat: 0.5, tone: 0.12 });
-      p.ellipse(...along(0.14, -R(1)), R(14), R(12), m.armN, { part: 'nearArm', lift: 2.8, rot: ua * DEG, flat: 0.45, tone: 0.14 });
-      p.ellipse(...along(0.58, R(2)), R(12), R(10), m.armN, { part: 'nearArm', lift: 2.6, rot: ua * DEG, flat: 0.45, tone: 0.12 });
+      p.limb(na.sx, na.sy, R(9), na.ex, na.ey, R(7.5), m.armN, { part: 'nearArm', lift: 1, flat: 0.3, tone: -0.02 });
+      p.ellipse(...along(0.22, -R(1)), R(12), R(9.5), m.armN, { part: 'nearArm', lift: 2.8, rot: ua * DEG, flat: 0.3, tone: 0 });
+      p.ellipse(...along(0.6, R(1.5)), R(10.5), R(8.5), m.armN, { part: 'nearArm', lift: 2.6, rot: ua * DEG, flat: 0.3, tone: -0.02 });
       // Граница дельты и бицепса, блик по верху плеча, тень под бицепсом.
-      stroke(p, [...along(0.42, -R(3)), ...along(0.36, R(9))], m.skinDark, 'nearArm');
-      stroke(p, [...along(0.08, -R(10)), ...along(0.3, -R(10.5)), ...along(0.7, -R(8))], m.skinLit, 'nearArm');
-      stroke(p, [...along(0.45, R(11.5)), ...along(0.78, R(10))], m.skinDark, 'nearArm');
+      stroke(p, [...along(0.44, -R(3)), ...along(0.4, R(8))], m.skinDark, 'nearArm');
+      stroke(p, [...along(0.1, -R(8)), ...along(0.32, -R(8.5)), ...along(0.7, -R(7))], m.skinLit, 'nearArm');
+      stroke(p, [...along(0.45, R(9.5)), ...along(0.78, R(8.5))], m.skinDark, 'nearArm');
       if (m.paint) {
         for (const f of [0.35, 0.62]) {
           const [bx, by] = at(na.sx, na.sy, ua, ul * f);
@@ -735,7 +751,7 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
       fist(p, m, m.armN, na.hx, na.hy, fa, R(11), 0, 'fistN');
 
       // Край горба над ближним плечом — поверх верха руки, рваной бахромой.
-      const over = [...S(30, 50, 42, 45, 56, 48, 70, 50, 84, 52), ...furEdge(S(86, 56, 70, 58, 56, 58, 42, 56, 32, 54), R(4.5), R(4.5), -1, 0)];
+      const over = [...S(30, 50, 42, 45, 56, 48, 70, 50, 84, 52), ...furEdge(S(86, 56, 70, 58, 56, 58, 42, 56, 32, 54), R(4.5), R(4.5), 1, 0)];
       p.poly(over, m.mantle, { part: 'fur', bevel: 3, flat: 0.3, lift: 3 });
       locks(p, m.mantle, 'fur', S(80, 51, 66, 50, 52, 49, 40, 48), { step: R(8), len: R(9), w: R(3), dir: fromNeck, gap: m.furGap, tone: 0.14, shift: 0.25 });
     });
