@@ -392,6 +392,18 @@ export interface BerserkPose extends Record<string, number> {
   aback: number; afront: number;
   /** Ближняя рука: кисть точкой; хват древка — доля `ng` и место `nd` вдоль древка от дальнего кулака (минус — к концу). */
   nhx: number; nhy: number; ng: number; nd: number;
+  /**
+   * Ближняя рука перед краем горба: 0 — край горба лежит на плече (стойка), 1 — рука вышла из-под шкуры и вся перед
+   * ним (поднята над плечом: замах броска). Край горба над плечом — полоса поперёк всего верха плеча: поднятая рука
+   * проходила сквозь неё и распадалась на кулак над мехом и бугор под ним.
+   */
+  nfur: number;
+  /**
+   * Разворот корпуса ближним плечом: сдвиг плечевого сустава к врагам (минус — назад). Торс нарисован вполоборота и
+   * не поворачивается, а плечо броска и удара кулаком в развороте выходит вперёд: без сдвига вытянутая ближняя рука
+   * (≈ 51 — как ширина торса) кончается у дальнего плеча, и кулак ложится на него или на лицо.
+   */
+  nsx: number;
   footF: number; footN: number; liftF: number; liftN: number;
   /** Ближнее колено на земле. */
   kneel: number;
@@ -412,7 +424,7 @@ const REST: BerserkPose = {
   x: 0, y: 0, crouch: 0, lean: 0, head: 0,
   fhx: M.armF.hand[0], fhy: M.armF.hand[1], fl: 1,
   sw: AXE_ANGLE, wr: AXE_ANGLE - FORE_F, ws: 0, aback: 0, afront: 0,
-  nhx: M.armN.hand[0], nhy: M.armN.hand[1], ng: 0, nd: 0,
+  nhx: M.armN.hand[0], nhy: M.armN.hand[1], ng: 0, nd: 0, nfur: 0, nsx: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
   cape: 0, fall: 0, drop: 0, dust: 0, spark: 0,
 };
@@ -454,15 +466,21 @@ const CLIPS: Record<BerserkClip, PoseKeys<BerserkPose>> = {
     [7, { x: 15, crouch: 12, lean: 17, head: 8, fhx: 135, fhy: 75, fl: 1.45, wr: -42, footF: 18, footN: -2, cape: 0.6, dust: 0.6 }],
     [8, { x: 7, crouch: 6, lean: 8, head: 4, ws: 1, fhx: 116, fhy: 76, fl: 1.15, wr: -60, ng: 0.3, nd: -18, liftF: 4, footF: 9, footN: -1, cape: 0.3, dust: 0.15 }],
   ],
-  // Приём (бросок): ближняя рука заносит склянку за голову и бросает с шагом; топор висит.
+  // Приём — бросок сверху (склянка, бомба, метательное): снаряд вылетает из кулака в кадр контакта 4. Бросает ближняя
+  // пустая рука, как правша: 1 — вес на заднюю ногу, корпус назад, рука отведена назад во всю длину; 2 — замах: локоть
+  // вверх, кулак за головой над горбом (рука вышла из-под шкуры — `nfur`), переднее колено поднято, дальняя рука
+  // с топором вытянута к врагу — противовес и прицел; 3 — шаг: стопа встала, таз вперёд, локоть ведёт у виска, кулак
+  // ещё сзади-сверху; 4 — отпустил: корпус развернулся ближним плечом вперёд (`nsx`), рука прямая к врагу на высоте
+  // плеча, кулак за краем фигуры — там, откуда летит снаряд, топор прижат к бедру; 5 — проводка: рука по инерции вниз
+  // через корпус к переднему колену, задняя пятка оторвалась, дальняя рука ушла назад за бедро (`aback`); 6 — стопа
+  // шагнула назад, кулак к бедру. На первом кадре ключа нет — кадр 0 и есть покой.
   power: [
-    [0, { ws: 1 }],
-    [1, { x: -2, lean: -6, head: -4, nhx: 36, nhy: 30, fhx: 110, fhy: 72, cape: 0.2 }],
-    [2, { x: -4, lean: -10, head: -6, nhx: 30, nhy: 18, fhx: 112, fhy: 70, liftF: 2, cape: 0.3 }],
-    [3, { x: 2, lean: 2, head: 0, nhx: 62, nhy: 20, footF: 6, liftF: 3, cape: 0.5 }],
-    [4, { x: 8, lean: 12, head: 4, nhx: 96, nhy: 38, fhx: 102, fhy: 80, footF: 10, liftF: 0, cape: 0.6 }],
-    [5, { x: 8, lean: 12, head: 4, nhx: 98, nhy: 50, fhx: 102, fhy: 80, footF: 10, cape: 0.5 }],
-    [6, { x: 3, lean: 5, head: 2, ws: 1, nhx: 60, nhy: 76, footF: 4, cape: 0.2 }],
+    [1, { ws: 1, x: -3, crouch: 2, lean: -6, head: 3, nsx: -2, nhx: 2, nhy: 62, nfur: 1, fhx: 118, fhy: 72, fl: 1.15, wr: -55, liftF: 2, cape: 0.1 }],
+    [2, { x: -5, crouch: 1, lean: -10, head: 5, nsx: -3, nhx: 32, nhy: 8, nfur: 1, fhx: 128, fhy: 72, fl: 1.3, wr: -35, footF: 2, liftF: 6, cape: 0.1 }],
+    [3, { x: 3, crouch: 4, lean: 2, head: 1, nsx: 4, nhx: 44, nhy: 0, nfur: 1, fhx: 112, fhy: 76, fl: 1.1, wr: -50, footF: 12, liftF: 0, cape: 0.5 }],
+    [4, { x: 9, crouch: 5, lean: 10, head: -4, nsx: 10, nhx: 118, nhy: 52, nfur: 0, fhx: 102, fhy: 78, fl: 1, aback: 0, wr: -45, footF: 12, cape: 0.8 }],
+    [5, { x: 10, crouch: 7, lean: 16, head: -6, nsx: 12, nhx: 100, nhy: 88, fhx: 96, fhy: 76, aback: 1, wr: -75, footF: 12, liftN: 3, cape: 0.7 }],
+    [6, { ws: 1, x: 4, crouch: 3, lean: 5, head: -1, nsx: 4, nhx: 58, nhy: 88, aback: 0, wr: -66, footF: 5, liftF: 3, liftN: 0, cape: 0.3 }],
   ],
   // Лечение A «Второе дыхание»: выпрямился, кулак к груди, голова назад — глубокий вдох; топор висит.
   heal: [
@@ -614,7 +632,7 @@ function farArm(P: BerserkPose): ArmSolve {
 function nearArm(P: BerserkPose, far: ArmSolve, a: number): ArmSolve {
   const [gx, gy] = at(far.hx, far.hy, a, P.nd);
   const tx = lerp(P.nhx, gx, P.ng), ty = lerp(P.nhy, gy, P.ng);
-  return followShoulder(M.armN.sh, (sx, sy) => reachArm(sx, sy, tx, ty, ARM_N.l1, ARM_N.l2), ARM_N.l1);
+  return followShoulder([M.armN.sh[0] + P.nsx, M.armN.sh[1]], (sx, sy) => reachArm(sx, sy, tx, ty, ARM_N.l1, ARM_N.l2), ARM_N.l1);
 }
 
 /**
@@ -939,6 +957,15 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       // Топор перед головой и горбом (блок древком, топор вскинут перед собой).
       if (layer === 'front') farHand();
 
+      // Край горба над ближним плечом — поверх верха руки, рваной бахромой; рука, поднятая над плечом (`nfur`), вышла
+      // из-под шкуры — край рисуется до неё.
+      const furOver = (): void => {
+        const over = [...S(30, 50, 42, 45, 56, 48, 70, 50, 84, 52), ...furEdge(S(86, 56, 70, 58, 56, 58, 42, 56, 32, 54), R(4.5), R(4.5), 1, 0)];
+        p.poly(over, m.mantle, { part: 'fur', bevel: 3, flat: 0.3, lift: 3 });
+        locks(p, m.mantle, 'fur', S(80, 51, 66, 50, 52, 49, 40, 48), { step: R(8), len: R(9), w: R(3), dir: fromNeck, gap: m.furGap, tone: 0.14, shift: 0.25 });
+      };
+      if (P.nfur > 0.5) furOver();
+
       // Ближняя рука — поверх торса: голое плечо с бицепсом, кожаный наруч с обмоткой, кулак.
       const ua = Math.atan2(na.ey - na.sy, na.ex - na.sx) / DEG, ul = len([na.sx, na.sy], [na.ex, na.ey]);
       // Плечо — дельта у сустава и бицепс книзу, свет сверху: гладкая «колбаса» читалась протезом.
@@ -954,10 +981,7 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       bracer(p, m, na.ex, na.ey, na.hx, na.hy, R(14), R(12), 0, 'nearBracer');
       fist(p, m, m.armN, na.hx, na.hy, fa, R(11), 0, 'fistN');
 
-      // Край горба над ближним плечом — поверх верха руки, рваной бахромой.
-      const over = [...S(30, 50, 42, 45, 56, 48, 70, 50, 84, 52), ...furEdge(S(86, 56, 70, 58, 56, 58, 42, 56, 32, 54), R(4.5), R(4.5), 1, 0)];
-      p.poly(over, m.mantle, { part: 'fur', bevel: 3, flat: 0.3, lift: 3 });
-      locks(p, m.mantle, 'fur', S(80, 51, 66, 50, 52, 49, 40, 48), { step: R(8), len: R(9), w: R(3), dir: fromNeck, gap: m.furGap, tone: 0.14, shift: 0.25 });
+      if (P.nfur <= 0.5) furOver();
 
       // Искры о древко в кадр удара по блоку.
       if (P.spark > 0.05) {
