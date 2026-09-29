@@ -312,6 +312,8 @@ export interface PaladinPose extends Record<string, number> {
   n1: number; n2: number; sw: number;
   /** Ближняя рука кистью: точка кисти в координатах верха и доля (0 — углы, 1 — кисть в точке). */
   nh: number; hx: number; hy: number;
+  /** Запястье: угол молота к предплечью (`wr`) и доля (`ws`: 0 — молот углом `sw`, 1 — от предплечья). */
+  wr: number; ws: number;
   /** Дальняя рука (щит): плечо, предплечье; наклон щита и сдвиг от кисти. */
   f1: number; f2: number; sh: number; shx: number; shy: number;
   footF: number; footN: number; liftF: number; liftN: number;
@@ -333,7 +335,7 @@ export interface PaladinPose extends Record<string, number> {
 const REST: PaladinPose = {
   x: 0, y: 0, crouch: 0, lean: 0, head: 0,
   n1: ARM_N.a1, n2: ARM_N.a2, sw: M.armN.weapon,
-  nh: 0, hx: M.armN.hand[0], hy: M.armN.hand[1],
+  nh: 0, hx: M.armN.hand[0], hy: M.armN.hand[1], wr: M.armN.weapon - ARM_N.a2, ws: 0,
   f1: ARM_F.a1, f2: ARM_F.a2, sh: 0, shx: 0, shy: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
   cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0, burst: 0, beam: 0, shine: 0, sback: 0, front: 0,
@@ -352,6 +354,14 @@ export type PaladinChoice = Partial<Record<PaladinVariant, 'A' | 'B'>>;
  * держится); вспышки (`spark`, `dust`, `burst`) — явным нулём на кадре перед контактом. Рука с молотом — всегда путём
  * кисти (`hx`, `hy` в координатах верха, локоть — ik): в покое кисть висит тем же путём, и клип начинается с него.
  *
+ * Молот в клипах ведётся от предплечья, а не от корпуса: `ws: 1` на первом и последнем ключе, угол к предплечью — `wr`,
+ * в пределах запястья (`WRIST`). Молот, заданный углом корпуса (`sw`), застывал в мире, пока предплечье поворачивалось
+ * на 70–100°, и весь поворот съедало запястье: молот перекидывался через предплечье, вставал ему в продолжение
+ * («палка») и в конце удара ломался на 76° за кадр — «кисть выгибается неестественно». Низкая кисть — не ближе
+ * ~30 от плеча: ближе ik складывает руку «куриным крылом» (локоть назад на высоту плеча, латы проходят сквозь друг
+ * друга, боёк прячется под наплечником). Подъём к небу — молот наклонён назад (`wr` ≈ −30), отвесный молот над
+ * кулаком — «факел».
+ *
  * Молот короткий (от кулака до середины бойка 31, у меча Воина — 70), а рука короче и массивнее: до земли боёк
  * не достаёт даже из выпада (присед 20 и наклон 26 сминали фигуру в ком, а боёк всё равно висел выше земли), поэтому
  * сильные удары бьют врага в корпус, а не в землю. Щит на ударе уходит вниз и назад — висящий перед корпусом, он
@@ -360,79 +370,82 @@ export type PaladinChoice = Partial<Record<PaladinVariant, 'A' | 'B'>>;
  * Где решение за пользователем, у клипа два варианта: первый — здесь, второй — в `CLIPS_B`.
  */
 const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
-  // Удар A «Сверху»: кисть над плечом, боёк за шлемом — шаг, и молот через верх на врага; щит прижат.
+  // Удар A «Сверху»: предплечье вверх-назад, молот горизонтально за головой — шаг, и молот через верх на врага:
+  // к контакту удар разгоняется, рука вниз-вперёд, боёк на уровне пояса; щит на размахе уходит за корпус.
   attack: [
-    [0, { x: -1, crouch: 2, lean: -3, hx: 30, hy: 56, sw: -40, cape: 0.1 }],
-    [1, { x: -4, crouch: 3, lean: -8, head: -4, hx: 25, hy: 22, sw: -150, f1: 60, f2: 30, sh: -4, liftF: 2, cape: 0.25 }],
-    [2, { x: -5, crouch: 3, lean: -10, head: -6, hx: 23, hy: 20, sw: -172, f1: 60, f2: 30, sh: -4, liftF: 3, cape: 0.3 }],
-    [3, { x: 4, crouch: 4, lean: 2, head: 0, hx: 50, hy: 4, sw: -60, f1: 80, f2: 55, sh: 4, liftF: 4, footF: 7, cape: 0.6 }],
-    [4, { x: 11, crouch: 8, lean: 12, head: 6, hx: 72, hy: 50, sw: 30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 12, cape: 1 }],
-    [5, { x: 11, crouch: 8, lean: 12, head: 6, hx: 71, hy: 52, sw: 36, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 12, cape: 0.85 }],
-    [6, { x: 5, crouch: 4, lean: 5, head: 3, hx: 46, hy: 66, sw: 40, liftF: 3, footF: 6, cape: 0.4 }],
+    [0, { x: -1, crouch: 3, lean: -2, ws: 1, hx: 22, hy: 74, wr: -72, cape: 0.1 }],
+    [1, { x: -4, crouch: 3, lean: -8, head: -4, hx: 34, hy: 8, wr: -48, f1: 60, f2: 30, sh: -4, liftF: 2, cape: 0.25 }],
+    [2, { x: -5, crouch: 3, lean: -10, head: -6, hx: 30, hy: 6, wr: -58, f1: 60, f2: 30, sh: -4, liftF: 3, cape: 0.3 }],
+    [3, { x: 4, crouch: 4, lean: 2, head: 0, hx: 60, hy: 6, wr: -62, f1: 80, f2: 55, sh: 4, liftF: 4, footF: 7, cape: 0.6 }],
+    [4, { x: 11, crouch: 8, lean: 12, head: 6, hx: 67, hy: 65, wr: -35, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 12, cape: 1 }],
+    [5, { x: 11, crouch: 8, lean: 12, head: 6, hx: 66, hy: 66, wr: -38, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 12, cape: 0.85 }],
+    [6, { x: 5, crouch: 4, lean: 5, head: 3, ws: 1, hx: 36, hy: 73, wr: -52, liftF: 3, footF: 6, cape: 0.4 }],
   ],
   // Сильный удар A «Сверху с шагом»: привстал на носки, молот за спиной — широкий шаг, молот через верх на врага,
   // щит уходит вниз и назад, чтобы не закрыть удар; из-под шага — пыль.
   heavy: [
-    [0, { x: -1, crouch: 4, lean: 2, head: 2, hx: 34, hy: 50, sw: -40, cape: 0.1, dust: 0 }],
-    [1, { x: -5, y: -2, crouch: 1, lean: -12, head: -8, hx: 25, hy: 21, sw: -160, f1: 60, f2: 30, sh: 2, liftF: 1, cape: 0.3 }],
-    [2, { x: -6, y: -4, crouch: 0, lean: -15, head: -10, hx: 22, hy: 19, sw: -186, f1: 60, f2: 30, sh: 2, liftF: 3, footF: -2, cape: 0.4 }],
-    [3, { x: -4, y: -4, crouch: 0, lean: -14, head: -9, hx: 22, hy: 19, sw: -192, f1: 62, f2: 32, sh: 3, liftF: 5, footF: 2, cape: 0.45 }],
-    [4, { x: 6, y: -2, crouch: 4, lean: 4, head: 2, hx: 52, hy: 3, sw: -100, f1: 78, f2: 55, sh: 8, liftF: 6, footF: 12, cape: 0.7, dust: 0 }],
-    [5, { x: 16, y: 0, crouch: 10, lean: 16, head: 8, hx: 74, hy: 44, sw: 30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 18, footN: -2, cape: 0.8, dust: 0 }],
-    [6, { x: 17, crouch: 12, lean: 18, head: 10, hx: 72, hy: 52, sw: 55, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 18, footN: -2, cape: 0.7, dust: 1 }],
-    [7, { x: 16, crouch: 12, lean: 17, head: 10, hx: 71, hy: 54, sw: 58, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 18, footN: -2, cape: 0.6, dust: 0.6 }],
-    [8, { x: 7, crouch: 6, lean: 8, head: 5, hx: 46, hy: 70, sw: 50, liftF: 4, footF: 9, footN: -1, cape: 0.3, dust: 0.15 }],
+    [0, { x: -1, crouch: 4, lean: 2, head: 2, ws: 1, hx: 22, hy: 74, wr: -72, cape: 0.1, dust: 0 }],
+    [1, { x: -5, y: -2, crouch: 1, lean: -12, head: -8, hx: 34, hy: 6, wr: -50, f1: 60, f2: 30, sh: 2, liftF: 1, cape: 0.3 }],
+    [2, { x: -6, y: -4, crouch: 0, lean: -15, head: -10, hx: 30, hy: 4, wr: -62, f1: 60, f2: 30, sh: 2, liftF: 3, footF: -2, cape: 0.4 }],
+    [3, { x: -4, y: -4, crouch: 0, lean: -14, head: -9, hx: 29, hy: 4, wr: -68, f1: 62, f2: 32, sh: 3, liftF: 5, footF: 2, cape: 0.45 }],
+    [4, { x: 6, y: -2, crouch: 4, lean: 4, head: 2, hx: 60, hy: 4, wr: -62, f1: 78, f2: 55, sh: 8, liftF: 6, footF: 12, cape: 0.7, dust: 0 }],
+    [5, { x: 16, y: 0, crouch: 10, lean: 16, head: 8, hx: 70, hy: 60, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 18, footN: -2, cape: 0.8, dust: 0 }],
+    [6, { x: 17, crouch: 12, lean: 18, head: 10, hx: 66, hy: 70, wr: -30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 18, footN: -2, cape: 0.7, dust: 1 }],
+    [7, { x: 16, crouch: 12, lean: 17, head: 10, hx: 65, hy: 71, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 18, footN: -2, cape: 0.6, dust: 0.6 }],
+    [8, { x: 7, crouch: 6, lean: 8, head: 5, ws: 1, hx: 36, hy: 74, wr: -50, liftF: 4, footF: 9, footN: -1, cape: 0.3, dust: 0.15 }],
   ],
   // Приём (заклинание, бросок): молот вскинут к небу, свет собирается на бойке — и боёк на цель, рука во всю длину.
   power: [
-    [0, { lean: -2, hx: 34, hy: 50, sw: -40 }],
-    [1, { x: -2, lean: -6, head: -6, hx: 42, hy: 12, sw: -100, f1: 80, f2: 60, glow: 0.3, cape: 0.2 }],
-    [2, { x: -2, lean: -6, head: -6, hx: 43, hy: 10, sw: -102, f1: 80, f2: 60, glow: 0.6, cape: 0.25 }],
-    [3, { x: 4, lean: 6, head: 2, hx: 64, hy: 26, sw: -40, f1: 84, f2: 66, glow: 0.8, footF: 4, liftF: 2, cape: 0.5 }],
-    [4, { x: 6, lean: 8, head: 4, hx: 72, hy: 36, sw: -8, f1: 86, f2: 70, glow: 1.1, footF: 6, cape: 0.6 }],
-    [5, { x: 6, lean: 8, head: 4, hx: 71, hy: 37, sw: -6, f1: 86, f2: 70, glow: 0.6, footF: 6, cape: 0.5 }],
-    [6, { x: 3, lean: 5, head: 3, hx: 48, hy: 60, sw: 20, glow: 0.2, footF: 3 }],
+    [0, { lean: -2, ws: 1, hx: 22, hy: 74, wr: -72 }],
+    [1, { x: -2, lean: -6, head: -6, hx: 52, hy: 6, wr: -32, f1: 80, f2: 60, glow: 0.3, cape: 0.2 }],
+    [2, { x: -2, lean: -6, head: -6, hx: 53, hy: 4, wr: -30, f1: 80, f2: 60, glow: 0.6, cape: 0.25 }],
+    [3, { x: 4, lean: 6, head: 2, hx: 66, hy: 24, wr: -40, f1: 84, f2: 66, glow: 0.8, footF: 4, liftF: 2, cape: 0.5 }],
+    [4, { x: 6, lean: 8, head: 4, hx: 76, hy: 49, wr: -28, f1: 86, f2: 70, glow: 1.1, footF: 6, cape: 0.6 }],
+    [5, { x: 6, lean: 8, head: 4, hx: 75, hy: 50, wr: -30, f1: 86, f2: 70, glow: 0.6, footF: 6, cape: 0.5 }],
+    [6, { x: 3, lean: 5, head: 3, ws: 1, hx: 38, hy: 70, wr: -55, glow: 0.2, footF: 3 }],
   ],
-  // Лечение A «На колено»: опустился на заднее колено, молот бойком в землю перед собой, шлем склонён — боёк светится.
+  // Лечение A «На колено»: опустился на заднее колено, прямая рука ставит молот бойком на землю у колена, шлем
+  // склонён — боёк светится.
   heal: [
-    [0, { x: 2, crouch: 6, lean: 4, head: 4, hx: 44, hy: 62, sw: 80, kneel: 0.2 }],
-    [1, { x: 3, crouch: 16, lean: 3, head: 8, hx: 58, hy: 62, sw: 88, f1: 88, f2: 84, sh: 4, shy: -6, kneel: 0.6, glow: 0.2 }],
-    [2, { x: 4, crouch: 24, lean: 2, head: 14, hx: 62, hy: 64, sw: 90, f1: 92, f2: 88, sh: 0, shy: -12, kneel: 1, dust: 0.35, glow: 0.7 }],
-    [3, { x: 4, crouch: 25, lean: 3, head: 16, hx: 62, hy: 64, sw: 90, f1: 92, f2: 88, shy: -12, kneel: 1, dust: 0.1, glow: 1.1 }],
-    [7, { x: 4, crouch: 24, lean: 2, head: 14, hx: 62, hy: 64, sw: 90, f1: 92, f2: 88, shy: -12, kneel: 1, dust: 0, glow: 1 }],
-    [8, { x: 4, crouch: 23, lean: 0, head: 4, hx: 62, hy: 64, sw: 90, f1: 90, f2: 86, shy: -12, kneel: 1, glow: 0.5 }],
-    [9, { x: 3, crouch: 14, lean: 2, head: 4, hx: 52, hy: 64, sw: 78, f1: 86, f2: 80, shy: -6, kneel: 0.5, glow: 0.15 }],
-    [10, { x: 1, crouch: 5, lean: 2, head: 2, hx: 36, hy: 70, sw: 50, kneel: 0.1, glow: 0 }],
+    [0, { x: 2, crouch: 6, lean: 4, head: 4, ws: 1, hx: 30, hy: 72, wr: -60, kneel: 0.2 }],
+    [1, { x: 3, crouch: 16, lean: 3, head: 8, hx: 40, hy: 78, wr: -40, f1: 88, f2: 84, sh: 4, shy: -6, kneel: 0.6, glow: 0.2 }],
+    [2, { x: 4, crouch: 24, lean: 2, head: 14, hx: 42, hy: 80, wr: -32, f1: 92, f2: 88, sh: 0, shy: -12, kneel: 1, dust: 0.35, glow: 0.7 }],
+    [3, { x: 4, crouch: 25, lean: 3, head: 16, hx: 42, hy: 80, wr: -32, f1: 92, f2: 88, shy: -12, kneel: 1, dust: 0.1, glow: 1.1 }],
+    [7, { x: 4, crouch: 24, lean: 2, head: 14, hx: 42, hy: 80, wr: -32, f1: 92, f2: 88, shy: -12, kneel: 1, dust: 0, glow: 1 }],
+    [8, { x: 4, crouch: 23, lean: 0, head: 4, hx: 42, hy: 80, wr: -32, f1: 90, f2: 86, shy: -12, kneel: 1, glow: 0.5 }],
+    [9, { x: 3, crouch: 14, lean: 2, head: 4, hx: 36, hy: 78, wr: -45, f1: 86, f2: 80, shy: -6, kneel: 0.5, glow: 0.15 }],
+    [10, { x: 1, crouch: 5, lean: 2, head: 2, ws: 1, hx: 30, hy: 74, wr: -62, kneel: 0.1, glow: 0 }],
   ],
   // Клич: молот к небу, щит в сторону, грудь вперёд, шлем запрокинут, боёк светится — рёв рисует слой эффектов.
   buff: [
-    [0, { lean: -2, head: -2, hx: 34, hy: 46, sw: -50 }],
-    [1, { x: -2, crouch: 3, lean: -10, head: -12, hx: 44, hy: 7, sw: -92, f1: 15, f2: 5, sh: -10, cape: 0.4 }],
-    [2, { x: -2, crouch: 3, lean: -14, head: -18, hx: 45, hy: 5, sw: -95, f1: 5, f2: -5, sh: -16, cape: 0.7, glow: 0.6 }],
-    [5, { x: -2, crouch: 3, lean: -14, head: -18, hx: 45, hy: 5, sw: -96, f1: 5, f2: -5, sh: -16, cape: 1, glow: 1 }],
-    [7, { x: -1, crouch: 2, lean: -8, head: -10, hx: 42, hy: 11, sw: -88, f1: 30, f2: 15, sh: -6, cape: 0.6, glow: 0.4 }],
-    [8, { lean: -2, head: -2, hx: 34, hy: 50, sw: -40, cape: 0.3, glow: 0 }],
+    [0, { lean: -2, head: -2, ws: 1, hx: 22, hy: 74, wr: -72 }],
+    [1, { x: -2, crouch: 3, lean: -10, head: -12, hx: 52, hy: 6, wr: -30, f1: 15, f2: 5, sh: -10, cape: 0.4 }],
+    [2, { x: -2, crouch: 3, lean: -14, head: -18, hx: 53, hy: 4, wr: -28, f1: 5, f2: -5, sh: -16, cape: 0.7, glow: 0.6 }],
+    [5, { x: -2, crouch: 3, lean: -14, head: -18, hx: 53, hy: 4, wr: -28, f1: 5, f2: -5, sh: -16, cape: 1, glow: 1 }],
+    [7, { x: -1, crouch: 2, lean: -8, head: -10, hx: 50, hy: 12, wr: -35, f1: 30, f2: 15, sh: -6, cape: 0.6, glow: 0.4 }],
+    [8, { lean: -2, head: -2, ws: 1, hx: 28, hy: 72, wr: -62, cape: 0.3, glow: 0 }],
   ],
-  // Блок: щит к лицу, присел и спрятал голову, молот отведён к бедру; в кадре контакта — толчок назад и искры.
+  // Блок: щит к лицу, присел и спрятал голову, молот впереди-внизу у бедра; в кадре контакта — толчок назад и искры.
   block: [
-    [0, { crouch: 2, lean: 3, head: 8, f1: 0, f2: -45, sh: -6, shy: -6, spark: 0 }],
-    [1, { crouch: 4, lean: 2, head: 12, f1: -25, f2: -75, sh: -10, shy: -12, hx: 30, hy: 66, sw: 120, spark: 0 }],
-    [2, { x: -4, crouch: 5, lean: -2, head: 14, f1: -22, f2: -72, sh: -14, shy: -12, hx: 29, hy: 66, sw: 122, spark: 1 }],
-    [3, { x: -3, crouch: 4, lean: 0, head: 12, f1: -23, f2: -73, sh: -11, shy: -12, hx: 29, hy: 67, sw: 118, spark: 0.4 }],
-    [4, { x: -1, crouch: 2, lean: 2, head: 6, f1: 20, f2: -20, sh: -4, shy: -4, hx: 27, hy: 72, sw: 70, spark: 0 }],
+    [0, { crouch: 2, lean: 3, head: 8, ws: 1, wr: -60, f1: 0, f2: -45, sh: -6, shy: -6, spark: 0 }],
+    [1, { crouch: 4, lean: 2, head: 12, f1: -25, f2: -75, sh: -10, shy: -12, hx: 22, hy: 70, wr: -42, spark: 0 }],
+    [2, { x: -4, crouch: 5, lean: -2, head: 14, f1: -22, f2: -72, sh: -14, shy: -12, hx: 20, hy: 70, wr: -38, spark: 1 }],
+    [3, { x: -3, crouch: 4, lean: 0, head: 12, f1: -23, f2: -73, sh: -11, shy: -12, hx: 21, hy: 71, wr: -44, spark: 0.4 }],
+    [4, { x: -1, crouch: 2, lean: 2, head: 6, ws: 1, f1: 20, f2: -20, sh: -4, shy: -4, hx: 24, hy: 74, wr: -60, spark: 0 }],
   ],
-  // Урон: отбросило назад, шлем запрокинут, молот отлетел назад, щит в сторону; вспышку добавляет движок.
+  // Урон: отбросило назад, шлем запрокинут, щит в сторону, боёк молота отстаёт вперёд (корпус уходит, тяжёлая голова
+  // молота — по инерции); вспышку добавляет движок.
   hurt: [
-    [0, { x: -7, crouch: 2, lean: -14, head: -20, hx: 20, hy: 66, sw: 150, f1: 85, f2: 75, sh: 18, cape: 0.6 }],
-    [1, { x: -6, crouch: 2, lean: -12, head: -16, hx: 21, hy: 68, sw: 140, f1: 82, f2: 68, sh: 15, cape: 0.5 }],
-    [2, { x: -3, crouch: 1, lean: -5, head: -7, hx: 23, hy: 72, sw: 90, f1: 68, f2: 45, sh: 8, cape: 0.3 }],
-    [3, { x: -1, lean: -1, head: -1, cape: 0.1 }],
+    [0, { x: -7, crouch: 2, lean: -14, head: -20, ws: 1, hx: 20, hy: 70, wr: -38, f1: 85, f2: 75, sh: 18, cape: 0.6 }],
+    [1, { x: -6, crouch: 2, lean: -12, head: -16, hx: 21, hy: 71, wr: -50, f1: 82, f2: 68, sh: 15, cape: 0.5 }],
+    [2, { x: -3, crouch: 1, lean: -5, head: -7, hx: 23, hy: 74, wr: -82, f1: 68, f2: 45, sh: 8, cape: 0.3 }],
+    [3, { x: -1, lean: -1, head: -1, ws: 1, wr: -74, cape: 0.1 }],
   ],
   // Смерть: отбросило, молот выскользнул, колено на землю, упал на спину — щит на груди, молот рядом.
   death: [
-    [0, { x: -6, crouch: 2, lean: -14, head: -20, hx: 20, hy: 66, sw: 150, f1: 85, f2: 75, sh: 18, cape: 0.6 }],
-    [1, { x: -8, crouch: 7, lean: -10, head: -12, hx: 20, hy: 70, sw: 140, drop: 0.12, cape: 0.5 }],
-    [2, { x: -8, crouch: 15, lean: -2, head: 10, hx: 24, hy: 74, f1: 95, f2: 90, drop: 0.45, cape: 0.4, kneel: 0.6 }],
+    [0, { x: -6, crouch: 2, lean: -14, head: -20, ws: 1, hx: 20, hy: 70, wr: -38, f1: 85, f2: 75, sh: 18, cape: 0.6 }],
+    [1, { x: -8, crouch: 7, lean: -10, head: -12, hx: 20, hy: 70, wr: -50, drop: 0.12, cape: 0.5 }],
+    [2, { x: -8, crouch: 15, lean: -2, head: 10, hx: 24, hy: 74, wr: -70, f1: 95, f2: 90, drop: 0.45, cape: 0.4, kneel: 0.6 }],
     [3, { x: -8, crouch: 22, lean: 4, head: 16, hx: 26, hy: 76, f1: 92, f2: 85, drop: 0.8, cape: 0.3, kneel: 1 }],
     [4, { x: -8, crouch: 24, lean: 0, head: 12, drop: 1, fall: 0.05, kneel: 1 }],
     [5, { fall: 0.25, head: -4 }],
@@ -445,15 +458,15 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
   // Молот света A «Крест лучей»: молот вскинут к небу, свет собирается на бойке крестом лучей — и удар сильного
   // удара: в кадр контакта боёк вспыхивает.
   smite: [
-    [0, { lean: -2, hx: 36, hy: 46, sw: -50, glow: 0.1 }],
-    [1, { x: -3, y: -2, lean: -10, head: -10, hx: 44, hy: 7, sw: -92, f1: 30, f2: 10, sh: -10, glow: 0.5, cape: 0.3 }],
-    [2, { x: -3, y: -3, lean: -12, head: -14, hx: 45, hy: 5, sw: -94, f1: 25, f2: 5, sh: -12, glow: 0.95, cape: 0.45 }],
-    [3, { x: -4, y: -4, lean: -14, head: -12, hx: 26, hy: 18, sw: -160, f1: 40, f2: 15, sh: -6, glow: 1.2, liftF: 3, cape: 0.5, burst: 0 }],
-    [4, { x: 6, y: -2, crouch: 4, lean: 4, head: 2, hx: 52, hy: 3, sw: -95, f1: 78, f2: 55, sh: 8, glow: 1.3, liftF: 6, footF: 12, cape: 0.7, dust: 0, burst: 0 }],
-    [5, { x: 16, y: 0, crouch: 10, lean: 16, head: 8, hx: 74, hy: 44, sw: 30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.6, liftF: 0, footF: 18, footN: -2, cape: 0.8, burst: 1 }],
-    [6, { x: 17, crouch: 12, lean: 18, head: 10, hx: 72, hy: 52, sw: 55, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.1, footF: 18, footN: -2, cape: 0.7, burst: 0.6 }],
-    [7, { x: 16, crouch: 12, lean: 17, head: 10, hx: 71, hy: 54, sw: 58, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 0.6, footF: 18, footN: -2, cape: 0.6, burst: 0.2 }],
-    [8, { x: 7, crouch: 6, lean: 8, head: 5, hx: 46, hy: 70, sw: 50, glow: 0.2, liftF: 4, footF: 9, footN: -1, cape: 0.3, burst: 0 }],
+    [0, { lean: -2, ws: 1, hx: 22, hy: 74, wr: -72, glow: 0.1 }],
+    [1, { x: -3, y: -2, lean: -10, head: -10, hx: 54, hy: 6, wr: -32, f1: 30, f2: 10, sh: -10, glow: 0.5, cape: 0.3 }],
+    [2, { x: -3, y: -3, lean: -12, head: -14, hx: 54, hy: 4, wr: -30, f1: 25, f2: 5, sh: -12, glow: 0.95, cape: 0.45 }],
+    [3, { x: -4, y: -4, lean: -14, head: -12, hx: 30, hy: 4, wr: -62, f1: 40, f2: 15, sh: -6, glow: 1.2, liftF: 3, cape: 0.5, burst: 0 }],
+    [4, { x: 6, y: -2, crouch: 4, lean: 4, head: 2, hx: 60, hy: 4, wr: -62, f1: 78, f2: 55, sh: 8, glow: 1.3, liftF: 6, footF: 12, cape: 0.7, dust: 0, burst: 0 }],
+    [5, { x: 16, y: 0, crouch: 10, lean: 16, head: 8, hx: 70, hy: 60, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.6, liftF: 0, footF: 18, footN: -2, cape: 0.8, burst: 1 }],
+    [6, { x: 17, crouch: 12, lean: 18, head: 10, hx: 66, hy: 70, wr: -30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.1, footF: 18, footN: -2, cape: 0.7, burst: 0.6 }],
+    [7, { x: 16, crouch: 12, lean: 17, head: 10, hx: 65, hy: 71, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 0.6, footF: 18, footN: -2, cape: 0.6, burst: 0.2 }],
+    [8, { x: 7, crouch: 6, lean: 8, head: 5, ws: 1, hx: 36, hy: 74, wr: -50, glow: 0.2, liftF: 4, footF: 9, footN: -1, cape: 0.3, burst: 0 }],
   ],
 };
 
@@ -461,49 +474,49 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
 const CLIPS_B: Record<PaladinVariant, PoseKeys<PaladinPose>> = {
   // Удар B «Снизу»: молот уходит назад к земле — шаг, и боёк снизу вверх под щит врага.
   attack: [
-    [0, { x: -1, crouch: 3, lean: 2, hx: 28, hy: 72, sw: 90 }],
-    [1, { x: -4, crouch: 5, lean: -3, hx: 22, hy: 70, sw: 150, f1: 55, f2: 25, sh: -4, liftF: 2, cape: 0.2 }],
-    [2, { x: -5, crouch: 6, lean: -4, hx: 21, hy: 69, sw: 162, f1: 55, f2: 25, sh: -4, liftF: 3, cape: 0.25 }],
-    [3, { x: 4, crouch: 5, lean: 4, hx: 50, hy: 70, sw: 70, f1: 80, f2: 55, sh: 4, footF: 7, liftF: 4, cape: 0.6 }],
-    [4, { x: 11, crouch: 4, lean: 8, head: 2, hx: 72, hy: 44, sw: -22, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 12, cape: 1 }],
-    [5, { x: 11, crouch: 3, lean: 6, head: 1, hx: 71, hy: 40, sw: -34, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 12, cape: 0.85 }],
-    [6, { x: 5, crouch: 2, lean: 3, hx: 46, hy: 60, sw: 20, liftF: 3, footF: 6, cape: 0.4 }],
+    [0, { x: -1, crouch: 3, lean: 2, ws: 1, hx: 24, hy: 74, wr: -80 }],
+    [1, { x: -4, crouch: 5, lean: -3, hx: 12, hy: 72, wr: -108, f1: 55, f2: 25, sh: -4, liftF: 2, cape: 0.2 }],
+    [2, { x: -5, crouch: 6, lean: -4, hx: 10, hy: 70, wr: -115, f1: 55, f2: 25, sh: -4, liftF: 3, cape: 0.25 }],
+    [3, { x: 4, crouch: 5, lean: 4, hx: 50, hy: 74, wr: -32, f1: 80, f2: 55, sh: 4, footF: 7, liftF: 4, cape: 0.6 }],
+    [4, { x: 11, crouch: 4, lean: 8, head: 2, hx: 77, hy: 54, wr: -36, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 12, cape: 1 }],
+    [5, { x: 11, crouch: 3, lean: 6, head: 1, hx: 76, hy: 50, wr: -42, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 12, cape: 0.85 }],
+    [6, { x: 5, crouch: 2, lean: 3, ws: 1, hx: 40, hy: 70, wr: -58, liftF: 3, footF: 6, cape: 0.4 }],
   ],
-  // Сильный удар B «Прыжок»: присел, молот назад к земле — прыжок, молот над головой, и приземление с ударом в землю.
+  // Сильный удар B «Прыжок»: присел, молот назад к земле — прыжок, молот за головой, и приземление с ударом через верх.
   heavy: [
-    [0, { x: -1, crouch: 6, lean: 4, head: 2, hx: 32, hy: 60, sw: 70, cape: 0.1, dust: 0 }],
-    [1, { x: -3, crouch: 13, lean: 10, head: 4, hx: 26, hy: 68, sw: 130, f1: 82, f2: 62, cape: 0.2 }],
-    [2, { x: 4, y: -14, crouch: -2, lean: -10, head: -8, hx: 25, hy: 21, sw: -150, f1: 55, f2: 25, sh: -4, liftF: 12, liftN: 10, footF: 6, footN: 2, cape: 0.6 }],
-    [3, { x: 10, y: -18, crouch: -2, lean: -12, head: -10, hx: 22, hy: 19, sw: -190, f1: 55, f2: 25, sh: -4, liftF: 14, liftN: 12, footF: 10, footN: 5, cape: 0.8 }],
-    [4, { x: 14, y: -8, crouch: 3, lean: 6, head: 4, hx: 52, hy: 3, sw: -95, f1: 78, f2: 55, sh: 8, liftF: 6, liftN: 4, footF: 14, footN: 8, cape: 1, dust: 0 }],
-    [5, { x: 18, y: 0, crouch: 11, lean: 15, head: 9, hx: 74, hy: 40, sw: 18, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, liftN: 0, footF: 14, footN: 8, cape: 0.8, dust: 0 }],
-    [6, { x: 18, crouch: 14, lean: 18, head: 12, hx: 72, hy: 52, sw: 55, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 14, footN: 8, cape: 0.7, dust: 1 }],
-    [7, { x: 17, crouch: 13, lean: 17, head: 11, hx: 71, hy: 54, sw: 58, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 14, footN: 8, cape: 0.6, dust: 0.6 }],
-    [8, { x: 8, crouch: 7, lean: 8, head: 5, hx: 46, hy: 70, sw: 50, liftF: 4, footF: 10, footN: 4, cape: 0.3, dust: 0.15 }],
+    [0, { x: -1, crouch: 6, lean: 4, head: 2, ws: 1, hx: 22, hy: 74, wr: -72, cape: 0.1, dust: 0 }],
+    [1, { x: -3, crouch: 13, lean: 10, head: 4, hx: 12, hy: 72, wr: -108, f1: 82, f2: 62, cape: 0.2 }],
+    [2, { x: 4, y: -14, crouch: -2, lean: -10, head: -8, hx: 34, hy: 6, wr: -50, f1: 55, f2: 25, sh: -4, liftF: 12, liftN: 10, footF: 6, footN: 2, cape: 0.6 }],
+    [3, { x: 10, y: -18, crouch: -2, lean: -12, head: -10, hx: 30, hy: 4, wr: -62, f1: 55, f2: 25, sh: -4, liftF: 14, liftN: 12, footF: 10, footN: 5, cape: 0.8 }],
+    [4, { x: 14, y: -8, crouch: 3, lean: 6, head: 4, hx: 60, hy: 4, wr: -62, f1: 78, f2: 55, sh: 8, liftF: 6, liftN: 4, footF: 14, footN: 8, cape: 1, dust: 0 }],
+    [5, { x: 18, y: 0, crouch: 11, lean: 15, head: 9, hx: 70, hy: 60, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, liftN: 0, footF: 14, footN: 8, cape: 0.8, dust: 0 }],
+    [6, { x: 18, crouch: 14, lean: 18, head: 12, hx: 66, hy: 70, wr: -30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 14, footN: 8, cape: 0.7, dust: 1 }],
+    [7, { x: 17, crouch: 13, lean: 17, head: 11, hx: 65, hy: 71, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 14, footN: 8, cape: 0.6, dust: 0.6 }],
+    [8, { x: 8, crouch: 7, lean: 8, head: 5, ws: 1, hx: 36, hy: 74, wr: -50, liftF: 4, footF: 10, footN: 4, cape: 0.3, dust: 0.15 }],
   ],
   // Лечение B «Свет щита»: стоя, щит поднят к груди крестом к небу, шлем склонён, молот опущен — крест светится.
   heal: [
-    [0, { crouch: 2, lean: 2, head: 4, hx: 28, hy: 74, sw: 60, f1: 40, f2: 0, sh: -6 }],
-    [1, { crouch: 4, lean: 0, head: 10, hx: 30, hy: 74, sw: 75, f1: 5, f2: -40, sh: -14, shx: -6, shy: -8, shine: 0.3, cape: 0.2 }],
-    [2, { crouch: 5, lean: -2, head: 14, hx: 30, hy: 75, sw: 78, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 0.8, cape: 0.3 }],
-    [3, { crouch: 5, lean: -2, head: 14, hx: 30, hy: 75, sw: 78, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 1.1, cape: 0.35 }],
-    [7, { crouch: 5, lean: -2, head: 12, hx: 30, hy: 75, sw: 78, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 1, cape: 0.4 }],
-    [8, { crouch: 4, lean: -1, head: 4, hx: 30, hy: 75, sw: 75, f1: 5, f2: -40, sh: -14, shx: -6, shy: -8, shine: 0.5, cape: 0.3 }],
-    [9, { crouch: 2, lean: 1, head: 2, hx: 28, hy: 75, sw: 60, f1: 40, f2: 10, sh: -6, shx: -2, shy: -3, shine: 0.15, cape: 0.15 }],
-    [10, { crouch: 1, lean: 0, head: 1, shine: 0 }],
+    [0, { crouch: 2, lean: 2, head: 4, ws: 1, hx: 28, hy: 74, wr: -45, f1: 40, f2: 0, sh: -6 }],
+    [1, { crouch: 4, lean: 0, head: 10, hx: 30, hy: 74, wr: -30, f1: 5, f2: -40, sh: -14, shx: -6, shy: -8, shine: 0.3, cape: 0.2 }],
+    [2, { crouch: 5, lean: -2, head: 14, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 0.8, cape: 0.3 }],
+    [3, { crouch: 5, lean: -2, head: 14, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 1.1, cape: 0.35 }],
+    [7, { crouch: 5, lean: -2, head: 12, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 1, cape: 0.4 }],
+    [8, { crouch: 4, lean: -1, head: 4, hx: 30, hy: 75, wr: -30, f1: 5, f2: -40, sh: -14, shx: -6, shy: -8, shine: 0.5, cape: 0.3 }],
+    [9, { crouch: 2, lean: 1, head: 2, hx: 28, hy: 75, wr: -45, f1: 40, f2: 10, sh: -6, shx: -2, shy: -3, shine: 0.15, cape: 0.15 }],
+    [10, { crouch: 1, lean: 0, head: 1, ws: 1, wr: -60, shine: 0 }],
   ],
   // Молот света B «Луч с неба»: молот к небу, на боёк падает луч света — и удар с шагом прямо в грудь врага,
   // боёк вспыхивает.
   smite: [
-    [0, { lean: -2, hx: 36, hy: 46, sw: -50, glow: 0.1 }],
-    [1, { x: -2, y: -1, lean: -8, head: -14, hx: 44, hy: 7, sw: -92, f1: 40, f2: 15, sh: -8, glow: 0.4, beam: 0.3, cape: 0.2 }],
-    [2, { x: -2, y: -2, lean: -10, head: -18, hx: 45, hy: 5, sw: -93, f1: 35, f2: 10, sh: -10, glow: 1, beam: 1, cape: 0.3 }],
-    [3, { x: -3, y: -2, lean: -11, head: -16, hx: 44, hy: 6, sw: -110, f1: 40, f2: 15, sh: -8, glow: 1.3, beam: 0.5, cape: 0.35, burst: 0 }],
-    [4, { x: 5, crouch: 4, lean: 2, head: 0, hx: 52, hy: 4, sw: -70, f1: 80, f2: 55, sh: 4, glow: 1.3, beam: 0, liftF: 4, footF: 8, cape: 0.6, burst: 0 }],
-    [5, { x: 12, crouch: 9, lean: 13, head: 6, hx: 73, hy: 48, sw: 25, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.6, liftF: 0, footF: 13, cape: 0.9, burst: 1 }],
-    [6, { x: 12, crouch: 9, lean: 13, head: 6, hx: 72, hy: 50, sw: 30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.1, footF: 13, cape: 0.85, burst: 0.6 }],
-    [7, { x: 10, crouch: 8, lean: 11, head: 5, hx: 70, hy: 52, sw: 33, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 0.6, footF: 12, cape: 0.7, burst: 0.2 }],
-    [8, { x: 5, crouch: 4, lean: 5, head: 3, hx: 46, hy: 66, sw: 40, glow: 0.2, liftF: 3, footF: 6, cape: 0.4, burst: 0 }],
+    [0, { lean: -2, ws: 1, hx: 22, hy: 74, wr: -72, glow: 0.1 }],
+    [1, { x: -2, y: -1, lean: -8, head: -14, hx: 54, hy: 6, wr: -32, f1: 40, f2: 15, sh: -8, glow: 0.4, beam: 0.3, cape: 0.2 }],
+    [2, { x: -2, y: -2, lean: -10, head: -18, hx: 54, hy: 4, wr: -30, f1: 35, f2: 10, sh: -10, glow: 1, beam: 1, cape: 0.3 }],
+    [3, { x: -3, y: -2, lean: -11, head: -16, hx: 54, hy: 5, wr: -36, f1: 40, f2: 15, sh: -8, glow: 1.3, beam: 0.5, cape: 0.35, burst: 0 }],
+    [4, { x: 5, crouch: 4, lean: 2, head: 0, hx: 60, hy: 6, wr: -62, f1: 80, f2: 55, sh: 4, glow: 1.3, beam: 0, liftF: 4, footF: 8, cape: 0.6, burst: 0 }],
+    [5, { x: 12, crouch: 9, lean: 13, head: 6, hx: 67, hy: 65, wr: -35, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.6, liftF: 0, footF: 13, cape: 0.9, burst: 1 }],
+    [6, { x: 12, crouch: 9, lean: 13, head: 6, hx: 66, hy: 66, wr: -38, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.1, footF: 13, cape: 0.85, burst: 0.6 }],
+    [7, { x: 10, crouch: 8, lean: 11, head: 5, hx: 64, hy: 68, wr: -42, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 0.6, footF: 12, cape: 0.7, burst: 0.2 }],
+    [8, { x: 5, crouch: 4, lean: 5, head: 3, ws: 1, hx: 36, hy: 73, wr: -52, glow: 0.2, liftF: 3, footF: 6, cape: 0.4, burst: 0 }],
   ],
 };
 
@@ -516,9 +529,25 @@ export const PALADIN_VARIANTS: Record<PaladinVariant, { A: string; B: string }> 
 };
 
 /**
+ * Предел запястья: угол молота к предплечью (`sw` − угол предплечья) — по ту же сторону, что в покое (≈ −65°), и не
+ * дальше, чем отклоняется кисть (≈ 55° в каждую сторону в плоскости рисунка). Вне предела молот либо встаёт
+ * в продолжение руки, либо уходит «за» предплечье — кисть ломается.
+ */
+const WRIST: [number, number] = [-125, -25];
+const nrm = (a: number): number => { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
+/** Угол молота в координатах верха: покой — `sw`, клип — от предплечья (`a2 + wr`) с пределом запястья. */
+function weaponAngle(P: PaladinPose, a2: number): number {
+  const sw = lerp(P.sw, a2 + P.wr, P.ws);
+  if (P.ws <= 0) return sw;
+  const d = nrm(sw - a2), c = Math.max(WRIST[0], Math.min(WRIST[1], d));
+  return sw + (c - d);
+}
+
+/**
  * Ближняя рука: углами `n1`/`n2` или кистью в точке (`hx`, `hy`, доля `nh`). Локоть — ik с изгибом наружу, как у
  * живой руки. Плечевой сустав ходит за рукой: поднятый локоть поднимает его до 3 единиц, кисть, вынесенная к врагам, —
- * выносит вперёд до 2,5; в покое рука висит, и плечо стоит на мерке. С неподвижным суставом рука на замахе уходила
+ * выносит вперёд до 2,5, поднятая кисть за плечом (замах) — уводит назад до 2; в покое рука висит, и плечо стоит на
+ * мерке. С неподвижным суставом рука на замахе уходила
  * вверх из-под наплечника, а плечо и пластина плеча оставались внизу («предплечье живёт само по себе»).
  */
 function nearArm(P: PaladinPose): { sx: number; sy: number; ex: number; ey: number; hx: number; hy: number; a1: number; a2: number } {
@@ -538,10 +567,11 @@ function nearArm(P: PaladinPose): { sx: number; sy: number; ex: number; ey: numb
   const first = solve(sx0, sy0);
   const lift = Math.max(0, Math.min(1, (sy0 - first.ey) / ARM_N.l1 + 0.3));
   const fwd = Math.max(0, Math.min(1, (first.hx - sx0 - 8) / 26));
-  return lift > 0 || fwd > 0 ? solve(sx0 + 2.5 * fwd, sy0 - 3 * lift) : first;
+  const back = lift * Math.max(0, Math.min(1, (sx0 - first.hx) / 12));
+  return lift > 0 || fwd > 0 ? solve(sx0 + 2.5 * fwd - 2 * back, sy0 - 3 * lift) : first;
 }
 
-/** Зонд: точки кадра — таз, кисть, середина бойка, стопы. Боёк у земли нарочно — лечение на колене, падение. */
+/** Зонд: точки кадра — таз, кисть, середина бойка, стопы, угол запястья и сгиб локтя. Боёк у земли нарочно — лечение на колене, падение. */
 export const paladinProbe: HeroProbe = { grounded: ['heal', 'death'] };
 
 /**
@@ -755,6 +785,7 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
 
     // ── Верх: без сутулости, наклон — только в клипах; дыхание. ──
     const near = nearArm(P);
+    const SW = weaponAngle(P, near.a2);
     const far = limb2(M.armF.sh[0], M.armF.sh[1], P.f1, ARM_F.l1, P.f2, ARM_F.l2);
     // Щит — от кисти дальней руки, перед туловищем; на размахе (`sback`) — за ним: корпус разворачивается в удар,
     // дальнее плечо уходит назад, и щит, висящий перед грудью, не закрывает боёк в кадр контакта.
@@ -846,9 +877,14 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
       // Ближняя рука с оружием — поверх туловища: пластина плеча, наруч с золотыми поясами, кулак на древке.
       const front = P.front > 0.5 && P.drop < 0.05;
       if (P.drop < 0.05 && !front) {
-        drawWeapon(near.hx, near.hy, P.sw);
-        headGlow(p, near.hx, near.hy, P.sw, headLen, P.glow, P.burst, (rot * 180) / Math.PI);
+        drawWeapon(near.hx, near.hy, SW);
+        headGlow(p, near.hx, near.hy, SW, headLen, P.glow, P.burst, (rot * 180) / Math.PI);
       }
+      const fist = (): void => {
+        p.ellipse(near.hx, near.hy, 6.8, 7.2, MAT.limb, { part: 'fist', tone: -0.02, lift: 1 });
+        stroke(p, [near.hx - 3.5, near.hy - 1.5, near.hx + 3, near.hy + 2.5], MAT.seam, 'fist');
+        p.poly([near.hx - 4, near.hy - 3, near.hx - 1.5, near.hy - 5.5, near.hx + 1, near.hy - 5, near.hx - 2, near.hy - 2], MAT.limb, { part: 'fist', paint: true, tone: 0.28 });
+      };
       p.limb(near.sx, near.sy, 8.2, near.ex, near.ey, 8, MAT.limb, { part: 'nearArm' });
       p.limb(near.ex, near.ey, 8.4, near.hx, near.hy, 7, MAT.limb, { part: 'nearArm' });
       const [ex, ey] = at(near.ex, near.ey, near.a2, 4), [hx2, hy2] = at(near.hx, near.hy, near.a2, -8);
@@ -861,24 +897,23 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
       };
       band(6.8, 8.6, 1.6);
       band(ARM_N.l2 - 3.5, 9, 1.6);
-      const fist = (): void => {
-        p.ellipse(near.hx, near.hy, 6.8, 7.2, MAT.limb, { part: 'fist', tone: -0.02, lift: 1 });
-        stroke(p, [near.hx - 3.5, near.hy - 1.5, near.hx + 3, near.hy + 2.5], MAT.seam, 'fist');
-        p.poly([near.hx - 4, near.hy - 3, near.hx - 1.5, near.hy - 5.5, near.hx + 1, near.hy - 5, near.hx - 2, near.hy - 2], MAT.limb, { part: 'fist', paint: true, tone: 0.28 });
-      };
       if (!front) fist();
-      // Пластина плеча и наплечник сидят на плечевой кости, а не на корпусе: поворачиваются вместе с ней вокруг
-      // плечевого сустава и едут за суставом — рука всегда выходит из-под каймы наплечника. Наплечник, повёрнутый
-      // на треть поворота руки, стоял на месте, и поднятая рука выходила из верха купола — «сквозь него». Поворот
-      // до 10° (покой: рука висит и чуть сгибается, плечо гуляет на −6…9°) гасится — покой прежний до пикселя, латы
-      // не рябят.
+      // Пластина плеча сидит на плечевой кости и поворачивается вместе с ней вокруг плечевого сустава целиком.
+      // Наплечник — купол на суставе: он доворачивается на половину угла кости, не больше 100° назад-вверх и 45°
+      // вперёд-вниз. Неподвижный купол давал руку, выходящую из его верха («сквозь наплечник»), повёрнутый целиком —
+      // купол чашей вверх и кость из каймы на макушке; кайма закрывает всё, кроме макушки, и половины угла хватает,
+      // чтобы рука выходила из-под боковой каймы. Поворот до 10° (покой: рука висит и чуть сгибается, плечо гуляет
+      // на −6…9°) гасится — покой прежний до пикселя, латы не рябят.
       const [sx0, sy0] = M.armN.sh;
       const turnUp = ((((near.a1 - ARM_N.a1 + 270) % 360) + 360) % 360) - 270;
-      const settle = (d: number, dead: number): number => d * Math.max(0, Math.min(1, (Math.abs(d) - dead) / 6));
-      const arm = { dx: near.sx - sx0, dy: near.sy - sy0, rot: settle(turnUp, 10) * DEG, px: sx0, py: sy0 };
+      // Порог — ровной ступенью: наплечник и пластина трогаются с 11° и дальше идут за костью один к одному (кривая
+      // с разгоном между 10° и 16° догоняла руку рывком).
+      const follow = Math.sign(turnUp) * Math.max(0, Math.abs(turnUp) - 10);
+      const lame = { dx: near.sx - sx0, dy: near.sy - sy0, rot: follow * DEG, px: sx0, py: sy0 };
+      const arm = { ...lame, rot: Math.max(-100, Math.min(45, 0.5 * follow)) * DEG };
       // Пластина плеча — ступенью под наплечником, золото по верхней кромке; мельче, чем по контуру листа (вторым
       // куполом рядом с наплечником она делала плечо огромным), и вместе с рукой ближе к телу.
-      p.pose(arm, () => {
+      p.pose(lame, () => {
         p.scope(0.8, 24 * 0.2 + 6, 50 * 0.2 + 5.5, () => {
           p.poly([14.5, 45.1, 18.2, 40.7, 24.1, 38.5, 29.2, 39.9, 31.4, 45.1, 28.5, 49.5, 21.9, 50.9, 16, 50.2], MAT.limb, { part: 'pLame', bevel: 2.6, tone: -0.06 });
           edgeBand(p, [29.2, 40.4, 24.1, 39, 18.2, 41.2, 14.9, 45.3], 2.4, MAT.gold, 'pLame');
@@ -901,7 +936,7 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
         stroke(p, [28.6, 36.6, 31.8, 41.6, 38.7, 43.8], MAT.goldLit, 'pauldron');
       });
       if (front) {
-        drawWeapon(near.hx, near.hy, P.sw);
+        drawWeapon(near.hx, near.hy, SW);
         fist();
       }
     });
@@ -910,10 +945,10 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
       const k = ease(Math.min(1, P.drop));
       const [hx0, hy0] = toWorld(near.hx, near.hy);
       const x = lerp(hx0, 26, k), y = lerp(hy0, G - 3.5, k * k);
-      const a = lerp(P.sw + (rot * 180) / Math.PI, 3, k);
+      const a = lerp(SW + (rot * 180) / Math.PI, 3, k);
       drawWeapon(x, y, a);
     }
-    const [tipX, tipY] = toWorld(...at(near.hx, near.hy, P.sw, headLen));
+    const [tipX, tipY] = toWorld(...at(near.hx, near.hy, SW, headLen));
     if (P.dust > 0.05) {
       // Пыль от бойка; удар со светом (боёк светится) поднимает золотую пыль.
       const dx0 = Math.min(tipX, 150), lit = P.glow > 0.4 || P.burst > 0.05;
@@ -926,7 +961,9 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
     skyBeam(p, tipX, -76 - P.y, tipY - 12, P.beam);
     if (paladinProbe.on) {
       const [hwx, hwy] = toWorld(near.hx, near.hy);
-      paladinProbe.on({ ...probeInfo, hipX: hipX + P.x, hipY: hipY + P.y, handX: hwx + P.x, handY: hwy + P.y, tipX: tipX + P.x, tipY: tipY + P.y, ground: G });
+      // Запястье — угол молота к предплечью, локоть — угол между плечом и предплечьем (180 — прямая рука).
+      const wrist = nrm(SW - near.a2), elbow = 180 - Math.abs(nrm(near.a2 - near.a1));
+      paladinProbe.on({ ...probeInfo, hipX: hipX + P.x, hipY: hipY + P.y, handX: hwx + P.x, handY: hwy + P.y, tipX: tipX + P.x, tipY: tipY + P.y, ground: G, wrist, elbow });
     }
   });
 }
