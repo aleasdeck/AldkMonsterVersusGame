@@ -328,8 +328,6 @@ export interface PaladinPose extends Record<string, number> {
   burst: number; shine: number;
   /** Щит за туловищем (1): размах удара, дальнее плечо ушло назад. */
   sback: number;
-  /** Оружие поверх ближнего наплечника — для портрета. */
-  front: number;
 }
 
 const REST: PaladinPose = {
@@ -338,7 +336,7 @@ const REST: PaladinPose = {
   nh: 0, hx: M.armN.hand[0], hy: M.armN.hand[1], wr: M.armN.weapon - ARM_N.a2, ws: 0,
   f1: ARM_F.a1, f2: ARM_F.a2, sh: 0, shx: 0, shy: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
-  cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0, burst: 0, shine: 0, sback: 0, front: 0,
+  cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0, burst: 0, shine: 0, sback: 0,
 };
 
 /** Клипы, которые рисует Паладин: общие и свой Молот света; чужие личные (Воина) играют замену. */
@@ -557,41 +555,28 @@ function framePose(p: Painter): PaladinPose {
 
 // ─── Аватарка ───────────────────────────────────────────────────────────────
 
-/** Варианты портрета на выбор (страница обсуждения): поза бюста; фон, ореол и рамка общие. */
-export type PaladinAvatar = 'A' | 'B' | 'C';
-export const PALADIN_AVATARS: Record<PaladinAvatar, string> = { A: 'Молот на плече', B: 'Молот света', C: 'Крест щита' };
-
 /**
- * Позы портрета — та же `PaladinPose`, что у клипов. Покой не портрет: молот висит у колена и срезается кадром бюста.
- * A — молот на плече: кулак перед грудью, боёк лежит на ближнем наплечнике (`front` — молот и кулак поверх него).
- * B — молот света: молот отвесно перед грудью, боёк у плеча раскалён светом и светит крестом лучей.
- * C — крест щита: щит поднят к груди и развёрнут к зрителю, крест залит светом, молот на плече.
+ * Аватарка — поза покоя в кадре бюста, как прежний рисованный портрет: шлем, крест табарда, щит у правого края;
+ * молот висит у колена и в кадр не входит. Позы с поднятым молотом (на плече, вскинут светом, щит к зрителю) молот
+ * выносили в полкадра — «колотушка занимает половину аватарки» (решение пользователя: «как в покое»). Ореол — солнце
+ * за шлемом с лучами, по краям шпили собора; цвета — с прежнего портрета (тёмное золото, ореол латунью), рамка —
+ * темнее фона, как у Воина.
  */
-const PORTRAITS: Record<PaladinAvatar, PaladinPose> = {
-  A: { ...REST, nh: 1, hx: 56, hy: 52, sw: -110, front: 1 },
-  B: { ...REST, nh: 1, hx: 50, hy: 62, sw: -96, glow: 1.1, front: 1 },
-  C: { ...REST, nh: 1, hx: 56, hy: 52, sw: -110, front: 1, f1: 110, f2: 40, sh: -8, shx: -14, shy: -10, shine: 1 },
-};
-
-/**
- * Аватарка: бюст от ореола до пояса, ореол-солнце за шлемом с лучами, по краям — шпили собора; цвета — с прежнего
- * рисованного портрета (тёмное золото, ореол латунью), рамка — темнее фона, как у Воина.
- */
-const avatarOf = (v: PaladinAvatar): AvatarSpec => ({
-  draw: (p) => drawPaladin(p, PORTRAITS[v]),
+const AVATAR: AvatarSpec = {
+  draw: (p) => drawPaladin(p, REST),
   crop: [28, -8, 84],
   halo: [70, 18, 21],
   rays: [16, 1.5],
   colors: { top: '#5e3a10', bottom: '#170f08', halo: '#6e4713', haloEdge: '#c98829', skyline: '#24160a', frameDark: '#100904', frame: '#4a2e0e', frameLight: '#8a5a1e' },
   skyline: [[0.05, 0.05, 0.62, 0.28], [0.13, 0.07, 0.48, 0.16], [0.9, 0.06, 0.56, 0.24], [0.97, 0.05, 0.7, 0.3]],
-});
+};
 
-/** Паладин; рост в покое — `HERO_BODY_HEIGHT.paladin` (132) в пикселе `HERO_PIXEL`. `avatar` — вариант портрета. */
-export function paladinModel(avatar: PaladinAvatar = 'A'): HeroModel {
+/** Паладин; рост в покое — `HERO_BODY_HEIGHT.paladin` (132) в пикселе `HERO_PIXEL`. */
+export function paladinModel(): HeroModel {
   return {
     id: 'paladin',
     own: ['smite'],
-    avatar: avatarOf(avatar),
+    avatar: AVATAR,
     probe: paladinProbe,
     w: 132,
     h: 140,
@@ -824,8 +809,7 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
       if (P.sback <= 0.5) drawShield();
 
       // Ближняя рука с оружием — поверх туловища: пластина плеча, наруч с золотыми поясами, кулак на древке.
-      const front = P.front > 0.5 && P.drop < 0.05;
-      if (P.drop < 0.05 && !front) {
+      if (P.drop < 0.05) {
         drawWeapon(near.hx, near.hy, SW);
         headGlow(p, near.hx, near.hy, SW, headLen, P.glow, P.burst, (rot * 180) / Math.PI);
       }
@@ -846,7 +830,7 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
       };
       band(6.8, 8.6, 1.6);
       band(ARM_N.l2 - 3.5, 9, 1.6);
-      if (!front) fist();
+      fist();
       // Пластина плеча сидит на плечевой кости и поворачивается вместе с ней вокруг плечевого сустава целиком.
       // Наплечник — купол на суставе: он доворачивается на половину угла кости, не больше 100° назад-вверх и 45°
       // вперёд-вниз. Неподвижный купол давал руку, выходящую из его верха («сквозь наплечник»), повёрнутый целиком —
@@ -884,11 +868,6 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
         edgeBand(p, [29.2, 26, 28, 30, 27.8, 36.3, 31.4, 41.4, 38.7, 43.6, 46.1, 42.1, 50.5, 37.7, 51.9, 30.4, 50.5, 23.1, 47.5, 18.2], 3.5, MAT.gold, 'pauldron');
         stroke(p, [28.6, 36.6, 31.8, 41.6, 38.7, 43.8], MAT.goldLit, 'pauldron');
       });
-      if (front) {
-        drawWeapon(near.hx, near.hy, SW);
-        headGlow(p, near.hx, near.hy, SW, headLen, P.glow, P.burst, (rot * 180) / Math.PI);
-        fist();
-      }
     });
 
     if (P.drop >= 0.05) {

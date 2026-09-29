@@ -1,4 +1,4 @@
-// Страница обсуждения «Лепка Паладина» — шаг 4 рецепта (docs/lepka-geroev.md): клипы. Облик, шлем и варианты клипов
+// Страница обсуждения «Лепка Паладина» — шаг 5 рецепта (docs/lepka-geroev.md): аватарка. Облик, шлем и варианты клипов
 // выбраны (отвергнутые — в истории ветки), модель — src/ui/heroes/paladin.ts (в игру ещё не входит). Враги и фоны —
 // из игры, тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero paladin.
 import { Painter, type Model } from '../../src/ui/mobs/pixel';
@@ -6,7 +6,7 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { paladinModel, PALADIN_AVATARS, type PaladinAvatar } from '../../src/ui/heroes/paladin';
+import { paladinModel } from '../../src/ui/heroes/paladin';
 import { warriorModel } from '../../src/ui/heroes/warrior';
 import { renderAvatar } from '../../src/ui/heroes/avatar';
 import type { HeroModel } from '../../src/ui/heroes/model';
@@ -345,18 +345,11 @@ const CLIP_NOTE: Partial<Record<SculptClip, string>> = {
 
 // ─── Аватарка ───────────────────────────────────────────────────────────────
 
-/** Что в варианте портрета, чем хорош и чем плох; `rec` — рекомендация. */
-const AVATAR_INFO: Record<PaladinAvatar, { rec?: true; desc: string; plus: string[]; minus: string[] }> = {
-  A: { desc: 'Кулак перед грудью, боёк лежит на ближнем наплечнике у шлема — как меч на плече у Воина.', plus: ['спокойный, «парадный» портрет', 'крест табарда на виду'], minus: ['та же поза, что у Воина: в ряду выбора два героя с оружием на плече'] },
-  B: { rec: true, desc: 'Молот отвесно перед грудью, боёк раскалён светом и светит крестом лучей — как в его Молоте света.', plus: ['самое яркое пятно в ряду выбора — Паладин узнаётся сразу', 'портрет о его приёме', 'крест табарда на виду'], minus: ['молот закрывает ближний наплечник'] },
-  C: { desc: 'Щит поднят к груди и развёрнут к зрителю, крест залит светом, как в его лечении; молот на плече.', plus: ['крест щита — главный знак, как на прежнем портрете', 'связан с клипом лечения'], minus: ['щит закрывает табард', 'светлое пятно щита спорит с ореолом'] },
-};
-
 const avatarModels = new Map<string, HeroModel>();
-/** Модель под портрет: варианты Паладина и Воин из своей лепки. */
-function portraitModel(id: string): HeroModel {
+/** Модель под портрет: Паладин и Воин из своей лепки. */
+function portraitModel(id: 'paladin' | 'warrior'): HeroModel {
   let m = avatarModels.get(id);
-  if (!m) avatarModels.set(id, (m = id === 'warrior' ? warriorModel() : paladinModel(id as PaladinAvatar)));
+  if (!m) avatarModels.set(id, (m = id === 'warrior' ? warriorModel() : paladinModel()));
   return m;
 }
 
@@ -373,47 +366,24 @@ function avatarCanvas(model: HeroModel, px: number, k: number, label: string): H
   return c;
 }
 
-/** Выбранный в ряду выбора вариант. */
-let rowPick: PaladinAvatar = 'B';
-
 /**
- * Карточки вариантов (`#avatars`): три размера игры ×2, как на FullHD, и ряд выбора героя (`#avatar-row`) — шесть
- * героев по 112 в порядке игры, Паладин — в выбранном варианте, остальные — как в игре сейчас.
+ * Аватарка (`#avatars`): три размера игры ×2, как на FullHD, и ряд выбора героя (`#avatar-row`) — шесть героев по 112
+ * в порядке игры, остальные — как в игре сейчас.
  */
 function drawAvatars(): void {
-  const host = document.getElementById('avatars')!;
-  host.replaceChildren();
-  for (const v of ['A', 'B', 'C'] as PaladinAvatar[]) {
-    const info = AVATAR_INFO[v];
-    const card = h('article', `look${info.rec ? ' rec' : ''}${rowPick === v ? ' shown' : ''}`);
-    const title = h('h3', '', v);
-    title.appendChild(h('span', '', `«${PALADIN_AVATARS[v]}»`));
-    if (info.rec) title.appendChild(h('span', 'badge', 'рекомендую'));
-    const sizes = h('div', 'av-sizes');
-    for (const px of [112, 80, 44]) {
-      const f = h('figure');
-      f.append(avatarCanvas(portraitModel(v), px, 2, `Вариант ${v}, ${px} точек`), h('figcaption', '', px === 112 ? '112 выбор' : px === 80 ? '80 лист' : '44 консоль'));
-      sizes.appendChild(f);
-    }
-    const pros = h('ul', 'pros');
-    for (const t of info.plus) pros.appendChild(h('li', 'plus', t));
-    for (const t of info.minus) pros.appendChild(h('li', 'minus', t));
-    const btn = h('button', 'pick', rowPick === v ? 'в ряду' : 'в ряд выбора');
-    btn.type = 'button';
-    btn.setAttribute('aria-pressed', String(rowPick === v));
-    btn.addEventListener('click', () => {
-      rowPick = v;
-      drawAvatars();
-    });
-    card.append(title, sizes, h('p', '', info.desc), pros, btn);
-    host.appendChild(card);
+  const sizes = document.getElementById('avatars')!;
+  sizes.replaceChildren();
+  for (const px of [112, 80, 44]) {
+    const f = h('figure');
+    f.append(avatarCanvas(portraitModel('paladin'), px, 2, `Аватарка Паладина, ${px} точек`), h('figcaption', '', px === 112 ? '112 выбор' : px === 80 ? '80 лист' : '44 консоль'));
+    sizes.appendChild(f);
   }
   const row = document.getElementById('avatar-row')!;
   row.replaceChildren();
   const heroes: Array<[string, string]> = [['warrior', 'Воин'], ['mage', 'Маг'], ['assassin', 'Ассасин'], ['paladin', 'Паладин'], ['berserk', 'Берсерк'], ['archer', 'Лучник']];
   for (const [id, name] of heroes) {
     const f = h('figure', id === 'paladin' ? 'me' : '');
-    if (id === 'warrior' || id === 'paladin') f.appendChild(avatarCanvas(portraitModel(id === 'warrior' ? 'warrior' : rowPick), 112, 1, `${name}, аватарка из лепки`));
+    if (id === 'warrior' || id === 'paladin') f.appendChild(avatarCanvas(portraitModel(id), 112, 1, `${name}, аватарка из лепки`));
     else {
       const img = h('img');
       img.src = window.ASSETS.others[id];
