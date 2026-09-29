@@ -7,14 +7,14 @@ import { arcStroke, at, DEG, ease, ik, lerp, limb2, reachFoot, solid, stroke } f
 /**
  * Паладин пиксельной лепкой — шаг 4 рецепта (docs/lepka-geroev.md): модель в стойке, облик выбран, клипы нарисованы.
  * В игру ещё не входит: записи в `HERO_MODELS` нет, инструменты находят модель по имени файла (`paladinModel()`),
- * страница обсуждения — tools/hero-proto/paladin-page.ts. Поля позы — как у Воина (плюс свет и щит за корпусом),
- * ключи его клипов подогнаны под короткий молот и большой щит; у удара, сильного удара, лечения и своего клипа
- * «Молот света» по два варианта на выбор (`paladinModel(pick)`).
+ * страница обсуждения — tools/hero-proto/paladin-page.ts. Поля позы — как у Воина (плюс свет, щит за корпусом
+ * и запястье), ключи его клипов подогнаны под короткий молот и большой щит.
  *
  * Решения пользователя со страницы «Лепка Паладина»: облик B «Пепельный храмовник» (тусклая побитая сталь, латунь
  * вместо золота, табард цвета пепла, крест и плащ цвета запёкшейся крови), топхельм по контуру листа с вырезом
- * крестом, молот; пиксель 1,5, как у Воина. Отвергнутые облики (A «Храмовник», C «Светоносец»), разрезы (Т-крест,
- * широкая щель, венец), булава и первые шлемы — в истории ветки.
+ * крестом, молот; пиксель 1,5, как у Воина; клипы — удар «Сверху», сильный удар «Сверху с шагом», лечение «Свет
+ * щита», свой Молот света «Крест лучей». Отвергнутые облики (A «Храмовник», C «Светоносец»), разрезы (Т-крест,
+ * широкая щель, венец), булава, первые шлемы и вторые варианты клипов — в истории ветки.
  *
  * Референс — прежний рисованный лист `src/assets/heroes/paladin.png` (один ряд покоя, ячейка 188, фигура 180).
  * Контуры частей обведены по первому кадру в пикселях листа и переведены в единицы поля при росте 132
@@ -324,8 +324,8 @@ export interface PaladinPose extends Record<string, number> {
   drop: number;
   /** Свет на бойке (Молот света, клич, приём), пыль у бойка, искры о кромку щита. */
   glow: number; dust: number; spark: number;
-  /** Вспышка света у бойка в кадр удара, луч с неба на боёк, свет креста на щите (лечение). */
-  burst: number; beam: number; shine: number;
+  /** Вспышка света у бойка в кадр удара, свет креста на щите (лечение). */
+  burst: number; shine: number;
   /** Щит за туловищем (1): размах удара, дальнее плечо ушло назад. */
   sback: number;
   /** Оружие поверх ближнего наплечника — для портрета. */
@@ -338,15 +338,11 @@ const REST: PaladinPose = {
   nh: 0, hx: M.armN.hand[0], hy: M.armN.hand[1], wr: M.armN.weapon - ARM_N.a2, ws: 0,
   f1: ARM_F.a1, f2: ARM_F.a2, sh: 0, shx: 0, shy: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
-  cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0, burst: 0, beam: 0, shine: 0, sback: 0, front: 0,
+  cape: 0, fall: 0, drop: 0, glow: 0, dust: 0, spark: 0, burst: 0, shine: 0, sback: 0, front: 0,
 };
 
 /** Клипы, которые рисует Паладин: общие и свой Молот света; чужие личные (Воина) играют замену. */
 type PaladinClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte'>;
-/** Клипы, у которых два варианта на выбор. */
-export type PaladinVariant = 'attack' | 'heavy' | 'heal' | 'smite';
-/** Выбор вариантов: без записи — первый (A). */
-export type PaladinChoice = Partial<Record<PaladinVariant, 'A' | 'B'>>;
 
 /**
  * Ключи клипов по кадрам (номер кадра с нуля; кадр контакта — `contact` в HERO_CLIPS). Правила те же, что у Воина:
@@ -367,10 +363,11 @@ export type PaladinChoice = Partial<Record<PaladinVariant, 'A' | 'B'>>;
  * сильные удары бьют врага в корпус, а не в землю. Щит на ударе уходит вниз и назад — висящий перед корпусом, он
  * закрывал боёк в кадр контакта.
  *
- * Где решение за пользователем, у клипа два варианта: первый — здесь, второй — в `CLIPS_B`.
+ * Варианты выбраны пользователем: удар «Сверху», сильный удар «Сверху с шагом», лечение «Свет щита», Молот света
+ * «Крест лучей»; вторые (удар снизу, прыжок, лечение на колено, луч с неба) — в истории ветки.
  */
 const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
-  // Удар A «Сверху»: предплечье вверх-назад, молот горизонтально за головой — шаг, и молот через верх на врага:
+  // Удар «Сверху» (выбор пользователя; второй вариант — снизу): предплечье вверх-назад, молот горизонтально за головой — шаг, и молот через верх на врага:
   // к контакту удар разгоняется, рука вниз-вперёд, боёк на уровне пояса; щит на размахе уходит за корпус.
   attack: [
     [0, { x: -1, crouch: 3, lean: -2, ws: 1, hx: 22, hy: 74, wr: -72, cape: 0.1 }],
@@ -381,7 +378,7 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
     [5, { x: 11, crouch: 8, lean: 12, head: 6, hx: 66, hy: 66, wr: -38, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 12, cape: 0.85 }],
     [6, { x: 5, crouch: 4, lean: 5, head: 3, ws: 1, hx: 36, hy: 73, wr: -52, liftF: 3, footF: 6, cape: 0.4 }],
   ],
-  // Сильный удар A «Сверху с шагом»: привстал на носки, молот за спиной — широкий шаг, молот через верх на врага,
+  // Сильный удар «Сверху с шагом» (выбор пользователя; второй вариант — прыжок): привстал на носки, молот за спиной — широкий шаг, молот через верх на врага,
   // щит уходит вниз и назад, чтобы не закрыть удар; из-под шага — пыль.
   heavy: [
     [0, { x: -1, crouch: 4, lean: 2, head: 2, ws: 1, hx: 22, hy: 74, wr: -72, cape: 0.1, dust: 0 }],
@@ -404,25 +401,27 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
     [5, { x: 6, lean: 8, head: 4, hx: 75, hy: 50, wr: -30, f1: 86, f2: 70, glow: 0.6, footF: 6, cape: 0.5 }],
     [6, { x: 3, lean: 5, head: 3, ws: 1, hx: 38, hy: 70, wr: -55, glow: 0.2, footF: 3 }],
   ],
-  // Лечение A «На колено»: опустился на заднее колено, прямая рука ставит молот бойком на землю у колена, шлем
-  // склонён — боёк светится.
+  // Лечение «Свет щита» (выбор пользователя; второй вариант — на колено): стоя, щит поднят к груди крестом к небу,
+  // шлем склонён, молот опущен — крест на щите заливается светом, лучи выходят за кромку.
   heal: [
-    [0, { x: 2, crouch: 6, lean: 4, head: 4, ws: 1, hx: 30, hy: 72, wr: -60, kneel: 0.2 }],
-    [1, { x: 3, crouch: 16, lean: 3, head: 8, hx: 40, hy: 78, wr: -40, f1: 88, f2: 84, sh: 4, shy: -6, kneel: 0.6, glow: 0.2 }],
-    [2, { x: 4, crouch: 24, lean: 2, head: 14, hx: 42, hy: 80, wr: -32, f1: 92, f2: 88, sh: 0, shy: -12, kneel: 1, dust: 0.35, glow: 0.7 }],
-    [3, { x: 4, crouch: 25, lean: 3, head: 16, hx: 42, hy: 80, wr: -32, f1: 92, f2: 88, shy: -12, kneel: 1, dust: 0.1, glow: 1.1 }],
-    [7, { x: 4, crouch: 24, lean: 2, head: 14, hx: 42, hy: 80, wr: -32, f1: 92, f2: 88, shy: -12, kneel: 1, dust: 0, glow: 1 }],
-    [8, { x: 4, crouch: 23, lean: 0, head: 4, hx: 42, hy: 80, wr: -32, f1: 90, f2: 86, shy: -12, kneel: 1, glow: 0.5 }],
-    [9, { x: 3, crouch: 14, lean: 2, head: 4, hx: 36, hy: 78, wr: -45, f1: 86, f2: 80, shy: -6, kneel: 0.5, glow: 0.15 }],
-    [10, { x: 1, crouch: 5, lean: 2, head: 2, ws: 1, hx: 30, hy: 74, wr: -62, kneel: 0.1, glow: 0 }],
+    [0, { crouch: 2, lean: 2, head: 4, ws: 1, hx: 28, hy: 74, wr: -45, f1: 40, f2: 0, sh: -6 }],
+    [1, { crouch: 4, lean: 0, head: 10, hx: 30, hy: 74, wr: -30, f1: 5, f2: -40, sh: -14, shx: -6, shy: -8, shine: 0.3, cape: 0.2 }],
+    [2, { crouch: 5, lean: -2, head: 14, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 0.8, cape: 0.3 }],
+    [3, { crouch: 5, lean: -2, head: 14, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 1.1, cape: 0.35 }],
+    [7, { crouch: 5, lean: -2, head: 12, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 1, cape: 0.4 }],
+    [8, { crouch: 4, lean: -1, head: 4, hx: 30, hy: 75, wr: -30, f1: 5, f2: -40, sh: -14, shx: -6, shy: -8, shine: 0.5, cape: 0.3 }],
+    [9, { crouch: 2, lean: 1, head: 2, hx: 28, hy: 75, wr: -45, f1: 40, f2: 10, sh: -6, shx: -2, shy: -3, shine: 0.15, cape: 0.15 }],
+    [10, { crouch: 1, lean: 0, head: 1, ws: 1, wr: -60, shine: 0 }],
   ],
-  // Клич: молот к небу, щит в сторону, грудь вперёд, шлем запрокинут, боёк светится — рёв рисует слой эффектов.
+  // Клич: молот отвесно над головой (по просьбе пользователя — не заносить назад), щит в сторону, шлем запрокинут,
+  // боёк светится — рёв рисует слой эффектов. Корпус почти прямой: прогиб назад заваливал молот за спину. Отвесный
+  // молот над прямым предплечьем — «факел» и излом запястья, поэтому предплечье наклонено вперёд, кисть отогнута.
   buff: [
     [0, { lean: -2, head: -2, ws: 1, hx: 22, hy: 74, wr: -72 }],
-    [1, { x: -2, crouch: 3, lean: -10, head: -12, hx: 52, hy: 6, wr: -30, f1: 15, f2: 5, sh: -10, cape: 0.4 }],
-    [2, { x: -2, crouch: 3, lean: -14, head: -18, hx: 53, hy: 4, wr: -28, f1: 5, f2: -5, sh: -16, cape: 0.7, glow: 0.6 }],
-    [5, { x: -2, crouch: 3, lean: -14, head: -18, hx: 53, hy: 4, wr: -28, f1: 5, f2: -5, sh: -16, cape: 1, glow: 1 }],
-    [7, { x: -1, crouch: 2, lean: -8, head: -10, hx: 50, hy: 12, wr: -35, f1: 30, f2: 15, sh: -6, cape: 0.6, glow: 0.4 }],
+    [1, { x: -1, crouch: 3, lean: -3, head: -10, hx: 64, hy: 18, wr: -26, f1: 15, f2: 5, sh: -10, cape: 0.4 }],
+    [2, { x: -1, crouch: 3, lean: -1, head: -16, hx: 64, hy: 10, wr: -26, f1: 5, f2: -5, sh: -16, cape: 0.7, glow: 0.6 }],
+    [5, { x: -1, crouch: 3, lean: -1, head: -16, hx: 64, hy: 10, wr: -26, f1: 5, f2: -5, sh: -16, cape: 1, glow: 1 }],
+    [7, { x: -1, crouch: 2, lean: -1, head: -8, hx: 64, hy: 20, wr: -26, f1: 30, f2: 15, sh: -6, cape: 0.6, glow: 0.4 }],
     [8, { lean: -2, head: -2, ws: 1, hx: 28, hy: 72, wr: -62, cape: 0.3, glow: 0 }],
   ],
   // Блок: щит к лицу, присел и спрятал голову, молот впереди-внизу у бедра; в кадре контакта — толчок назад и искры.
@@ -455,7 +454,7 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
     [9, { fall: 1.04, y: -2, head: -6 }],
     [10, { fall: 1, y: 0, head: -4, f1: 90, f2: 90, sh: 0, cape: 0 }],
   ],
-  // Молот света A «Крест лучей»: молот вскинут к небу, свет собирается на бойке крестом лучей — и удар сильного
+  // Молот света «Крест лучей» (выбор пользователя; второй вариант — луч с неба): молот вскинут к небу, свет собирается на бойке крестом лучей — и удар сильного
   // удара: в кадр контакта боёк вспыхивает.
   smite: [
     [0, { lean: -2, ws: 1, hx: 22, hy: 74, wr: -72, glow: 0.1 }],
@@ -468,64 +467,6 @@ const CLIPS: Record<PaladinClip, PoseKeys<PaladinPose>> = {
     [7, { x: 16, crouch: 12, lean: 17, head: 10, hx: 65, hy: 71, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 0.6, footF: 18, footN: -2, cape: 0.6, burst: 0.2 }],
     [8, { x: 7, crouch: 6, lean: 8, head: 5, ws: 1, hx: 36, hy: 74, wr: -50, glow: 0.2, liftF: 4, footF: 9, footN: -1, cape: 0.3, burst: 0 }],
   ],
-};
-
-/** Вторые варианты клипов, где выбирает пользователь (страница обсуждения). */
-const CLIPS_B: Record<PaladinVariant, PoseKeys<PaladinPose>> = {
-  // Удар B «Снизу»: молот уходит назад к земле — шаг, и боёк снизу вверх под щит врага.
-  attack: [
-    [0, { x: -1, crouch: 3, lean: 2, ws: 1, hx: 24, hy: 74, wr: -80 }],
-    [1, { x: -4, crouch: 5, lean: -3, hx: 12, hy: 72, wr: -108, f1: 55, f2: 25, sh: -4, liftF: 2, cape: 0.2 }],
-    [2, { x: -5, crouch: 6, lean: -4, hx: 10, hy: 70, wr: -115, f1: 55, f2: 25, sh: -4, liftF: 3, cape: 0.25 }],
-    [3, { x: 4, crouch: 5, lean: 4, hx: 50, hy: 74, wr: -32, f1: 80, f2: 55, sh: 4, footF: 7, liftF: 4, cape: 0.6 }],
-    [4, { x: 11, crouch: 4, lean: 8, head: 2, hx: 77, hy: 54, wr: -36, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, footF: 12, cape: 1 }],
-    [5, { x: 11, crouch: 3, lean: 6, head: 1, hx: 76, hy: 50, wr: -42, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 12, cape: 0.85 }],
-    [6, { x: 5, crouch: 2, lean: 3, ws: 1, hx: 40, hy: 70, wr: -58, liftF: 3, footF: 6, cape: 0.4 }],
-  ],
-  // Сильный удар B «Прыжок»: присел, молот назад к земле — прыжок, молот за головой, и приземление с ударом через верх.
-  heavy: [
-    [0, { x: -1, crouch: 6, lean: 4, head: 2, ws: 1, hx: 22, hy: 74, wr: -72, cape: 0.1, dust: 0 }],
-    [1, { x: -3, crouch: 13, lean: 10, head: 4, hx: 12, hy: 72, wr: -108, f1: 82, f2: 62, cape: 0.2 }],
-    [2, { x: 4, y: -14, crouch: -2, lean: -10, head: -8, hx: 34, hy: 6, wr: -50, f1: 55, f2: 25, sh: -4, liftF: 12, liftN: 10, footF: 6, footN: 2, cape: 0.6 }],
-    [3, { x: 10, y: -18, crouch: -2, lean: -12, head: -10, hx: 30, hy: 4, wr: -62, f1: 55, f2: 25, sh: -4, liftF: 14, liftN: 12, footF: 10, footN: 5, cape: 0.8 }],
-    [4, { x: 14, y: -8, crouch: 3, lean: 6, head: 4, hx: 60, hy: 4, wr: -62, f1: 78, f2: 55, sh: 8, liftF: 6, liftN: 4, footF: 14, footN: 8, cape: 1, dust: 0 }],
-    [5, { x: 18, y: 0, crouch: 11, lean: 15, head: 9, hx: 70, hy: 60, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, liftF: 0, liftN: 0, footF: 14, footN: 8, cape: 0.8, dust: 0 }],
-    [6, { x: 18, crouch: 14, lean: 18, head: 12, hx: 66, hy: 70, wr: -30, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 14, footN: 8, cape: 0.7, dust: 1 }],
-    [7, { x: 17, crouch: 13, lean: 17, head: 11, hx: 65, hy: 71, wr: -32, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, footF: 14, footN: 8, cape: 0.6, dust: 0.6 }],
-    [8, { x: 8, crouch: 7, lean: 8, head: 5, ws: 1, hx: 36, hy: 74, wr: -50, liftF: 4, footF: 10, footN: 4, cape: 0.3, dust: 0.15 }],
-  ],
-  // Лечение B «Свет щита»: стоя, щит поднят к груди крестом к небу, шлем склонён, молот опущен — крест светится.
-  heal: [
-    [0, { crouch: 2, lean: 2, head: 4, ws: 1, hx: 28, hy: 74, wr: -45, f1: 40, f2: 0, sh: -6 }],
-    [1, { crouch: 4, lean: 0, head: 10, hx: 30, hy: 74, wr: -30, f1: 5, f2: -40, sh: -14, shx: -6, shy: -8, shine: 0.3, cape: 0.2 }],
-    [2, { crouch: 5, lean: -2, head: 14, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 0.8, cape: 0.3 }],
-    [3, { crouch: 5, lean: -2, head: 14, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 1.1, cape: 0.35 }],
-    [7, { crouch: 5, lean: -2, head: 12, hx: 30, hy: 75, wr: -30, f1: -5, f2: -55, sh: -18, shx: -8, shy: -12, shine: 1, cape: 0.4 }],
-    [8, { crouch: 4, lean: -1, head: 4, hx: 30, hy: 75, wr: -30, f1: 5, f2: -40, sh: -14, shx: -6, shy: -8, shine: 0.5, cape: 0.3 }],
-    [9, { crouch: 2, lean: 1, head: 2, hx: 28, hy: 75, wr: -45, f1: 40, f2: 10, sh: -6, shx: -2, shy: -3, shine: 0.15, cape: 0.15 }],
-    [10, { crouch: 1, lean: 0, head: 1, ws: 1, wr: -60, shine: 0 }],
-  ],
-  // Молот света B «Луч с неба»: молот к небу, на боёк падает луч света — и удар с шагом прямо в грудь врага,
-  // боёк вспыхивает.
-  smite: [
-    [0, { lean: -2, ws: 1, hx: 22, hy: 74, wr: -72, glow: 0.1 }],
-    [1, { x: -2, y: -1, lean: -8, head: -14, hx: 54, hy: 6, wr: -32, f1: 40, f2: 15, sh: -8, glow: 0.4, beam: 0.3, cape: 0.2 }],
-    [2, { x: -2, y: -2, lean: -10, head: -18, hx: 54, hy: 4, wr: -30, f1: 35, f2: 10, sh: -10, glow: 1, beam: 1, cape: 0.3 }],
-    [3, { x: -3, y: -2, lean: -11, head: -16, hx: 54, hy: 5, wr: -36, f1: 40, f2: 15, sh: -8, glow: 1.3, beam: 0.5, cape: 0.35, burst: 0 }],
-    [4, { x: 5, crouch: 4, lean: 2, head: 0, hx: 60, hy: 6, wr: -62, f1: 80, f2: 55, sh: 4, glow: 1.3, beam: 0, liftF: 4, footF: 8, cape: 0.6, burst: 0 }],
-    [5, { x: 12, crouch: 9, lean: 13, head: 6, hx: 67, hy: 65, wr: -35, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.6, liftF: 0, footF: 13, cape: 0.9, burst: 1 }],
-    [6, { x: 12, crouch: 9, lean: 13, head: 6, hx: 66, hy: 66, wr: -38, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 1.1, footF: 13, cape: 0.85, burst: 0.6 }],
-    [7, { x: 10, crouch: 8, lean: 11, head: 5, hx: 64, hy: 68, wr: -42, f1: 150, f2: 175, sh: -20, shx: -6, shy: 6, sback: 1, glow: 0.6, footF: 12, cape: 0.7, burst: 0.2 }],
-    [8, { x: 5, crouch: 4, lean: 5, head: 3, ws: 1, hx: 36, hy: 73, wr: -52, glow: 0.2, liftF: 3, footF: 6, cape: 0.4, burst: 0 }],
-  ],
-};
-
-/** Клипы с вариантами на выбор и их имена — для страницы обсуждения. */
-export const PALADIN_VARIANTS: Record<PaladinVariant, { A: string; B: string }> = {
-  attack: { A: 'Сверху', B: 'Снизу' },
-  heavy: { A: 'Сверху с шагом', B: 'Прыжок' },
-  heal: { A: 'На колено', B: 'Свет щита' },
-  smite: { A: 'Крест лучей', B: 'Луч с неба' },
 };
 
 /**
@@ -571,8 +512,8 @@ function nearArm(P: PaladinPose): { sx: number; sy: number; ex: number; ey: numb
   return lift > 0 || fwd > 0 ? solve(sx0 + 2.5 * fwd - 2 * back, sy0 - 3 * lift) : first;
 }
 
-/** Зонд: точки кадра — таз, кисть, середина бойка, стопы, угол запястья и сгиб локтя. Боёк у земли нарочно — лечение на колене, падение. */
-export const paladinProbe: HeroProbe = { grounded: ['heal', 'death'] };
+/** Зонд: точки кадра — таз, кисть, середина бойка, стопы, угол запястья и сгиб локтя. Боёк на земле нарочно — только в падении. */
+export const paladinProbe: HeroProbe = { grounded: ['death'] };
 
 /**
  * Покой в фазе `p.t`. Клипы рисуются в фазе 0 и начинаются и кончаются этой позой — так стык с покоем без скачка,
@@ -599,14 +540,13 @@ function idlePose(p: Painter): PaladinPose {
   return P;
 }
 
-/** Поза кадра: ключи клипа (вариант — по выбору `pick`) поверх покоя в фазе 0 или сам покой. */
-function framePose(p: Painter, pick: PaladinChoice): PaladinPose {
+/** Поза кадра: ключи клипа поверх покоя в фазе 0 или сам покой. */
+function framePose(p: Painter): PaladinPose {
   const base = idlePose(p);
   const c = clipAt(p);
   let P = base;
   if (c) {
-    const clip = c.clip as PaladinClip;
-    const keys = (pick[clip as PaladinVariant] === 'B' ? CLIPS_B[clip as PaladinVariant] : undefined) ?? CLIPS[clip];
+    const keys = CLIPS[c.clip as PaladinClip];
     if (keys) P = poseAt(base, keys, c.f, c.n, HERO_CLIPS[c.clip].hold);
   }
   // Покой: плащ колышется, раз за цикл шлем поворачивается к врагам (в клипах фаза 0 — оба нуля).
@@ -616,8 +556,8 @@ function framePose(p: Painter, pick: PaladinChoice): PaladinPose {
 }
 
 /**
- * Черновик аватарки (шаг 5 — после клипов): бюст из кадра покоя на золотом фоне прежнего портрета. Своя поза
- * портрета — следующим шагом, после выбора вариантов клипов.
+ * Черновик аватарки (шаг 5 — следующий): бюст из кадра покоя на золотом фоне прежнего портрета. Своя поза портрета —
+ * следующим шагом.
  */
 const AVATAR: AvatarSpec = {
   crop: [20, -6, 96],
@@ -626,8 +566,8 @@ const AVATAR: AvatarSpec = {
   skyline: [[0.06, 0.1, 0.6, 0.2], [0.14, 0.06, 0.5, 0.12], [0.9, 0.08, 0.62, 0.2], [0.96, 0.06, 0.5, 0.1]],
 };
 
-/** Паладин; рост в покое — `HERO_BODY_HEIGHT.paladin` (132) в пикселе `HERO_PIXEL`. `pick` — варианты клипов. */
-export function paladinModel(pick: PaladinChoice = {}): HeroModel {
+/** Паладин; рост в покое — `HERO_BODY_HEIGHT.paladin` (132) в пикселе `HERO_PIXEL`. */
+export function paladinModel(): HeroModel {
   return {
     id: 'paladin',
     own: ['smite'],
@@ -637,12 +577,12 @@ export function paladinModel(pick: PaladinChoice = {}): HeroModel {
     h: 140,
     ground: G,
     pad: 80,
-    draw: (p: Painter) => drawPaladin(p, framePose(p, pick)),
+    draw: (p: Painter) => drawPaladin(p, framePose(p)),
   };
 }
 
-/** Свет Паладина: ореол, лучи, луч с неба, крест щита. */
-const LIGHT = { halo: '#ffe2a8', core: '#fff6e0', ray: '#fff2cc', rayDim: '#ffe0a0', beam: '#ffe9a870', burst: '#ffd98a' };
+/** Свет Паладина: ореол, лучи, вспышка, крест щита. */
+const LIGHT = { halo: '#ffe2a8', core: '#fff6e0', ray: '#fff2cc', rayDim: '#ffe0a0', burst: '#ffd98a' };
 
 /**
  * Луч света в два пикселя шириной от `r0` до `r1` по направлению `ang` — только по пустым клеткам. Рисуется раньше
@@ -673,17 +613,6 @@ function headGlow(p: Painter, x: number, y: number, a: number, len2: number, glo
   }
   const g = Math.max(Math.min(glow, 1.5), 1.2 * burst);
   if (g > 0.02) p.glow(gx, gy, 8 + 11 * g, burst > 0.3 ? LIGHT.burst : LIGHT.halo, 0.35 + 0.3 * Math.min(g, 1));
-}
-
-/**
- * Луч с неба на боёк (Молот света B): столб полупрозрачного света от верха кадра до бойка и яркая сердцевина. Верх —
- * чуть ниже края листа: тест края (`tests/heroes.test.ts`) ловит всё, что касается рамки.
- */
-function skyBeam(p: Painter, x: number, top: number, bottom: number, beam: number): void {
-  if (beam <= 0.02) return;
-  const w = 2 + 4 * beam;
-  p.film([x - w, top, x + w, top, x + w * 0.7, bottom, x - w * 0.7, bottom], LIGHT.beam);
-  if (beam > 0.4) p.line(x, top + 2, x, bottom, LIGHT.core);
 }
 
 function drawPaladin(p: Painter, P: PaladinPose): void {
@@ -958,7 +887,6 @@ function drawPaladin(p: Painter, P: PaladinPose): void {
         p.disc(dx0 + (k - 4) * 5 * P.dust, G - 2 - (k % 3) * 3 * P.dust - (k % 2) * 2, r * 0.5, c, true);
       }
     }
-    skyBeam(p, tipX, -76 - P.y, tipY - 12, P.beam);
     if (paladinProbe.on) {
       const [hwx, hwy] = toWorld(near.hx, near.hy);
       // Запястье — угол молота к предплечью, локоть — угол между плечом и предплечьем (180 — прямая рука).

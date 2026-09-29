@@ -101,6 +101,7 @@ button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
 .pair-head h3 { font-size: 18px; margin: 0; }
 .clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; margin-top: 12px; }
 .clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.clip-card.own { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); }
 .clip-view { min-height: 250px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; }
 .clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
 .clip-head b { font-size: 16px; }
@@ -158,8 +159,15 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
 <div class="wrap">
   <header>
     <h1>Лепка Паладина</h1>
-    <p class="lead">Шаг 4 рецепта — клипы. Девять общих и свой «Молот света» — удар с сиянием. У удара, сильного удара, лечения и Молота света по два варианта: выберите по одному.</p>
+    <p class="lead">Шаг 4 рецепта — клипы. Девять общих и свой «Молот света» — удар с сиянием. Варианты выбраны: удар «Сверху», сильный удар «Сверху с шагом», лечение «Свет щита», Молот света «Крест лучей». Дальше — аватарка и игра.</p>
     <div class="meta"><span>Рост в бою <b>132</b></span><span>Пиксель <b>1,5</b></span><span>Клипов <b>10</b>, из них свой <b>1</b></span><span>Модель <b>src/ui/heroes/paladin.ts</b></span><span>Рецепт <b>docs/lepka-geroev.md</b></span></div>
+    <div class="fix">
+      <h3>Поправлено по выбору</h3>
+      <ul class="list">
+        <li><b>Варианты закреплены</b> — удар A, сильный удар A, лечение B, Молот света A. Вторые варианты (удар снизу, прыжок, лечение на колено, луч с неба) убраны из модели — они в истории ветки.</li>
+        <li><b>Клич — молот отвесно над головой.</b> Корпус почти прямой (прогиб назад заваливал молот за спину), предплечье наклонено вперёд, кисть отогнута: в удержании молот стоит почти отвесно (−84°), при подъёме и опускании — не дальше 7° назад. Запястье в пределах.</li>
+      </ul>
+    </div>
     <div class="fix">
       <h3>Поправлено по ревью риггинга</h3>
       <ul class="list">
@@ -204,30 +212,13 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
           <button type="button" data-v="0.25">¼</button>
         </span>
       </div>
-      <p class="caption" id="scene-picks"></p>
     </div>
-  </section>
-
-  <section aria-labelledby="variants-h">
-    <h2 id="variants-h">Варианты на выбор</h2>
-    <p class="prose">Каждая пара — один клип по кругу на локации из сцены, ×2, как кадр игры на FullHD. «В сцену» ставит вариант в поле выше и сразу его играет.</p>
-    <div id="variants"></div>
   </section>
 
   <section aria-labelledby="clips-h">
-    <h2 id="clips-h">Остальные клипы</h2>
-    <p class="prose">Здесь выбора нет — ключи перенесены с Воина и подогнаны под короткий молот и большой щит.</p>
+    <h2 id="clips-h">Клипы</h2>
+    <p class="prose">Каждый клип по кругу на локации из сцены, ×2, как кадр игры на FullHD. Первым — свой приём Паладина.</p>
     <div class="clips" id="clips"></div>
-  </section>
-
-  <section aria-labelledby="ask-h">
-    <h2 id="ask-h">Вопросы</h2>
-    <div class="qs">
-      <div class="q"><h3>Удар</h3><p>Обычная атака — самый частый клип.</p><ul class="opts"><li class="rec"><b>A</b>«Сверху»: молот через верх</li><li><b>B</b>«Снизу»: боёк снизу вверх</li></ul></div>
-      <div class="q"><h3>Сильный удар</h3><p>Приёмы оружием вплотную. Рекомендую так, чтобы он не повторял удар силуэтом.</p><ul class="opts"><li><b>A</b>«Сверху с шагом»: как удар, но с широким шагом</li><li class="rec"><b>B</b>«Прыжок»: удар с приземлением</li></ul></div>
-      <div class="q"><h3>Лечение</h3><p>Приёмы с лечением и зелья.</p><ul class="opts"><li><b>A</b>«На колено»: свет из бойка</li><li class="rec"><b>B</b>«Свет щита»: светится крест</li></ul></div>
-      <div class="q"><h3>Молот света</h3><p>Свой клип — удар с сиянием.</p><ul class="opts"><li><b>A</b>«Крест лучей»: боёк раскаляется сам</li><li class="rec"><b>B</b>«Луч с неба»: свет падает на молот</li></ul></div>
-    </div>
   </section>
 
   <section aria-labelledby="idle-h">
@@ -277,7 +268,11 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
           <tr><td>Оружие</td><td>молот с листа: золотая обмотка древка, боёк-барабан с ободом грани</td><td>булава (стартовое оружие в игре)</td></tr>
           <tr><td>Пиксель</td><td>1,5, как у Воина</td><td>—</td></tr>
           <tr><td>Анатомия</td><td>контуры частей по листу; плечи ниже и меньше, ближний наплечник над плечом; рука прижата к боку</td><td>суставы с листа и формы на глаз («анатомия вышла из чата»)</td></tr>
-          <tr><td>Молот света</td><td>свой клип «удар с сиянием» (<code>smite</code>)</td><td>сильный удар; лечение на колено (так сыграл бы по правилу игры)</td></tr>
+          <tr><td>Молот света</td><td>свой клип <code>smite</code> «Крест лучей»: боёк раскаляется, лучи крестом, вспышка в кадр удара</td><td>сильный удар; лечение на колено (так сыграл бы по правилу игры); «Луч с неба»</td></tr>
+          <tr><td>Удар</td><td>«Сверху»: молот за головой — через верх на врага</td><td>«Снизу»</td></tr>
+          <tr><td>Сильный удар</td><td>«Сверху с шагом»</td><td>«Прыжок»</td></tr>
+          <tr><td>Лечение</td><td>«Свет щита»: светится крест на щите</td><td>«На колено» со светом из бойка</td></tr>
+          <tr><td>Клич</td><td>молот отвесно над головой</td><td>молот, заваленный назад</td></tr>
           <tr><td>Покой</td><td>таз на пиксель, перенос веса, колени идут за тазом; рука висит и отстаёт от корпуса, молот маятником</td><td>ноги неподвижны; присед через ik (колени врозь); рука заодно с корпусом</td></tr>
         </tbody>
       </table>
@@ -287,7 +282,6 @@ td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var
   <section aria-labelledby="next-h">
     <h2 id="next-h">Дальше</h2>
     <ol class="steps prose">
-      <li><b>Выбор вариантов</b> — четыре вопроса выше. Отвергнутые варианты уйдут из модели в историю ветки, как облики и шлемы.</li>
       <li><b>Аватарка.</b> Своя поза портрета и цвета прежнего золотого портрета с ореолом.</li>
       <li><b>Игра.</b> Строка в <code>HERO_MODELS</code>, рисованный лист убрать из сборки, тесты и снимки.</li>
     </ol>

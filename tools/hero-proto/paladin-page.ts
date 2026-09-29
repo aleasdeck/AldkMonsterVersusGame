@@ -1,13 +1,12 @@
-// Страница обсуждения «Лепка Паладина» — шаг 4 рецепта (docs/lepka-geroev.md): клипы. Облик и шлем выбраны раньше
-// (варианты — в истории ветки), модель — src/ui/heroes/paladin.ts (в игру ещё не входит); у удара, сильного удара,
-// лечения и своего Молота света по два варианта — `paladinModel(pick)`. Враги и фоны — из игры, тонировка — та же,
-// что в бою (tint.ts). Сборка — build.mjs --hero paladin.
+// Страница обсуждения «Лепка Паладина» — шаг 4 рецепта (docs/lepka-geroev.md): клипы. Облик, шлем и варианты клипов
+// выбраны (отвергнутые — в истории ветки), модель — src/ui/heroes/paladin.ts (в игру ещё не входит). Враги и фоны —
+// из игры, тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero paladin.
 import { Painter, type Model } from '../../src/ui/mobs/pixel';
 import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { paladinModel, PALADIN_VARIANTS, type PaladinChoice, type PaladinVariant } from '../../src/ui/heroes/paladin';
+import { paladinModel } from '../../src/ui/heroes/paladin';
 import { HERO_CLIPS, HERO_STYLE, type SculptClip } from '../../src/ui/heroes/clips';
 import { Actor, heroSet, later, mobSet, setSpeed, type Anim, type ActorSet } from './anim';
 
@@ -27,11 +26,8 @@ const GROUND = 282;
 const HERO_X = 130;
 const FOE_X = [357, 590, 823];
 
-type Pick = Required<PaladinChoice>;
-/** Что сейчас в сцене: лепка или прежний лист, локация (она же — у плиток), варианты клипов в сцене. */
-const state: { hero: Hero; loc: Loc; pick: Pick } = { hero: 'sculpt', loc: 'forest', pick: { attack: 'A', heavy: 'A', heal: 'A', smite: 'A' } };
-const ALL_A: Pick = { attack: 'A', heavy: 'A', heal: 'A', smite: 'A' };
-const ALL_B: Pick = { attack: 'B', heavy: 'B', heal: 'B', smite: 'B' };
+/** Что сейчас в сцене: лепка или прежний лист, локация (она же — у плиток). */
+const state: { hero: Hero; loc: Loc } = { hero: 'sculpt', loc: 'forest' };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
 
@@ -64,12 +60,11 @@ function refSet(img: HTMLImageElement): ActorSet {
   };
 }
 
-const sets = new Map<string, ActorSet>();
-/** Набор кадров героя: прежний лист или лепка с вариантами `pick`. Лепка рисуется при первом запросе. */
-function heroAnim(hero: Hero, pick: Pick = state.pick): ActorSet {
-  const key = hero === 'ref' ? 'ref' : `sculpt:${Object.values(pick).join('')}`;
-  let set = sets.get(key);
-  if (!set) sets.set(key, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(paladinModel(pick), HERO_STYLE)));
+const sets = new Map<Hero, ActorSet>();
+/** Набор кадров героя: прежний лист или лепка. Лепка рисуется при первом запросе. */
+function heroAnim(hero: Hero): ActorSet {
+  let set = sets.get(hero);
+  if (!set) sets.set(hero, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(paladinModel(), HERO_STYLE)));
   return set;
 }
 const foeSets = new Map<string, ActorSet>();
@@ -192,8 +187,6 @@ function drawScene(): void {
   toggle(document.getElementById('scene-loc')!, state.loc);
   // Клипы есть только у лепки: у прежнего листа — один покой.
   document.getElementById('scene-clips')!.classList.toggle('muted', state.hero === 'ref');
-  const shown = Object.entries(state.pick).map(([c, v]) => `${HERO_CLIPS[c as SculptClip].name} — ${v} «${PALADIN_VARIANTS[c as PaladinVariant][v]}»`).join(', ');
-  document.getElementById('scene-picks')!.textContent = `В сцене: ${shown}. Вариант меняется кнопкой «в сцену» у пары ниже.`;
 }
 
 /**
@@ -231,7 +224,7 @@ function drawTiles(): void {
     if (run !== tileRun) return;
     const el = hosts[i++];
     if (!el) return;
-    tile(el, (el.dataset.loc as Loc | undefined) ?? state.loc, heroAnim(el.dataset.tile as Hero, ALL_A));
+    tile(el, (el.dataset.loc as Loc | undefined) ?? state.loc, heroAnim(el.dataset.tile as Hero));
     window.setTimeout(next, 20);
   };
   window.setTimeout(next, 30);
@@ -295,30 +288,6 @@ function drawOverlay(): void {
 
 // ─── Клипы: пары вариантов и остальные ────────────────────────────────────
 
-/** Пары на выбор: что в клипе, чем хорош и чем плох; `rec` — рекомендация. */
-const VARIANT_INFO: Record<PaladinVariant, { rec: 'A' | 'B'; A: { desc: string; plus: string[]; minus: string[] }; B: { desc: string; plus: string[]; minus: string[] } }> = {
-  attack: {
-    rec: 'A',
-    A: { desc: 'Кисть над плечом, боёк за шлемом — шаг, и молот через верх на врага; щит на размахе уходит за корпус.', plus: ['читается ударом молота с первого взгляда'], minus: ['похож на сильный удар A — отличается размахом и шагом'] },
-    B: { desc: 'Молот уходит назад к земле — шаг, и боёк снизу вверх, под щит врага.', plus: ['не спорит с сильным ударом и Молотом света — оба сверху'], minus: ['в кадр удара боёк у шлема: на миг закрывает лицо'] },
-  },
-  heavy: {
-    rec: 'B',
-    A: { desc: 'Привстал на носки, молот за спиной — широкий шаг, молот через верх на врага, из-под шага пыль.', plus: ['тот же рисунок, что у сильного удара Воина'], minus: ['от удара A отличается силой, а не силуэтом'] },
-    B: { desc: 'Присел, молот назад к земле — прыжок с молотом над головой и приземление с ударом, пыль.', plus: ['сразу видно, что удар сильный', 'не спорит ни с ударом, ни с Молотом света'], minus: ['в землю боёк не бьёт — короткий молот не достаёт'] },
-  },
-  heal: {
-    rec: 'B',
-    A: { desc: 'На заднее колено, молот бойком вниз перед собой, шлем склонён — боёк раскаляется светом.', plus: ['смирение, свет из молота'], minus: ['почти поза лечения Воина', 'боёк за щитом виден наполовину'] },
-    B: { desc: 'Стоя: щит поднят к груди, шлем склонён — крест на щите заливается светом, лучи выходят за кромку.', plus: ['своё у Паладина: светит его крест', 'щит на виду, а не за телом'], minus: ['молот в лечении не участвует'] },
-  },
-  smite: {
-    rec: 'B',
-    A: { desc: 'Молот к небу — боёк раскаляется, свет встаёт крестом лучей; удар через верх со вспышкой.', plus: ['свет рождается в самом молоте — «Молот света» буквально'], minus: ['сам удар — тот же, что сильный удар A'] },
-    B: { desc: 'Молот к небу, на боёк падает луч света — и удар с шагом в грудь врага, боёк вспыхивает.', plus: ['святость читается сразу', 'не похож ни на один другой клип'], minus: ['луч уходит под верх кадра — на 80 единиц над шлемом'] },
-  },
-};
-
 /** Подпись клипа: кадры, частота, длительность, контакт. */
 function clipMeta(id: SculptClip): string {
   const spec = HERO_CLIPS[id];
@@ -340,68 +309,34 @@ function queue(jobs: Array<() => void>): void {
   window.setTimeout(next, 60);
 }
 
-/** Пары вариантов (`#variants`) и остальные клипы (`#clips`) — плитки с клипом по кругу на локации из сцены. */
+/** Все клипы (`#clips`) — плитки с клипом по кругу на локации из сцены; свой клип Паладина — первым. */
 function drawClips(): void {
   const jobs: Array<() => void> = [];
-  const pairs = document.getElementById('variants')!;
-  pairs.replaceChildren();
-  for (const clip of Object.keys(PALADIN_VARIANTS) as PaladinVariant[]) {
-    const info = VARIANT_INFO[clip];
+  const host = document.getElementById('clips')!;
+  host.replaceChildren();
+  for (const clip of ['smite', 'attack', 'heavy', 'power', 'heal', 'buff', 'block', 'hurt', 'death'] as SculptClip[]) {
     const spec = HERO_CLIPS[clip];
-    const block = h('div', 'pair');
-    const head = h('div', 'pair-head');
-    head.append(h('h3', '', spec.name), h('span', 'mono note', clipMeta(clip)));
-    const cards = h('div', 'cards two');
-    for (const v of ['A', 'B'] as const) {
-      const card = h('article', `look${info.rec === v ? ' rec' : ''}${state.pick[clip] === v ? ' shown' : ''}`);
-      const title = h('h3', '', v);
-      title.appendChild(h('span', '', `«${PALADIN_VARIANTS[clip][v]}»`));
-      if (info.rec === v) title.appendChild(h('span', 'badge', 'рекомендую'));
-      const view = h('div', 'clip-view', 'рисую кадры…');
-      const pros = h('ul', 'pros');
-      for (const t of info[v].plus) pros.appendChild(h('li', 'plus', t));
-      for (const t of info[v].minus) pros.appendChild(h('li', 'minus', t));
-      const btn = h('button', 'pick', state.pick[clip] === v ? 'в сцене' : 'в сцену');
-      btn.type = 'button';
-      btn.setAttribute('aria-pressed', String(state.pick[clip] === v));
-      btn.addEventListener('click', () => {
-        state.pick = { ...state.pick, [clip]: v };
-        drawScene();
-        for (const c of block.querySelectorAll('.look')) c.classList.toggle('shown', c === card);
-        for (const b of block.querySelectorAll<HTMLButtonElement>('.pick')) {
-          b.setAttribute('aria-pressed', String(b === btn));
-          b.textContent = b === btn ? 'в сцене' : 'в сцену';
-        }
-        if (scene) perform(scene, clip);
-      });
-      card.append(title, view, h('p', '', info[v].desc), pros, btn);
-      cards.appendChild(card);
-      jobs.push(() => animTile(view, state.loc, heroAnim('sculpt', v === 'A' ? ALL_A : ALL_B), clip));
-    }
-    block.append(head, cards);
-    pairs.appendChild(block);
-  }
-  const rest = document.getElementById('clips')!;
-  rest.replaceChildren();
-  for (const clip of ['power', 'buff', 'block', 'hurt', 'death'] as SculptClip[]) {
-    const spec = HERO_CLIPS[clip];
-    const card = h('article', 'clip-card');
+    const card = h('article', spec.own ? 'clip-card own' : 'clip-card');
     const view = h('div', 'clip-view', 'рисую кадры…');
     const head = h('div', 'clip-head');
     head.append(h('b', '', spec.name), h('span', 'mono', clipMeta(clip)));
     card.append(view, head, h('p', '', CLIP_NOTE[clip] ?? spec.when));
-    rest.appendChild(card);
-    jobs.push(() => animTile(view, state.loc, heroAnim('sculpt', ALL_A), clip));
+    host.appendChild(card);
+    jobs.push(() => animTile(view, state.loc, heroAnim('sculpt'), clip));
   }
   queue(jobs);
 }
 
 /** Что показывает клип у Паладина — вместо общей подписи из HERO_CLIPS (там — у Воина). */
 const CLIP_NOTE: Partial<Record<SculptClip, string>> = {
+  smite: 'Свой приём «Молот света» («Крест лучей»): молот к небу — боёк раскаляется светом, лучи встают крестом; удар через верх, в кадр удара — вспышка.',
+  attack: 'Удар «Сверху»: предплечье вверх-назад, молот горизонтально за головой — шаг, и молот через верх на врага; щит на размахе уходит за корпус.',
+  heavy: 'Сильный удар «Сверху с шагом»: привстал на носки, молот за спиной — широкий шаг, удар через верх, из-под шага пыль.',
   power: 'Заклинание, бросок: молот вскинут к небу, свет собирается на бойке — и боёк на цель, рука во всю длину.',
-  buff: 'Ореол возмездия, Боевой клич и прочие приёмы на себя: молот к небу, щит в сторону, шлем запрокинут, боёк светится.',
-  block: '«Защититься» и удар, погашенный блоком: щит к лицу, присел, молот отведён к бедру; в кадр удара — искры о кромку.',
-  hurt: 'Удар прошёл в HP: отбросило назад, шлем запрокинут, молот отлетел назад, щит в сторону; белую вспышку добавляет движок.',
+  heal: 'Лечение «Свет щита»: стоя, щит поднят к груди, шлем склонён — крест на щите заливается светом, лучи выходят за кромку.',
+  buff: 'Ореол возмездия, Боевой клич и прочие приёмы на себя: молот отвесно над головой, щит в сторону, шлем запрокинут, боёк светится.',
+  block: '«Защититься» и удар, погашенный блоком: щит к лицу, присел, молот впереди-внизу у бедра; в кадр удара — искры о кромку.',
+  hurt: 'Удар прошёл в HP: отбросило назад, шлем запрокинут, щит в сторону, боёк молота по инерции отстаёт вперёд; белую вспышку добавляет движок.',
   death: 'Отбросило, молот выскользнул, колено на землю, упал на спину — щит на груди, молот рядом. Последний кадр держится.',
 };
 
