@@ -6,7 +6,10 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { berserkModel, type BerserkWeapon } from '../../src/ui/heroes/berserk';
+import { berserkModel } from '../../src/ui/heroes/berserk';
+
+/** Хват решён (как на листе); переключатель уйдёт вместе с разделом при сборке страницы клипов. */
+type BerserkWeapon = string;
 import { HERO_STYLE } from '../../src/ui/heroes/clips';
 import { Actor, heroSet, mobSet, type Anim, type ActorSet } from './anim';
 
@@ -69,7 +72,7 @@ const sets = new Map<string, ActorSet>();
 function heroAnim(hero: Hero, weapon: BerserkWeapon): ActorSet {
   const key = hero === 'ref' ? 'ref' : weapon;
   let set = sets.get(key);
-  if (!set) sets.set(key, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(berserkModel(weapon), HERO_STYLE)));
+  if (!set) sets.set(key, (set = hero === 'ref' ? refSet(REF_IMG) : heroSet(berserkModel(), HERO_STYLE)));
   return set;
 }
 const foeSets = new Map<string, ActorSet>();
@@ -149,7 +152,7 @@ function tile(host: HTMLElement, loc: Loc, set: ActorSet): void {
 function drawOverlay(): void {
   const host = document.getElementById('overlay');
   if (!host) return;
-  const m = berserkModel(state.weapon);
+  const m = berserkModel();
   const p = new Painter(m, HERO_STYLE, 0);
   m.draw(p);
   const fig = p.finish();
