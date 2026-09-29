@@ -284,17 +284,19 @@ const AXE_BUTT = 29;
  * топор за голову или за корпус. На размахе кулак съезжает к концу древка (его видно за кулаком), в стойку — обратно.
  */
 const AXE_SLIDE = 22;
-function axe(p: Painter, m: Mats, x: number, y: number, a: number, slide = 0, flip = false): void {
+function axe(p: Painter, m: Mats, x: number, y: number, a: number, slide = 0, flip = false, flat = 1): void {
   const size = 1, g = slide * AXE_SLIDE, butt = AXE_BUTT - g, grip = AXE_GRIP + g, id = 'axe';
   const mat = m.axe;
   const u: [number, number] = [Math.cos(a * DEG), Math.sin(a * DEG)];
-  // Поперёк древка: «борода» уходит вниз от древка; перевёрнутый топор — к другой стороне.
+  // Поперёк древка: «борода» уходит вниз от древка; перевёрнутый топор — к другой стороне. `flat` — голова повёрнута
+  // в глубину: 1 — плашмя к зрителю, 0 — ребром, минус — на другую сторону (выпавший топор опрокинулся и лёг плашмя).
   const n: [number, number] = flip ? [u[1], -u[0]] : [-u[1], u[0]];
+  const nf: [number, number] = [n[0] * flat, n[1] * flat];
   const [ex, ey] = at(x, y, a, grip);
   /** Точка головы в координатах топора → кадр. */
   const q = (pts: number[]): number[] => {
     const out: number[] = [];
-    for (let k = 0; k < pts.length; k += 2) out.push(ex + (u[0] * pts[k] + n[0] * pts[k + 1]) * size, ey + (u[1] * pts[k] + n[1] * pts[k + 1]) * size);
+    for (let k = 0; k < pts.length; k += 2) out.push(ex + (u[0] * pts[k] + nf[0] * pts[k + 1]) * size, ey + (u[1] * pts[k] + nf[1] * pts[k + 1]) * size);
     return out;
   };
   const r = 2.3 * Math.max(0.7, size);
@@ -430,6 +432,12 @@ export interface BerserkPose extends Record<string, number> {
   /** Смерть: 0 стоит → 1 рухнул ничком на колени; топор выпал. */
   fall: number;
   drop: number;
+  /**
+   * Смерть: дальнее колено на земле (`kneelF`; ближнее — `kneel`); `sit` — сел на пятки: колено ставится на землю
+   * впереди бедра, голень лежит назад к сапогу (таз ниже приседа лечения на колене); `limp` — руки обмякли и висят
+   * по отвесу мира от плеча, у земли кулак ложится на неё.
+   */
+  kneelF: number; sit: number; limp: number;
   /** Пыль у лезвия (удар в землю), искры о древко (блок). */
   dust: number; spark: number;
 }
@@ -444,7 +452,7 @@ const REST: BerserkPose = {
   sw: AXE_ANGLE, wr: AXE_ANGLE - FORE_F, ws: 0, aback: 0, afront: 0, slide: 0, aflip: 0, across: 0,
   nhx: M.armN.hand[0], nhy: M.armN.hand[1], ng: 0, nd: 0, nfur: 0, nsx: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0,
-  cape: 0, fall: 0, drop: 0, dust: 0, spark: 0,
+  cape: 0, fall: 0, drop: 0, kneelF: 0, sit: 0, limp: 0, dust: 0, spark: 0,
 };
 
 /** Клипы Берсерка — все общие; своих нет (Ярость — клич, Боевой транс — пассивка). */
@@ -574,18 +582,31 @@ const CLIPS: Record<BerserkClip, PoseKeys<BerserkPose>> = {
     [2, { x: -3, crouch: 3, lean: -5, head: -9, fhx: 114, fhy: 80, fl: 1.1, wr: -67, nhx: 15.5, nhy: 82, cape: 0.35 }],
     [3, { x: -1, crouch: 1, lean: 1, head: 2, ws: 1, wr: -66, nhx: 28, nhy: 90, cape: 0.1 }],
   ],
-  // Смерть: отбросило, ноги подкосились — на колено, топор выпал; рухнул ничком, горб шкуры сверху.
+  // Смерть (последний кадр держится до итогов): тяжёлое тело оседает на колени и валится ничком. 0 — кадр 0 урона: удар
+  // отбросил корпус назад, голова запрокинута, кулак с топором почти на месте в мире; 1 — отдача доходит: голова ещё
+  // дальше, ближнюю руку отбросило, пальцы разжимаются — топор провисает (запястье у предела −25); 2 — ноги
+  // подкосились, корпус вперёд, топор выскальзывает, руки обмякают (`limp` — висят по отвесу мира); 3 — ближнее колено
+  // идёт к земле, топор падает головой вниз; 4 — колено ударилось о землю, лезвие — тоже, топор опрокидывается плашмя;
+  // 5–6 — опускается и дальнее колено (`kneelF`), таз оседает на пятки (`sit`), голова свесилась — вес осел; 7–9 —
+  // валится вперёд с ускорением: `fall` подобран под сглаживание, поворот верха 9° → 25° → 55° → 85°; ближнее плечо
+  // выходит вперёд под грудь (`nsx`), рука ложится по земле к топору; 10 — удар грудью о землю, голова легла на руку;
+  // 11 — отскок на пиксель, голова качнулась; 12–13 — лежит: горб шкуры сверху, плащ на спине свесился с крестца на
+  // землю, топор плашмя за телом. Поля, у которых первый ключ поздно (`drop`, `limp`, `kneel`, `kneelF`, `sit`), держат
+  // ноль явным ключом — иначе интерполяция от нулевого кадра тянула дальнюю стопу назад и роняла топор уже на кадре 1.
   death: [
-    [0, { x: -6, crouch: 2, lean: -14, head: -20, ws: 1, fhx: 118, fhy: 64, fl: 1.25, wr: -45, nhx: 30, nhy: 64, cape: 0.6 }],
-    [1, { x: -7, crouch: 8, lean: -8, head: -10, fhx: 116, fhy: 72, wr: -60, drop: 0.15, cape: 0.5 }],
-    [2, { x: -7, crouch: 16, lean: 0, head: 8, fhx: 112, fhy: 80, drop: 0.5, cape: 0.4, kneel: 0.6, nhx: 44, nhy: 90 }],
-    [3, { x: -7, crouch: 22, lean: 8, head: 14, drop: 0.85, cape: 0.3, kneel: 1, nhx: 50, nhy: 96 }],
-    [4, { x: -7, crouch: 24, lean: 12, head: 16, drop: 1, kneel: 1, fall: 0.05 }],
-    [6, { fall: 0.35, head: 12 }],
-    [8, { fall: 0.75, head: 8 }],
-    [10, { fall: 1, head: 6, cape: 0 }],
-    [11, { fall: 1.04, y: -1 }],
-    [12, { fall: 1, y: 0 }],
+    [0, { x: -7, crouch: 2, lean: -14, head: -16, ws: 1, fhx: 113, fhy: 82.5, fl: 1.2, wr: -49, nhx: 15, nhy: 75, cape: 0.45 }],
+    [1, { x: -8, crouch: 5, lean: -13, head: -22, fhx: 123, fhy: 81, fl: 1.25, wr: -31, nhx: 3, nhy: 66, drop: 0, limp: 0, kneel: 0, cape: 0.7 }],
+    [2, { x: -8, crouch: 9, lean: -5, head: -8, fhx: 120, fhy: 84, wr: -25, drop: 0.15, limp: 0.3, kneel: 0.15, cape: 0.55 }],
+    [3, { x: -8, crouch: 11, lean: 3, head: 6, kneel: 0.6, drop: 0.5, limp: 0.7, cape: 0.35 }],
+    [4, { x: -8, crouch: 13.5, lean: 8, head: 14, kneel: 1, drop: 0.82, limp: 1, fl: 1.4, kneelF: 0, sit: 0, cape: 0.2 }],
+    [5, { x: -9, crouch: 17, lean: 9, head: 18, kneelF: 0.55, sit: 0.3, drop: 1, cape: 0.1 }],
+    [6, { x: -10, crouch: 20, lean: 4, head: 15, kneelF: 1, sit: 0.8, fall: 0, nsx: 0 }],
+    [7, { crouch: 22, lean: 5, head: 18, sit: 1, fall: 0.135 }],
+    [8, { x: -12, crouch: 24, fall: 0.33, nsx: 10 }],
+    [9, { x: -14, crouch: 27, fall: 0.58, nsx: 22, head: 6 }],
+    [10, { crouch: 28, fall: 1, head: -10, nsx: 32 }],
+    [11, { fall: 1.03, head: -14 }],
+    [12, { fall: 1, head: -10 }],
   ],
 };
 
@@ -796,6 +817,12 @@ function kneelAnkle(boot: readonly number[], out: number): number {
   return low;
 }
 const KNEEL_ANKLE = { far: kneelAnkle(BOOT_F, 1), near: kneelAnkle(BOOT_N, -1) };
+/**
+ * Сел на пятки (смерть): центр колена над землёй (мех колена — ниже него); дальнее бедро на колене к своей мерке —
+ * повёрнутое вперёд, в плоскость рисунка, оно длиннее, чем в стойке.
+ */
+const KNEE_GROUND = 7;
+const FAR_THIGH_KNEEL = 1.35;
 
 /** Верхний край горба (точки листа) — от шлема к левому краю; по нему — зубцы прядей. */
 const MANTLE_TOP = [108, 28, 104, 23, 97, 21, 90, 20, 83, 21, 75, 21, 66, 23, 57, 26, 50, 31, 44, 36, 38, 41, 33, 46, 29, 52];
@@ -816,59 +843,165 @@ function axePoint(x: number, y: number, a: number, s: number, t: number, slide =
   const [ex, ey] = at(x, y, a, AXE_GRIP + slide * AXE_SLIDE);
   return [ex + u[0] * s + n[0] * t, ey + u[1] * s + n[1] * t];
 }
-/** Смерть — рухнул ничком: верх ложится вперёд на колени, горб шкуры сверху. */
-const FALL_ROT = 88;
+/**
+ * Смерть — рухнул ничком на колени: верх ложится вперёд вокруг таза (таз — из ключей: сел на пятки), грудь на бёдрах,
+ * голова у земли, горб шкуры сверху. Не 90°: спина чуть выше к крестцу — куча, а не доска.
+ */
+const FALL_ROT = 85;
+/** Падая, горб оседает на спину: поворот назад вокруг загривка, градусы при полном падении. */
+const MANTLE_DRAPE = 60;
+const MANTLE_PIVOT = P(96, 52);
+/** Повязка при падении: доля поворота корпуса, которую она гасит (висит по отвесу), и насколько короче (зажата). */
+const CLOTH_HANG = 0.9;
+const CLOTH_TUCK = 0.8;
+/** Плащ при падении: линия спины (x листа) и доля ширины плаща за ней, когда он лёг на спину. */
+const CAPE_BACK = X(72);
+const CAPE_FLAT = 0.12;
+/** Линия сгиба плаща на крестце, его подол (y листа в координатах верха) и радиус дуги, по которой он переваливается. */
+const CAPE_RUMP = Y(118);
+const CAPE_HEM = Y(150);
+const CAPE_ROUND = R(16);
+/** Шкура поверх спины упавшего: с какой доли падения и до какого x листа она заходит на торс. */
+const PELT_FROM = 0.6;
+const PELT_IN = X(94);
+/**
+ * Топор падает: доля `drop`, на которой лезвие бьётся о землю; где ложится (кулак на древке — x, над землёй — y в миг
+ * удара и угол головой вниз) и насколько плашмя лежит (минус — лезвием за древко).
+ */
+const DROP_HIT = 0.7;
+const AXE_LAND: [number, number, number] = [170, 16, 40];
+const AXE_FLAT = -0.75;
+/**
+ * Древко лежащего топора над линией земли: топор выпал из дальней руки и лежит за телом, дальше от зрителя, — выше на
+ * рисунке; и короткий верх головы, опрокинутый к зрителю, не уходит под землю (−12,6 · 0,75 от древка).
+ */
+const AXE_LIE = 10;
 
 function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
   const breath = p.bob(2.5, 2);
   const turn = p.blink(0.62, 0.16);
   const fall = ease(Math.max(0, Math.min(1, P.fall)));
   const bounce = P.fall > 1 ? (P.fall - 1) * 50 : 0;
-  const hipX = lerp(PELVIS[0], PELVIS[0] + 8, fall);
-  const hipY = lerp(PELVIS[1] + P.crouch, G - 30, fall) - bounce;
+  // Таз — из ключей (присед, сдвиг), падение только валит верх вперёд: в черновике таз сам ехал к земле и вперёд, и
+  // колени на земле решались под чужой таз.
+  const hipX = PELVIS[0];
+  const hipY = PELVIS[1] + P.crouch - bounce;
   const rot = lerp(P.lean, FALL_ROT, fall) * DEG;
   const up = { dx: hipX - PELVIS[0], dy: hipY - PELVIS[1] - breath * (1 - fall), rot, px: PELVIS[0], py: PELVIS[1] };
   const probeInfo: Record<string, number> = {};
-  const toWorld = (x: number, y: number): [number, number] => {
-    const c = Math.cos(rot), s = Math.sin(rot);
-    return [PELVIS[0] + c * (x - PELVIS[0]) - s * (y - PELVIS[1]) + up.dx, PELVIS[1] + s * (x - PELVIS[0]) + c * (y - PELVIS[1]) + up.dy];
+  const cr = Math.cos(rot), sr = Math.sin(rot);
+  const toWorld = (x: number, y: number): [number, number] =>
+    [PELVIS[0] + cr * (x - PELVIS[0]) - sr * (y - PELVIS[1]) + up.dx, PELVIS[1] + sr * (x - PELVIS[0]) + cr * (y - PELVIS[1]) + up.dy];
+  const toLocal = (x: number, y: number): [number, number] => {
+    const dx = x - up.dx - PELVIS[0], dy = y - up.dy - PELVIS[1];
+    return [PELVIS[0] + cr * dx + sr * dy, PELVIS[1] - sr * dx + cr * dy];
   };
+  /** Земля в координатах кадра (после сдвига позы `x`, `y`). */
+  const floorY = G - P.y;
 
+  // Обмякшие руки (смерть): кисть висит по отвесу мира под плечом, у земли ложится на неё — при любом наклоне верха.
+  let PA = P;
+  if (P.limp > 0) {
+    // Не достаёт земли — висит отвесно; достаёт — рука прямая от плеча до земли и лежит вперёд по ней (корпус
+    // валится вперёд, обмякшая рука уходит за плечом).
+    const hang = (sx: number, sy: number, l: number, drift: number): [number, number] => {
+      const [wx, wy] = toWorld(sx, sy);
+      const gy = floorY - R(12);
+      if (wy + l <= gy) return toLocal(wx + drift, wy + l);
+      return toLocal(wx + Math.max(drift, Math.sqrt(l * l - (gy - wy) ** 2)), gy);
+    };
+    const [fx, fy] = hang(M.armF.sh[0], M.armF.sh[1], (ARM_F.l1 + ARM_F.l2) * P.fl * 1.02, 2);
+    const [nx, ny] = hang(M.armN.sh[0] + P.nsx, M.armN.sh[1], (ARM_N.l1 + ARM_N.l2) * 0.97, 3);
+    PA = { ...P, fhx: lerp(P.fhx, fx, P.limp), fhy: lerp(P.fhy, fy, P.limp), nhx: lerp(P.nhx, nx, P.limp), nhy: lerp(P.nhy, ny, P.limp) };
+  }
+  const farA = farArm(PA);
+  const SW = axeAngle(PA, farA.a2);
+  const na = nearArm(PA, farA, SW);
+  const held = P.drop < 0.05;
   p.pose({ dx: P.x, dy: P.y }, () => {
     p.shadow(70 - P.x * 0.5 + 14 * fall, 60 + 10 * fall, 4.5);
 
-    // Упал — шкура плаща лежит на земле за спиной.
-    if (fall > 0.45) p.poly([hipX - 70, G - 4, hipX - 40, G - 9, hipX - 6, G - 7, hipX + 6, G, hipX - 76, G], m.cape, { part: 'capeGround', tone: -0.12, bevel: 3 });
-
+    let peltPts: number[] | null = null;
     // ── Плащ из шкуры — за спиной от горба до колен, виден слева и между ног; рваный подол колышется. Верх висит на
-    //    плечах и дышит с ними, подол у колен стоит: в позе верха целиком подол ходил над неподвижными ногами. Падая,
-    //    плащ укорачивается к горбу — лёг на спину шкурой. ──
-    if (fall < 0.7) {
-      const keep = 1 - fall / 0.7;
-      const sway = (pts: number[]): number[] => pts.map((v, i) => (i % 2 ? v + up.dy * Math.max(0, Math.min(1, (Y(125) - v) / (Y(125) - Y(50)))) : v));
-      const shrink = (pts: number[]): number[] => pts.map((v, i) => (i % 2 ? Y(40) + (v - Y(40)) * keep : v));
-      p.pose({ dx: up.dx, rot, px: PELVIS[0], py: PELVIS[1] }, () => {
-        const edge = furEdge(S(...CAPE_EDGE), R(4.5), R(7), -1, R(2));
-        const pts = [
-          ...S(104, 26, 92, 22, 80, 22, 68, 24, 58, 27, 50, 32, 42, 38, 35, 44),
-          ...edge,
-          ...S(12, 141, 16, 136, 20, 145, 25, 138, 30, 147, 36, 140, 44, 150, 54, 150, 62, 158, 68, 153, 74, 163, 80, 155, 86, 162, 92, 150, 98, 120, 104, 95, 110, 70, 118, 50),
-        ];
-        for (let k = 0; k < pts.length; k += 2) {
-          const t = Math.max(0, (pts[k + 1] - 40) / 80);
-          pts[k] -= P.cape * 10 * t * t;
+    //    плечах и дышит с ними, подол у колен стоит: в позе верха целиком подол ходил над неподвижными ногами. ──
+    {
+      const sway = (pts: number[]): number[] => pts.map((v, i) => (i % 2 ? v + up.dy * (1 - fall) * Math.max(0, Math.min(1, (Y(125) - v) / (Y(125) - Y(50)))) : v));
+      const outline = [
+        ...S(104, 26, 92, 22, 80, 22, 68, 24, 58, 27, 50, 32, 42, 38, 35, 44),
+        ...furEdge(S(...CAPE_EDGE), R(4.5), R(7), -1, R(2)),
+        ...S(12, 141, 16, 136, 20, 145, 25, 138, 30, 147, 36, 140, 44, 150, 54, 150, 62, 158, 68, 153, 74, 163, 80, 155, 86, 162, 92, 150, 98, 120, 104, 95, 110, 70, 118, 50),
+      ];
+      for (let k = 0; k < outline.length; k += 2) {
+        const t = Math.max(0, (outline[k + 1] - 40) / 80);
+        outline[k] -= P.cape * 10 * t * t;
+      }
+      const LOCKS: Array<[number[], number, number, number]> = [[S(33, 58, 23, 80, 17, 104, 15, 124), 100, 0.12, 0.5], [S(48, 62, 38, 84, 30, 110, 28, 130), 96, 0.1, 0]];
+      if (fall <= 0) {
+        p.pose({ dx: up.dx, rot, px: PELVIS[0], py: PELVIS[1] }, () => {
+          p.poly(sway(outline), m.cape, { part: 'fur', tone: -0.06, bevel: 6 });
+          for (const [row, d, tone, shift] of LOCKS) locks(p, m.cape, 'fur', row, { step: R(10), len: R(16), w: R(4), dir: () => d, gap: m.capeGap, tone, shift, map: sway });
+        });
+      } else {
+        // Падая ничком, плащ лежит на спине до крестца, а дальше свисает с него по отвесу и ложится на землю за
+        // пятками. Ширина плаща за спиной в стойке — ракурс складок: повёрнутая с корпусом, она вставала стеной над
+        // лежащим — поэтому, когда спина ложится, она сплющивается к линии спины (`CAPE_FLAT`). Крестец повёрнутого
+        // торса выше настоящего (его спина в ракурсе широкая), поэтому свисающая часть тянется до земли и дальше по ней.
+        const sq = ease(Math.max(0, Math.min(1, (fall - 0.3) / 0.7)));
+        // Дуга через крестец — из частых точек: вершины контура через 7 единиц рубили её в угол.
+        const dense = (pts: number[]): number[] => {
+          const out: number[] = [];
+          for (let k = 0; k + 1 < pts.length; k += 2) {
+            const x0 = pts[k], y0 = pts[k + 1], x1 = pts[(k + 2) % pts.length], y1 = pts[(k + 3) % pts.length];
+            const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 2));
+            for (let j = 0; j < n; j++) out.push(lerp(x0, x1, j / n), lerp(y0, y1, j / n));
+          }
+          return out;
+        };
+        const fold = (pts: number[]): number[] => {
+          const out: number[] = [];
+          const pre = sway(pts);
+          for (let k = 0; k < pre.length; k += 2) {
+            const x = pre[k] < CAPE_BACK ? CAPE_BACK - (CAPE_BACK - pre[k]) * lerp(1, CAPE_FLAT, sq) : pre[k];
+            const y = pre[k + 1];
+            let [wx, wy] = toWorld(x, Math.min(y, CAPE_RUMP));
+            if (y > CAPE_RUMP) {
+              // Свисает от линии сгиба: доля длины до подола растянута так, чтобы подол дошёл до земли.
+              // Шкура переваливается через крестец по дуге (круглый зад, а не отвесная стена) и дальше висит отвесно.
+              const d = y - CAPE_RUMP, full = CAPE_HEM - CAPE_RUMP;
+              const sl = (d / full) * Math.max(full, (floorY - wy) * 1.25), r = CAPE_ROUND;
+              const [ox, oy] = sl < (r * Math.PI) / 2 ? [-r * Math.sin(sl / r), r * (1 - Math.cos(sl / r))] : [-r, r + sl - (r * Math.PI) / 2];
+              const [rx, ry] = toWorld(x, y);
+              wx = lerp(rx, wx + ox, sq);
+              wy = lerp(ry, wy + oy, sq);
+            }
+            if (wy > floorY - 1) {
+              wx -= (wy - floorY + 1) * 0.9;
+              wy = floorY - 1;
+            }
+            out.push(wx, wy);
+          }
+          return out;
+        };
+        p.poly(fold(dense(outline)), m.cape, { part: 'fur', tone: -0.06, bevel: 6 });
+        for (const [row, d, tone, shift] of LOCKS) locks(p, m.cape, 'fur', row, { step: R(10), len: R(16), w: R(4), dir: () => d, gap: m.capeGap, tone, shift, map: fold });
+        if (fall > PELT_FROM) {
+          // Шкура на спине и заду упавшего — ещё раз поверх торса, пояса и юбки: лёжа ничком, спина смотрит вверх, и
+          // шкура закрывает её, а свисающая часть лежит на заду, а не за ним. Внутренний край заходит от линии спины на
+          // торс по мере падения (без скачка на кадре появления).
+          const g = (fall - PELT_FROM) / (1 - PELT_FROM), xi = lerp(CAPE_BACK, PELT_IN, g);
+          let i0 = 0;
+          while (outline[i0 + 1] < Y(52)) i0 += 2;
+          const iHem = outline.length - 10;
+          const pelt = [...outline.slice(i0, iHem + 2), ...furEdge([xi, Y(150), xi, Y(118), xi, Y(85), xi, Y(52)], R(4), R(6), 1, 0)];
+          peltPts = fold(dense(pelt));
         }
-        const q = (v: number[]): number[] => shrink(sway(v));
-        p.poly(q(pts), m.cape, { part: 'fur', tone: -0.06, bevel: 6 });
-        locks(p, m.cape, 'fur', S(33, 58, 23, 80, 17, 104, 15, 124), { step: R(10), len: R(16), w: R(4), dir: () => 100, gap: m.capeGap, tone: 0.12, map: q });
-        locks(p, m.cape, 'fur', S(48, 62, 38, 84, 30, 110, 28, 130), { step: R(10), len: R(16), w: R(4), dir: () => 96, gap: m.capeGap, tone: 0.1, shift: 0, map: q });
-      });
+      }
     }
 
     // ── Ноги: бедро от таза, колено — ik в больших сдвигах (шаг, колено на земле, падение), стопы стоят. Штаны тёмной
     //    кожи, на колене и голени светлый мех, сапоги крупные с ремнями. Падая, оба колена на земле. ──
     const legs = [
-      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.08, boot: BOOT_F, bend: [1, -0.1], foot: P.footF, lift: P.liftF, kneel: fall, out: 1 },
+      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.08, boot: BOOT_F, bend: [1, -0.1], foot: P.footF, lift: P.liftF, kneel: Math.max(P.kneelF, fall), out: 1 },
       { g: M.legN, L2: LEG_N, side: 'near', tone: 0, boot: BOOT_N, bend: [-1, -0.3], foot: P.footN, lift: P.liftN, kneel: Math.max(P.kneel, fall), out: -1 },
     ] as const;
     for (const lg of legs) {
@@ -878,23 +1011,35 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       let ax = lg.g.ank[0] + lg.foot - P.x, ay = floor - lg.lift;
       let toe = 0;
       const kneelY = G - P.y - KNEEL_ANKLE[lg.side];
+      // Дальнее бедро в стойке идёт к зрителю и в проекции короче ближнего (25,6 против 38,8): на колене оно
+      // разворачивается вперёд, в плоскость рисунка, и удлиняется — иначе при ближнем колене на земле дальнее висело
+      // в 14 над ней.
+      const l1 = lg.L2.l1 * (lg.side === 'far' ? lerp(1, FAR_THIGH_KNEEL, lg.kneel) : 1), l2 = lg.L2.l2;
       if (lg.kneel > 0) {
         // Колено на земле под бедром, голень назад по земле к сапогу, упёртому носком.
-        ax = lerp(ax, hx - lg.L2.l2 * 0.95 + R(6), lg.kneel);
+        ax = lerp(ax, hx - l2 * 0.95 + R(6), lg.kneel);
         ay = lerp(ay, kneelY, lg.kneel);
         toe += KNEEL_TOE * lg.kneel;
+        if (P.sit > 0) {
+          // Сел на пятки: таз ниже, чем бедро достаёт отвесно до земли, — колено уходит вперёд по земле, голень лежит
+          // от него назад к сапогу.
+          const ky = floorY - KNEE_GROUND, kx = hx + Math.sqrt(Math.max(0, l1 * l1 - (ky - hy) ** 2));
+          const sx = kx - Math.sqrt(Math.max(0, l2 * l2 - (kneelY - ky) ** 2));
+          ax = lerp(ax, sx, P.sit * lg.kneel);
+        }
       }
       const dax = ax - lg.g.ank[0], day = ay - lg.g.ank[1];
       const big = Math.max(Math.hypot(dhx, dhy), Math.hypot(dax, day));
       const w = lg.kneel > 0 ? 1 : Math.max(0, Math.min(1, (big - 3) / 4));
-      if (w > 0) [ax, ay] = reachFoot(hx, hy, ax, ay, lg.L2.l1 + lg.L2.l2 - 0.2);
+      if (w > 0) [ax, ay] = reachFoot(hx, hy, ax, ay, l1 + l2 - 0.2);
       toe += w * Math.max(0, floor - ay - lg.kneel * (floor - kneelY)) / 16;
       // Колено в стойке смотрит назад-наружу, на земле — вниз, по другую сторону линии бедро — щиколотка: сгиб ik
       // перескакивал бы на другую сторону за кадр (колено прыгало на 40 единиц). На переходе колено идёт между
       // обоими решениями — нога поворачивается в глубину и в проекции короче.
-      let [ikx, iky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, lg.bend[0], lg.bend[1]);
+      let [ikx, iky] = ik(hx, hy, ax, ay, l1, l2, lg.bend[0], lg.bend[1]);
       if (lg.kneel > 0) {
-        const [qx, qy] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, 0.3, 1);
+        // Сел на пятки — щиколотка почти под бедром, и колено «вниз» ушло бы под землю: сгиб вперёд.
+        const [qx, qy] = ik(hx, hy, ax, ay, l1, l2, lerp(0.3, 1, P.sit), lerp(1, 0.2, P.sit));
         ikx = lerp(ikx, qx, lg.kneel);
         iky = lerp(iky, qy, lg.kneel);
       }
@@ -939,11 +1084,23 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       locks(p, m.cuff, cuff, turnPts([cx - rx * 0.75, cy - ry * 0.35, cx + rx * 0.75, cy - ry * 0.35]), { step: R(9), len: R(14), w: R(4.4), dir: (x) => sa + 9 * Math.sin(x * 1.3), gap: m.furGap, tone: 0.16 });
     }
 
+    // Топор выпал из дальней руки: падает головой вниз (она тяжелее), бьётся о землю лезвием и опрокидывается плашмя —
+    // голова поворачивается в глубину (`flat` 1 → 0 → −0,75), древко ложится рукоятью к хозяину. Топор с дальней
+    // стороны тела — рисуется до верха: павший корпус, голова и рука ложатся перед ним.
+    let dropTip: [number, number] = [0, 0], dropButt: [number, number] = [0, 0];
+    if (!held) {
+      const k = Math.min(1, P.drop / DROP_HIT), tip = Math.max(0, Math.min(1, (P.drop - DROP_HIT) / (1 - DROP_HIT)));
+      const [hx0, hy0] = toWorld(farA.hx, farA.hy);
+      const x = lerp(lerp(hx0, AXE_LAND[0] - 6, k), AXE_LAND[0], tip), y = lerp(lerp(hy0, floorY - AXE_LAND[1], k * k), floorY - AXE_LIE, tip);
+      const a = lerp(lerp(SW + rot / DEG, AXE_LAND[2], k), 0, ease(tip));
+      const flat = lerp(1, AXE_FLAT, ease(tip));
+      axe(p, m, x, y, a, 0, false, flat);
+      const [px2, py2] = axePoint(x, y, a, AXE_TIP[0], 0), na2 = (a + 90) * DEG;
+      dropTip = [px2 + Math.cos(na2) * AXE_TIP[1] * flat, py2 + Math.sin(na2) * AXE_TIP[1] * flat];
+      dropButt = at(x, y, a, -AXE_BUTT);
+    }
+
     // ── Верх: дыхание поднимает торс, горб меха и голову; наклон и падение — в клипах. ──
-    const farA = farArm(P);
-    const SW = axeAngle(P, farA.a2);
-    const na = nearArm(P, farA, SW);
-    const held = P.drop < 0.05;
     const upA = farA.a1, upL = len([farA.sx, farA.sy], [farA.ex, farA.ey]);
     const foA = farA.a2, foL = len([farA.ex, farA.ey], [farA.hx, farA.hy]);
     // Предплечье от середины, наруч у запястья и кулак на древке; топор — под кулаком.
@@ -955,6 +1112,14 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       fist(p, m, m.armF, farA.hx, farA.hy, foA, R(7.5), -0.06, 'fistF');
     };
     const layer = P.aback > 0.5 ? 'back' : P.afront > 0.5 ? 'front' : 'mid';
+    // Падение: шкура горба — тяжёлый мех на плечах — оседает на спину (поворот назад вокруг загривка на долю наклона),
+    // иначе, повёрнутый вместе с корпусом, горб вставал гребнем перед головой. Повязка висит по отвесу мира и
+    // короче — зажата между животом и бёдрами. В стойке и остальных клипах (`fall` 0) рисунок не меняется.
+    const drape = (fn: () => void): void => (fall > 0 ? p.pose({ rot: -MANTLE_DRAPE * fall * DEG, px: MANTLE_PIVOT[0], py: MANTLE_PIVOT[1] }, fn) : fn());
+    const hang = (fn: () => void): void => {
+      if (fall <= 0) return fn();
+      p.pose({ rot: -rot * CLOTH_HANG * fall, px: X(97), py: Y(99) }, fn);
+    };
     p.pose(up, () => {
       // Дальняя рука висит у дальнего бока: плечо выходит из-под меха дальнего плеча и идёт вниз вдоль бока, локоть у
       // пояса смотрит назад, предплечье от него — вперёд-вниз к кулаку на древке. Край торса (дальний бок в тени)
@@ -994,16 +1159,21 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       p.ellipse(X(104), Y(75), R(3.2), R(3.2), m.buckle, { part: 'strapRing', lift: 1 });
 
       // Кожаная юбка под поясом: ближний бок со светлой меховой полосой, дальний — тёмные ремни.
-      p.poly(S(106, 97, 142, 94, 145, 106, 142, 119, 136, 113, 130, 121, 124, 114, 116, 121, 108, 115), m.pants, { part: 'skirtF', bevel: 2.5, tone: -0.1 });
+      // Падая, дальний клапан висит по отвесу, а ближний с меховой полосой лежит на заду под шкурой плаща.
+      hang(() => p.poly(S(106, 97, 142, 94, 145, 106, 142, 119, 136, 113, 130, 121, 124, 114, 116, 121, 108, 115), m.pants, { part: 'skirtF', bevel: 2.5, tone: -0.1 }));
       p.poly(S(72, 96, 90, 98, 90, 112, 86, 123, 80, 117, 73, 126, 68, 119, 62, 122, 64, 110), m.pants, { part: 'skirtN', bevel: 2.5 });
       p.poly([...S(56, 121, 68, 116, 80, 120, 89, 128), ...furEdge(S(89, 131, 56, 127), R(4), R(4), 1, 0)], m.cuff, { part: 'hipFur', bevel: 2 });
       p.poly(S(68, 99, 76, 99, 78, 112, 73, 117, 69, 109), m.cuff, { part: 'hipFur', bevel: 1.6, tone: 0.05 });
 
       // Набедренная повязка — красная, рваный низ; на выпаде относит назад.
       const tf = P.cape * 5;
-      p.poly(S(88, 99, 106, 99, 107, 120, 106 - tf, 145, 106 - tf, 160, 103 - tf, 167, 100 - tf, 158, 97 - tf, 165, 94 - tf, 157, 91 - tf, 163, 88 - tf, 156, 87 - tf * 0.5, 140, 87, 120), m.cloth, { part: 'cloth', bevel: 2.4 });
-      stroke(p, S(93, 104, 92 - tf, 150), m.fold, 'cloth');
-      stroke(p, S(101, 104, 101 - tf, 152), m.fold, 'cloth');
+      // Падая, повязка короче: низ зажат между животом и бёдрами.
+      const cl = (y: number): number => 99 + (y - 99) * (1 - CLOTH_TUCK * fall);
+      hang(() => {
+        p.poly(S(88, 99, 106, 99, 107, cl(120), 106 - tf, cl(145), 106 - tf, cl(160), 103 - tf, cl(167), 100 - tf, cl(158), 97 - tf, cl(165), 94 - tf, cl(157), 91 - tf, cl(163), 88 - tf, cl(156), 87 - tf * 0.5, cl(140), 87, cl(120)), m.cloth, { part: 'cloth', bevel: 2.4 });
+        stroke(p, S(93, 104, 92 - tf, cl(150)), m.fold, 'cloth');
+        stroke(p, S(101, 104, 101 - tf, cl(152)), m.fold, 'cloth');
+      });
 
       // Пояс из круглых бляшек, ромб-пряжка. Дальний конец — у края торса: дальше висит локоть дальней руки, и пояс,
       // уходивший до x 142, закрывал его — рука снова рвалась на плечо и предплечье.
@@ -1014,6 +1184,13 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
         p.ellipse(X(bx), Y(95.5 - (bx - 76) * 0.04), R(4.2), R(4), m.belt, { part: 'belt', lift: 1.2, tone: 0.1 });
       }
       p.poly(S(96, 89, 101.5, 95, 96, 102, 90.5, 95), m.buckle, { part: 'buckle', bevel: 1.6, lift: 1.2 });
+
+      // Шкура плаща на спине и заду упавшего — поверх торса, пояса и юбки.
+      if (peltPts) {
+        const loc: number[] = [];
+        for (let k = 0; k < peltPts.length; k += 2) loc.push(...toLocal(peltPts[k], peltPts[k + 1]));
+        p.poly(loc, m.cape, { part: 'pelt', tone: -0.1, bevel: 4 });
+      }
 
       // Дальний бок в тени — между грудью и рукой, как у ближней подмышки.
       p.poly(S(127, 76, 134, 72, 131, 84, 127, 92, 124, 86), m.torso, { part: 'torso', paint: true, tone: -0.3 });
@@ -1026,16 +1203,18 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       if (layer === 'mid') farHand();
 
       // Горб меха на плечах — выше головы, пряди от шеи вниз; нижний край рваный над грудью и плечом.
-      const top = furEdge(S(...MANTLE_TOP), R(5), R(6), -1, -R(2));
-      const fringe = furEdge(S(29, 51, 40, 55, 52, 57, 64, 59, 76, 60, 86, 60), R(4), R(5), -1, 0);
-      p.poly([...top, ...fringe, ...S(92, 54, 96, 46, 99, 38, 103, 31)], m.mantle, { part: 'fur', bevel: 8, flat: 0.25, lift: 3 });
-      p.ellipse(X(78), Y(38), R(30), R(14), m.mantle, { part: 'fur', lift: 4, flat: 0.3 });
-      const rows: Array<[number[], number]> = [
-        [[104, 23, 92, 21, 80, 20, 68, 23, 58, 26, 50, 31, 43, 37, 37, 43], 0.5],
-        [[106, 35, 94, 32, 82, 31, 70, 33, 60, 36, 52, 41, 45, 47], 0],
-        [[106, 48, 94, 46, 82, 46, 70, 48, 60, 50], 0.5],
-      ];
-      for (const [row, shift] of rows) locks(p, m.mantle, 'fur', S(...row), { step: R(10), len: R(15), w: R(4.2), dir: fromNeck, gap: m.furGap, tone: 0.22, shift });
+      drape(() => {
+        const top = furEdge(S(...MANTLE_TOP), R(5), R(6), -1, -R(2));
+        const fringe = furEdge(S(29, 51, 40, 55, 52, 57, 64, 59, 76, 60, 86, 60), R(4), R(5), -1, 0);
+        p.poly([...top, ...fringe, ...S(92, 54, 96, 46, 99, 38, 103, 31)], m.mantle, { part: 'fur', bevel: 8, flat: 0.25, lift: 3 });
+        p.ellipse(X(78), Y(38), R(30), R(14), m.mantle, { part: 'fur', lift: 4, flat: 0.3 });
+        const rows: Array<[number[], number]> = [
+          [[104, 23, 92, 21, 80, 20, 68, 23, 58, 26, 50, 31, 43, 37, 37, 43], 0.5],
+          [[106, 35, 94, 32, 82, 31, 70, 33, 60, 36, 52, 41, 45, 47], 0],
+          [[106, 48, 94, 46, 82, 46, 70, 48, 60, 50], 0.5],
+        ];
+        for (const [row, shift] of rows) locks(p, m.mantle, 'fur', S(...row), { step: R(10), len: R(15), w: R(4.2), dir: fromNeck, gap: m.furGap, tone: 0.22, shift });
+      });
 
       p.poly(S(97, 46, 101, 40, 108, 38, 111, 50, 110, 62, 102, 66, 95, 60), m.torso, { part: 'neck', bevel: 2.5, tone: -0.32 });
       stroke(p, S(99, 46, 97, 60), m.skinDark, 'neck');
@@ -1048,18 +1227,21 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
 
       // Голова — после меха: верх ворота (y 44–52) проходил по лицу, и мех закрывал низ лица и всю бороду. Борода
       // теперь свисает на мех. Раз за цикл голова подаётся к врагам на пиксель.
-      p.pose({ dx: 1.5 * turn, rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => wolfHead(p, m));
+      // Упал ничком — голова лежит на вытянутой ближней руке: рисуется после неё.
+      const head = (): void => p.pose({ dx: 1.5 * turn, rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => wolfHead(p, m));
+      const headOnArm = fall > 0.5;
+      if (!headOnArm) head();
 
       // Топор перед головой и горбом (блок древком, топор вскинут перед собой).
       if (layer === 'front') farHand();
 
       // Край горба над ближним плечом — поверх верха руки, рваной бахромой; рука, поднятая над плечом (`nfur`), вышла
       // из-под шкуры — край рисуется до неё.
-      const furOver = (): void => {
+      const furOver = (): void => drape(() => {
         const over = [...S(30, 50, 42, 45, 56, 48, 70, 50, 84, 52), ...furEdge(S(86, 56, 70, 58, 56, 58, 42, 56, 32, 54), R(4.5), R(4.5), 1, 0)];
         p.poly(over, m.mantle, { part: 'fur', bevel: 3, flat: 0.3, lift: 3 });
         locks(p, m.mantle, 'fur', S(80, 51, 66, 50, 52, 49, 40, 48), { step: R(8), len: R(9), w: R(3), dir: fromNeck, gap: m.furGap, tone: 0.14, shift: 0.25 });
-      };
+      });
       if (P.nfur > 0.5) furOver();
 
       // Ближняя рука — поверх торса: голое плечо с бицепсом, кожаный наруч с обмоткой, кулак.
@@ -1078,6 +1260,7 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       fist(p, m, m.armN, na.hx, na.hy, fa, R(11), 0, 'fistN');
 
       if (P.nfur <= 0.5) furOver();
+      if (headOnArm) head();
 
       // Искры о древко в кадр удара по блоку.
       if (P.spark > 0.05) {
@@ -1091,15 +1274,7 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       }
     });
 
-    // Топор выпал: из кулака летит на землю перед ногами и ложится лезвием вверх.
-    if (!held) {
-      const k = ease(Math.min(1, P.drop));
-      const [hx0, hy0] = toWorld(farA.hx, farA.hy);
-      const x = lerp(hx0, 150, k), y = lerp(hy0, G - 3, k * k);
-      const a = lerp(SW + rot / DEG, 178, k);
-      axe(p, m, x, y, a);
-    }
-    const [tipX, tipY] = toWorld(...axePoint(farA.hx, farA.hy, SW, AXE_TIP[0], AXE_TIP[1], P.slide, P.aflip > 0.5));
+    const [tipX, tipY] = held ? toWorld(...axePoint(farA.hx, farA.hy, SW, AXE_TIP[0], AXE_TIP[1], P.slide, P.aflip > 0.5)) : dropTip;
     if (P.dust > 0.05) {
       // Пыль от лезвия, ударившего в землю.
       const dx0 = Math.min(tipX, 160);
@@ -1114,7 +1289,7 @@ function drawBerserk(p: Painter, P: BerserkPose, m: Mats): void {
       // Запястье — угол топора к предплечью, локоть — угол между плечом и предплечьем (180 — прямая рука). У
       // перевёрнутого топора (`aflip`) угол в рисунке зеркальный — зонд отдаёт его в кисти, как у неперевёрнутого.
       const wrist = (P.aflip > 0.5 ? -1 : 1) * nrm(SW - farA.a2), elbow = 180 - Math.abs(nrm(farA.a2 - farA.a1));
-      const [swx, swy] = toWorld(farA.sx, farA.sy), [ewx, ewy] = toWorld(farA.ex, farA.ey), [bwx, bwy] = toWorld(...at(farA.hx, farA.hy, SW, -AXE_BUTT + P.slide * AXE_SLIDE));
+      const [swx, swy] = toWorld(farA.sx, farA.sy), [ewx, ewy] = toWorld(farA.ex, farA.ey), [bwx, bwy] = held ? toWorld(...at(farA.hx, farA.hy, SW, -AXE_BUTT + P.slide * AXE_SLIDE)) : dropButt;
       const [nwx, nwy] = toWorld(na.hx, na.hy), [nex, ney] = toWorld(na.ex, na.ey), [nsx, nsy] = toWorld(na.sx, na.sy);
       berserkProbe.on({
         ...probeInfo, hipX: hipX + P.x, hipY: hipY + P.y, handX: hwx + P.x, handY: hwy + P.y, tipX: tipX + P.x, tipY: tipY + P.y, ground: G, wrist, elbow,
