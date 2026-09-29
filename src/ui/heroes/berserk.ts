@@ -149,7 +149,7 @@ const M = {
   legN: { hip: P(88, 110), knee: P(48, 143), ank: P(38, 176) },
   legF: { hip: P(121, 110), knee: P(130, 143), ank: P(132, 176) },
   armN: { sh: P(68, 65), el: P(42, 78), hand: P(50, 117) },
-  armF: { sh: P(134, 72), el: P(129, 88), hand: P(146, 104) },
+  armF: { sh: P(137, 70), el: P(132, 85), hand: P(146, 104) },
 };
 
 const len = (a: readonly number[], b: readonly number[]): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -571,11 +571,12 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
     // У секиры ближняя кисть — на древке ниже дальней.
     const na = great ? arm(M.armN.sh, ...at(P.fhx, P.fhy, P.sw, -GREAT_LOW), ARM_N, -1, -0.2) : near;
     p.pose(up, () => {
-      // Дальняя рука — за торсом: плечо уходит под мех дальнего плеча, локоть — на боку; из-за бока вперёд выходят
-      // только предплечье с наручем и кулак на древке. Плечо, нарисованное поверх груди светлым бугром, читалось
-      // рукой спереди («анатомически неправильно» — отзыв пользователя): на листе светлый бугор справа — дальняя
-      // грудная мышца, а плечо закрыто мехом.
-      p.limb(farA.sx, farA.sy, R(10.5), farA.ex, farA.ey, R(9), m.armF, { part: 'farArm', tone: -0.14, lift: 1, flat: 0.3 });
+      // Дальняя рука — у бока за торсом: плечо под мехом дальнего плеча, из-за меха и края торса видна полоска плеча до
+      // локтя, от локтя вперёд — предплечье к кулаку. Плечо, нарисованное поверх груди светлым бугром, читалось рукой
+      // спереди («анатомически неправильно» — отзыв пользователя): на листе светлый бугор справа — дальняя грудная мышца.
+      // Полоска плеча — только теневой край цилиндра, поэтому тон светлее и свет площе: при тоне ближней руки она выходила
+      // вдвое темнее торса и читалась тенью, а не рукой.
+      p.limb(farA.sx, farA.sy, R(9.5), farA.ex, farA.ey, R(8.5), m.armF, { part: 'farArm', tone: 0.06, lift: 1, flat: 0.6 });
       // Торс — широкий, от ближнего плеча до дальнего; грудь и пресс буграми одной части.
       p.poly(S(73, 66, 88, 62, 104, 59, 116, 57, 128, 59, 136, 64, 135, 74, 131, 84, 127, 92, 126, 97, 104, 98, 76, 97, 72, 86, 70, 72), m.torso, { part: 'torso', bevel: 6, lift: 1, tone: 0.06 });
       p.ellipse(X(96), Y(71), R(18), R(11), m.torso, { part: 'torso', lift: 2.8, flat: 0.45, tone: 0.1, rot: -0.55 });
@@ -616,12 +617,15 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
 
       // Дальний бок в тени — между грудью и рукой, как у ближней подмышки.
       p.poly(S(127, 76, 134, 72, 131, 84, 127, 92, 124, 86), m.torso, { part: 'torso', paint: true, tone: -0.3 });
-      // Предплечье выходит из-за бока: наруч и кулак на древке, топор — перед ними.
+      // Предплечье от локтя голое, наруч — только у запястья: тёмный наруч во всё предплечье сливался с кожей юбки, и
+      // кулак висел сам по себе («кисть спереди, а рука сзади» — отзыв пользователя). Кожа идёт одной линией от плеча
+      // через локоть до обмотки. Топор — перед предплечьем, кулак — поверх древка.
       if (great) axe(p, m, farA.hx, farA.hy, P.sw, { size: GREAT_SIZE, butt: GREAT_LOW + 10, grip: AXE_GRIP + 2 });
       else axe(p, m, farA.hx, farA.hy, P.sw);
       const fa2 = Math.atan2(farA.hy - farA.ey, farA.hx - farA.ex) / DEG;
-      bracer(p, m, farA.ex, farA.ey, farA.hx, farA.hy, R(11), R(9.5), -0.06, 'farBracer');
-      fist(p, m, m.armF, farA.hx, farA.hy, fa2, R(9), -0.06, 'fistF');
+      p.limb(farA.ex, farA.ey, R(8), farA.hx, farA.hy, R(6.5), m.armF, { part: 'farFore', tone: 0.04, lift: 1, flat: 0.5 });
+      bracer(p, m, farA.ex, farA.ey, farA.hx, farA.hy, R(7.5), R(6.5), 0.12, 'farBracer', 0.5);
+      fist(p, m, m.armF, farA.hx, farA.hy, fa2, R(7.5), -0.06, 'fistF');
 
       // Горб меха на плечах — выше головы, пряди от шеи вниз; нижний край рваный над грудью и плечом.
       const top = furEdge(S(...MANTLE_TOP), R(5), R(6), -1, -R(2));
@@ -637,8 +641,9 @@ function drawBerserk(p: Painter, P: BerserkPose, v: BerserkVariant, m: Mats): vo
 
       p.poly(S(97, 46, 101, 40, 108, 38, 111, 50, 110, 62, 102, 66, 95, 60), m.torso, { part: 'neck', bevel: 2.5, tone: -0.32 });
       stroke(p, S(99, 46, 97, 60), m.skinDark, 'neck');
-      // Мех на дальнем плече — узкой полосой вокруг шеи справа от головы, в тени; голова садится в него.
-      const collar = [...S(114, 52, 122, 48, 129, 44, 134, 44, 137, 50, 139, 58, 140, 68, 140, 78), ...furEdge(S(140, 82, 132, 84, 126, 76, 120, 66), R(5), R(4), 1, 0), ...S(113, 60)];
+      // Мех на дальнем плече — узкой полосой вокруг шеи справа от головы, в тени; голова садится в него. Низ — над локтем
+      // дальней руки: ниже он закрывал локоть, и предплечье начиналось из меха.
+      const collar = [...S(114, 52, 122, 48, 129, 44, 134, 44, 137, 50, 139, 58, 140, 68, 140, 78), ...furEdge(S(140, 76, 133, 79, 126, 73, 120, 65), R(5), R(4), 1, 0), ...S(113, 60)];
       p.poly(collar, m.collar, { part: 'collar', bevel: 3.5, lift: 1.5, tone: -0.1 });
       locks(p, m.collar, 'collar', S(118, 54, 128, 52, 138, 60), { step: R(6), len: R(10), w: R(2.6), dir: () => 80, gap: m.furGap, tone: 0.12 });
 
@@ -695,16 +700,18 @@ function arm(sh: readonly number[], hx: number, hy: number, L2: { l1: number; l2
 
 /**
  * Наруч — кожаная обмотка от чуть ниже локтя до кулака, с плоским верхним краем (капсула закрывала локоть и низ плеча),
- * `w0`/`w1` — полуширина сверху и у запястья; поперёк — тёмные стыки и светлый ремень.
+ * `w0`/`w1` — полуширина сверху и у запястья; поперёк — тёмные стыки и светлый ремень. `from` — где начинается обмотка,
+ * доля предплечья от локтя: у дальней руки — с середины.
  */
-function bracer(p: Painter, m: Mats, ex: number, ey: number, hx: number, hy: number, w0: number, w1: number, tone: number, part: string): void {
+function bracer(p: Painter, m: Mats, ex: number, ey: number, hx: number, hy: number, w0: number, w1: number, tone: number, part: string, from = 0.16): void {
   const fa = Math.atan2(hy - ey, hx - ex) / DEG, l = len([ex, ey], [hx, hy]);
   const nx = Math.cos((fa + 90) * DEG), ny = Math.sin((fa + 90) * DEG);
-  const [ax, ay] = at(ex, ey, fa, l * 0.16), [bx, by] = at(ex, ey, fa, l * 0.94);
+  const [ax, ay] = at(ex, ey, fa, l * from), [bx, by] = at(ex, ey, fa, l * 0.94);
   p.poly([ax - nx * w0, ay - ny * w0, ax + nx * w0, ay + ny * w0, bx + nx * w1, by + ny * w1, bx - nx * w1, by - ny * w1], m.bracer, { part, bevel: Math.min(w0, w1) * 0.8, tone });
-  for (const [f, c] of [[0.3, m.seam], [0.52, m.lace], [0.58, m.lace], [0.8, m.seam]] as const) {
+  for (const [f0, c] of [[0.3, m.seam], [0.52, m.lace], [0.58, m.lace], [0.8, m.seam]] as const) {
+    const f = from + ((f0 - 0.16) * (0.94 - from)) / 0.78;
     const [cx, cy] = at(ex, ey, fa, l * f);
-    const w = lerp(w0, w1, (f - 0.16) / 0.78);
+    const w = lerp(w0, w1, (f - from) / (0.94 - from));
     stroke(p, [cx - nx * w, cy - ny * w - 0.8, cx + nx * w, cy + ny * w + 0.8], c, part);
   }
   // Светлый край обмотки сверху.
