@@ -1,16 +1,16 @@
-// Страница обсуждения «Лепка троих» (docs/lepka-geroev.md, шаг 4 — клипы): Маг, Ассасин и Лучник в облике A (выбор
-// пользователя), девять общих клипов, у удара, сильного удара и лечения — по два варианта; сцена боя с врагами, отряд из
-// шести героев на одном полу. Модели — src/ui/heroes/{mage,assassin,archer}.ts (в игру ещё не входят: `<герой>Model(opts)`),
-// Воин, Паладин и Берсерк — из игры, враги и фоны — тоже, тонировка — та же, что в бою (tint.ts).
-// Сборка — build.mjs --hero trio. Облики B и C и прежняя сверка силуэта — в истории ветки.
+// Страница обсуждения «Лепка троих» (docs/lepka-geroev.md, шаг 4 — клипы): Маг, Ассасин и Лучник в облике A, девять
+// общих клипов в выбранных пользователем вариантах; сцена боя с врагами, отряд из шести героев на одном полу. Модели —
+// src/ui/heroes/{mage,assassin,archer}.ts (в игру ещё не входят), Воин, Паладин и Берсерк — из игры, враги и фоны — тоже,
+// тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero trio. Облики B и C, отвергнутые варианты клипов и
+// прежняя сверка силуэта — в истории ветки.
 import type { Model } from '../../src/ui/mobs/pixel';
 import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { mageModel, MAGE_CLIP_NOTES, MAGE_REC_VARIANTS, MAGE_VARIANTS } from '../../src/ui/heroes/mage';
-import { assassinModel, ASSASSIN_CLIP_NOTES, ASSASSIN_REC_VARIANTS, ASSASSIN_VARIANTS } from '../../src/ui/heroes/assassin';
-import { archerModel, ARCHER_CLIP_NOTES, ARCHER_REC_VARIANTS, ARCHER_VARIANTS } from '../../src/ui/heroes/archer';
+import { mageModel, MAGE_CLIP_NOTES } from '../../src/ui/heroes/mage';
+import { assassinModel, ASSASSIN_CLIP_NOTES } from '../../src/ui/heroes/assassin';
+import { archerModel, ARCHER_CLIP_NOTES } from '../../src/ui/heroes/archer';
 import { warriorModel } from '../../src/ui/heroes/warrior';
 import { paladinModel } from '../../src/ui/heroes/paladin';
 import { berserkModel } from '../../src/ui/heroes/berserk';
@@ -21,9 +21,6 @@ import { Actor, heroSet, later, mobSet, setSpeed, type Anim, type ActorSet } fro
 
 type Loc = 'forest' | 'crypt' | 'caves';
 type HeroId = 'mage' | 'assassin' | 'archer';
-type V = 'a' | 'b';
-type Variants = Partial<Record<SculptClip, V>>;
-interface VariantInfo { id: V; name: string; note: string }
 
 /** Фоны, прежние листы и портреты — data URI из build.mjs. Свой тип, а не `Window.ASSETS`: у страниц одиночных героев он другой. */
 const ASSETS = (window as unknown as { ASSETS: { bg: Record<Loc, string>; refs: Record<HeroId, string>; avatars: Record<HeroId, string> } }).ASSETS;
@@ -32,26 +29,23 @@ const ASSETS = (window as unknown as { ASSETS: { bg: Record<Loc, string>; refs: 
 const COMMON: SculptClip[] = ['attack', 'heavy', 'power', 'heal', 'buff', 'block', 'hurt', 'death'];
 
 /**
- * Герои страницы: модель с вариантами клипов и ростом, варианты и рекомендация аниматора, подписи клипов — из файла
- * модели. Прежний лист: ячейка, рост фигуры в игре (`body` из HERO_SHEETS) и ряды клипов — у Мага на листе семь рядов,
- * у остальных только покой.
+ * Герои страницы: модель (у Мага — с ростом) и подписи клипов — из файла модели. Прежний лист: ячейка, рост фигуры в игре
+ * (`body` из HERO_SHEETS) и ряды клипов — у Мага на листе семь рядов, у остальных только покой.
  */
 const HEROES: Record<HeroId, {
   name: string;
-  model: (v: Variants, height: number) => HeroModel;
-  variants: Partial<Record<SculptClip, readonly VariantInfo[]>>;
-  rec: Variants;
+  model: (height: number) => HeroModel;
   notes: Partial<Record<SculptClip, string>>;
   cell: number;
   body: number;
   rows: Partial<Record<SculptClip, number>>;
 }> = {
   mage: {
-    name: 'Маг', model: (variants, height) => mageModel({ variants, height }), variants: MAGE_VARIANTS, rec: MAGE_REC_VARIANTS, notes: MAGE_CLIP_NOTES,
+    name: 'Маг', model: (height) => mageModel({ height }), notes: MAGE_CLIP_NOTES,
     cell: 186, body: 134, rows: { idle: 1, attack: 2, heavy: 2, power: 3, heal: 3, buff: 3, block: 4, hurt: 5, death: 6 },
   },
-  assassin: { name: 'Ассасин', model: (variants) => assassinModel({ variants }), variants: ASSASSIN_VARIANTS, rec: ASSASSIN_REC_VARIANTS, notes: ASSASSIN_CLIP_NOTES, cell: 182, body: 166, rows: { idle: 0 } },
-  archer: { name: 'Лучник', model: (variants) => archerModel({ variants }), variants: ARCHER_VARIANTS, rec: ARCHER_REC_VARIANTS, notes: ARCHER_CLIP_NOTES, cell: 186, body: 170, rows: { idle: 0 } },
+  assassin: { name: 'Ассасин', model: () => assassinModel(), notes: ASSASSIN_CLIP_NOTES, cell: 182, body: 166, rows: { idle: 0 } },
+  archer: { name: 'Лучник', model: () => archerModel(), notes: ARCHER_CLIP_NOTES, cell: 186, body: 170, rows: { idle: 0 } },
 };
 const HERO_IDS = Object.keys(HEROES) as HeroId[];
 
@@ -65,14 +59,13 @@ const HERO_X = 130;
 const FOE_X = [380, 600, 823];
 
 /**
- * Что сейчас на странице: локация, герой сцены, лепка или прежний лист, выбранные варианты клипов (по умолчанию —
- * рекомендация аниматора) и рост Мага: 120 по таблице, 106 — площадь Воина, 98 — как прежний лист стоял в бою.
+ * Что сейчас на странице: локация, герой сцены, лепка или прежний лист и рост Мага: 120 по таблице, 106 — площадь Воина,
+ * 98 — как прежний лист стоял в бою.
  */
-const state: { loc: Loc; hero: HeroId; ref: boolean; vars: Record<HeroId, Variants>; mageH: number } = {
+const state: { loc: Loc; hero: HeroId; ref: boolean; mageH: number } = {
   loc: 'forest',
   hero: 'mage',
   ref: false,
-  vars: { mage: { ...MAGE_REC_VARIANTS }, assassin: { ...ASSASSIN_REC_VARIANTS }, archer: { ...ARCHER_REC_VARIANTS } },
   mageH: 120,
 };
 
@@ -123,9 +116,6 @@ function refSet(id: HeroId): ActorSet {
   };
 }
 
-/** Полный набор вариантов героя: рекомендация аниматора, поверх — выбранное. */
-const fullVars = (id: HeroId, v: Variants): Variants => ({ ...HEROES[id].rec, ...v });
-const varKey = (v: Variants): string => COMMON.filter((c) => v[c]).map((c) => `${c}=${v[c]}`).join(',');
 const heightOf = (id: HeroId): number => (id === 'mage' ? state.mageH : HERO_BODY_HEIGHT[id]);
 
 const sets = new Map<string, ActorSet>();
@@ -134,10 +124,10 @@ function cached(key: string, make: () => ActorSet): ActorSet {
   if (!set) sets.set(key, (set = make()));
   return set;
 }
-/** Лепка героя с вариантами клипов: одинаковые наборы вариантов делят кадры. */
-function modelSet(id: HeroId, v: Variants = state.vars[id]): ActorSet {
-  const full = fullVars(id, v), height = heightOf(id);
-  return cached(`${id}|${varKey(full)}|${height}`, () => heroSet(HEROES[id].model(full, height), HERO_STYLE));
+/** Лепка героя (у Мага — в выбранном росте). */
+function modelSet(id: HeroId): ActorSet {
+  const height = heightOf(id);
+  return cached(`${id}|${height}`, () => heroSet(HEROES[id].model(height), HERO_STYLE));
 }
 const refOf = (id: HeroId): ActorSet => cached(`${id}|ref`, () => refSet(id));
 const readySet = (id: 'warrior' | 'paladin' | 'berserk'): ActorSet =>
@@ -282,23 +272,6 @@ function drawScene(): void {
   toggle(document.getElementById('scene-hero')!, state.hero);
   toggle(document.getElementById('scene-src')!, state.ref ? 'ref' : 'sculpt');
   toggle(document.getElementById('scene-loc')!, state.loc);
-  // Варианты героя сцены: группа кнопок на клип с вариантами.
-  const vars = document.getElementById('scene-vars')!;
-  vars.replaceChildren();
-  const hero = HEROES[state.hero];
-  for (const clip of COMMON) {
-    const list = hero.variants[clip];
-    if (!list?.length) continue;
-    const g = h('span', 'tog');
-    g.setAttribute('role', 'group');
-    g.setAttribute('aria-label', `Вариант: ${HERO_CLIPS[clip].name}`);
-    g.dataset.clip = clip;
-    g.append(h('span', 'tog-label', HERO_CLIPS[clip].name));
-    for (const v of list) g.appendChild(button(`${v.id.toUpperCase()} «${v.name}»`, v.id));
-    toggle(g, fullVars(state.hero, state.vars[state.hero])[clip] ?? 'a');
-    vars.appendChild(g);
-  }
-  vars.classList.toggle('muted', state.ref);
   // Клипы, которых у прежнего листа нет, приглушены.
   for (const b of document.querySelectorAll<HTMLButtonElement>('#scene-clips button[data-v]')) b.classList.toggle('off', !set.get(b.dataset.v!));
 }
@@ -336,29 +309,17 @@ function tileCard(jobs: Array<() => void>, set: () => ActorSet, clip: SculptClip
   return card;
 }
 
-/** Раздел героя: пары вариантов (удар, сильный удар, лечение) и остальные клипы. */
+/** Раздел героя: все клипы плитками. Подпись варианта (в скобках) — выбор пользователя. */
+const CHOSEN: Record<HeroId, Partial<Record<SculptClip, string>>> = {
+  mage: { attack: 'A «Выпад»', heavy: 'B «Снизу»', heal: 'B «Огонёк в ладони»' },
+  assassin: { attack: 'A «Выпад»', heavy: 'B «Ножницы»', heal: 'A «Вдох»' },
+  archer: { attack: 'A «С места»', heavy: 'B «Стрелой»', heal: 'A «Глоток»' },
+};
 function drawHero(id: HeroId, jobs: Array<() => void>): void {
   const hero = HEROES[id];
-  const pairs = document.querySelector<HTMLElement>(`[data-pairs="${id}"]`)!;
-  pairs.replaceChildren();
-  const rest = document.querySelector<HTMLElement>(`[data-clips="${id}"]`)!;
-  rest.replaceChildren();
-  for (const clip of COMMON) {
-    const list = hero.variants[clip];
-    if (list?.length) {
-      const row = h('div', 'pair');
-      row.append(h('h4', '', HERO_CLIPS[clip].name));
-      if (hero.notes[clip]) row.append(h('p', 'note prose', hero.notes[clip]!));
-      const grid = h('div', 'pair-grid');
-      for (const v of list) {
-        grid.appendChild(tileCard(jobs, () => modelSet(id, { ...state.vars[id], [clip]: v.id }), clip, `${v.id.toUpperCase()} «${v.name}»`, v.note, hero.rec[clip] === v.id ? 'рекомендует аниматор' : ''));
-      }
-      row.append(grid);
-      pairs.appendChild(row);
-    } else {
-      rest.appendChild(tileCard(jobs, () => modelSet(id), clip, HERO_CLIPS[clip].name, hero.notes[clip] ?? ''));
-    }
-  }
+  const host = document.querySelector<HTMLElement>(`[data-clips="${id}"]`)!;
+  host.replaceChildren();
+  for (const clip of COMMON) host.appendChild(tileCard(jobs, () => modelSet(id), clip, HERO_CLIPS[clip].name, hero.notes[clip] ?? '', CHOSEN[id][clip] ?? ''));
 }
 
 /** Очередь плиток: рисуются по одной, чтобы страница не вставала на кадрах. */
@@ -397,10 +358,10 @@ function drawPortraits(): void {
 }
 
 function start(): void {
-  const on = (id: string, fn: (v: string, el: HTMLElement) => void): void => {
+  const on = (id: string, fn: (v: string) => void): void => {
     document.getElementById(id)!.addEventListener('click', (e) => {
-      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-v]');
-      if (el?.dataset.v) fn(el.dataset.v, el);
+      const v = (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v;
+      if (v) fn(v);
     });
   };
   on('scene-hero', (v) => {
@@ -410,13 +371,6 @@ function start(): void {
   on('scene-src', (v) => {
     state.ref = v === 'ref';
     drawScene();
-  });
-  on('scene-vars', (v, el) => {
-    const clip = el.closest<HTMLElement>('[data-clip]')?.dataset.clip as SculptClip | undefined;
-    if (!clip) return;
-    state.vars[state.hero] = { ...state.vars[state.hero], [clip]: v as V };
-    drawScene();
-    if (scene) perform(scene, clip);
   });
   const clipGroup = document.getElementById('scene-clips')!;
   for (const id of COMMON) clipGroup.appendChild(button(HERO_CLIPS[id].name, id));
