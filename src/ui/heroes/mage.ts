@@ -6,11 +6,14 @@ import { at, DEG, ease, ik, lerp, solid, stroke } from './rig';
 
 /**
  * Маг пиксельной лепкой — шаги 1–4 рецепта docs/lepka-geroev.md: мерки с прежнего листа, модель в стойке с покоем
- * и девять общих клипов (своих нет: Волшебная стрела и Огненная волна — снаряды, клип приёма). Решение пользователя —
- * облик A «С листа» (облики B «Звездочёт» и C «Отшельник» — в истории ветки): посох в дальней руке, как во всех рядах
- * листа, маска на лице. У удара, сильного удара и лечения — по два варианта на выбор (`MAGE_VARIANTS`, рекомендация —
- * `MAGE_REC_VARIANTS`); рост — параметром (120 по таблице, на обсуждении ещё 106 и 98). В `HERO_MODELS` модели нет — игра
- * и тесты её не видят, инструменты находят по имени файла (`mageModel(opts)`).
+ * и девять общих клипов (своих нет: Волшебная стрела и Огненная волна — снаряды, клип приёма). Риг дважды прошёл
+ * ревью отдельного агента-риггера. Рост — параметром (120 по таблице, на обсуждении ещё 106 и 98). В `HERO_MODELS` модели
+ * нет — игра и тесты её не видят, инструменты находят по имени файла (`mageModel(opts)`).
+ *
+ * Решения пользователя: облик A «С листа» (облики B «Звездочёт» и C «Отшельник» — в истории ветки): посох в дальней
+ * руке, как во всех рядах листа, маска на лице; удар — «Выпад», сильный удар — «Снизу», лечение — «Огонёк в ладони».
+ * Отвергнутые варианты (удар «Взмах» через верх, сильный удар «Сверху в землю», лечение «Пламя посоха») и нужная только
+ * им пыль удара в землю — в истории ветки.
  *
  * Референс — прежний рисованный лист `src/assets/heroes/mage.png` (ячейка 186, ряды idle, battle, attack, power,
  * block, hurt, death), мерки — первый кадр ряда `battle`: непрозрачная фигура x 23…153, y 53…155, язык пламени над
@@ -465,8 +468,6 @@ export interface MagePose extends Record<string, number> {
    * навершия в кадр контакта (ореол и лучи), `spark` — искры о древко (блок), `palm` — огонёк в ближней ладони.
    */
   glow: number; burst: number; spark: number; palm: number;
-  /** Пыль у навершия — удар в землю; `dustX` — где она стоит (x мира, 0 — под навершием): пыль не едет за посохом. */
-  dust: number; dustX: number;
   /**
    * Хват вдоль древка: посох сдвинут через кулак к навершию на `slide` единиц (0 — хват в верхней трети, как в стойке).
    * Поднятый посох виден целиком, и без сдвига две трети древка под кулаком торчали перед лицом на врагов — «копьё,
@@ -489,7 +490,7 @@ const REST: MagePose = {
   ffront: 0, nfront: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, cape: 0,
   fall: 0, hold: 0, gx: 0, gy: 0, gsw: 0, fbend: 1,
-  glow: 1, burst: 0, spark: 0, palm: 0, dust: 0, dustX: 0, slide: 0,
+  glow: 1, burst: 0, spark: 0, palm: 0, slide: 0,
 };
 
 /**
@@ -582,13 +583,10 @@ function ghostOf(p: Painter): Painter {
 
 /** Клипы, которые рисует Маг: все общие; своих нет (Волшебная стрела и Огненная волна — снаряды, приём `power`). */
 type MageClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite'>;
-/** Клипы с вариантами на обсуждении. */
-type VariantClip = 'attack' | 'heavy' | 'heal';
-type Variant = 'a' | 'b';
 
 /**
  * Ключи клипов по кадрам (номер кадра с нуля; кадр контакта — `contact` в HERO_CLIPS). Поле без ключа держит свою
- * интерполяцию, после последнего ключа — покой к последнему кадру (смерть держится); вспышка, пыль и искры — явным нулём
+ * интерполяцию, после последнего ключа — покой к последнему кадру (смерть держится); вспышка и искры — явным нулём
  * на кадре перед контактом. Кадр 0 — сам покой (ключа на нём нет), кроме урона и смерти: они начинаются с удара. Посох
  * в клипах ведётся от предплечья (`ws: 1` на первом и последнем ключе, угол к предплечью `wr` в пределах `WRIST`), как
  * молот Паладина; кисти — точкой, локти решает ik.
@@ -600,7 +598,31 @@ type Variant = 'a' | 'b';
  * смотрит вперёд-вниз. Пламя рисуется поверх всего — навершие не заходит за капюшон: на замахе над головой оно выше
  * макушки, а не за затылком. Шаг — стопа отрывается (`liftF`), пока едет, и садится почти на место.
  */
-const CLIPS: Record<Exclude<MageClip, VariantClip>, PoseKeys<MagePose>> = {
+const CLIPS: Record<MageClip, PoseKeys<MagePose>> = {
+  // Удар «Выпад» (выбор пользователя; как ряд удара листа): 1–2 — посох подтянут к плечу, пламя собирается, ближний кулак отведён назад
+  // под полой (перед грудью он вспыхивал на два кадра — ревью риггера); 3 — шаг, толчок; 4 — контакт: рука во всю длину,
+  // навершие на врагов, вспышка.
+  attack: [
+    [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -3, fhx: 120, fhy: 64, wr: -37, glow: 1.15, footF: 0, nhx: 42, nhy: 84, cape: 0.1 }],
+    [2, { x: -3, crouch: 2, lean: -7, head: -4, fhx: 118, fhy: 60, fsx: -3, wr: -34, glow: 1.35, footF: 0, liftF: 2, nhx: 40, nhy: 82, cape: 0.15, burst: 0 }],
+    [3, { x: 4, crouch: 3, lean: 4, head: 0, fhx: 132, fhy: 58, fsx: 0, wr: -29, glow: 1.4, footF: 11, liftF: 4, nhx: 40, nhy: 86, cape: 0.5, burst: 0 }],
+    [4, { x: 8, crouch: 5, lean: 9, head: 3, fhx: 140, fhy: 58, wr: -34, glow: 1.35, burst: 1, footF: 12, liftF: 0, nhx: 38, nhy: 86, cape: 0.8 }],
+    [5, { x: 8, crouch: 5, lean: 8, head: 3, fhx: 138, fhy: 60, wr: -31, glow: 1.2, burst: 0.35, footF: 12, nhx: 40, nhy: 87, cape: 0.6 }],
+    [6, { ws: 1, x: 3, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 66, wr: -35, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
+  ],
+  // Сильный удар «Снизу» (выбор пользователя): 1–3 — присел, посох опущен навершием вперёд-вниз, у колен; рука почти прямая вперёд-вниз, локоть у края
+  // торса (кисть ближе к телу уводила локоть внутрь контура — рука висела поверх живота); 4 — шаг, посох идёт вверх;
+  // 5 — контакт: навершие вскинуто снизу на врага на высоте головы, вспышка; 6–7 — держит; 8 — назад.
+  heavy: [
+    [1, { ws: 1, x: -2, crouch: 4, lean: 2, head: 2, fhx: 126, fhy: 82, wr: -45, glow: 1.1, footF: 0, cape: 0.1, burst: 0 }],
+    [2, { x: -4, crouch: 7, lean: 5, head: 4, fhx: 124, fhy: 88, footF: 0, wr: -28, glow: 1.25, liftF: 2, cape: 0.2 }],
+    [3, { x: -3, crouch: 7, lean: 4, head: 3, fhx: 122, fhy: 90, footF: 0, wr: -30, glow: 1.4, liftF: 3, cape: 0.25, burst: 0 }],
+    [4, { x: 5, crouch: 4, lean: 2, head: -2, fhx: 136, fhy: 70, wr: -30, glow: 1.5, footF: 13, liftF: 4, cape: 0.6, burst: 0 }],
+    [5, { x: 10, crouch: 2, lean: 4, head: -4, fhx: 142, fhy: 58, wr: -47, glow: 1.4, burst: 1, footF: 14, liftF: 0, cape: 0.85 }],
+    [6, { x: 10, crouch: 2, lean: 3, head: -4, fhx: 140, fhy: 58, wr: -46, glow: 1.25, burst: 0.5, footF: 14, liftF: 0, cape: 0.7 }],
+    [7, { x: 8, crouch: 3, lean: 2, head: -3, fhx: 136, fhy: 60, wr: -42, glow: 1.15, burst: 0.2, footF: 12, liftF: 0, cape: 0.5 }],
+    [8, { ws: 1, x: 4, crouch: 2, lean: 2, head: 0, fhx: 128, fhy: 64, wr: -38, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
+  ],
   // Приём — главный клип Мага, заклинание (Волшебная стрела, Огненная волна): снаряд вылетает из навершия в кадр контакта 4.
   // 1–2 — посох вскинут торчком сбоку от капюшона, корпус откинут, пламя разгорается (`glow` до 1,7); 3 — шаг, взмах:
   // навершие идёт вперёд; 4 — рука почти прямая к врагам, навершие смотрит на них чуть вверх (от кулака к навершию ≈ −35° в мире), вспышка
@@ -616,6 +638,18 @@ const CLIPS: Record<Exclude<MageClip, VariantClip>, PoseKeys<MagePose>> = {
   // Клич (приём на себя): 1 — сжался, посох у бедра, пламя притухло; 2–3 — выпрямился, посох вверх; 4 — кадр контакта:
   // рука вскинута почти прямой, посох над головой наклонён назад (≈ −110° в мире: отвесный над рукой — «факел»), капюшон
   // запрокинут, плащ взвился, пламя вспыхивает во весь рост (`glow` 2,1) — рёв рисует слой эффектов; 5–6 держит; 7–8 опускает.
+  // Лечение «Огонёк в ладони» (выбор пользователя): 1 — кулак выходит из-под полы; 2 — ладонь поднята перед грудью, в ней зажигается синий
+  // огонёк над кулаком, пламя посоха притухает (свет перешёл в ладонь), голова склонена к огоньку; 3–6 — держит;
+  // 8 — ладонь к груди, огонёк гаснет; 9–10 — рука уходит под полу.
+  heal: [
+    [1, { ws: 1, crouch: 2, lean: 3, head: 6, fhx: 124, fhy: 70, wr: -44, glow: 0.9, nfront: 1, nhx: 62, nhy: 82, nl: 1.05, palm: 0 }],
+    [2, { crouch: 3, lean: 4, head: 12, fhx: 124, fhy: 70, wr: -44, glow: 0.8, nfront: 1, nhx: 90, nhy: 70, nl: 1.1, palm: 1 }],
+    [4, { crouch: 3, lean: 4, head: 13, nfront: 1, nhx: 90, nhy: 69, nl: 1.1, palm: 1.15 }],
+    [6, { crouch: 3, lean: 4, head: 12, nfront: 1, nhx: 90, nhy: 70, nl: 1.1, palm: 1.05 }],
+    [8, { crouch: 2, lean: 3, head: 10, nfront: 1, nhx: 80, nhy: 68, nl: 1.08, palm: 0.6, glow: 0.9 }],
+    [9, { crouch: 1, lean: 1, head: 5, nfront: 1, nhx: 70, nhy: 76, nl: 1.04, palm: 0, glow: 1 }],
+    [10, { ws: 1, crouch: 1, lean: 0, head: 2, fhx: 124, fhy: 69, wr: -43, nfront: 0, nhx: 54, nhy: 84, nl: 1, palm: 0, glow: 1 }],
+  ],
   buff: [
     [1, { ws: 1, crouch: 5, lean: 5, head: 8, fhx: 122, fhy: 72, wr: -55, glow: 0.9, nhx: 46, nhy: 84, cape: 0.1 }],
     [2, { crouch: 2, lean: -1, head: -2, fhx: 132.3, fhy: 53.7, wr: -48, slide: 20, glow: 1.4, cape: 0.3, burst: 0 }],
@@ -661,128 +695,18 @@ const CLIPS: Record<Exclude<MageClip, VariantClip>, PoseKeys<MagePose>> = {
   ],
 };
 
-/** Ключи клипов с вариантами (подписи — `MAGE_VARIANTS`). */
-const VARIANT_CLIPS: Record<VariantClip, Record<Variant, PoseKeys<MagePose>>> = {
-  attack: {
-    // A «Выпад» (как ряд удара листа): 1–2 — посох подтянут к плечу, пламя собирается, ближний кулак отведён назад
-    // под полой (перед грудью он вспыхивал на два кадра — ревью риггера); 3 — шаг, толчок; 4 — контакт: рука во всю длину,
-    // навершие на врагов, вспышка.
-    a: [
-      [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -3, fhx: 120, fhy: 64, wr: -37, glow: 1.15, footF: 0, nhx: 42, nhy: 84, cape: 0.1 }],
-      [2, { x: -3, crouch: 2, lean: -7, head: -4, fhx: 118, fhy: 60, fsx: -3, wr: -34, glow: 1.35, footF: 0, liftF: 2, nhx: 40, nhy: 82, cape: 0.15, burst: 0 }],
-      [3, { x: 4, crouch: 3, lean: 4, head: 0, fhx: 132, fhy: 58, fsx: 0, wr: -29, glow: 1.4, footF: 11, liftF: 4, nhx: 40, nhy: 86, cape: 0.5, burst: 0 }],
-      [4, { x: 8, crouch: 5, lean: 9, head: 3, fhx: 140, fhy: 58, wr: -34, glow: 1.35, burst: 1, footF: 12, liftF: 0, nhx: 38, nhy: 86, cape: 0.8 }],
-      [5, { x: 8, crouch: 5, lean: 8, head: 3, fhx: 138, fhy: 60, wr: -31, glow: 1.2, burst: 0.35, footF: 12, nhx: 40, nhy: 87, cape: 0.6 }],
-      [6, { ws: 1, x: 3, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 66, wr: -35, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
-    ],
-    // B «Взмах»: 1–2 — посох заведён над головой, навершие вверху-сзади (над макушкой, не за ней); 3 — шаг, рука согнута
-    // над плечом, посох уже клонится вперёд (≈ −80° в мире; прямая рука с отвесным посохом была «факелом»); 4 — контакт:
-    // навершие опускается на врагов, вспышка.
-    b: [
-      [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -4, fhx: 127.4, fhy: 36.4, wr: -40, slide: 20, glow: 1.2, footF: 0, liftF: 2, nhx: 48, nhy: 84, cape: 0.15 }],
-      [2, { x: -4, y: -1, crouch: 0, lean: -9, head: -7, fhx: 125.4, fhy: 30.4, wr: -47, slide: 20, glow: 1.45, footF: 0, liftF: 4, nhx: 50, nhy: 83, cape: 0.3, burst: 0 }],
-      [3, { x: 3, y: 0, crouch: 2, lean: 2, head: -1, fhx: 133.1, fhy: 44.9, wr: -30, slide: 6, glow: 1.5, footF: 11, liftF: 4, nhx: 42, nhy: 86, cape: 0.5, burst: 0 }],
-      [4, { x: 9, crouch: 6, lean: 10, head: 4, fhx: 140, fhy: 60, wr: -30, slide: 0, glow: 1.35, burst: 1, footF: 13, liftF: 0, nhx: 38, nhy: 86, cape: 0.9 }],
-      [5, { x: 9, crouch: 6, lean: 9, head: 4, fhx: 138, fhy: 62, wr: -31, glow: 1.2, burst: 0.35, footF: 13, nhx: 40, nhy: 87, cape: 0.6 }],
-      [6, { ws: 1, x: 3, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 66, wr: -33, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
-    ],
-  },
-  heavy: {
-    // A «Сверху в землю»: 1–2 — посох заносится над головой (навершие над макушкой), вес назад; 3 — шаг, посох торчком
-    // над головой; 4 — навершие идёт вниз-вперёд; 5 — контакт: широкий шаг, присед, навершие бьёт в землю перед врагом —
-    // вспышка, пыль; 6–7 — держит; 8 — выпрямляется, стопа назад.
-    a: [
-      [1, { ws: 1, x: -2, y: -1, crouch: 1, lean: -4, head: -3, fhx: 132.5, fhy: 44.7, wr: -46, slide: 22, glow: 1.25, liftF: 2, cape: 0.2, dust: 0, burst: 0 }],
-      [2, { x: -5, y: -3, crouch: 0, lean: -12, head: -8, fhx: 119.6, fhy: 25.5, wr: -36, slide: 22, glow: 1.5, liftF: 5, footF: 2, cape: 0.35 }],
-      [3, { x: 1, y: -2, crouch: 1, lean: -2, head: -2, fhx: 127.5, fhy: 36, wr: -27, slide: 22, glow: 1.55, footF: 8, liftF: 6, cape: 0.5 }],
-      [4, { x: 8, y: -1, crouch: 6, lean: 10, head: 5, fhx: 138, fhy: 56, wr: -25, glow: 1.5, footF: 15, liftF: 3, cape: 0.75, dust: 0, burst: 0 }],
-      [5, { x: 12, y: 0, crouch: 10, lean: 16, head: 8, fhx: 124, fhy: 85, wr: -30, glow: 1.4, burst: 1, dust: 1, dustX: 168, slide: 0, footF: 16, liftF: 0, cape: 0.9 }],
-      [6, { x: 12, crouch: 11, lean: 17, head: 8, fhx: 124, fhy: 85, wr: -30, glow: 1.25, burst: 0.6, dust: 1.2, dustX: 168, footF: 16, liftF: 0, cape: 0.8 }],
-      [7, { x: 11, crouch: 10, lean: 15, head: 7, fhx: 124, fhy: 84, wr: -31, glow: 1.15, burst: 0.25, dust: 0.8, dustX: 168, footF: 16, liftF: 0, cape: 0.6 }],
-      [8, { ws: 1, x: 5, crouch: 5, lean: 6, head: 3, fhx: 126, fhy: 72, wr: -35, glow: 1.05, burst: 0, dust: 0.3, dustX: 168, footF: 3, liftF: 4, cape: 0.3 }],
-    ],
-    // B «Снизу»: 1–3 — присел, посох опущен навершием вперёд-вниз, у колен; рука почти прямая вперёд-вниз, локоть у края
-    // торса (кисть ближе к телу уводила локоть внутрь контура — рука висела поверх живота); 4 — шаг, посох идёт вверх;
-    // 5 — контакт: навершие вскинуто снизу на врага на высоте головы, вспышка; 6–7 — держит; 8 — назад.
-    b: [
-      [1, { ws: 1, x: -2, crouch: 4, lean: 2, head: 2, fhx: 126, fhy: 82, wr: -45, glow: 1.1, footF: 0, cape: 0.1, burst: 0 }],
-      [2, { x: -4, crouch: 7, lean: 5, head: 4, fhx: 124, fhy: 88, footF: 0, wr: -28, glow: 1.25, liftF: 2, cape: 0.2 }],
-      [3, { x: -3, crouch: 7, lean: 4, head: 3, fhx: 122, fhy: 90, footF: 0, wr: -30, glow: 1.4, liftF: 3, cape: 0.25, burst: 0 }],
-      [4, { x: 5, crouch: 4, lean: 2, head: -2, fhx: 136, fhy: 70, wr: -30, glow: 1.5, footF: 13, liftF: 4, cape: 0.6, burst: 0 }],
-      [5, { x: 10, crouch: 2, lean: 4, head: -4, fhx: 142, fhy: 58, wr: -47, glow: 1.4, burst: 1, footF: 14, liftF: 0, cape: 0.85 }],
-      [6, { x: 10, crouch: 2, lean: 3, head: -4, fhx: 140, fhy: 58, wr: -46, glow: 1.25, burst: 0.5, footF: 14, liftF: 0, cape: 0.7 }],
-      [7, { x: 8, crouch: 3, lean: 2, head: -3, fhx: 136, fhy: 60, wr: -42, glow: 1.15, burst: 0.2, footF: 12, liftF: 0, cape: 0.5 }],
-      [8, { ws: 1, x: 4, crouch: 2, lean: 2, head: 0, fhx: 128, fhy: 64, wr: -38, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
-    ],
-  },
-  heal: {
-    // A «Пламя посоха»: 1–2 — посох поднят торчком сбоку от капюшона, пламя разгорается (круг лечения — в кадр 2), голова
-    // склонена, ближний кулак прижат к груди; 3–8 — держит, пламя дышит; 9–10 — опускает.
-    a: [
-      [1, { ws: 1, crouch: 2, lean: 2, head: 5, fhx: 128, fhy: 56, wr: -50, glow: 1.2, nfront: 1, nhx: 74, nhy: 70, nl: 1.05, cape: 0.05 }],
-      [2, { crouch: 3, lean: 3, head: 12, fhx: 132, fhy: 50, wr: -57, glow: 1.7, nfront: 1, nhx: 84, nhy: 66, nl: 1.1, cape: 0.1 }],
-      [5, { crouch: 3, lean: 3, head: 13, fhx: 132, fhy: 50, wr: -57, glow: 1.85, nfront: 1, nhx: 84, nhy: 65, nl: 1.1, cape: 0.1 }],
-      [8, { crouch: 3, lean: 3, head: 12, fhx: 132, fhy: 51, wr: -56, glow: 1.6, nfront: 1, nhx: 84, nhy: 66, nl: 1.1, cape: 0.1 }],
-      [9, { crouch: 2, lean: 1, head: 6, fhx: 128, fhy: 58, wr: -48, glow: 1.25, nfront: 1, nhx: 72, nhy: 76, nl: 1.05, cape: 0.05 }],
-      [10, { ws: 1, crouch: 1, lean: 0, head: 2, fhx: 126, fhy: 66, wr: -44, glow: 1.05, nfront: 0, nhx: 48, nhy: 87, nl: 1, cape: 0 }],
-    ],
-    // B «Огонёк в ладони»: 1 — кулак выходит из-под полы; 2 — ладонь поднята перед грудью, в ней зажигается синий
-    // огонёк над кулаком, пламя посоха притухает (свет перешёл в ладонь), голова склонена к огоньку; 3–6 — держит;
-    // 8 — ладонь к груди, огонёк гаснет; 9–10 — рука уходит под полу.
-    b: [
-      [1, { ws: 1, crouch: 2, lean: 3, head: 6, fhx: 124, fhy: 70, wr: -44, glow: 0.9, nfront: 1, nhx: 62, nhy: 82, nl: 1.05, palm: 0 }],
-      [2, { crouch: 3, lean: 4, head: 12, fhx: 124, fhy: 70, wr: -44, glow: 0.8, nfront: 1, nhx: 90, nhy: 70, nl: 1.1, palm: 1 }],
-      [4, { crouch: 3, lean: 4, head: 13, nfront: 1, nhx: 90, nhy: 69, nl: 1.1, palm: 1.15 }],
-      [6, { crouch: 3, lean: 4, head: 12, nfront: 1, nhx: 90, nhy: 70, nl: 1.1, palm: 1.05 }],
-      [8, { crouch: 2, lean: 3, head: 10, nfront: 1, nhx: 80, nhy: 68, nl: 1.08, palm: 0.6, glow: 0.9 }],
-      [9, { crouch: 1, lean: 1, head: 5, nfront: 1, nhx: 70, nhy: 76, nl: 1.04, palm: 0, glow: 1 }],
-      [10, { ws: 1, crouch: 1, lean: 0, head: 2, fhx: 124, fhy: 69, wr: -43, nfront: 0, nhx: 54, nhy: 84, nl: 1, palm: 0, glow: 1 }],
-    ],
-  },
-};
-
-/** Варианты удара, сильного удара и лечения — для страницы обсуждения. */
-export const MAGE_VARIANTS: Partial<Record<SculptClip, readonly { id: Variant; name: string; note: string }[]>> = {
-  attack: [
-    { id: 'a', name: 'Выпад', note: 'Как ряд удара листа: посох подтянут к плечу, ближний кулак отведён назад — шаг, и навершие толчком на врагов; снаряд вылетает из него со вспышкой.' },
-    { id: 'b', name: 'Взмах', note: 'Посох заведён над головой — шаг, и навершие опускается дугой через верх на врагов; размашистее, но дольше читается.' },
-  ],
-  heavy: [
-    { id: 'a', name: 'Сверху в землю', note: 'Посох заносится над головой, широкий шаг и присед — навершие бьёт в землю перед врагом: вспышка и пыль.' },
-    { id: 'b', name: 'Снизу', note: 'Присел, навершие у колен — шаг, и посох вскидывается снизу вверх, навершие на врага на высоте головы.' },
-  ],
-  heal: [
-    { id: 'a', name: 'Пламя посоха', note: 'Посох поднят торчком у капюшона, пламя разгорается во весь рост, голова склонена, кулак у груди.' },
-    { id: 'b', name: 'Огонёк в ладони', note: 'В поднятой ладони зажигается синий огонёк (пламя посоха притухает), голова склонена к нему; ладонь к груди — огонёк гаснет.' },
-  ],
-};
-
-/**
- * Рекомендация аниматора; её же модель берёт, когда вариант не задан. Удар A — как на листе и короче читается; сильный
- * удар A — «тяжёлый» по-настоящему (замах, шаг, удар в землю), B легче удара; лечение B — единственное, где посох не
- * вскидывается (приём и клич уже поднимают посох с пламенем) и лечение не спутать с заклинанием.
- */
-export const MAGE_REC_VARIANTS: Partial<Record<SculptClip, Variant>> = { attack: 'a', heavy: 'a', heal: 'b' };
-
-/** Что показывает каждый клип (подписи плиток страницы); у клипов с вариантами — общее. */
+/** Что показывает каждый клип (подписи плиток страницы). */
 export const MAGE_CLIP_NOTES: Partial<Record<SculptClip, string>> = {
   idle: 'Стойка: посох в дальней руке, пламя пляшет, грудь дышит, капюшон раз за цикл кивает к врагам.',
-  attack: 'Удар посохом: снаряд вылетает из навершия в кадр контакта — навершие смотрит на врагов, вспышка.',
-  heavy: 'Приём вплотную посохом (Порез, Двойной выпад, Таран): удар навершием с шагом, контакт — на шестом кадре.',
+  attack: 'Удар «Выпад»: посох подтянут к плечу, ближний кулак отведён назад — шаг, и навершие толчком на врагов; снаряд вылетает из него в кадр контакта со вспышкой.',
+  heavy: 'Приём вплотную (Порез, Двойной выпад, Таран), «Снизу»: присел, навершие у колен — шаг, и посох вскидывается снизу вверх, навершие бьёт врага на высоте головы, вспышка.',
   power: 'Заклинание: посох вскинут, пламя разгорается — шаг, взмах, и навершие на врагов; снаряд вылетает из него со вспышкой.',
-  heal: 'Лечение и зелье: свет собирается в синем пламени; круг лечения — в третий кадр.',
+  heal: 'Лечение и зелье, «Огонёк в ладони»: в поднятой ладони зажигается синий огонёк (пламя посоха притухает), голова склонена к нему; ладонь к груди — огонёк гаснет. Круг лечения — в третий кадр.',
   buff: 'Приём на себя: посох вскинут над головой, пламя вспыхивает во весь рост, капюшон запрокинут, плащ взвился.',
   block: 'Блок: посох подтянут к плечу, ближняя ладонь выставлена оберегом, голова в капюшон; в кадр удара — отдача и искры о древко.',
   hurt: 'Урон: отбросило назад, капюшон запрокинут, пламя вздрогнуло, ближний кулак отлетел; белая вспышка.',
   death: 'Смерть, как на листе: оседает и валится ничком кучей ткани, капюшон у земли; посох ложится вперёд, пламя едва тлеет.',
 };
-
-/** Ключи всех клипов модели при выбранных вариантах. */
-function clipKeys(variants: Partial<Record<SculptClip, Variant>>): Partial<Record<SculptClip, PoseKeys<MagePose>>> {
-  const out: Partial<Record<SculptClip, PoseKeys<MagePose>>> = { ...CLIPS };
-  for (const c of Object.keys(VARIANT_CLIPS) as VariantClip[]) out[c] = VARIANT_CLIPS[c][variants[c] ?? MAGE_REC_VARIANTS[c] ?? 'a'];
-  return out;
-}
 
 /**
  * Покой: грудь поднимается на пиксель два раза за цикл, таз оседает на четверть цикла позже, раз за цикл вес переходит
@@ -808,12 +732,12 @@ function idlePose(p: Painter): MagePose {
  * Поза кадра: ключи клипа поверх покоя в фазе 0 (клип начинается и кончается им — стык без скачка: в покое кисти
  * висят своим путём, а таз осел) или сам покой.
  */
-function framePose(p: Painter, keys: Partial<Record<SculptClip, PoseKeys<MagePose>>>): MagePose {
+function framePose(p: Painter): MagePose {
   const base = idlePose(p);
   const c = clipAt(p);
   let P = base;
   if (c) {
-    const k = keys[c.clip];
+    const k = CLIPS[c.clip as MageClip];
     if (k) P = poseAt(base, k, c.f, c.n, HERO_CLIPS[c.clip].hold);
   } else {
     P.head += 2 * p.blink(0.62, 0.16);
@@ -843,10 +767,8 @@ function avatarOf(m: Mats): AvatarSpec {
   };
 }
 
-/** Варианты клипов и рост Мага (страница обсуждения). */
+/** Рост Мага (страница обсуждения). */
 export interface MageOpts {
-  /** Варианты клипов на обсуждении (`MAGE_VARIANTS`); без записи — рекомендация `MAGE_REC_VARIANTS`. */
-  variants?: Partial<Record<SculptClip, Variant>>;
   /** Рост в покое, единиц поля; по умолчанию — 120 (`HERO_BODY_HEIGHT.mage`). */
   height?: number;
 }
@@ -861,7 +783,6 @@ export interface MageOpts {
 export function mageModel(opts: MageOpts = {}): HeroModel {
   const height = opts.height ?? 120;
   const m = matsOf(LOOK);
-  const keys = clipKeys(opts.variants ?? {});
   const s = height / 120, ox = X(90) * (1 - s), oy = G * (1 - s);
   const map = (x: number, y: number): [number, number] => [x * s + ox, y * s + oy];
   return {
@@ -872,7 +793,7 @@ export function mageModel(opts: MageOpts = {}): HeroModel {
     h: 132,
     ground: G,
     pad: 80,
-    draw: (p: Painter) => (s === 1 ? drawMage(p, framePose(p, keys), m) : p.scope(s, ox, oy, () => drawMage(p, framePose(p, keys), m, map))),
+    draw: (p: Painter) => (s === 1 ? drawMage(p, framePose(p), m) : p.scope(s, ox, oy, () => drawMage(p, framePose(p), m, map))),
   };
 }
 
@@ -1164,25 +1085,10 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
   const [lx, ly] = toWorld(...staffPt(far.hx, far.hy, SW, RING_C[0] + P.slide, RING_C[1]));
   if (P.burst > 0.02) {
     const r = R(11) + R(5) * P.burst;
-    for (let k = 0; k < 8; k++) {
-      // Луч, который ушёл бы под землю (навершие у земли — удар в землю), укорочен до неё.
-      const a = k * 45 + 22.5, sn = Math.sin(a * DEG);
-      let r1 = r + (k % 2 ? R(5) : R(12)) * (0.5 + P.burst);
-      if (sn > 0) r1 = Math.min(r1, (G - 1.5 - ly) / sn);
-      if (r1 > r) ray(p, lx, ly, a, r, r1, k % 2 ? LIGHT.rayDim : LIGHT.ray);
-    }
+    for (let k = 0; k < 8; k++) ray(p, lx, ly, k * 45 + 22.5, r, r + (k % 2 ? R(5) : R(12)) * (0.5 + P.burst), k % 2 ? LIGHT.rayDim : LIGHT.ray);
     p.glow(lx, ly, R(12) + R(10) * P.burst, LIGHT.burst, 0.3 + 0.2 * Math.min(1, P.burst));
   }
   staffLight(p, m, lx, ly, P.glow);
-  if (P.dust > 0.05) {
-    // Пыль из-под навершия, ударившего в землю; синие искры пламени в ней.
-    const dx0 = P.dustX || Math.min(lx, 190);
-    for (let k = 0; k < 9; k++) {
-      const r = (2 + 4 * P.dust) * (0.6 + ((k * 37) % 5) / 8);
-      const c = k % 3 === 0 ? '#8cc4ffc0' : k % 2 ? '#6a6070c0' : '#8a8090c0';
-      p.disc(dx0 + (k - 4) * 5 * P.dust, G - 2 - (k % 3) * 3 * P.dust - (k % 2) * 2, r * 0.5, c, true);
-    }
-  }
   if (P.spark > 0.05) {
     // Искры о древко — у середины между кулаком и навершием.
     const [sx, sy] = toWorld(...staffPt(far.hx, far.hy, SW, 14 + P.slide, 0));

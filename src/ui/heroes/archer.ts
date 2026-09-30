@@ -5,11 +5,14 @@ import { clipAt, HERO_CLIPS, poseAt, type PoseKeys, type SculptClip } from './cl
 import { at, DEG, ease, ik, lerp, reachFoot, stroke } from './rig';
 
 /**
- * Лучник пиксельной лепкой — рецепт docs/lepka-geroev.md: мерки с листа, модель в стойке с покоем, облик «Следопыт»
- * (решение пользователя; облики «Ворон» и «Листопад» — в истории ветки), шаг 4 — девять общих клипов, у удара, сильного
- * удара и лечения — по два варианта на выбор (`ARCHER_VARIANTS`, `archerModel({ variants })`). Аватарка — пока покой
- * в кадре бюста (шаг 5). Пока модель не записана в `HERO_MODELS` — игра и тесты её не видят, инструменты находят её
- * по имени файла.
+ * Лучник пиксельной лепкой — рецепт docs/lepka-geroev.md: мерки с листа, модель в стойке с покоем, девять общих клипов
+ * (шаг 4, два круга ревью риггинга), аватарка — пока покой в кадре бюста (шаг 5). Пока модель не записана в
+ * `HERO_MODELS` — игра и тесты её не видят, инструменты находят её по имени файла (`archerModel()`).
+ *
+ * Решения пользователя: облик A «Следопыт» — палитра листа, приглушённая под сцену; капюшон меньше листа (×0,85 вокруг
+ * шеи, `HEAD_SCALE`) и треугольнее, со скруглённым острием (`HOOD_SOFT` 0,55); сапоги меньше листа. Клипы с вариантами:
+ * удар — «С места», сильный удар — «Стрелой», лечение — «Глоток». Отвергнутое — облики B «Ворон» и C «Листопад»,
+ * варианты «С шагом», «Пинок», «На колено» и каркас, нужный только им (пинок `kick`), — в истории ветки.
  *
  * Референс — прежний рисованный лист `src/assets/heroes/archer.png` (один ряд покоя, ячейка 186, фигура первого кадра
  * 170 точек: x 11…181, y 8…178 — от конца верхнего плеча лука до подошвы). Контуры частей обведены по первому кадру в
@@ -538,11 +541,6 @@ export interface ArcherPose extends Record<string, number> {
   flask: number; fla: number;
   /** Ближнее колено на земле (таз опускать приседом ~22). */
   kneel: number;
-  /**
-   * Пинок передней ногой (сильный удар): 1 — стопа подошвой к врагу (носок вверх), нога выносится шагом `footF`/`liftF`
-   * по прямой от бедра, а не опускается к земле, когда не достаёт.
-   */
-  kick: number;
   /** Смерть: 0 стоит → 1 лежит на спине (больше 1 — отскок); лук и стрела выпали из рук и лежат на земле. */
   fall: number; drop: number;
 }
@@ -554,7 +552,7 @@ const REST: ArcherPose = {
   nhx: M.armN.hand[0], nhy: M.armN.hand[1], draw: 1, arrow: 1,
   footF: 0, footN: 0, liftF: 0, liftN: 0, cape: 0,
   ik: 0, nl: 1, nf: 1, nsx: 0, nsy: 0, nel: 199, fel: 79, fl: 1, fsx: 0, fsy: 0, bws: 0, twang: 0,
-  nocked: 1, aa: 0, agrip: 3, glint: 0, qpull: 0, flask: 0, fla: -60, kneel: 0, kick: 0, fall: 0, drop: 0,
+  nocked: 1, aa: 0, agrip: 3, glint: 0, qpull: 0, flask: 0, fla: -60, kneel: 0, fall: 0, drop: 0,
 };
 
 /** Звенья рук в стойке (единицы): плечо тянущей руки в ракурсе ≈ 8, предплечье ≈ 30. */
@@ -574,40 +572,14 @@ const OVERDRAW = 1.3;
 // ─── Клипы ──────────────────────────────────────────────────────────────────
 
 type ArcherClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite'>;
-type Variant = 'a' | 'b';
-
-/** Варианты на обсуждении (пользователь выбирает): имя и чем отличается — для страницы и отчёта. */
-export const ARCHER_VARIANTS: Partial<Record<SculptClip, readonly { id: Variant; name: string; note: string }[]>> = {
-  attack: [
-    { id: 'a', name: 'С места', note: 'Корпус стоит, работают руки: добор к уху, спуск, кисть по инерции уходит назад, лук кивает вперёд; рука за плечо — вытягивает стрелу из колчана — и кладёт её на тетиву.' },
-    { id: 'b', name: 'С шагом', note: 'Выстрел на шаге: передняя нога шагает к врагу, корпус подаётся за стрелой, спуск на приземлении стопы; отдача — шаг назад и новая стрела из колчана.' },
-  ],
-  heavy: [
-    { id: 'a', name: 'Пинок', note: 'Не отпуская натянутого лука, вскидывает его выше (нога проходит под ним), откидывается назад и бьёт передней ногой подошвой в пояс врага — отталкивает; нога возвращается в стойку.' },
-    { id: 'b', name: 'Стрелой', note: 'Снимает стрелу с тетивы и с выпадом бьёт ею, как кинжалом, — лук отведён вниз; потом снова кладёт стрелу на тетиву.' },
-  ],
-  heal: [
-    { id: 'a', name: 'Глоток', note: 'Опускает лук, достаёт склянку из сумки на боку и пьёт, запрокинув голову; убирает склянку и снова натягивает тетиву.' },
-    { id: 'b', name: 'На колено', note: 'Опускается на колено, лук упёрт нижним концом в землю, ладонь на груди, голова склонена — переводит дух; встаёт и натягивает.' },
-  ],
-};
-
-/**
- * Рекомендация — её же модель берёт по умолчанию: удар «С места» (так стреляют из лука: спуск без рывка корпусом, и
- * ход кисти от уха к колчану читается чисто), сильный удар «Пинок» (вся нога — крупная форма, читается и в масштабе
- * игры; натяжение не отпускает — клип не перезаряжает лук; «Стрелой» логичнее для Кровопускания, но стрела в кулаке —
- * тонкая черта), лечение «Глоток» (зелье — самое частое лечение, склянка у рта узнаётся сразу). Удар луком как палкой
- * пробовали: лук в полроста, повёрнутый в кулаке, читался мельтешением, а не ударом.
- */
-export const ARCHER_REC_VARIANTS: Partial<Record<SculptClip, Variant>> = { attack: 'a', heavy: 'a', heal: 'a' };
 
 /** Что показывает каждый клип — подписи плиток страницы. */
 export const ARCHER_CLIP_NOTES: Partial<Record<SculptClip, string>> = {
   idle: 'Держит натяжение: лук у плеча, тетива у подбородка; грудь дышит, вес переходит с ноги на ногу, плащ колышется.',
-  attack: 'Выстрел: стрела срывается с тетивы в кадр контакта — туда игра пускает снаряд; тетива дрожит, новая стрела из колчана за плечом.',
-  heavy: 'Приём вплотную (Кровопускание, Таран — у лучника с луком только они играют этот клип): удар в ближнем бою.',
+  attack: 'Выстрел «С места»: корпус стоит, добор к уху, стрела срывается с тетивы в кадр контакта — туда игра пускает снаряд; тетива дрожит, кисть вытягивает стрелу из колчана за плечом и кладёт на тетиву.',
+  heavy: 'Приём вплотную «Стрелой» (Кровопускание, Таран): снимает стрелу с тетивы и с выпадом бьёт ею, как кинжалом, лук отведён вниз; снова кладёт стрелу на тетиву.',
   power: 'Приём, который летит (Прицельный выстрел, Дождь из стрел, приёмы оружием): перетягивает лук, замирает — наконечник вспыхивает, — спуск с сильной отдачей.',
-  heal: 'Лечение и зелье: опускает лук (стрела остаётся на тетиве) — и снова натягивает.',
+  heal: 'Лечение и зелье «Глоток»: опускает лук (стрела остаётся на тетиве), достаёт склянку из сумки и пьёт, запрокинув голову; снова натягивает.',
   buff: 'Приём на себя (Верный глаз, клич, бафы): снимает стрелу с тетивы и вскидывает лук над головой, кулак со стрелой у груди.',
   block: 'Защита: уходит корпусом — пригнулся и отклонился назад, не опуская натянутого лука.',
   hurt: 'Удар прошёл: корпус отброшен назад, голова запрокинута, лук задран; натяжение не отпускает.',
@@ -627,11 +599,37 @@ const HX = 93, HY = 49;
  * (спуск: стрела есть на кадре 3 и нет на кадре 4). На нулевом кадре ключа нет — кадр 0 и есть покой (у урона и смерти
  * — кадр удара). После последнего ключа — покой к последнему кадру; смерть держится. Руки в клипах — ik (`ikKeys`).
  *
+ * Удар, сильный удар и лечение — варианты, выбранные пользователем (удар «С места», сильный удар «Стрелой», лечение
+ * «Глоток»); отвергнутые («С шагом», «Пинок», «На колено») — в истории ветки. Колено на земле (`kneel`) осталось смерти.
+ *
  * Общий ход выстрела: спуск — тетива прямая и дрожит (`twang`), стрелы нет, кисть отлетает назад к уху; кадр за ним —
- * кисть у колчана над плечом вытягивает стрелу (в кулаке, остриём вверх); следующий — стрела на тетиве, кисть у тетивы
- * на половине натяжения; последний — полное натяжение, покой.
+ * кисть у колчана над плечом вытягивает стрелу колчана (`qpull`); следующий — стрела на тетиве, кисть у тетивы на
+ * половине натяжения; последний — полное натяжение, покой.
  */
-const COMMON: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
+const KEYS: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
+  // Удар «С места»: 1–3 — добор: кисть к уху, лук чуть вперёд, голова к стреле; 4 — спуск; 5 — кисть у колчана тянет
+  // стрелу; 6 — стрела на тетиве.
+  attack: [
+    [1, { ik: 1, bws: 1, nhx: 79, nhy: 45.5, fhx: 113, head: 7, draw: 1, arrow: 1 }],
+    [2, { nhx: 76, nhy: 45, fhx: 113.5, head: 8, lean: -1 }],
+    [3, { nhx: 75.5, nhy: 45, fhx: 113.5, head: 8, lean: -1, draw: 1, arrow: 1, twang: 0 }],
+    [4, { nhx: 56, nhy: 37, nl: 1.9, nf: 0.4, fhx: 114.5, fhy: 58.5, bow: 9, head: 5, lean: -2, draw: 0, arrow: 0, twang: 2.5 }],
+    [5, { nhx: QX, nhy: QY, nl: 2.2, nf: 0.8, bow: 4, head: 4, lean: -1, draw: 0, arrow: 0, twang: -1.5, qpull: QPULL }],
+    [6, { nhx: HX, nhy: HY, nl: 1, nf: 1, bow: 1, head: 6, lean: 0, draw: 1, arrow: 1, twang: 0, qpull: 0 }],
+  ],
+  // Сильный удар «Стрелой»: 1 — снял стрелу с тетивы, лук уходит вниз в сторону; 2 — кисть со стрелой отведена к бедру,
+  // вес назад; 3 — шаг; 4 — стопа встала, кисть вперёд; 5 — удар: рука во всю длину, стрела остриём во врага; 6 — держит;
+  // 7 — выдернул, шаг назад; 8 — стрела снова на тетиве.
+  heavy: [
+    [1, { x: -1, crouch: 2, lean: -2, draw: 0, nocked: 0, aa: 5, agrip: 10, nhx: 72, nhy: 52, nl: 1.3, nel: 150, fhx: 106, fhy: 70, bow: -12, head: 6 }],
+    [2, { x: -3, crouch: 3, lean: -4, liftF: 3, nhx: 58, nhy: 64, nl: 1.8, nf: 0.6, aa: -4, fhx: 102, fhy: 76, bow: -18, head: 8, cape: 0.1 }],
+    [3, { x: 2, crouch: 3, lean: 3, footF: 9, liftF: 5, nhx: 76, nhy: 58, nl: 2, nf: 0.75, aa: 0, head: 8, cape: 0.3 }],
+    [4, { x: 8, crouch: 6, lean: 9, footF: 15, liftF: 0, nhx: 96, nhy: 54, nl: 2.3, nf: 0.65, nsx: 3, aa: 2, head: 8, cape: 0.6 }],
+    [5, { x: 11, crouch: 8, lean: 13, footF: 15, nhx: 112, nhy: 50, nl: 2.5, nsx: 6, aa: 0, head: 8, cape: 0.8 }],
+    [6, { x: 11, crouch: 8, lean: 13, nhx: 110, nhy: 51, nsx: 5, cape: 0.7 }],
+    [7, { x: 6, crouch: 4, lean: 5, footF: 9, liftF: 2, nhx: 86, nhy: 54, nl: 1.8, nf: 1, nsx: 1, aa: 4, fhx: 110, fhy: 62, bow: -4, cape: 0.35 }],
+    [8, { x: 2, crouch: 2, lean: 1, footF: 3, liftF: 1, nocked: 1, draw: 1, nhx: HX, nhy: HY, nl: 1, nsx: 0, nel: 199, fhx: FH[0], fhy: FH[1], bow: 0, cape: 0.1 }],
+  ],
   // Приём «Прицельный»: садится ниже и перетягивает лук (кисть за ухо, плечи лука согнуты сильнее), голова к стреле;
   // замирает — наконечник вспыхивает (прицел); спуск с сильной отдачей: кисть отлетает назад-вверх, корпус откидывает,
   // лук кивает вперёд; перезарядка — как у выстрела.
@@ -642,6 +640,18 @@ const COMMON: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
     [4, { crouch: 4, lean: -5, head: 4, x: -2, nhx: 52, nhy: 33, nl: 1.9, nf: 0.5, fhx: 117, fhy: 58, bow: 16, draw: 0, arrow: 0, twang: 3.5, glint: 0 }],
     [5, { crouch: 2, lean: -2, head: 3, x: -1, nhx: QX, nhy: QY, nl: 2.2, nf: 0.8, bow: 5, twang: -2, qpull: QPULL }],
     [6, { crouch: 2, lean: 0, head: 6, x: 0, nhx: HX, nhy: HY, nl: 1, nf: 1, fhx: FH[0], bow: 1, draw: 1, arrow: 1, twang: 0, qpull: 0 }],
+  ],
+  // Лечение «Глоток»: 1 — отпустил тетиву (стрела на ней), лук опущен, кисть достаёт склянку из сумки на боку, взгляд
+  // вниз; 2 (контакт) — склянка у рта, голова запрокинута; 3–7 — пьёт; 8 — склянка вниз; 9 — убрал в сумку; 10 — кисть
+  // на тетиве.
+  heal: [
+    [1, { crouch: 2, lean: 2, head: 14, draw: 0, flask: 1, fla: 250, nhx: 50, nhy: 72, nl: 2.4, nf: 0.65, fhx: 108, fhy: 72, bow: -6 }],
+    [2, { crouch: 1, lean: -3, head: -14, flask: 1, fla: 150, nhx: 79, nhy: 33.5, nl: 1.7, nf: 0.8, nel: 80, fhx: 108, fhy: 74 }],
+    [4, { lean: -4, head: -17, fla: 158, nhx: 78, nhy: 31.5 }],
+    [7, { lean: -4, head: -18, fla: 162, nhx: 78, nhy: 31 }],
+    [8, { crouch: 2, lean: 0, head: 4, fla: 250, nhx: 70, nhy: 56, nl: 1.8, nf: 0.7 }],
+    [9, { crouch: 2, lean: 2, head: 12, flask: 0, nhx: 50, nhy: 72, nl: 2.4, nf: 0.65, nel: 199 }],
+    [10, { crouch: 1, lean: 0, head: 6, draw: 1, nhx: HX, nhy: HY, nl: 1, nf: 1, fhx: FH[0], fhy: FH[1], bow: 0 }],
   ],
   // Клич «Лук вскинут»: снимает стрелу с тетивы и зажимает её в кулаке остриём вниз, сжимается — выпрямляясь,
   // вскидывает лук над головой прямой рукой (лук поперёк кулака — лёжа над головой: торчком его держат только как
@@ -690,98 +700,13 @@ const COMMON: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
   ],
 };
 
-/** Варианты удара, сильного удара и лечения. */
-const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPose>>>> = {
-  attack: {
-    // «С места»: 1–3 — добор: кисть к уху, лук чуть вперёд, голова к стреле; 4 — спуск; 5 — к колчану; 6 — на тетиву.
-    a: [
-      [1, { ik: 1, bws: 1, nhx: 79, nhy: 45.5, fhx: 113, head: 7, draw: 1, arrow: 1 }],
-      [2, { nhx: 76, nhy: 45, fhx: 113.5, head: 8, lean: -1 }],
-      [3, { nhx: 75.5, nhy: 45, fhx: 113.5, head: 8, lean: -1, draw: 1, arrow: 1, twang: 0 }],
-      [4, { nhx: 56, nhy: 37, nl: 1.9, nf: 0.4, fhx: 114.5, fhy: 58.5, bow: 9, head: 5, lean: -2, draw: 0, arrow: 0, twang: 2.5 }],
-      [5, { nhx: QX, nhy: QY, nl: 2.2, nf: 0.8, bow: 4, head: 4, lean: -1, draw: 0, arrow: 0, twang: -1.5, qpull: QPULL }],
-      [6, { nhx: HX, nhy: HY, nl: 1, nf: 1, bow: 1, head: 6, lean: 0, draw: 1, arrow: 1, twang: 0, qpull: 0 }],
-    ],
-    // «С шагом»: 1 — вес назад, передняя стопа отрывается; 2 — шаг; 3 — стопа встала, корпус вперёд, добор; 4 — спуск на
-    // приземлении; 5 — отдача: вес назад, стопа отходит, кисть к колчану; 6 — стрела на тетиве.
-    b: [
-      [1, { ik: 1, bws: 1, x: -2, crouch: 3, lean: -3, liftF: 2, footF: 0, nhx: 80, nhy: 45.5, head: 7, draw: 1, arrow: 1 }],
-      [2, { x: 1, crouch: 2, lean: 0, liftF: 5, footF: 7, nhx: 78, nhy: 45.5, head: 7, cape: 0.2 }],
-      [3, { x: 6, crouch: 4, lean: 4, liftF: 0, footF: 12, nhx: 76, nhy: 45, fhx: 114, head: 8, cape: 0.4, draw: 1, arrow: 1, twang: 0 }],
-      [4, { x: 8, crouch: 5, lean: 6, footF: 12, nhx: 55, nhy: 36, nl: 1.9, nf: 0.4, fhx: 116, bow: 10, head: 5, cape: 0.6, draw: 0, arrow: 0, twang: 2.5 }],
-      [5, { x: 3, crouch: 3, lean: 1, footF: 7, liftF: 3, nhx: QX, nhy: QY, nl: 2.2, nf: 0.8, fhx: 113, bow: 4, head: 4, cape: 0.35, draw: 0, arrow: 0, twang: -1.5, qpull: QPULL }],
-      [6, { x: 1, crouch: 2, lean: 0, footF: 2, liftF: 1, nhx: HX, nhy: HY, nl: 1, nf: 1, bow: 1, head: 6, cape: 0.1, draw: 1, arrow: 1, twang: 0, qpull: 0 }],
-    ],
-  },
-  heavy: {
-    // «Пинок»: держит натяжение и отталкивает врага передней ногой. 1 — вес на заднюю ногу, передняя стопа оторвалась;
-    // 2 — колено вверх; 3–4 — нога выпрямляется вперёд, корпус откинут назад для равновесия; 5 — удар подошвой на
-    // уровне пояса врага; 6 — держит; 7 — нога идёт назад; 8 — стопа встала. Лук с тянущей кистью подняты (стрела
-    // горизонтально) и лук выпрямлен к миру: лук и дальняя нога в одной плоскости, и в стойке нога била сквозь нижнее
-    // плечо лука (ревью риггинга).
-    a: [
-      [1, { x: -3, crouch: 2, lean: -3, liftF: 3, footF: 0, kick: 0, head: 7, fhy: 50, nhy: 38, bow: 20 }],
-      [2, { x: -4, crouch: 1, lean: -7, footF: 4, liftF: 20, kick: 0.5, head: 5, cape: 0.1, fhy: 44, nhy: 34, bow: 58 }],
-      [3, { x: -4, crouch: 1, lean: -10, footF: 14, liftF: 30, kick: 1, head: 3, cape: 0.2, fhy: 42, nhy: 33, bow: 62 }],
-      [4, { x: -3, crouch: 2, lean: -13, footF: 24, liftF: 35, head: 2, cape: 0.3 }],
-      [5, { x: -2, crouch: 2, lean: -14, footF: 30, liftF: 36, head: 2, cape: 0.4 }],
-      [6, { x: -3, crouch: 2, lean: -12, footF: 24, liftF: 34, head: 3, cape: 0.35, fhy: 42, nhy: 33, bow: 62 }],
-      [7, { x: -3, crouch: 2, lean: -7, footF: 10, liftF: 20, kick: 0.6, head: 5, cape: 0.2, fhy: 44, nhy: 34, bow: 54 }],
-      [8, { x: -1, crouch: 2, lean: -2, footF: 2, liftF: 3, kick: 0, head: 6, cape: 0.05, fhy: 52, nhy: 40, bow: 15 }],
-    ],
-    // «Стрелой»: 1 — снял стрелу с тетивы, лук уходит вниз в сторону; 2 — кисть со стрелой отведена к бедру, вес назад;
-    // 3 — шаг; 4 — стопа встала, кисть вперёд; 5 — удар: рука во всю длину, стрела остриём во врага; 6 — держит;
-    // 7 — выдернул, шаг назад; 8 — стрела снова на тетиве.
-    b: [
-      [1, { x: -1, crouch: 2, lean: -2, draw: 0, nocked: 0, aa: 5, agrip: 10, nhx: 72, nhy: 52, nl: 1.3, nel: 150, fhx: 106, fhy: 70, bow: -12, head: 6 }],
-      [2, { x: -3, crouch: 3, lean: -4, liftF: 3, nhx: 58, nhy: 64, nl: 1.8, nf: 0.6, aa: -4, fhx: 102, fhy: 76, bow: -18, head: 8, cape: 0.1 }],
-      [3, { x: 2, crouch: 3, lean: 3, footF: 9, liftF: 5, nhx: 76, nhy: 58, nl: 2, nf: 0.75, aa: 0, head: 8, cape: 0.3 }],
-      [4, { x: 8, crouch: 6, lean: 9, footF: 15, liftF: 0, nhx: 96, nhy: 54, nl: 2.3, nf: 0.65, nsx: 3, aa: 2, head: 8, cape: 0.6 }],
-      [5, { x: 11, crouch: 8, lean: 13, footF: 15, nhx: 112, nhy: 50, nl: 2.5, nsx: 6, aa: 0, head: 8, cape: 0.8 }],
-      [6, { x: 11, crouch: 8, lean: 13, nhx: 110, nhy: 51, nsx: 5, cape: 0.7 }],
-      [7, { x: 6, crouch: 4, lean: 5, footF: 9, liftF: 2, nhx: 86, nhy: 54, nl: 1.8, nf: 1, nsx: 1, aa: 4, fhx: 110, fhy: 62, bow: -4, cape: 0.35 }],
-      [8, { x: 2, crouch: 2, lean: 1, footF: 3, liftF: 1, nocked: 1, draw: 1, nhx: HX, nhy: HY, nl: 1, nsx: 0, nel: 199, fhx: FH[0], fhy: FH[1], bow: 0, cape: 0.1 }],
-    ],
-  },
-  heal: {
-    // «Глоток»: 1 — отпустил тетиву (стрела на ней), лук опущен, рука к сумке на боку, взгляд вниз; 2 (контакт) — склянка
-    // у рта, голова запрокинута; 3–7 — пьёт; 8 — склянка вниз; 9 — убрал в сумку; 10 — кисть на тетиве.
-    a: [
-      [1, { crouch: 2, lean: 2, head: 14, draw: 0, flask: 1, fla: 250, nhx: 50, nhy: 72, nl: 2.4, nf: 0.65, fhx: 108, fhy: 72, bow: -6 }],
-      [2, { crouch: 1, lean: -3, head: -14, flask: 1, fla: 150, nhx: 79, nhy: 33.5, nl: 1.7, nf: 0.8, nel: 80, fhx: 108, fhy: 74 }],
-      [4, { lean: -4, head: -17, fla: 158, nhx: 78, nhy: 31.5 }],
-      [7, { lean: -4, head: -18, fla: 162, nhx: 78, nhy: 31 }],
-      [8, { crouch: 2, lean: 0, head: 4, fla: 250, nhx: 70, nhy: 56, nl: 1.8, nf: 0.7 }],
-      [9, { crouch: 2, lean: 2, head: 12, flask: 0, nhx: 50, nhy: 72, nl: 2.4, nf: 0.65, nel: 199 }],
-      [10, { crouch: 1, lean: 0, head: 6, draw: 1, nhx: HX, nhy: HY, nl: 1, nf: 1, fhx: FH[0], fhy: FH[1], bow: 0 }],
-    ],
-    // «На колено»: 1 — отпустил тетиву (стрела на ней), опускается, лук идёт к земле; 2 (контакт) — ближнее колено на
-    // земле, лук упёрт нижним концом в землю, ладонь на груди, голова склонена; 3–7 — переводит дух; 8–9 — встаёт;
-    // 10 — кисть на тетиве.
-    b: [
-      [1, { crouch: 12, kneel: 0.5, lean: 3, head: 10, draw: 0, nhx: 70, nhy: 58, nl: 1.8, nf: 0.8, fhx: 113, fhy: 68, bow: -3 }],
-      [2, { crouch: 24, kneel: 1, lean: 5, head: 18, nhx: 77, nhy: 48, nl: 1.8, nf: 0.8, nel: 100, fhx: 120, fhy: 60, fl: 1.05, bow: -20 }],
-      [4, { crouch: 24, kneel: 1, lean: 6, head: 21, nhx: 77, nhy: 47 }],
-      [7, { crouch: 24, kneel: 1, lean: 5, head: 19, nhx: 77, nhy: 48 }],
-      [8, { crouch: 13, kneel: 0.5, lean: 3, head: 10, nhx: 72, nhy: 58, nf: 0.8, nel: 199, fhy: 68, fl: 1 }],
-      [9, { crouch: 4, kneel: 0, lean: 1, head: 6, nhx: 80, nhy: 52, nl: 1.2, nf: 1, fhx: 113, fhy: 60, bow: -1 }],
-      [10, { crouch: 2, lean: 0, draw: 1, nhx: HX, nhy: HY, nl: 1, fhx: FH[0], fhy: FH[1], bow: 0 }],
-    ],
-  },
-};
-
 /** Руки в клипах — ik, лук за предплечьем: `ik` и `bws` 1 на каждом ключе, где они не заданы. */
 const ikKeys = (keys: PoseKeys<ArcherPose>): PoseKeys<ArcherPose> => keys.map(([f, k]) => [f, { ik: 1, bws: 1, ...k }]);
 
-/** Ключи клипа по выбранным вариантам. */
-function clipsOf(variants: Partial<Record<SculptClip, Variant>>): Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> {
-  const out: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {};
-  for (const [clip, keys] of Object.entries(COMMON) as Array<[ArcherClip, PoseKeys<ArcherPose>]>) out[clip] = ikKeys(keys);
-  for (const [clip, v] of Object.entries(VARIANT_KEYS) as Array<[ArcherClip, Record<Variant, PoseKeys<ArcherPose>>]>) {
-    out[clip] = ikKeys(v[variants[clip] ?? ARCHER_REC_VARIANTS[clip] ?? 'a']);
-  }
-  return out;
-}
+/** Ключи клипов с ik. */
+const CLIPS: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = Object.fromEntries(
+  (Object.entries(KEYS) as Array<[ArcherClip, PoseKeys<ArcherPose>]>).map(([clip, keys]) => [clip, ikKeys(keys)]),
+);
 
 // ─── Руки ───────────────────────────────────────────────────────────────────
 
@@ -876,11 +801,11 @@ function fillKeys(keys: PoseKeys<ArcherPose>, base: ArcherPose): PoseKeys<Archer
 }
 
 /** Поза кадра: ключи клипа поверх покоя в фазе 0 или сам покой. */
-function framePose(p: Painter, clips: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>>): ArcherPose {
+function framePose(p: Painter): ArcherPose {
   const base = idlePose(p);
   const c = clipAt(p);
   if (c) {
-    const keys = clips[c.clip as ArcherClip];
+    const keys = CLIPS[c.clip as ArcherClip];
     return keys ? poseAt(base, fillKeys(keys, base), c.f, c.n, HERO_CLIPS[c.clip].hold) : base;
   }
   base.cape += 0.05 * (1 - Math.cos(2 * Math.PI * p.t));
@@ -903,8 +828,6 @@ function avatarOf(m: Mats): AvatarSpec {
   };
 }
 
-/** Варианты клипов на обсуждении: у удара, сильного удара и лечения — по два (`ARCHER_VARIANTS`). */
-export interface ArcherOpts { variants?: Partial<Record<SculptClip, Variant>> }
 
 /**
  * Зонд: таз, кисть с луком, концы лука (нижний — `tip`, верхний — `but`), стопы, суставы обеих рук. Главная цепь для
@@ -917,9 +840,8 @@ function probeOf(): HeroProbe {
 }
 
 /** Лучник; рост в покое — `HERO_BODY_HEIGHT.archer` (124) в пикселе `HERO_PIXEL`. */
-export function archerModel(opts: ArcherOpts = {}): HeroModel {
+export function archerModel(): HeroModel {
   const m = matsOf();
-  const clips = clipsOf(opts.variants ?? {});
   const probe = probeOf();
   return {
     id: 'archer',
@@ -930,7 +852,7 @@ export function archerModel(opts: ArcherOpts = {}): HeroModel {
     ground: G,
     // Поле под клипы: стрела за луком к врагам, отведённая назад кисть, плащ.
     pad: 80,
-    draw: (p: Painter) => drawArcher(p, framePose(p, clips), m, probe),
+    draw: (p: Painter) => drawArcher(p, framePose(p), m, probe),
   };
 }
 
@@ -1091,7 +1013,7 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       const hx = fall > 0 ? hipX + Math.cos(legRot) * ox - Math.sin(legRot) * oy : lg.g.hip[0] + dhx;
       const hy = fall > 0 ? hipY + Math.sin(legRot) * ox + Math.cos(legRot) * oy : lg.g.hip[1] + dhy;
       const floor = lg.g.ank[1] - P.y;
-      const kneel = lg.side === 'near' ? P.kneel : 0, kick = lg.side === 'far' ? P.kick : 0;
+      const kneel = lg.side === 'near' ? P.kneel : 0;
       let ax = lg.g.ank[0] + lg.foot - P.x, ay = floor - lg.lift;
       let toe = 0;
       const kneelY = G - P.y - KNEEL_ANKLE;
@@ -1105,13 +1027,8 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       const big = Math.max(Math.abs(dhy), Math.hypot(dax, day));
       const w = kneel > 0 || fall > 0 ? 1 : Math.max(0, Math.min(1, (big - 3) / 4));
       const reach = lg.L2.l1 + lg.L2.l2 - 0.2;
-      if (kick > 0 && Math.hypot(ax - hx, ay - hy) > reach) {
-        // Пинок: не достаёт — нога вытянута к цели, а не опущена к земле.
-        const d = Math.hypot(ax - hx, ay - hy);
-        ax = hx + ((ax - hx) * reach) / d;
-        ay = hy + ((ay - hy) * reach) / d;
-      } else if (w > 0) [ax, ay] = reachFoot(hx, hy, ax, ay, reach);
-      toe += w * Math.max(0, floor - ay - kneel * (floor - kneelY)) / 16 * (1 - kick);
+      if (w > 0) [ax, ay] = reachFoot(hx, hy, ax, ay, reach);
+      toe += w * Math.max(0, floor - ay - kneel * (floor - kneelY)) / 16;
       // Лежит — стопы у земли впереди таза.
       const lie: [number, number] = lg.side === 'far' ? [hipX + 44, G - 7] : [hipX + 38, G - 6];
       ax = lerp(ax, lie[0], fall);
@@ -1150,15 +1067,14 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
         stroke(p, [cx - r * 0.8, cy + 1.2, cx + r * 0.8, cy - 0.8], L.boot[1], shin);
         stroke(p, [cx - r * 0.6, cy - 0.4, cx + r * 0.6, cy - 2], L.boot[3], shin);
       }
-      // Сапог: подошва на земле; оторванная пятка — поворот вокруг щиколотки; в пинке — подошвой к врагу; лёжа —
-      // носком вверх.
-      p.pose({ rot: lerp(lerp(toe * lg.out * 0.9, -1.25, kick), -lg.out * 1.35, fall), px: ax, py: ay }, () => {
+      // Сапог: подошва на земле; оторванная пятка — поворот вокруг щиколотки; лёжа — носком вверх.
+      p.pose({ rot: lerp(toe * lg.out * 0.9, -lg.out * 1.35, fall), px: ax, py: ay }, () => {
         const b: number[] = [];
         // Стопа короче и ниже контура листа (`FOOT_X`, `FOOT_Y`): подошва остаётся на земле, пятка и щиколотка — те же.
         const bp = (x: number, y: number): [number, number] => [ax + R(x * FOOT_X), ay + R(SOLE + (y - SOLE) * FOOT_Y)];
         for (let k = 0; k < lg.boot.length; k += 2) {
           const [x, y] = bp(lg.boot[k], lg.boot[k + 1]);
-          b.push(x, toe > 0.02 || kick > 0.02 || fall > 0.02 ? y : Math.min(floorY, y));
+          b.push(x, toe > 0.02 || fall > 0.02 ? y : Math.min(floorY, y));
         }
         // Стопа без линии о голенище: с ней сапог читался отдельным сабо под «ходулей» голени.
         p.poly(b, m.boot, { part: foot, bevel: 2.6, tone: tone - 0.02, noLine: true });
