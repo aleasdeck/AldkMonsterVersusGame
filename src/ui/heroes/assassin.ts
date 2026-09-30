@@ -322,7 +322,7 @@ export interface AssassinPose extends Record<string, number> {
   /** Голова подаётся к врагам (взгляд), 0…1. */
   turn: number;
   /**
-   * Смерть: `fall` 0 стоит → 1 лежит на спине (больше 1 — отскок от земли); `drop` — клинки выпали из рук и легли на
+   * Смерть: `fall` 0 стоит → 1 лежит ничком на коленях (больше 1 — отскок от земли); `drop` — клинки выпали из рук и легли на
    * землю; `limp` — руки обмякли и висят по отвесу мира от плеча, у земли кулак ложится на неё.
    */
   fall: number; drop: number; limp: number;
@@ -484,15 +484,17 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
   death: [
     [0, { x: -7, crouch: 3, lean: -14, head: -16, nws: 1, nhx: 12, nhy: 52, nwr: 0, fws: 1, fhx: 116, fhy: 80, fwr: 4, cape: 1 }],
     [1, { x: -8, crouch: 6, lean: -12, head: -20, nhx: 8, nhy: 48, fhx: 120, fhy: 78, drop: 0, limp: 0, kneel: 0, cape: 1.4 }],
-    [2, { x: -8, crouch: 11, lean: -2, head: -4, drop: 0.25, limp: 0.3, kneel: 0.4, cape: 1 }],
-    [3, { x: -8, crouch: 13.5, lean: 6, head: 12, drop: 0.6, limp: 0.7, kneel: 1, cape: 0.6 }],
-    [4, { x: -8, crouch: 14.5, lean: 8, head: 16, drop: 1, limp: 1, kneel: 1, fall: 0, cape: 0.4 }],
-    [5, { lean: 4, head: 10, fall: 0.12 }],
-    [6, { fall: 0.35, head: 0, kneel: 0.6 }],
-    [7, { fall: 0.68, head: -8, kneel: 0.2 }],
-    [8, { fall: 1, head: -12, kneel: 0 }],
-    [9, { fall: 1.04, head: -10 }],
-    [10, { fall: 1, head: -8 }],
+    [2, { x: -8, crouch: 9, lean: -2, head: -4, drop: 0.25, limp: 0.3, kneel: 0.4, cape: 1 }],
+    [3, { x: -8, crouch: 13.5, lean: 6, head: 12, drop: 0.6, limp: 0.7, kneel: 1, kneelF: 0, cape: 0.6 }],
+    [4, { x: -8, crouch: 14.5, lean: 8, head: 16, drop: 1, limp: 1, kneel: 1, kneelF: 0, cape: 0.4 }],
+    [5, { crouch: 15, lean: 10, head: 18, kneelF: 0.55, cape: 0.2 }],
+    [6, { crouch: 15.5, lean: 10, head: 18, kneelF: 1, fall: 0 }],
+    [7, { fall: 0.12, head: 20 }],
+    [8, { fall: 0.3 }],
+    [9, { fall: 0.55, head: 16 }],
+    [10, { fall: 1, head: 12 }],
+    [11, { fall: 1.03, head: 14 }],
+    [12, { fall: 1, head: 12 }],
   ],
 };
 
@@ -668,24 +670,31 @@ function kneelAnkle(boot: readonly number[], out: number): number {
 }
 const KNEEL_ANKLE = { far: kneelAnkle(BOOT_F, 1), near: kneelAnkle(BOOT_N, -1) };
 /**
- * Лёжа на спине (смерть): таз над землёй — спина куртки ложится на землю (край торса в 27 от таза); голова к зрителю
- * слева, ноги согнуты коленями вверх, стопы на земле справа от таза.
+ * Смерть ничком (как у Берсерка): верх валится вперёд вокруг таза на `FALL_ROT` — не 90°, спина чуть выше к тазу, ком,
+ * а не доска; таз — из ключей (оба колена на земле). Дальнее бедро в стойке смотрит к зрителю и в проекции короче
+ * ближнего (22 против 30,5): на колене оно встаёт в плоскость рисунка и удлиняется (`FAR_THIGH_KNEEL`) — иначе дальнее
+ * колено висело над землёй.
  */
-const LIE_HIP = 30;
+const FALL_ROT = 85;
+const FAR_THIGH_KNEEL = 1.35;
 /** Падая, полы висят по отвесу мира на эту долю поворота корпуса (вокруг пояса), шарф — на свою (вокруг шеи). */
 const CLOTH_HANG = 0.85;
 const CLOTH_PIVOT = P(92, 92);
-const SCARF_HANG = 0.45;
-const LIE_FEET = { far: [44, 5], near: [36, 4] };
+const SCARF_HANG = 0.6;
+/**
+ * Где лежат выпавшие клинки: x в кадре (постоянные — клинок, упавший на землю, не едет за падающим телом; там, куда
+ * кисти роняют их к кадру 4), высота над землёй и угол: ближний перед телом остриём назад, дальний за ним к врагам.
+ */
+const DROP_AT = { near: [48, 4.5, 180], far: [99, 6, 0] } as const;
 
 function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
   const breath = p.bob(2, 2);
   const fall = ease(Math.max(0, Math.min(1, P.fall)));
   const bounce = P.fall > 1 ? (P.fall - 1) * 50 : 0;
-  // Падая, таз едет к земле и чуть назад, верх ложится на спину вокруг таза. В стойке и клипах без `fall` — как было.
-  const hipX = lerp(PELVIS[0], PELVIS[0] - 4, fall);
-  const hipY = lerp(PELVIS[1] + P.crouch, G - P.y - LIE_HIP, fall) - bounce;
-  const rot = lerp(P.lean * DEG, -Math.PI / 2, fall);
+  // Падая, верх валится ничком вокруг таза; таз — из ключей (колени на земле). В стойке и клипах без `fall` — как было.
+  const hipX = PELVIS[0];
+  const hipY = PELVIS[1] + P.crouch - bounce;
+  const rot = lerp(P.lean, FALL_ROT, fall) * DEG;
   const up = { dx: hipX - PELVIS[0], dy: hipY - PELVIS[1] - breath * (1 - fall), rot, px: PELVIS[0], py: PELVIS[1] };
   const cr = Math.cos(rot), sr = Math.sin(rot);
   const toWorld = (x: number, y: number): [number, number] =>
@@ -701,7 +710,7 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
   if (P.limp > 0) {
     const hang = (sx: number, sy: number, l: number, drift: number): [number, number] => {
       const [wx, wy] = toWorld(sx, sy);
-      const gy = floorY - R(7);
+      const gy = floorY - R(9.5);
       if (wy + l <= gy) return toLocal(wx + drift, wy + l);
       return toLocal(wx + drift + Math.sqrt(Math.max(0, l * l - (gy - wy) ** 2)) * Math.sign(drift || 1), gy);
     };
@@ -715,53 +724,44 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
   const feet: Record<string, number> = {};
 
   p.pose({ dx: P.x, dy: P.y }, () => {
-    p.shadow(X(84) - P.x * 0.5 - 14 * fall, 56 + 8 * fall, 4);
+    p.shadow(X(84) - P.x * 0.5 + 16 * fall, 56 + 8 * fall, 4);
 
     // Выпавший дальний клинок — с дальней стороны тела, за ним; ближний — после верха, перед телом.
     if (!held) droppedBlade(p, m, fa, FSW, 'far', P.drop, toWorld, floorY, rot);
 
     // ── Ноги: бедро от таза, колено — ik в больших сдвигах (шаг, колено на земле, падение), в покое идёт за тазом
     //    наполовину; стопы стоят. Штаны тёмного сукна, наколенник, голень в обмотках, сапог. Дальняя (к врагам) — раньше
-    //    и темнее. Падая, ноги ложатся коленями вверх, стопы — на землю справа от таза. ──
+    //    и темнее. Падая ничком, оба колена на земле. ──
     const legs = [
-      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.2, boot: BOOT_F, bend: [1, -0.2], foot: P.footF, lift: P.liftF, kneel: P.kneelF, out: 1, shin: m.shinF, bootM: m.bootF, pad: m.padF },
-      { g: M.legN, L2: LEG_N, side: 'near', tone: 0, boot: BOOT_N, bend: [-0.6, -1], foot: P.footN, lift: P.liftN, kneel: P.kneel, out: -1, shin: m.shinN, bootM: m.bootN, pad: m.padN },
+      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.2, boot: BOOT_F, bend: [1, -0.2], foot: P.footF, lift: P.liftF, kneel: Math.max(P.kneelF, fall), out: 1, shin: m.shinF, bootM: m.bootF, pad: m.padF },
+      { g: M.legN, L2: LEG_N, side: 'near', tone: 0, boot: BOOT_N, bend: [-0.6, -1], foot: P.footN, lift: P.liftN, kneel: Math.max(P.kneel, fall), out: -1, shin: m.shinN, bootM: m.bootN, pad: m.padN },
     ] as const;
     for (const lg of legs) {
       const dhx = hipX - PELVIS[0], dhy = hipY - PELVIS[1];
       const hx = lg.g.hip[0] + dhx, hy = lg.g.hip[1] + dhy;
       const floor = lg.g.ank[1] - P.y;
       let ax = lg.g.ank[0] + lg.foot - P.x, ay = floor - lg.lift;
-      const { l1, l2 } = lg.L2;
+      const l1 = lg.L2.l1 * (lg.side === 'far' ? lerp(1, FAR_THIGH_KNEEL, lg.kneel) : 1), l2 = lg.L2.l2;
       let toe = 0;
       const kneelY = floorY - KNEEL_ANKLE[lg.side];
       if (lg.kneel > 0) {
-        // Колено на земле между бедром и стопой: стопа остаётся на месте и встаёт на носок, сгиб — вниз, к земле.
-        ay = lerp(ay, kneelY, lg.kneel);
+        // Колено на земле между бедром и стопой: стопа встаёт на носок позади колена (ближняя и так далеко позади и
+        // остаётся на месте, дальняя уходит назад дугой над землёй), сгиб — вниз, к земле.
+        ax = lerp(ax, Math.min(ax, hx - l2 * 0.8), lg.kneel);
+        ay = lerp(ay, kneelY, lg.kneel) - Math.sin(Math.PI * Math.min(1, lg.kneel)) * (ax < lg.g.ank[0] - P.x - 2 ? 5 : 0);
         toe += KNEEL_TOE * lg.kneel;
-      }
-      if (fall > 0) {
-        // Ноги уходят вперёд дугой над землёй, а не волоком.
-        ax = lerp(ax, hipX + LIE_FEET[lg.side][0], fall);
-        ay = lerp(ay, floorY - LIE_FEET[lg.side][1] - R(8), fall) - Math.sin(Math.PI * fall) * (lg.side === 'far' ? 6 : 12);
       }
       const dax = ax - lg.g.ank[0], day = ay - lg.g.ank[1];
       const big = Math.max(Math.hypot(dhx, dhy), Math.hypot(dax, day));
-      const w = lg.kneel > 0 || fall > 0 ? 1 : Math.max(0, Math.min(1, (big - 3) / 4));
+      const w = lg.kneel > 0 ? 1 : Math.max(0, Math.min(1, (big - 3) / 4));
       if (w > 0) [ax, ay] = reachFoot(hx, hy, ax, ay, l1 + l2 - 0.2);
       toe += (w * Math.max(0, floor - ay - lg.kneel * (floor - kneelY))) / 16;
-      toe = lerp(toe, 0, fall);
       let [ikx, iky] = ik(hx, hy, ax, ay, l1, l2, lg.bend[0], lg.bend[1]);
-      // На колене сгиб вниз, лёжа — вверх: колено идёт между решениями ik, а не перескакивает на другую сторону линии.
+      // На колене сгиб вниз: колено идёт между решениями ik, а не перескакивает на другую сторону линии.
       if (lg.kneel > 0) {
         const [qx, qy] = ik(hx, hy, ax, ay, l1, l2, 0.3, 1);
         ikx = lerp(ikx, qx, lg.kneel);
         iky = lerp(iky, qy, lg.kneel);
-      }
-      if (fall > 0) {
-        const [qx, qy] = ik(hx, hy, ax, ay, l1, l2, 0.2, -1);
-        ikx = lerp(ikx, qx, fall);
-        iky = lerp(iky, qy, fall);
       }
       const kx = lerp(lg.g.knee[0] + (dhx + dax) / 2, ikx, w), ky = lerp(lg.g.knee[1] + (dhy + day) / 2, iky, w);
       feet[lg.side === 'far' ? 'footF' : 'footN'] = ax + P.x;
@@ -824,10 +824,10 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
       // ближнему бедру лежит конец кушака.
       const tf = p.snap(1.5 * P.cape);
       const swayUp = (pts: number[]): number[] => pts.map((v, i) => (i % 2 ? v : v - tf * Math.max(0, Math.min(1, (pts[i + 1] - Y(100)) / (Y(140) - Y(100))))));
-      // Падая на спину, полы и полотнища висят по отвесу мира (поворот назад вокруг пояса на долю `CLOTH_HANG` поворота
-      // корпуса) и ложатся на землю: точка ниже земли поднимается на неё и отъезжает к голове. Повёрнутые с корпусом,
-      // задние полотнища вставали коробкой над бёдрами (ловушка Берсерка: «повязка — флагом»).
-      const hc = Math.cos((fall * Math.PI * CLOTH_HANG) / 2), hs = Math.sin((fall * Math.PI * CLOTH_HANG) / 2);
+      // Падая, полы и полотнища висят по отвесу мира (обратный поворот вокруг пояса на долю `CLOTH_HANG` поворота корпуса)
+      // и ложатся на землю: точка ниже земли поднимается на неё и отъезжает к голове. Повёрнутые с корпусом, задние
+      // полотнища вставали коробкой над бёдрами (ловушка Берсерка: «повязка — флагом»).
+      const hang = -(rot - P.lean * DEG) * CLOTH_HANG, hc = Math.cos(hang), hs = Math.sin(hang);
       const sway = (pts: number[]): number[] => {
         const q = swayUp(pts);
         if (fall <= 0) return q;
@@ -835,7 +835,7 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
           const dx = q[k] - CLOTH_PIVOT[0], dy = q[k + 1] - CLOTH_PIVOT[1];
           let [wx, wy] = toWorld(CLOTH_PIVOT[0] + hc * dx - hs * dy, CLOTH_PIVOT[1] + hs * dx + hc * dy);
           if (wy > floorY - 1) {
-            wx -= (wy - floorY + 1) * 0.6;
+            wx += (wy - floorY + 1) * 0.6;
             wy = floorY - 1;
           }
           [q[k], q[k + 1]] = toLocal(wx, wy);
@@ -881,8 +881,8 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
       if (mdx || mdy) p.pose({ dx: mdx, dy: mdy }, () => drawMantle(p, m));
       else drawMantle(p, m);
       p.pose({ dx: p.snap(1.5 * P.turn), rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => drawHead(p, m));
-      // Лёжа, петля шарфа клонится к земле, а не стоит аркой над грудью.
-      if (fall > 0) p.pose({ rot: (fall * Math.PI * SCARF_HANG) / 2, px: M.neck[0], py: M.neck[1] }, () => drawScarf(p, m));
+      // Падая, петля шарфа висит к земле, а не лежит на спине.
+      if (fall > 0) p.pose({ rot: -(rot - P.lean * DEG) * SCARF_HANG, px: M.neck[0], py: M.neck[1] }, () => drawScarf(p, m));
       else drawScarf(p, m);
       // Клинки крестом перед лицом — дальнее предплечье перед головой; ближняя рука у лица или над плечом — поверх всего.
       if (farLayer === 'front') farFore();
@@ -943,7 +943,8 @@ function dropPlace(a: ArmSolve, sw: number, side: 'near' | 'far', drop: number, 
   const k = ease(Math.min(1, drop));
   const [hx, hy] = toWorld(a.hx, a.hy);
   const a0 = sw + rot / DEG;
-  const [lx, ly, la] = side === 'near' ? [hx + 4, floorY - 3.5, 180] : [hx + 10, floorY - 6, 0];
+  const [lx, lh, la] = DROP_AT[side];
+  const ly = floorY - lh;
   return { x: lerp(hx, lx, k), y: lerp(hy, ly, k * k), ang: a0 + nrm(la - a0) * k };
 }
 function droppedBlade(p: Painter, m: Mats, a: ArmSolve, sw: number, side: 'near' | 'far', drop: number, toWorld: (x: number, y: number) => [number, number], floorY: number, rot: number): void {
