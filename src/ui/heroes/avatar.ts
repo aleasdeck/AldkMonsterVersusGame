@@ -39,6 +39,17 @@ export interface AvatarSpec {
    * в радиусах ореола; короткие лучи между длинными — вдвое короче. Цвет — кромка ореола. Без поля — ореол без лучей.
    */
   rays?: readonly [number, number];
+  /**
+   * Знак в ореоле, как на прежних портретах: череп в полумесяце, олень на луне, звезда в круге. Координаты — в радиусах
+   * ореола от его центра, y вниз. `cut` — круг `[dx, dy, r]`, вырезанный из ореола: остаётся полумесяц, в вырезе — небо.
+   * `polys` — силуэты многоугольниками `[x0, y0, x1, y1, …]` поверх ореола и лучей, под героем; цвет — `color`, без него —
+   * цвет силуэтов. Без поля — ореол без знака.
+   */
+  emblem?: {
+    cut?: readonly [number, number, number];
+    polys?: ReadonlyArray<readonly number[]>;
+    color?: string;
+  };
 }
 
 /** Упорядоченный дизеринг 4×4 — тот же, что у рампа лепки. */
@@ -70,6 +81,16 @@ export function renderAvatar(model: HeroModel, n: number): Uint8ClampedArray<Arr
 
   // Небо полосами сверху вниз, ореол за головой, силуэты.
   const hx = (spec.halo[0] - x0) / d, hy = (spec.halo[1] - y0) / d, hr = spec.halo[2] / d;
+  const em = spec.emblem, emColor = em?.color ? hexToRgb(em.color) : sky;
+  /** Клетка в многоугольнике знака (чётность пересечений луча вправо). */
+  const inPoly = (u: number, v: number, pts: readonly number[]): boolean => {
+    let inside = false;
+    for (let a = 0, b = pts.length - 2; a < pts.length; b = a, a += 2) {
+      const [xa, ya, xb, yb] = [pts[a], pts[a + 1], pts[b], pts[b + 1]];
+      if (ya > v !== yb > v && u < ((xb - xa) * (v - ya)) / (yb - ya) + xa) inside = !inside;
+    }
+    return inside;
+  };
   const towers = (spec.skyline ?? []).map(([u, w, wall, roof]) => ({ l: (u - w / 2) * n, r: (u + w / 2) * n, wall: (1 - wall) * n, roof: roof * n }));
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
@@ -87,7 +108,10 @@ export function renderAvatar(model: HeroModel, n: number): Uint8ClampedArray<Arr
         if (off < 0.5 && r < len) rgb = haloEdge;
       }
       // Ореол — два тона: светлая середина и полутон к краю, на стыке дизеринг; по краю — кромка в клетку.
-      if (r < hr) rgb = r > hr - 1 ? haloEdge : r / hr + b * 0.2 < 0.7 ? halo : mix(halo, rgb, 0.5);
+      const u = (i + 0.5 - hx) / hr, v = (j + 0.5 - hy) / hr;
+      const cut = em?.cut && Math.hypot(u - em.cut[0], v - em.cut[1]) < em.cut[2];
+      if (r < hr && !cut) rgb = r > hr - 1 ? haloEdge : r / hr + b * 0.2 < 0.7 ? halo : mix(halo, rgb, 0.5);
+      if (em?.polys?.some((pts) => inPoly(u, v, pts))) rgb = emColor;
       for (const t of towers) {
         if (i + 0.5 < t.l || i + 0.5 > t.r) continue;
         const mid = (t.l + t.r) / 2, half = (t.r - t.l) / 2;
