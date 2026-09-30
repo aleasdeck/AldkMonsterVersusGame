@@ -760,9 +760,9 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
     // 10 — кисть на тетиве.
     b: [
       [1, { crouch: 12, kneel: 0.5, lean: 3, head: 10, draw: 0, nhx: 70, nhy: 58, nl: 1.8, nf: 0.8, fhx: 113, fhy: 68, bow: -3 }],
-      [2, { crouch: 24, kneel: 1, lean: 5, head: 18, nhx: 75, nhy: 48, nl: 1.8, nf: 0.8, nel: 100, fhx: 120, fhy: 64, fl: 1.05, bow: -20 }],
-      [4, { crouch: 24, kneel: 1, lean: 6, head: 21, nhx: 75, nhy: 47 }],
-      [7, { crouch: 24, kneel: 1, lean: 5, head: 19, nhx: 75, nhy: 48 }],
+      [2, { crouch: 24, kneel: 1, lean: 5, head: 18, nhx: 77, nhy: 48, nl: 1.8, nf: 0.8, nel: 100, fhx: 120, fhy: 60, fl: 1.05, bow: -20 }],
+      [4, { crouch: 24, kneel: 1, lean: 6, head: 21, nhx: 77, nhy: 47 }],
+      [7, { crouch: 24, kneel: 1, lean: 5, head: 19, nhx: 77, nhy: 48 }],
       [8, { crouch: 13, kneel: 0.5, lean: 3, head: 10, nhx: 72, nhy: 58, nf: 0.8, nel: 199, fhy: 68, fl: 1 }],
       [9, { crouch: 4, kneel: 0, lean: 1, head: 6, nhx: 80, nhy: 52, nl: 1.2, nf: 1, fhx: 113, fhy: 60, bow: -1 }],
       [10, { crouch: 2, lean: 0, draw: 1, nhx: HX, nhy: HY, nl: 1, fhx: FH[0], fhy: FH[1], bow: 0 }],
