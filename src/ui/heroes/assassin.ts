@@ -331,6 +331,11 @@ export interface AssassinPose extends Record<string, number> {
    * `bomb` — дымовая шашка: 0 — нет, 1 — в ближнем кулаке, 2 — разбилась о землю у передней стопы (вспышка и искры).
    */
   smoke: number; thin: number; fade: number; home: number; bomb: number;
+  /**
+   * Только портрет (в клипах 0): `skinShade` 1 — кожа с внутренней стороны ближнего плеча в тени (в бюсте поднятой руки
+   * она выходила большим оранжевым пятном, а с полосами обмотки — кашей); `glint` 1 — блик на кромке ближнего клинка.
+   */
+  skinShade: number; glint: number;
 }
 
 /** Углы предплечий в стойке — от них в клипах отсчитывается угол клинка (`nwr`, `fwr`). */
@@ -343,7 +348,7 @@ const REST: AssassinPose = {
   fhx: M.armF.hand[0], fhy: M.armF.hand[1], fsw: BLADE_F, fwr: BLADE_F - FORE_F, fws: 0, fsx: 0, fsy: 0,
   nover: 0, fback: 0, ffront: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0, kneelF: 0, cape: 0, turn: 0, fall: 0, drop: 0, limp: 0, spark: 0,
-  smoke: 0, thin: 0, fade: 0, home: 0, bomb: 0,
+  smoke: 0, thin: 0, fade: 0, home: 0, bomb: 0, skinShade: 0, glint: 0,
 };
 
 /** Что показывает каждый клип — подписи плиток страницы обсуждения. */
@@ -853,9 +858,10 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
         for (const f of [0.3, 0.62]) stroke(p, [...nu(f, -R(10)), ...nu(f + 0.05, R(1))], m.wrapGap, 'nearWrap');
         drawForearm(p, m, na, 'near', NSW, held);
         // Кожа — после предплечья (та же часть): иначе его купол у локтя закрывал просвет между накидкой и обмоткой.
-        p.poly([...nu(0.3, R(1)), ...nu(0.3, R(10)), ...nu(0.78, R(9)), ...nu(0.8, R(2))], m.skinN, { part: 'nearWrap', paint: true, tone: 0.04 });
+        p.poly([...nu(0.3, R(1)), ...nu(0.3, R(10)), ...nu(0.78, R(9)), ...nu(0.8, R(2))], m.skinN, { part: 'nearWrap', paint: true, tone: 0.04 - 0.34 * P.skinShade });
         // Дымовая шашка в кулаке (Исчезновение) — декалями: фигуры сдвинули бы порядок и с ним зерно фактуры всего верха.
         if (P.bomb > 0.5 && P.bomb < 1.5) bombInFist(p, na, NSW);
+        if (P.glint > 0.5 && held) bladeGlint(p, na, NSW);
       };
       if (P.nover <= 0.5) nearWhole();
 
@@ -928,6 +934,18 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
 
 /** Поле кадра модели: пиксель героя и отступ `pad` (координаты клетки → единицы модели). */
 const PAD = 80;
+/**
+ * Блик на кромке ближнего клинка (портрет): светлая клетка на кромке к свету ближе к острию и короткий крестик вокруг
+ * — в ряду выбора Ассасин самый тёмный, и клинок должен читаться первым. Декали: порядок фигур не сдвигается.
+ */
+function bladeGlint(p: Painter, a: ArmSolve, sw: number): void {
+  const { u, n } = bladeAxes(sw);
+  const lit = n[0] * LIGHT2[0] + n[1] * LIGHT2[1] > 0 ? 1 : -1;
+  const x = a.hx + u[0] * 17 + n[0] * lit * 1.6, y = a.hy + u[1] * 17 + n[1] * lit * 1.6;
+  p.px(x, y, '#fbf4e8');
+  for (const [dx, dy] of [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]]) p.px(x + dx, y + dy, '#d8cfc4');
+}
+
 /** Дымовая шашка: глиняный шарик в тёмной обводке — светлее обмоток и куртки, иначе тонул в кулаке; латунный фитиль, искра. */
 const BOMB = { r: R(5), rim: '#1a1210', clay: '#7e6e62', lit: '#b4a290', fuse: LOOK.brass[4], spark: '#ffb040', hot: '#fff0b8' };
 
@@ -1240,7 +1258,7 @@ const SKULL: number[] = (() => {
  * шпили по краям. Рамка — темнее неба (урок Воина: яркая рамка выделяла лепку в ряду рисованных); на прежнем портрете
  * она светлее неба.
  */
-const AVATAR_COLORS: AvatarSpec['colors'] = { top: '#421e4e', bottom: '#150818', halo: '#5a2a64', haloEdge: '#63306d', skyline: '#12071a', frameDark: '#0a0410', frame: '#2c1335', frameLight: '#4a2254' };
+const AVATAR_COLORS: AvatarSpec['colors'] = { top: '#421e4e', bottom: '#150818', halo: '#5a2a64', haloEdge: '#7a3f86', skyline: '#12071a', frameDark: '#0a0410', frame: '#2c1335', frameLight: '#4a2254' };
 /** Готические шпили по краям: высокие и острые, как на прежнем портрете. */
 const AVATAR_SKYLINE: AvatarSpec['skyline'] = [[0.04, 0.07, 0.6, 0.3], [0.12, 0.05, 0.46, 0.26], [0.19, 0.04, 0.36, 0.18], [0.87, 0.05, 0.44, 0.24], [0.95, 0.07, 0.62, 0.3]];
 
@@ -1249,11 +1267,13 @@ const AVATAR_SKYLINE: AvatarSpec['skyline'] = [[0.04, 0.07, 0.6, 0.3], [0.12, 0.
  * стойке: в портрете клинок обратным хватом выходит из-под мизинца поперёк предплечья, а не продолжает его («факел»).
  * B — ближний кулак поднят перед грудью, клинок из-под мизинца вниз-вправо поперёк кадра (как на прежнем портрете);
  * C — оба кулака у пояса, клинки вверх накрест перед грудью, остриями к шарфу; дальняя рука — снаружи корпуса, за
- * ближней. Отвергнуто: клинки вниз накрест от кулаков у груди — дальнее предплечье ложилось поперёк груди бревном
+ * ближней. Во всех трёх кожа плеча в тени (`skinShade`) и блик на ближнем клинке (`glint`) — только в портрете.
+ * Отвергнуто: клинки вниз накрест от кулаков у груди — дальнее предплечье ложилось поперёк груди бревном
  * (дальнее плечо под шарфом, кулак рядом с ним складывает руку), а клинки уходили за нижний край.
  */
-const PORTRAIT_B: AssassinPose = { ...REST, head: 3, nhx: 66, nhy: 48, nsw: 55, nsx: 6 };
-const PORTRAIT_C: AssassinPose = { ...REST, head: 4, nhx: 60, nhy: 66, nsw: -45, nsx: 3, fhx: 100, fhy: 64, fsw: -135 };
+const PORTRAIT_A: AssassinPose = { ...REST, skinShade: 1, glint: 1 };
+const PORTRAIT_B: AssassinPose = { ...REST, head: 3, nhx: 66, nhy: 48, nsw: 55, nsx: 6, skinShade: 1, glint: 1 };
+const PORTRAIT_C: AssassinPose = { ...REST, head: 4, nhx: 60, nhy: 66, nsw: -45, nsx: 3, fhx: 100, fhy: 64, fsw: -135, skinShade: 1, glint: 1 };
 
 /**
  * Аватарка — бюст из той же лепки в кадре прежнего портрета: капюшон правее середины, луна с черепом над ним слева,
@@ -1264,10 +1284,10 @@ const PORTRAIT_C: AssassinPose = { ...REST, head: 4, nhx: 60, nhy: 66, nsw: -45,
  * портрете.
  */
 function avatarOf(m: Mats, v: AssassinAvatar): AvatarSpec {
-  const base = { colors: AVATAR_COLORS, skyline: AVATAR_SKYLINE, halo: [52, 4, 19] as const, emblem: { cut: [0.32, -0.3, 0.78] as const, polys: [SKULL], color: '#74397f' } };
-  if (v === 'b') return { ...base, draw: (p) => drawAssassin(p, PORTRAIT_B, m), crop: [28, -15, 88] };
-  if (v === 'c') return { ...base, draw: (p) => drawAssassin(p, PORTRAIT_C, m), crop: [28, -15, 88] };
-  return { ...base, draw: (p) => drawAssassin(p, REST, m), crop: [28, -15, 88] };
+  const base = { colors: AVATAR_COLORS, skyline: AVATAR_SKYLINE, halo: [50, 7, 19] as const, crop: [28, -12, 88] as const, emblem: { cut: [0.32, -0.3, 0.78] as const, polys: [SKULL], color: '#74397f' } };
+  if (v === 'b') return { ...base, draw: (p) => drawAssassin(p, PORTRAIT_B, m) };
+  if (v === 'c') return { ...base, draw: (p) => drawAssassin(p, PORTRAIT_C, m) };
+  return { ...base, draw: (p) => drawAssassin(p, PORTRAIT_A, m) };
 }
 
 /**
