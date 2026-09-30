@@ -267,16 +267,33 @@ const QUIVER = {
 };
 
 /**
+ * Перезарядка: ближняя к зрителю стрела колчана (последняя) вытянута вдоль своего древка на `pull` точек листа —
+ * тянущая кисть держит её под оперением (`QGRIP`). Стрела остаётся в слое колчана, за торсом: над плечом видно
+ * оперение и кусок древка, как у соседних.
+ */
+const QPULL = 16;
+const QGRIP: [number, number] = (() => {
+  const [x, y, mx, my] = QUIVER.arrows[QUIVER.arrows.length - 1];
+  const l = Math.hypot(mx - x, my - y), ux = (mx - x) / l, uy = (my - y) / l;
+  return [X(x - ux * QPULL + ux * 22), Y(y - uy * QPULL + uy * 22)];
+})();
+
+/**
  * Каждая стрела — своя часть: между перьями соседних стрел движок кладёт тёмную линию, и оперение читается пучком
  * отдельных перьев, а не серым комом; опахало от света — в тени (одна светлая плашка читалась буквой, а не пером).
  */
-function quiver(p: Painter, m: Mats): void {
+function quiver(p: Painter, m: Mats, pull = 0): void {
   p.poly(S(...QUIVER.body), m.quiver, { part: 'quiver', bevel: 3, tone: -0.08 });
   p.ellipse(X(QUIVER.mouth[0]), Y(QUIVER.mouth[1]), R(8.5), R(4), m.quiver, { part: 'quiver', rot: 0.62, lift: 1, tone: -0.25 });
   const fl = 19, fw = 2.6;
-  QUIVER.arrows.forEach(([x, y, mx, my], k) => {
-    const l = Math.hypot(mx - x, my - y);
+  QUIVER.arrows.forEach(([x0, y0, mx, my], k) => {
+    let x = x0, y = y0, l = Math.hypot(mx - x, my - y);
     const u = [(mx - x) / l, (my - y) / l], nn = [-u[1], u[0]];
+    if (pull > 0 && k === QUIVER.arrows.length - 1) {
+      x -= u[0] * pull;
+      y -= u[1] * pull;
+      l += pull;
+    }
     const pt = (s: number, t: number): [number, number] => [X(x + u[0] * s + nn[0] * t), Y(y + u[1] * s + nn[1] * t)];
     const part = `qArrow${k}`;
     p.limb(...pt(fl - 2, 0), R(0.9), ...pt(l, 0), R(0.9), m.shaftQ, { part });
@@ -515,6 +532,8 @@ export interface ArcherPose extends Record<string, number> {
   nocked: number; aa: number; agrip: number;
   /** Блик на наконечнике — прицел приёма. */
   glint: number;
+  /** Стрела колчана вытянута тянущей рукой (перезарядка), точек листа вдоль древка; см. `QPULL`, `QGRIP`. */
+  qpull: number;
   /** Склянка в тянущей руке (лечение): 1 — в руке; `fla` — наклон горлышка (градусы по `at`). */
   flask: number; fla: number;
   /** Ближнее колено на земле (таз опускать приседом ~22). */
@@ -535,7 +554,7 @@ const REST: ArcherPose = {
   nhx: M.armN.hand[0], nhy: M.armN.hand[1], draw: 1, arrow: 1,
   footF: 0, footN: 0, liftF: 0, liftN: 0, cape: 0,
   ik: 0, nl: 1, nf: 1, nsx: 0, nsy: 0, nel: 199, fel: 79, fl: 1, fsx: 0, fsy: 0, bws: 0, twang: 0,
-  nocked: 1, aa: 0, agrip: 3, glint: 0, flask: 0, fla: -60, kneel: 0, kick: 0, fall: 0, drop: 0,
+  nocked: 1, aa: 0, agrip: 3, glint: 0, qpull: 0, flask: 0, fla: -60, kneel: 0, kick: 0, fall: 0, drop: 0,
 };
 
 /** Звенья рук в стойке (единицы): плечо тянущей руки в ракурсе ≈ 8, предплечье ≈ 30. */
@@ -597,8 +616,8 @@ export const ARCHER_CLIP_NOTES: Partial<Record<SculptClip, string>> = {
 
 /** Кисть с луком в стойке — для ключей клипов (координаты верха). */
 const FH = M.armF.hand;
-/** Кисть у колчана за ближним плечом — достаёт стрелу (оперение над плечом). */
-const QX = 38, QY = 20;
+/** Кисть у колчана за ближним плечом — тянет стрелу под оперением (`QGRIP`). */
+const [QX, QY] = QGRIP;
 /** Кисть у тетивы на половине натяжения — стрела уже на тетиве. */
 const HX = 93, HY = 49;
 
@@ -621,8 +640,8 @@ const COMMON: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
     [2, { crouch: 6, lean: 2, head: 10, nhx: 71.5, nhy: 45, nl: 1.5, fhx: 115, glint: 0.6 }],
     [3, { crouch: 6, lean: 2, head: 10, nhx: 71.5, nhy: 45, fhx: 115, glint: 1 }],
     [4, { crouch: 4, lean: -5, head: 4, x: -2, nhx: 52, nhy: 33, nl: 1.9, nf: 0.5, fhx: 117, fhy: 58, bow: 16, draw: 0, arrow: 0, twang: 3.5, glint: 0 }],
-    [5, { crouch: 2, lean: -2, head: 3, x: -1, nhx: QX, nhy: QY, nl: 2, nf: 1, bow: 5, twang: -2, arrow: 1, nocked: 0, aa: -60, agrip: 6 }],
-    [6, { crouch: 2, lean: 0, head: 6, x: 0, nhx: HX, nhy: HY, nl: 1, fhx: FH[0], bow: 1, draw: 1, arrow: 1, nocked: 1, twang: 0 }],
+    [5, { crouch: 2, lean: -2, head: 3, x: -1, nhx: QX, nhy: QY, nl: 2.2, nf: 0.8, bow: 5, twang: -2, qpull: QPULL }],
+    [6, { crouch: 2, lean: 0, head: 6, x: 0, nhx: HX, nhy: HY, nl: 1, nf: 1, fhx: FH[0], bow: 1, draw: 1, arrow: 1, twang: 0, qpull: 0 }],
   ],
   // Клич «Лук вскинут»: снимает стрелу с тетивы и зажимает её в кулаке остриём вниз, сжимается — выпрямляясь,
   // вскидывает лук над головой прямой рукой (лук поперёк кулака — лёжа над головой: торчком его держат только как
@@ -631,7 +650,7 @@ const COMMON: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
   buff: [
     [1, { crouch: 4, lean: 4, head: 12, draw: 0, nocked: 0, aa: 95, agrip: 12, nhx: 74, nhy: 58, nl: 2, nf: 0.8, fhx: 108, fhy: 64, bow: -4, cape: 0.05 }],
     [2, { crouch: 2, lean: 0, head: 3, nhx: 73, nhy: 57, fhx: 110, fhy: 44, fl: 1.05, bow: -6, cape: 0.15 }],
-    [3, { crouch: 0, lean: -4, head: -8, nhx: 72, nhy: 57, fhx: 104, fhy: 16, fl: 1.15, bow: -10, cape: 0.35 }],
+    [3, { crouch: 0, lean: -4, head: -8, nhx: 74, nhy: 57, fhx: 104, fhy: 16, fl: 1.15, bow: -10, cape: 0.35 }],
     [4, { crouch: -1, lean: -6, head: -16, nhx: 73, nhy: 58, fhx: 98, fhy: -2, fl: 1.25, bow: -14, cape: 0.6 }],
     [6, { crouch: -1, lean: -6, head: -17, nhx: 73, nhy: 58, fhx: 98, fhy: -1, fl: 1.25, bow: -14, cape: 0.5 }],
     [7, { crouch: 0, lean: -3, head: -6, nhx: 75, nhy: 55, aa: 15, agrip: 8, fhx: 105, fhy: 20, fl: 1.15, bow: -8, cape: 0.3 }],
@@ -655,7 +674,7 @@ const COMMON: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
     [3, { x: -8, crouch: 18, lean: 2, head: 8, kneel: 0.9, drop: 0.65 }],
     [4, { x: -8, crouch: 21, lean: 4, head: 12, kneel: 1, drop: 1, cape: 0.1 }],
     [5, { crouch: 21, lean: 0, head: 6, fall: 0.1, kneel: 1 }],
-    [6, { x: -5, fall: 0.35, kneel: 0.6, head: -4, nhx: 62, nhy: 88, nl: 2.3, nf: 0.65, nel: 0, fhx: 64, fhy: 100 }],
+    [6, { x: -5, fall: 0.35, kneel: 0.9, head: -4, nhx: 62, nhy: 88, nl: 2.3, nf: 0.65, nel: 0, fhx: 64, fhy: 100 }],
     [7, { fall: 0.68, kneel: 0.2, head: -10 }],
     [8, { x: -2, fall: 1, kneel: 0, head: -8 }],
     [9, { fall: 1.04, head: -5 }],
@@ -680,8 +699,8 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
       [2, { nhx: 76, nhy: 45, fhx: 113.5, head: 8, lean: -1 }],
       [3, { nhx: 75.5, nhy: 45, fhx: 113.5, head: 8, lean: -1, draw: 1, arrow: 1, twang: 0 }],
       [4, { nhx: 56, nhy: 37, nl: 1.9, nf: 0.4, fhx: 114.5, fhy: 58.5, bow: 9, head: 5, lean: -2, draw: 0, arrow: 0, twang: 2.5 }],
-      [5, { nhx: QX, nhy: QY, nl: 2, nf: 1, bow: 4, head: 4, lean: -1, draw: 0, arrow: 1, nocked: 0, aa: -60, agrip: 6, twang: -1.5 }],
-      [6, { nhx: HX, nhy: HY, nl: 1, bow: 1, head: 6, lean: 0, draw: 1, arrow: 1, nocked: 1, twang: 0 }],
+      [5, { nhx: QX, nhy: QY, nl: 2.2, nf: 0.8, bow: 4, head: 4, lean: -1, draw: 0, arrow: 0, twang: -1.5, qpull: QPULL }],
+      [6, { nhx: HX, nhy: HY, nl: 1, nf: 1, bow: 1, head: 6, lean: 0, draw: 1, arrow: 1, twang: 0, qpull: 0 }],
     ],
     // «С шагом»: 1 — вес назад, передняя стопа отрывается; 2 — шаг; 3 — стопа встала, корпус вперёд, добор; 4 — спуск на
     // приземлении; 5 — отдача: вес назад, стопа отходит, кисть к колчану; 6 — стрела на тетиве.
@@ -690,8 +709,8 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
       [2, { x: 1, crouch: 2, lean: 0, liftF: 5, footF: 7, nhx: 78, nhy: 45.5, head: 7, cape: 0.2 }],
       [3, { x: 6, crouch: 4, lean: 4, liftF: 0, footF: 12, nhx: 76, nhy: 45, fhx: 114, head: 8, cape: 0.4, draw: 1, arrow: 1, twang: 0 }],
       [4, { x: 8, crouch: 5, lean: 6, footF: 12, nhx: 55, nhy: 36, nl: 1.9, nf: 0.4, fhx: 116, bow: 10, head: 5, cape: 0.6, draw: 0, arrow: 0, twang: 2.5 }],
-      [5, { x: 3, crouch: 3, lean: 1, footF: 7, liftF: 3, nhx: QX, nhy: QY, nl: 2, nf: 1, fhx: 113, bow: 4, head: 4, cape: 0.35, draw: 0, arrow: 1, nocked: 0, aa: -60, agrip: 6, twang: -1.5 }],
-      [6, { x: 1, crouch: 2, lean: 0, footF: 2, liftF: 1, nhx: HX, nhy: HY, nl: 1, bow: 1, head: 6, cape: 0.1, draw: 1, arrow: 1, nocked: 1, twang: 0 }],
+      [5, { x: 3, crouch: 3, lean: 1, footF: 7, liftF: 3, nhx: QX, nhy: QY, nl: 2.2, nf: 0.8, fhx: 113, bow: 4, head: 4, cape: 0.35, draw: 0, arrow: 0, twang: -1.5, qpull: QPULL }],
+      [6, { x: 1, crouch: 2, lean: 0, footF: 2, liftF: 1, nhx: HX, nhy: HY, nl: 1, nf: 1, bow: 1, head: 6, cape: 0.1, draw: 1, arrow: 1, twang: 0, qpull: 0 }],
     ],
   },
   heavy: {
@@ -701,14 +720,14 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
     // горизонтально) и лук выпрямлен к миру: лук и дальняя нога в одной плоскости, и в стойке нога била сквозь нижнее
     // плечо лука (ревью риггинга).
     a: [
-      [1, { x: -3, crouch: 2, lean: -3, liftF: 3, footF: 0, kick: 0, head: 7 }],
-      [2, { x: -4, crouch: 1, lean: -7, footF: 4, liftF: 20, kick: 0.5, head: 5, cape: 0.1, fhy: 52, nhy: 40, bow: 20 }],
-      [3, { x: -4, crouch: 1, lean: -10, footF: 14, liftF: 30, kick: 1, head: 3, cape: 0.2, fhy: 44, nhy: 34, bow: 44 }],
+      [1, { x: -3, crouch: 2, lean: -3, liftF: 3, footF: 0, kick: 0, head: 7, fhy: 50, nhy: 38, bow: 20 }],
+      [2, { x: -4, crouch: 1, lean: -7, footF: 4, liftF: 20, kick: 0.5, head: 5, cape: 0.1, fhy: 44, nhy: 34, bow: 58 }],
+      [3, { x: -4, crouch: 1, lean: -10, footF: 14, liftF: 30, kick: 1, head: 3, cape: 0.2, fhy: 42, nhy: 33, bow: 62 }],
       [4, { x: -3, crouch: 2, lean: -13, footF: 24, liftF: 35, head: 2, cape: 0.3 }],
       [5, { x: -2, crouch: 2, lean: -14, footF: 30, liftF: 36, head: 2, cape: 0.4 }],
-      [6, { x: -3, crouch: 2, lean: -12, footF: 24, liftF: 34, head: 3, cape: 0.35, fhy: 44, nhy: 34, bow: 44 }],
-      [7, { x: -3, crouch: 2, lean: -7, footF: 10, liftF: 20, kick: 0.6, head: 5, cape: 0.2, fhy: 52, nhy: 40, bow: 20 }],
-      [8, { x: -1, crouch: 2, lean: -2, footF: 2, liftF: 3, kick: 0, head: 6, cape: 0.05, fhy: 57, nhy: 46, bow: 1 }],
+      [6, { x: -3, crouch: 2, lean: -12, footF: 24, liftF: 34, head: 3, cape: 0.35, fhy: 42, nhy: 33, bow: 62 }],
+      [7, { x: -3, crouch: 2, lean: -7, footF: 10, liftF: 20, kick: 0.6, head: 5, cape: 0.2, fhy: 44, nhy: 34, bow: 54 }],
+      [8, { x: -1, crouch: 2, lean: -2, footF: 2, liftF: 3, kick: 0, head: 6, cape: 0.05, fhy: 52, nhy: 40, bow: 15 }],
     ],
     // «Стрелой»: 1 — снял стрелу с тетивы, лук уходит вниз в сторону; 2 — кисть со стрелой отведена к бедру, вес назад;
     // 3 — шаг; 4 — стопа встала, кисть вперёд; 5 — удар: рука во всю длину, стрела остриём во врага; 6 — держит;
@@ -741,9 +760,9 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
     // 10 — кисть на тетиве.
     b: [
       [1, { crouch: 12, kneel: 0.5, lean: 3, head: 10, draw: 0, nhx: 70, nhy: 58, nl: 1.8, nf: 0.8, fhx: 113, fhy: 68, bow: -3 }],
-      [2, { crouch: 21, kneel: 1, lean: 5, head: 18, nhx: 75, nhy: 48, nl: 1.8, nf: 0.8, nel: 100, fhx: 120, fhy: 69, fl: 1.05, bow: -20 }],
-      [4, { crouch: 21, kneel: 1, lean: 6, head: 21, nhx: 75, nhy: 47 }],
-      [7, { crouch: 21, kneel: 1, lean: 5, head: 19, nhx: 75, nhy: 48 }],
+      [2, { crouch: 24, kneel: 1, lean: 5, head: 18, nhx: 75, nhy: 48, nl: 1.8, nf: 0.8, nel: 100, fhx: 120, fhy: 64, fl: 1.05, bow: -20 }],
+      [4, { crouch: 24, kneel: 1, lean: 6, head: 21, nhx: 75, nhy: 47 }],
+      [7, { crouch: 24, kneel: 1, lean: 5, head: 19, nhx: 75, nhy: 48 }],
       [8, { crouch: 13, kneel: 0.5, lean: 3, head: 10, nhx: 72, nhy: 58, nf: 0.8, nel: 199, fhy: 68, fl: 1 }],
       [9, { crouch: 4, kneel: 0, lean: 1, head: 6, nhx: 80, nhy: 52, nl: 1.2, nf: 1, fhx: 113, fhy: 60, bow: -1 }],
       [10, { crouch: 2, lean: 0, draw: 1, nhx: HX, nhy: HY, nl: 1, fhx: FH[0], fhy: FH[1], bow: 0 }],
@@ -976,28 +995,59 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
   p.pose({ dx: P.x, dy: P.y }, () => {
     p.shadow(X(92) - P.x * 0.5 - 14 * fall, 54 + 8 * fall, 4);
 
-    // Павший лежит на плаще: плащ из-за спины ушёл бы под землю — на земле под телом полосой с рваным краем.
-    if (fall > 0.55) p.poly([hipX - 84, G - 4, hipX - 60, G - 8, hipX - 30, G - 9, hipX, G - 7, hipX + 14, G - 3, hipX + 16, G, hipX - 90, G], m.cloak, { part: 'cloakGround', tone: -0.12, bevel: 3 });
+    // Павший ложится на плащ: полоса плаща на земле под телом растёт с падением (с `fall` 0,35), а плащ за спиной
+    // прижимается к земле (ниже — ушёл бы под неё). Выключать плащ разом нельзя: на кадре перехода он исчезал целиком,
+    // пока тело ещё было наклонено на 63°.
+    const spread = Math.max(0, Math.min(1, (fall - 0.35) / 0.4));
+    if (spread > 0) {
+      const gp = [-84, 4, -60, 8, -30, 9, 0, 7, 14, 3, 16, 0, -90, 0];
+      p.poly(gp.flatMap((v, i) => (i % 2 ? [floorY - v * spread] : [hipX + v * lerp(0.4, 1, spread)])), m.cloak, { part: 'cloakGround', tone: -0.12, bevel: 3 });
+    }
 
     // ── Плащ — за спиной, в повороте верха; верх висит на плечах и дышит с ними, подол стоит и колышется. ──
-    if (fall <= 0.55) {
+    {
       const swing = 1.1 * p.wave(1, 0.1);
       const sway = (pts: number[]): number[] => pts.map((v, i) => {
         const y = i % 2 ? v : pts[i + 1];
         const t = Math.max(0, Math.min(1, (y - Y(60)) / (Y(140) - Y(60))));
         return i % 2 ? v + up.dy * (1 - t) : v + (swing - P.cape * 10) * t * t;
       });
-      p.pose({ rot, px: PELVIS[0], py: PELVIS[1] }, () => {
-        p.poly(sway(cloakOutline()), m.cloak, { part: 'cloak', tone: -0.06, bevel: 5 });
-        // Изнанка плаща между ногами — в тени: освещённая, как наружная сторона, она сливала бёдра с плащом в один ком.
-        p.poly(sway(S(70, 96, 124, 92, 126, 160, 64, 160)), m.cloak, { part: 'cloak', paint: true, tone: -0.35 });
-        for (const f of CLOAK_FOLDS) stroke(p, sway(S(...f)), m.fold, 'cloak');
-        for (const f of CLOAK_LIT) stroke(p, sway(S(...f)), m.foldLit, 'cloak');
-      });
+      if (fall <= 0) {
+        p.pose({ rot, px: PELVIS[0], py: PELVIS[1] }, () => {
+          p.poly(sway(cloakOutline()), m.cloak, { part: 'cloak', tone: -0.06, bevel: 5 });
+          // Изнанка плаща между ногами — в тени: освещённая, как наружная сторона, она сливала бёдра с плащом в один ком.
+          p.poly(sway(S(70, 96, 124, 92, 126, 160, 64, 160)), m.cloak, { part: 'cloak', paint: true, tone: -0.35 });
+          for (const f of CLOAK_FOLDS) stroke(p, sway(S(...f)), m.fold, 'cloak');
+          for (const f of CLOAK_LIT) stroke(p, sway(S(...f)), m.foldLit, 'cloak');
+        });
+      } else {
+        // Падение: подол, стоявший на месте, идёт за телом (доля `fall`), всё, что ниже земли, ложится на неё и
+        // отъезжает назад, к голове павшего.
+        const fallen = (pts: number[]): number[] => {
+          const sw = sway(pts), out: number[] = [];
+          for (let k = 0; k < sw.length; k += 2) {
+            const x = sw[k], y = sw[k + 1];
+            const t = Math.max(0, Math.min(1, (pts[k + 1] - Y(60)) / (Y(140) - Y(60))));
+            const sx = PELVIS[0] + cr * (x - PELVIS[0]) - sr * (y - PELVIS[1]), sy = PELVIS[1] + sr * (x - PELVIS[0]) + cr * (y - PELVIS[1]);
+            const [bx, by] = toWorld(x, y - up.dy * (1 - t));
+            let wx = lerp(sx, bx, fall), wy = lerp(sy, by, fall);
+            if (wy > floorY - 1) {
+              wx -= (wy - floorY + 1) * 0.9;
+              wy = floorY - 1;
+            }
+            out.push(wx, wy);
+          }
+          return out;
+        };
+        p.poly(fallen(cloakOutline()), m.cloak, { part: 'cloak', tone: -0.06, bevel: 5 });
+        p.poly(fallen(S(70, 96, 124, 92, 126, 160, 64, 160)), m.cloak, { part: 'cloak', paint: true, tone: -0.35 });
+        for (const f of CLOAK_FOLDS) stroke(p, fallen(S(...f)), m.fold, 'cloak');
+        for (const f of CLOAK_LIT) stroke(p, fallen(S(...f)), m.foldLit, 'cloak');
+      }
     }
 
-    // ── Колчан за спиной — в позе верха; павший лежит на нём. ──
-    if (fall <= 0.55) p.pose(up, () => quiver(p, m));
+    // ── Колчан за спиной — в позе верха; павший ложится на него (колчан рисуется до торса и уходит под тело). ──
+    if (fall <= 0.9) p.pose(up, () => quiver(p, m, P.qpull));
 
     // Руки, лук и натяжение — до ног: выпавший лук рисуется раньше них.
     const fA = farArm(P), nA = nearArm(P);
@@ -1077,7 +1127,10 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       const kx = lerp(lg.g.knee[0] + dax / 2, ikx, w), ky = lerp(lg.g.knee[1] + (dhy + day) / 2, iky, w);
       probeInfo[`${lg.side}KneeX`] = kx + P.x;
       probeInfo[`${lg.side}KneeY`] = ky + P.y;
+      probeInfo[`${lg.side}AnkX`] = ax + P.x;
       probeInfo[`${lg.side}AnkY`] = ay + P.y;
+      probeInfo[`${lg.side}HipX`] = hx + P.x;
+      probeInfo[`${lg.side}HipY`] = hy + P.y;
       if (lg.side === 'far') probeInfo.footF = ax + P.x;
       else probeInfo.footN = ax + P.x;
       const leg = `${lg.side}Leg`, shin = `${lg.side}Shin`, foot = `${lg.side}Foot`, knee = `${lg.side}Knee`;
@@ -1227,8 +1280,11 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
         // Тетива — декаль, она ложится поверх всего кадра, где бы ни была вызвана. Спущенная тетива лука, задранного
         // или опущенного больше чем на 45° (клич: лук над головой за капюшоном), — только по пустым клеткам, иначе
         // белая черта шла через лицо.
-        const behind = P.draw <= 0.02 && Math.abs(nrm(bowA + rot / DEG)) > 45;
-        p.line(b.top[0], b.top[1], ...edge(b.top[0], b.top[1]), m.string, behind);
+        // Натянутая тетива лука, заваленного назад больше чем на 30° (урон), — верхний отрезок тоже по пустым клеткам:
+        // верхнее плечо уходит за капюшон, а тетива ложилась поверх козырька.
+        const tilt = nrm(bowA + rot / DEG);
+        const behind = P.draw <= 0.02 && Math.abs(tilt) > 45;
+        p.line(b.top[0], b.top[1], ...edge(b.top[0], b.top[1]), m.string, behind || tilt < -30);
         p.line(...edge(b.bot[0], b.bot[1]), b.bot[0], b.bot[1], m.string, behind);
       }
 
