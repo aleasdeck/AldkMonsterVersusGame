@@ -155,9 +155,14 @@ const len = (a: readonly number[], b: readonly number[]): number => Math.hypot(b
 /**
  * Масштаб головы вокруг шеи (решение пользователя: «капюшон поменьше бы»): капюшон с листа в мерку выходил крупным
  * рядом с Воином, Паладином и Берсерком. Шея стоит, поэтому голова остаётся между плечами, а свод опускается. Верх
- * пелерины и ореол аватарки сводятся к шее тем же масштабом (`toHead`), иначе они торчали бы из-за меньшего капюшона.
+ * пелерины сводится к шее тем же масштабом (`toHead`), иначе он торчал бы из-за меньшего капюшона.
  */
 const HEAD_SCALE = 0.85;
+/**
+ * Голова портрета — в мерку листа, крупнее боя: в кадре бюста капюшон боя выходил мельче капюшона Ассасина и шлема
+ * Воина по соседству, а лицо — в три клетки. Пелерину под капюшоном крупная голова закрывает сама.
+ */
+const PORTRAIT_HEAD = 1;
 const toHead = (x: number, y: number): [number, number] => [M.neck[0] + (x - M.neck[0]) * HEAD_SCALE, M.neck[1] + (y - M.neck[1]) * HEAD_SCALE];
 const LEG_N = { l1: len(M.legN.hip, M.legN.knee), l2: len(M.legN.knee, M.legN.ank) };
 const LEG_F = { l1: len(M.legF.hip, M.legF.knee), l2: len(M.legF.knee, M.legF.ank) };
@@ -369,6 +374,19 @@ const HOOD = {
 };
 type HoodSpec = typeof HOOD;
 
+/**
+ * Лицо портрета (точки листа): полоса от брови до маски, задняя треть в тени капюшона (`shade`), светлый нос у переднего
+ * края проёма, глаз и бровь чертами, маска — низ лица до ворота.
+ */
+const PORTRAIT_FACE = {
+  face: [99, 36, 103, 31.5, 108, 29.5, 114, 30.5, 118, 33.5, 118.5, 39, 115, 41.5, 101, 41.5],
+  shade: [99, 36, 103, 31.5, 108, 29.5, 114, 30.5, 104, 33, 102.5, 41.5, 99, 41.5],
+  nose: [114.5, 32, 118, 33.5, 118.5, 39, 115.5, 38],
+  eye: [108, 35, 111.5, 34.5],
+  brow: [104, 32.5, 108, 31, 113, 31],
+  mask: [98, 41, 106, 41.5, 114, 40, 118, 40.5, 116, 50, 110, 56, 103, 55, 98, 50],
+};
+
 /** Точка на ломаной `pts` [x0, y0, …], сдвинутая на `off` по нормали вправо от хода (внутрь капюшона). */
 function offsetLine(pts: number[], off: number): number[] {
   const n = pts.length / 2, out: number[] = [];
@@ -438,7 +456,7 @@ const between = (pts: number[], y0: number, y1: number): number[] => pts.filter(
   return y >= y0 && y <= y1;
 });
 
-function head(p: Painter, m: Mats): void {
+function head(p: Painter, m: Mats, portrait = false): void {
   const h = HOOD;
   // Силуэт с фаской; плоские грани краской: задний скат к свету светлее, передний над лицом в тени; ребро от макушки
   // вниз, кромка к свету и складки — вдоль скатов (число точек у каждой — постоянное: от мягкости, а не от кадра).
@@ -456,11 +474,24 @@ function head(p: Painter, m: Mats): void {
   // Лицо: свет сверху слева, из-за спины — светлый клин щеки у заднего края проёма, как на листе, нос вертикалью, перед
   // лицом тень (лицо к врагам в полутени; лицо у переднего края с ярким носом читалось прорезью балаклавы, как у
   // разбойника-лучника Леса). Бровь — тёмной чертой по верху.
-  p.poly(S(...h.face), m.face, { part: 'face', bevel: 1.2, flat: 0.6, tone: h.tones[0] });
-  p.poly(S(...h.nose), m.face, { part: 'face', paint: true, tone: h.tones[1] });
-  stroke(p, S(...h.brow), '#140c0a', 'face');
+  if (portrait) {
+    // Портрет: лицо крупнее и на ступень светлее — скула и нос до переднего края проёма, глаз тёмной чертой под
+    // бровью, задняя треть в тени капюшона. В кадре бюста 44–56 клеток лицо боя (клин в три клетки) читалось чёрным
+    // провалом. Без линии о капюшон (`noLine`): тёмное кольцо вокруг светлой полосы читалось монетой в проёме.
+    p.poly(S(...PORTRAIT_FACE.face), m.face, { part: 'face', bevel: 1.2, flat: 0.6, tone: 0.2, noLine: true });
+    p.poly(S(...PORTRAIT_FACE.shade), m.face, { part: 'face', paint: true, tone: -0.2 });
+    p.poly(S(...PORTRAIT_FACE.nose), m.face, { part: 'face', paint: true, tone: 0.34 });
+    stroke(p, S(...PORTRAIT_FACE.eye), '#1c100c', 'face');
+    stroke(p, S(...PORTRAIT_FACE.brow), '#140c0a', 'face');
+  } else {
+    p.poly(S(...h.face), m.face, { part: 'face', bevel: 1.2, flat: 0.6, tone: h.tones[0] });
+    p.poly(S(...h.nose), m.face, { part: 'face', paint: true, tone: h.tones[1] });
+    stroke(p, S(...h.brow), '#140c0a', 'face');
+  }
   // Низ лица — провал капюшона (обведённый блок светлее провала читался повязкой, как у разбойника-лучника Леса).
-  p.poly(S(...h.scarf), m.dark, { part: 'hood', paint: true });
+  // Портрет: низ лица — тёмно-зелёная маска тканью капюшона, как на прежнем портрете (чёрный провал читался дырой).
+  if (portrait) p.poly(S(...PORTRAIT_FACE.mask), m.hood, { part: 'hood', paint: true, tone: -0.32 });
+  else p.poly(S(...h.scarf), m.dark, { part: 'hood', paint: true });
 }
 
 /** Пелерина капюшона на плечах: верх под капюшоном, рваный нижний край над тянущей рукой. */
@@ -571,7 +602,7 @@ const OVERDRAW = 1.3;
 
 // ─── Клипы ──────────────────────────────────────────────────────────────────
 
-type ArcherClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite'>;
+type ArcherClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite' | 'vanish'>;
 
 /** Что показывает каждый клип — подписи плиток страницы. */
 export const ARCHER_CLIP_NOTES: Partial<Record<SculptClip, string>> = {
@@ -814,20 +845,98 @@ function framePose(p: Painter): ArcherPose {
 
 // ─── Модель ─────────────────────────────────────────────────────────────────
 
+// ─── Аватарка ───────────────────────────────────────────────────────────────
+
+type AvatarVariant = 'a' | 'b' | 'c';
+
+/** Варианты аватарки на обсуждении (шаг 5): имя и чем отличается — для страницы и отчёта. */
+export const ARCHER_AVATARS: readonly { id: AvatarVariant; name: string; note: string }[] = [
+  { id: 'a', name: 'Покой', note: 'Поза покоя в кадре бюста: стрела на тетиве у груди, тетива наискось к луку у правого края (его режет край кадра), оперение колчана над плечом.' },
+  { id: 'b', name: 'Стрела у груди', note: 'Тетива спущена: лук отвесно у правого края целиком, стрела в кулаке у груди остриём к подбородку, голова прямо — лицо открыто, оперение над плечом.' },
+  { id: 'c', name: 'Добор к уху', note: 'Кадр выстрела перед спуском: кисть у подбородка, стрела поперёк кадра к луку, голова склонена к стреле; лук у правого края, его режет край кадра.' },
+];
 /**
- * Временная аватарка — поза покоя в кадре бюста (шлифовка — шаг 5): капюшон у середины, оперение колчана слева,
- * тянущая кисть и лук справа; фон — с прежнего портрета: тёмно-зелёная ночь, бледная луна за капюшоном, ели по краям.
+ * Рекомендация — её же модель берёт по умолчанию: «Стрела у груди». На 44 клетках лук читается целиком — дугой с
+ * тетивой у правого края, лицо открыто; в покое и доборе лук срезан краем, а руки со стрелой сливаются внизу в
+ * коричневую полосу.
  */
-function avatarOf(m: Mats): AvatarSpec {
+export const ARCHER_AVATAR_REC: AvatarVariant = 'b';
+
+/** Полоса ширины `w` вдоль ломаной [x0, y0, …] — рога оленя знака. */
+function strip(pts: number[], w: number): number[] {
+  const left: number[] = [], right: number[] = [];
+  const n = pts.length / 2;
+  for (let k = 0; k < n; k++) {
+    const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1);
+    const tx = pts[b * 2] - pts[a * 2], ty = pts[b * 2 + 1] - pts[a * 2 + 1], l = Math.hypot(tx, ty) || 1;
+    const hw = (w / 2) * (1 - (0.4 * k) / Math.max(1, n - 1));
+    left.push(pts[k * 2] - (ty / l) * hw, pts[k * 2 + 1] + (tx / l) * hw);
+    right.push(pts[k * 2] + (ty / l) * hw, pts[k * 2 + 1] - (tx / l) * hw);
+  }
+  return [...left, ...rev(right)];
+}
+
+/**
+ * Знак прежнего портрета — олень на луне: голова мордой вниз, уши, рога ветвями вверх (в радиусах ореола от центра,
+ * y вниз). Ветви в клетку и толще — тоньше они пропадали на 44 клетках.
+ */
+const DEER: number[][] = (() => {
+  const beam = [-0.07, -0.08, -0.3, -0.26, -0.56, -0.46, -0.72, -0.78];
+  const tines = [[-0.3, -0.26, -0.22, -0.62], [-0.56, -0.46, -0.52, -0.86], [-0.46, -0.38, -0.86, -0.36]];
+  const mirror = (pts: number[]): number[] => pts.map((v, i) => (i % 2 ? v : -v));
+  const antlers = [beam, ...tines].map((t) => strip(t, 0.11));
+  const ear = [-0.1, -0.04, -0.36, -0.14, -0.3, -0.02, -0.12, 0.06];
+  return [
+    [-0.13, -0.12, 0.13, -0.12, 0.15, 0.08, 0.08, 0.5, -0.08, 0.5, -0.15, 0.08],
+    ear, mirror(ear),
+    ...antlers, ...antlers.map(mirror),
+  ];
+})();
+
+/**
+ * Поза портрета «Стрела у груди»: тетива спущена, стрела в тянущем кулаке у груди остриём к подбородку, лук стоит
+ * отвесно у правого края (`bws: 0` — лук держит свой угол, а не угол предплечья, иначе ложится поперёк кадра), голова
+ * прямо — лицо открыто кадру.
+ */
+const PORTRAIT_B: ArcherPose = {
+  ...REST, ik: 1, bws: 0, head: 0, draw: 0, nocked: 0, aa: -78, agrip: 22,
+  nhx: 77, nhy: 53, nl: 1.8, nf: 0.8, fhx: 108, fhy: 52, bow: -4,
+};
+/**
+ * Поза портрета «Добор к уху» — третий кадр выстрела «С места», перед спуском: кисть у подбородка, стрела поперёк кадра,
+ * голова склонена к стреле, лук у правого края.
+ */
+const PORTRAIT_C: ArcherPose = {
+  ...REST, ik: 1, bws: 1, head: 8, lean: -1, nhx: 75.5, nhy: 45, fhx: 113.5,
+};
+
+/**
+ * Небо, ореол-луна, силуэты елей и рамка — с прежнего портрета: тёмно-зелёная ночь, тусклая зелёная луна с оленем за
+ * капюшоном. Луна темнее оливкового капюшона — светлее она сливалась с его сводом в одно пятно.
+ */
+const AVATAR_COLORS: AvatarSpec['colors'] = { top: '#1f2b1d', bottom: '#080d0a', halo: '#36432d', haloEdge: '#44523a', skyline: '#070b08', frameDark: '#050806', frame: '#1c2619', frameLight: '#3c4a32' };
+/** Ели по краям — башни с острым верхом: узкие, верх выше стены. */
+const SPRUCES: ReadonlyArray<readonly [number, number, number, number]> = [[0.03, 0.09, 0.22, 0.58], [0.12, 0.1, 0.18, 0.46], [0.21, 0.07, 0.2, 0.3], [0.97, 0.09, 0.24, 0.56], [0.88, 0.1, 0.2, 0.44], [0.79, 0.07, 0.2, 0.3]];
+
+/**
+ * Аватарка — своя поза той же лепкой (`draw`, лицо портрета крупнее боя), кадр бюста (`crop`: левый верхний угол и
+ * сторона в единицах модели) и луна-ореол со знаком — оленем. Луна сдвинута вправо от острия капюшона, к лицу: над
+ * острием свод закрывал голову оленя, и от знака оставались рога «сердечком» с капюшоном.
+ */
+function avatarOf(m: Mats, v: AvatarVariant): AvatarSpec {
+  const pose = { a: REST, b: PORTRAIT_B, c: PORTRAIT_C }[v];
   return {
-    draw: (p) => drawArcher(p, REST, m),
-    crop: [20, -8, 100],
-    halo: [...toHead(X(96), Y(30)), 23],
-    colors: { top: '#1d2a1c', bottom: '#0a100b', halo: '#3e4c33', haloEdge: '#5e6446', skyline: '#0c140e', frameDark: '#070b08', frame: '#27301f', frameLight: '#5a6044' },
-    skyline: [[0.04, 0.09, 0.3, 0.32], [0.13, 0.08, 0.22, 0.3], [0.88, 0.09, 0.26, 0.34], [0.97, 0.08, 0.34, 0.3]],
+    draw: (p) => drawArcher(p, pose, m, undefined, true),
+    crop: [34, -16, 73],
+    halo: [77, -2, 16],
+    colors: AVATAR_COLORS,
+    skyline: SPRUCES,
+    emblem: { polys: DEER, color: '#101711' },
   };
 }
 
+/** Варианты на обсуждении: аватарка (`ARCHER_AVATARS`); без поля — рекомендованная. */
+export interface ArcherOpts { variants?: { avatar?: AvatarVariant } }
 
 /**
  * Зонд: таз, кисть с луком, концы лука (нижний — `tip`, верхний — `but`), стопы, суставы обеих рук. Главная цепь для
@@ -840,12 +949,12 @@ function probeOf(): HeroProbe {
 }
 
 /** Лучник; рост в покое — `HERO_BODY_HEIGHT.archer` (124) в пикселе `HERO_PIXEL`. */
-export function archerModel(): HeroModel {
+export function archerModel(opts: ArcherOpts = {}): HeroModel {
   const m = matsOf();
   const probe = probeOf();
   return {
     id: 'archer',
-    avatar: avatarOf(m),
+    avatar: avatarOf(m, opts.variants?.avatar ?? ARCHER_AVATAR_REC),
     probe,
     w: 132,
     h: 134,
@@ -898,7 +1007,7 @@ const FALL_ROT = -84;
 const BOW_LAND: [number, number] = [102, 6];
 const ARROW_LAND: [number, number] = [78, 3];
 
-function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void {
+function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe, portrait = false): void {
   const breath = p.bob(2, 2);
   const turn = p.blink(0.62, 0.16);
   // Падение на спину: таз к земле и чуть назад, верх ложится назад, головой от врагов.
@@ -1140,7 +1249,11 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       // перерисовывал мелкое лицо и оно мигало.
       mantle(p, m);
       p.pose({ dx: p.snap(1.5 * turn), rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () =>
-        p.scope(HEAD_SCALE, M.neck[0] * (1 - HEAD_SCALE), M.neck[1] * (1 - HEAD_SCALE), () => head(p, m)));
+        {
+        // Портрет: голова крупнее боя (капюшон прежнего портрета — треть кадра), пелерину под ней она закрывает.
+        const k = portrait ? PORTRAIT_HEAD : HEAD_SCALE;
+        p.scope(k, M.neck[0] * (1 - k), M.neck[1] * (1 - k), () => head(p, m, portrait));
+      });
 
       // Стрела — на тетиве: от ушка у тянущей кисти к полке над кулаком; в руке — через кулак под углом `aa`. Поверх
       // руки с луком и груди, под тянущей рукой. Выпавший лук со стрелой нарисован раньше, до ног.
