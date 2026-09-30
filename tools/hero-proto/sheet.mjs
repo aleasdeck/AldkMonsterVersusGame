@@ -25,9 +25,13 @@ const OUT = resolve(opt('out', join(ROOT, 'hero-preview')));
 const ONLY = opt('clips', '');
 const D = Number(opt('d', 1.5)); // пиксель героя — 1,5 (решение пользователя)
 const HERO = opt('hero', 'warrior');
-/** Облик модели на обсуждении (`<герой>Model(look)`): варианты одной лепки до выбора пользователя; в имени файла — суффиксом. */
-const LOOK = opt('look', '');
-const NAME = LOOK ? `${HERO}-${LOOK}` : HERO;
+/**
+ * Варианты клипов на обсуждении: `--var attack=b,heal=b` → `<герой>Model({ variants })` для модели, ещё не записанной в
+ * HERO_MODELS; в имени файла — суффиксом (`mage-attackb-healb.png`).
+ */
+const VAR = opt('var', '');
+const VARIANTS = Object.fromEntries(VAR.split(',').filter(Boolean).map((s) => s.split('=')));
+const NAME = VAR ? `${HERO}-${VAR.replace(/=/g, '').replace(/,/g, '-')}` : HERO;
 const AVATAR = args.includes('--avatar');
 
 const bundle = await build({
@@ -85,7 +89,7 @@ function png(w, h, rgba) {
 mkdirSync(OUT, { recursive: true });
 const BG = [34, 38, 34], GROUND = [110, 84, 56], KEY = [255, 209, 102];
 const GAP = 4;
-const model = (LOOK ? undefined : HERO_MODELS[HERO]) ?? own[`${HERO}Model`]?.(LOOK || undefined);
+const model = (VAR ? undefined : HERO_MODELS[HERO]) ?? own[`${HERO}Model`]?.(VAR ? { variants: VARIANTS } : undefined);
 if (!model) throw new Error(`Нет модели героя «${HERO}»: ни в HERO_MODELS (src/ui/heroes/index.ts), ни ${HERO}Model() в src/ui/heroes/${HERO}.ts`);
 // Клипы, которые рисует модель: общие и её личные (чужие личные она не рисует — в игре играет замена).
 const clips = modelClips(model).filter((c) => !ONLY || ONLY.split(',').includes(c));
