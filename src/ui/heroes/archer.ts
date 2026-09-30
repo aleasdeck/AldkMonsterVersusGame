@@ -247,6 +247,14 @@ const M = {
 };
 
 const len = (a: readonly number[], b: readonly number[]): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+/**
+ * Масштаб головы вокруг шеи (решение пользователя: «капюшон поменьше бы»): капюшон с листа в мерку выходил крупным
+ * рядом с Воином, Паладином и Берсерком. Шея стоит, поэтому голова остаётся между плечами, а свод опускается. Верх
+ * пелерины и ореол аватарки сводятся к шее тем же масштабом (`toHead`), иначе они торчали бы из-за меньшего капюшона.
+ */
+const HEAD_SCALE = 0.85;
+const toHead = (x: number, y: number): [number, number] => [M.neck[0] + (x - M.neck[0]) * HEAD_SCALE, M.neck[1] + (y - M.neck[1]) * HEAD_SCALE];
 const LEG_N = { l1: len(M.legN.hip, M.legN.knee), l2: len(M.legN.knee, M.legN.ank) };
 const LEG_F = { l1: len(M.legF.hip, M.legF.knee), l2: len(M.legF.knee, M.legF.ank) };
 const PELVIS = M.pelvis;
@@ -600,7 +608,9 @@ function head(p: Painter, m: Mats, L: ArcherLookSpec): void {
 function mantle(p: Painter, m: Mats, L: ArcherLookSpec): void {
   // На дальней стороне пелерина спускается ниже (до y 69 листа) и закрывает плечо до руки с луком, как на листе:
   // узкой лентой под рукой она не давала торсу плеч.
-  const top = S(58, 52, 63, 44, 72, 39, 84, 40, 96, 45, 108, 49, 118, 52, 124, 57, 127, 64);
+  // Верх пелерины лежит под капюшоном — сведён к шее тем же масштабом, что голова.
+  const under = S(63, 44, 72, 39, 84, 40, 96, 45, 108, 49);
+  const top = [...S(58, 52), ...under.flatMap((v, i) => (i % 2 ? [] : toHead(v, under[i + 1]))), ...S(118, 52, 124, 57, 127, 64)];
   const low = S(126, 69, 116, 67, 106, 63, 95, 60, 80, 58, 66, 56, 57, 53);
   let edge: number[];
   if (L.cloakCut === 'rag') edge = ragEdge(low, R(4), R(5), 1, 0);
@@ -719,7 +729,7 @@ function avatarOf(look: ArcherLook, m: Mats): AvatarSpec {
   return {
     draw: (p) => drawArcher(p, REST, LOOKS[look], m, look),
     crop: [20, -8, 100],
-    halo: [X(96), Y(30), 26],
+    halo: [...toHead(X(96), Y(30)), 23],
     colors: { top: '#1d2a1c', bottom: '#0a100b', halo: '#3e4c33', haloEdge: '#5e6446', skyline: '#0c140e', frameDark: '#070b08', frame: '#27301f', frameLight: '#5a6044' },
     skyline: [[0.04, 0.09, 0.3, 0.32], [0.13, 0.08, 0.22, 0.3], [0.88, 0.09, 0.26, 0.34], [0.97, 0.08, 0.34, 0.3]],
   };
@@ -747,9 +757,16 @@ export function archerModel(look: ArcherLook = ARCHER_RECOMMENDED): HeroModel {
 /**
  * Сапоги — контуры листа от щиколотки (разница в точках листа): ближний носком наружу (влево), дальний — к врагам.
  * У щиколотки перехват, пятка выступает назад: голенище, сразу расходившееся в широкую стопу, читалось валенком.
+ * Сапог меньше листа (решение пользователя): стопа короче на 18 % и ниже на 15 % от подошвы, голенище начинается на
+ * трети голени ниже колена (`BOOT_TOP`) и уже на 15 %.
  */
 const BOOT_N = [-7, -6, 5, -6, 6.5, 0, 10, 5, 12, 10, 11.5, 16, 9.5, 18, -19, 18, -22, 16, -22.5, 12.5, -20, 9, -15, 6, -9, 2];
 const BOOT_F = [-7, -5, 7, -6, 11, 0, 16, 5, 21, 8, 24, 11, 24.5, 15, 23, 18, -10, 18, -12.5, 15, -13, 10, -11, 4, -7.5, 0];
+/** Подошва сапога от щиколотки (точки листа), масштаб стопы по длине и высоте, верх голенища — доля голени от колена. */
+const SOLE = 18;
+const FOOT_X = 0.82;
+const FOOT_Y = 0.85;
+const BOOT_TOP = 0.33;
 
 function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look: ArcherLook): void {
   const breath = p.bob(2, 2);
@@ -792,8 +809,8 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
     // ── Ноги: бедро от таза, колено — ik в больших сдвигах (шаг), в малых идёт за тазом и стопой наполовину; стопы
     //    стоят. Штаны темнее плаща, голенище толщиной с лист, высокие сапоги с обмоткой, наколенники. ──
     const legs = [
-      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.1, boot: BOOT_F, bend: [1, -0.2], foot: P.footF, lift: P.liftF, out: 1, rt: [10, 8.5, 8.5, 7], pants: m.pantsF },
-      { g: M.legN, L2: LEG_N, side: 'near', tone: 0, boot: BOOT_N, bend: [-1, -0.3], foot: P.footN, lift: P.liftN, out: -1, rt: [11, 9, 9, 7.2], pants: m.pantsN },
+      { g: M.legF, L2: LEG_F, side: 'far', tone: -0.1, boot: BOOT_F, bend: [1, -0.2], foot: P.footF, lift: P.liftF, out: 1, rt: [10, 8.5, 7.2, 6], pants: m.pantsF },
+      { g: M.legN, L2: LEG_N, side: 'near', tone: 0, boot: BOOT_N, bend: [-1, -0.3], foot: P.footN, lift: P.liftN, out: -1, rt: [11, 9, 7.6, 6.2], pants: m.pantsN },
     ] as const;
     for (const lg of legs) {
       const dhy = hipY - PELVIS[1];
@@ -812,12 +829,16 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
       const leg = `${lg.side}Leg`, shin = `${lg.side}Shin`, foot = `${lg.side}Foot`, knee = `${lg.side}Knee`;
       const tone = lg.tone;
       p.limb(hx, hy, R(lg.rt[0]), kx, ky, R(lg.rt[1]), lg.pants, { part: leg, tone, flat: 0.3 });
-      // Голень — обмотка высокого сапога: ремни поперёк.
-      p.limb(kx, ky, R(lg.rt[2]), ax, ay, R(lg.rt[3]), m.boot, { part: shin, tone: tone + 0.06, flat: 0.3 });
+      // Голень: под коленом — штанина, ниже — голенище сапога с обмоткой (решение пользователя: «ботинки поменьше» —
+      // сапог до колена с листа был самой крупной формой ног). Верх голенища — светлый отворот.
+      const [bx, by] = [lerp(kx, ax, BOOT_TOP), lerp(ky, ay, BOOT_TOP)];
+      p.limb(kx, ky, R(lg.rt[1] * 0.9), bx, by, R(lg.rt[2]), lg.pants, { part: leg, tone, flat: 0.3 });
+      p.limb(bx, by, R(lg.rt[2]), ax, ay, R(lg.rt[3]), m.boot, { part: shin, tone: tone + 0.06, flat: 0.3 });
+      stroke(p, [bx - R(lg.rt[2]) * 0.85, by + 0.8, bx + R(lg.rt[2]) * 0.85, by - 0.4], m.lace, shin);
       // Обмотка наискось: стык и ремень тонами самого сапога, не во всю ширину — чёрно-светлые полосы «зеброй»
       // были самой контрастной деталью фигуры.
-      for (const f of [0.3, 0.52, 0.74]) {
-        const [cx, cy] = [lerp(kx, ax, f), lerp(ky, ay, f)];
+      for (const f of [0.4, 0.7]) {
+        const [cx, cy] = [lerp(bx, ax, f), lerp(by, ay, f)];
         const r = R(lerp(lg.rt[2], lg.rt[3], f));
         stroke(p, [cx - r * 0.8, cy + 1.2, cx + r * 0.8, cy - 0.8], L.boot[1], shin);
         stroke(p, [cx - r * 0.6, cy - 0.4, cx + r * 0.6, cy - 2], L.boot[3], shin);
@@ -825,12 +846,17 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
       // Сапог: подошва на земле; оторванная пятка — поворот вокруг щиколотки.
       p.pose({ rot: toe * lg.out * 0.9, px: ax, py: ay }, () => {
         const b: number[] = [];
-        for (let k = 0; k < lg.boot.length; k += 2) b.push(ax + R(lg.boot[k]), toe > 0.02 ? ay + R(lg.boot[k + 1]) : Math.min(floorY, ay + R(lg.boot[k + 1])));
+        // Стопа короче и ниже контура листа (`FOOT_X`, `FOOT_Y`): подошва остаётся на земле, пятка и щиколотка — те же.
+        const bp = (x: number, y: number): [number, number] => [ax + R(x * FOOT_X), ay + R(SOLE + (y - SOLE) * FOOT_Y)];
+        for (let k = 0; k < lg.boot.length; k += 2) {
+          const [x, y] = bp(lg.boot[k], lg.boot[k + 1]);
+          b.push(x, toe > 0.02 ? y : Math.min(floorY, y));
+        }
         // Стопа без линии о голенище: с ней сапог читался отдельным сабо под «ходулей» голени.
-        p.poly(b, m.boot, { part: foot, bevel: 3, tone: tone - 0.02, noLine: true });
+        p.poly(b, m.boot, { part: foot, bevel: 2.6, tone: tone - 0.02, noLine: true });
         // Свет по подъёму к носку, подошва.
-        stroke(p, lg.out > 0 ? [ax + R(10), ay + R(2), ax + R(20), ay + R(8.5)] : [ax - R(12), ay + R(6), ax - R(20), ay + R(10.5)], m.lace, foot);
-        stroke(p, lg.out > 0 ? [ax - R(9), ay + R(15.5), ax + R(22), ay + R(15.5)] : [ax - R(20), ay + R(15.5), ax + R(8), ay + R(15.5)], m.seam, foot);
+        stroke(p, lg.out > 0 ? [...bp(10, 2), ...bp(20, 8.5)] : [...bp(-12, 6), ...bp(-20, 10.5)], m.lace, foot);
+        stroke(p, lg.out > 0 ? [...bp(-9, 15.5), ...bp(22, 15.5)] : [...bp(-20, 15.5), ...bp(8, 15.5)], m.seam, foot);
       });
       // Отворот сапога под коленом и наколенник — кожаная чашка.
       p.ellipse(kx + R(lg.out > 0 ? 1 : 0), ky, R(lg.out > 0 ? 7 : 7.4), R(lg.out > 0 ? 6 : 6.4), m.knee, { part: knee, lift: 0.6, flat: 0.45, tone: tone + 0.1 });
@@ -891,7 +917,8 @@ function drawArcher(p: Painter, P: ArcherPose, L: ArcherLookSpec, m: Mats, look:
       // Пелерина и голова: голова раз за цикл подаётся к прицелу на пиксель — сдвигом, не поворотом: поворот на 1–2°
       // перерисовывал мелкое лицо и оно мигало.
       mantle(p, m, L);
-      p.pose({ dx: p.snap(1.5 * turn), rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => head(p, m, L));
+      p.pose({ dx: p.snap(1.5 * turn), rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () =>
+        p.scope(HEAD_SCALE, M.neck[0] * (1 - HEAD_SCALE), M.neck[1] * (1 - HEAD_SCALE), () => head(p, m, L)));
 
       // Стрела на тетиве — от ушка у тянущей кисти к полке над кулаком; поверх руки с луком и груди.
       nock = [lerp(lerp(b.top[0], b.bot[0], 0.53), P.nhx - R(1.5), P.draw), lerp(lerp(b.top[1], b.bot[1], 0.53), P.nhy, P.draw)];
