@@ -266,9 +266,13 @@ function staffPt(x: number, y: number, a: number, s: number, t: number): [number
   return [x + c * s - sn * t, y + sn * s + c * t];
 }
 
-/** Древко и навершие от кулака (x, y) под углом `a`: дерево и кольцо-крюк листа с бронзовой обоймой. */
-function staff(p: Painter, m: Mats, x: number, y: number, a: number): void {
-  const q = (s: number, t: number): [number, number] => staffPt(x, y, a, s, t);
+/**
+ * Древко и навершие от кулака (x, y) под углом `a`: дерево и кольцо-крюк листа с бронзовой обоймой. `slide` — хват
+ * скользит к концу древка: посох сдвинут вдоль оси через кулак к навершию (на замахе над головой комель не торчит
+ * на врагов копьём).
+ */
+function staff(p: Painter, m: Mats, x: number, y: number, a: number, slide = 0): void {
+  const q = (s: number, t: number): [number, number] => staffPt(x, y, a, s + slide, t);
   const top = RING_BASE[0];
   // Прямое древко.
   p.limb(...q(-STAFF_BUTT, 0), 1.9, ...q(top + 1, 0), 2.1, m.staff, { part: 'staff' });
@@ -463,6 +467,13 @@ export interface MagePose extends Record<string, number> {
   glow: number; burst: number; spark: number; palm: number;
   /** Пыль у навершия — удар в землю; `dustX` — где она стоит (x мира, 0 — под навершием): пыль не едет за посохом. */
   dust: number; dustX: number;
+  /**
+   * Хват вдоль древка: посох сдвинут через кулак к навершию на `slide` единиц (0 — хват в верхней трети, как в стойке).
+   * Поднятый посох виден целиком, и без сдвига две трети древка под кулаком торчали перед лицом на врагов — «копьё,
+   * перехваченное посередине»; на замахе кулак съезжает к концу. Половину сдвига гасит кисть, опущенная вдоль посоха,
+   * — навершие поднимается только на остаток.
+   */
+  slide: number;
 }
 
 /** Угол предплечья дальней руки в стойке — от него в клипах отсчитывается угол посоха (`wr`). */
@@ -478,7 +489,7 @@ const REST: MagePose = {
   ffront: 0, nfront: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, cape: 0,
   fall: 0, hold: 0, gx: 0, gy: 0, gsw: 0, fbend: 1,
-  glow: 1, burst: 0, spark: 0, palm: 0, dust: 0, dustX: 0,
+  glow: 1, burst: 0, spark: 0, palm: 0, dust: 0, dustX: 0, slide: 0,
 };
 
 /**
@@ -596,8 +607,8 @@ const CLIPS: Record<Exclude<MageClip, VariantClip>, PoseKeys<MagePose>> = {
   // (`burst`) — ореол и лучи; 5 — держит, вспышка гаснет; 6 — стопа назад, посох в стойку.
   power: [
     [1, { ws: 1, x: -1, crouch: 2, lean: -3, head: -4, fhx: 128, fhy: 56, wr: -30, glow: 1.2, cape: 0.1 }],
-    [2, { x: -3, crouch: 1, lean: -6, head: -8, fhx: 132, fhy: 47, wr: -50, glow: 1.7, footF: 0, cape: 0.3, burst: 0 }],
-    [3, { x: 2, crouch: 3, lean: 2, head: -2, fhx: 138, fhy: 46, wr: -45, glow: 1.6, footF: 9, liftF: 4, cape: 0.5, burst: 0 }],
+    [2, { x: -3, crouch: 1, lean: -6, head: -8, fhx: 132.4, fhy: 52, wr: -50, slide: 10, glow: 1.7, footF: 0, cape: 0.3, burst: 0 }],
+    [3, { x: 2, crouch: 3, lean: 2, head: -2, fhx: 138, fhy: 46, wr: -45, slide: 0, glow: 1.6, footF: 9, liftF: 4, cape: 0.5, burst: 0 }],
     [4, { x: 6, crouch: 5, lean: 8, head: 3, fhx: 138, fhy: 62, wr: -30, glow: 1.4, burst: 1, footF: 10, liftF: 0, cape: 0.7 }],
     [5, { x: 6, crouch: 5, lean: 7, head: 3, fhx: 136, fhy: 64, wr: -29, glow: 1.2, burst: 0.35, footF: 10, cape: 0.5 }],
     [6, { ws: 1, x: 2, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 68, wr: -39, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.2 }],
@@ -607,13 +618,13 @@ const CLIPS: Record<Exclude<MageClip, VariantClip>, PoseKeys<MagePose>> = {
   // запрокинут, плащ взвился, пламя вспыхивает во весь рост (`glow` 2,1) — рёв рисует слой эффектов; 5–6 держит; 7–8 опускает.
   buff: [
     [1, { ws: 1, crouch: 5, lean: 5, head: 8, fhx: 122, fhy: 72, wr: -55, glow: 0.9, nhx: 46, nhy: 84, cape: 0.1 }],
-    [2, { crouch: 2, lean: -1, head: -2, fhx: 130, fhy: 44, wr: -48, glow: 1.4, cape: 0.3, burst: 0 }],
-    [3, { y: -1, crouch: 0, lean: -5, head: -10, fhx: 126, fhy: 22, wr: -50, glow: 1.8, nhx: 38, nhy: 86, cape: 0.6, burst: 0 }],
-    [4, { y: -2, crouch: 0, lean: -7, head: -16, fhx: 126, fhy: 20, wr: -55, glow: 2.1, burst: 0.9, nhx: 36, nhy: 85, cape: 1 }],
-    [5, { y: -2, crouch: 0, lean: -7, head: -16, fhx: 126, fhy: 20, wr: -55, glow: 2.2, burst: 0.6, cape: 0.95 }],
-    [6, { y: -1, crouch: 0, lean: -6, head: -14, fhx: 126, fhy: 21, wr: -54, glow: 2, burst: 0.3, cape: 0.8 }],
-    [7, { y: 0, crouch: 1, lean: -3, head: -8, fhx: 130, fhy: 40, wr: -48, glow: 1.5, burst: 0, nhx: 42, nhy: 86, cape: 0.5 }],
-    [8, { ws: 1, crouch: 1, lean: 0, head: -2, fhx: 126, fhy: 62, wr: -42, glow: 1.1, cape: 0.2 }],
+    [2, { crouch: 2, lean: -1, head: -2, fhx: 132.3, fhy: 53.7, wr: -48, slide: 20, glow: 1.4, cape: 0.3, burst: 0 }],
+    [3, { y: -1, crouch: 0, lean: -5, head: -10, fhx: 128.5, fhy: 32.7, wr: -50, slide: 22, glow: 1.8, nhx: 38, nhy: 86, cape: 0.6, burst: 0 }],
+    [4, { y: -2, crouch: 0, lean: -7, head: -16, fhx: 128.5, fhy: 30.7, wr: -55, slide: 22, glow: 2.1, burst: 0.9, nhx: 36, nhy: 85, cape: 1 }],
+    [5, { y: -2, crouch: 0, lean: -7, head: -16, fhx: 128.5, fhy: 30.7, wr: -55, slide: 22, glow: 2.2, burst: 0.6, cape: 0.95 }],
+    [6, { y: -1, crouch: 0, lean: -6, head: -14, fhx: 128.5, fhy: 31.7, wr: -54, slide: 22, glow: 2, burst: 0.3, cape: 0.8 }],
+    [7, { y: 0, crouch: 1, lean: -3, head: -8, fhx: 132.3, fhy: 49.7, wr: -48, slide: 20, glow: 1.5, burst: 0, nhx: 42, nhy: 86, cape: 0.5 }],
+    [8, { ws: 1, crouch: 1, lean: 0, head: -2, fhx: 126, fhy: 62, wr: -42, slide: 0, glow: 1.1, cape: 0.2 }],
   ],
   // Блок: 1 — посох подтянут торчком к плечу, ближняя ладонь выставлена перед грудью (оберег), голова ушла в капюшон;
   // 2 — кадр удара: отдача назад, присел, искры о древко; 3 — держит; 4 — ладонь под полу, посох в стойку.
@@ -657,9 +668,9 @@ const VARIANT_CLIPS: Record<VariantClip, Record<Variant, PoseKeys<MagePose>>> = 
     // под полой (перед грудью он вспыхивал на два кадра — ревью риггера); 3 — шаг, толчок; 4 — контакт: рука во всю длину,
     // навершие на врагов, вспышка.
     a: [
-      [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -3, fhx: 120, fhy: 64, wr: -37, glow: 1.15, footF: 0, nhx: 38, nhy: 80, nl: 1.05, cape: 0.1 }],
-      [2, { x: -3, crouch: 2, lean: -7, head: -4, fhx: 118, fhy: 60, fsx: -3, wr: -34, glow: 1.35, footF: 0, liftF: 2, nhx: 32, nhy: 76, nl: 1.1, cape: 0.15, burst: 0 }],
-      [3, { x: 4, crouch: 3, lean: 4, head: 0, fhx: 132, fhy: 58, fsx: 0, wr: -29, glow: 1.4, footF: 11, liftF: 4, nhx: 40, nhy: 86, nl: 1, cape: 0.5, burst: 0 }],
+      [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -3, fhx: 120, fhy: 64, wr: -37, glow: 1.15, footF: 0, nhx: 42, nhy: 84, cape: 0.1 }],
+      [2, { x: -3, crouch: 2, lean: -7, head: -4, fhx: 118, fhy: 60, fsx: -3, wr: -34, glow: 1.35, footF: 0, liftF: 2, nhx: 40, nhy: 82, cape: 0.15, burst: 0 }],
+      [3, { x: 4, crouch: 3, lean: 4, head: 0, fhx: 132, fhy: 58, fsx: 0, wr: -29, glow: 1.4, footF: 11, liftF: 4, nhx: 40, nhy: 86, cape: 0.5, burst: 0 }],
       [4, { x: 8, crouch: 5, lean: 9, head: 3, fhx: 140, fhy: 58, wr: -34, glow: 1.35, burst: 1, footF: 12, liftF: 0, nhx: 38, nhy: 86, cape: 0.8 }],
       [5, { x: 8, crouch: 5, lean: 8, head: 3, fhx: 138, fhy: 60, wr: -31, glow: 1.2, burst: 0.35, footF: 12, nhx: 40, nhy: 87, cape: 0.6 }],
       [6, { ws: 1, x: 3, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 66, wr: -35, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
@@ -668,10 +679,10 @@ const VARIANT_CLIPS: Record<VariantClip, Record<Variant, PoseKeys<MagePose>>> = 
     // над плечом, посох уже клонится вперёд (≈ −80° в мире; прямая рука с отвесным посохом была «факелом»); 4 — контакт:
     // навершие опускается на врагов, вспышка.
     b: [
-      [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -4, fhx: 122, fhy: 28, wr: -40, glow: 1.2, footF: 0, liftF: 2, nhx: 48, nhy: 84, cape: 0.15 }],
-      [2, { x: -4, y: -1, crouch: 0, lean: -9, head: -7, fhx: 120, fhy: 22, wr: -47, glow: 1.45, footF: 0, liftF: 4, nhx: 50, nhy: 83, cape: 0.3, burst: 0 }],
-      [3, { x: 3, y: 0, crouch: 2, lean: 2, head: -1, fhx: 134, fhy: 42, wr: -30, glow: 1.5, footF: 11, liftF: 4, nhx: 42, nhy: 86, cape: 0.5, burst: 0 }],
-      [4, { x: 9, crouch: 6, lean: 10, head: 4, fhx: 140, fhy: 60, wr: -30, glow: 1.35, burst: 1, footF: 13, liftF: 0, nhx: 38, nhy: 86, cape: 0.9 }],
+      [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -4, fhx: 127.4, fhy: 36.4, wr: -40, slide: 20, glow: 1.2, footF: 0, liftF: 2, nhx: 48, nhy: 84, cape: 0.15 }],
+      [2, { x: -4, y: -1, crouch: 0, lean: -9, head: -7, fhx: 125.4, fhy: 30.4, wr: -47, slide: 20, glow: 1.45, footF: 0, liftF: 4, nhx: 50, nhy: 83, cape: 0.3, burst: 0 }],
+      [3, { x: 3, y: 0, crouch: 2, lean: 2, head: -1, fhx: 133.1, fhy: 44.9, wr: -30, slide: 6, glow: 1.5, footF: 11, liftF: 4, nhx: 42, nhy: 86, cape: 0.5, burst: 0 }],
+      [4, { x: 9, crouch: 6, lean: 10, head: 4, fhx: 140, fhy: 60, wr: -30, slide: 0, glow: 1.35, burst: 1, footF: 13, liftF: 0, nhx: 38, nhy: 86, cape: 0.9 }],
       [5, { x: 9, crouch: 6, lean: 9, head: 4, fhx: 138, fhy: 62, wr: -31, glow: 1.2, burst: 0.35, footF: 13, nhx: 40, nhy: 87, cape: 0.6 }],
       [6, { ws: 1, x: 3, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 66, wr: -33, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
     ],
@@ -681,26 +692,26 @@ const VARIANT_CLIPS: Record<VariantClip, Record<Variant, PoseKeys<MagePose>>> = 
     // над головой; 4 — навершие идёт вниз-вперёд; 5 — контакт: широкий шаг, присед, навершие бьёт в землю перед врагом —
     // вспышка, пыль; 6–7 — держит; 8 — выпрямляется, стопа назад.
     a: [
-      [1, { ws: 1, x: -2, y: -1, crouch: 1, lean: -4, head: -3, fhx: 130, fhy: 34, wr: -46, glow: 1.25, liftF: 2, cape: 0.2, dust: 0, burst: 0 }],
-      [2, { x: -5, y: -3, crouch: 0, lean: -12, head: -8, fhx: 114, fhy: 16, wr: -36, glow: 1.5, liftF: 5, footF: 2, cape: 0.35 }],
-      [3, { x: 1, y: -2, crouch: 1, lean: -2, head: -2, fhx: 132, fhy: 26, wr: -27, glow: 1.55, footF: 8, liftF: 6, cape: 0.5 }],
+      [1, { ws: 1, x: -2, y: -1, crouch: 1, lean: -4, head: -3, fhx: 132.5, fhy: 44.7, wr: -46, slide: 22, glow: 1.25, liftF: 2, cape: 0.2, dust: 0, burst: 0 }],
+      [2, { x: -5, y: -3, crouch: 0, lean: -12, head: -8, fhx: 119.6, fhy: 25.5, wr: -36, slide: 22, glow: 1.5, liftF: 5, footF: 2, cape: 0.35 }],
+      [3, { x: 1, y: -2, crouch: 1, lean: -2, head: -2, fhx: 127.5, fhy: 36, wr: -27, slide: 22, glow: 1.55, footF: 8, liftF: 6, cape: 0.5 }],
       [4, { x: 8, y: -1, crouch: 6, lean: 10, head: 5, fhx: 138, fhy: 56, wr: -25, glow: 1.5, footF: 15, liftF: 3, cape: 0.75, dust: 0, burst: 0 }],
-      [5, { x: 12, y: 0, crouch: 10, lean: 16, head: 8, fhx: 124, fhy: 85, wr: -30, glow: 1.4, burst: 1, dust: 1, dustX: 168, footF: 16, liftF: 0, cape: 0.9 }],
-      [6, { x: 12, crouch: 11, lean: 17, head: 8, fhx: 124, fhy: 85, wr: -30, glow: 1.25, burst: 0.6, dust: 1.2, dustX: 168, footF: 16, cape: 0.8 }],
-      [7, { x: 11, crouch: 10, lean: 15, head: 7, fhx: 124, fhy: 84, wr: -31, glow: 1.15, burst: 0.25, dust: 0.8, dustX: 168, footF: 16, cape: 0.6 }],
+      [5, { x: 12, y: 0, crouch: 10, lean: 16, head: 8, fhx: 124, fhy: 85, wr: -30, glow: 1.4, burst: 1, dust: 1, dustX: 168, slide: 0, footF: 16, liftF: 0, cape: 0.9 }],
+      [6, { x: 12, crouch: 11, lean: 17, head: 8, fhx: 124, fhy: 85, wr: -30, glow: 1.25, burst: 0.6, dust: 1.2, dustX: 168, footF: 16, liftF: 0, cape: 0.8 }],
+      [7, { x: 11, crouch: 10, lean: 15, head: 7, fhx: 124, fhy: 84, wr: -31, glow: 1.15, burst: 0.25, dust: 0.8, dustX: 168, footF: 16, liftF: 0, cape: 0.6 }],
       [8, { ws: 1, x: 5, crouch: 5, lean: 6, head: 3, fhx: 126, fhy: 72, wr: -35, glow: 1.05, burst: 0, dust: 0.3, dustX: 168, footF: 3, liftF: 4, cape: 0.3 }],
     ],
     // B «Снизу»: 1–3 — присел, посох опущен навершием вперёд-вниз, у колен; рука почти прямая вперёд-вниз, локоть у края
     // торса (кисть ближе к телу уводила локоть внутрь контура — рука висела поверх живота); 4 — шаг, посох идёт вверх;
     // 5 — контакт: навершие вскинуто снизу на врага на высоте головы, вспышка; 6–7 — держит; 8 — назад.
     b: [
-      [1, { ws: 1, x: -2, crouch: 4, lean: 2, head: 2, fhx: 126, fhy: 82, wr: -30, glow: 1.1, footF: 0, cape: 0.1, burst: 0 }],
+      [1, { ws: 1, x: -2, crouch: 4, lean: 2, head: 2, fhx: 126, fhy: 82, wr: -45, glow: 1.1, footF: 0, cape: 0.1, burst: 0 }],
       [2, { x: -4, crouch: 7, lean: 5, head: 4, fhx: 124, fhy: 88, footF: 0, wr: -28, glow: 1.25, liftF: 2, cape: 0.2 }],
       [3, { x: -3, crouch: 7, lean: 4, head: 3, fhx: 122, fhy: 90, footF: 0, wr: -30, glow: 1.4, liftF: 3, cape: 0.25, burst: 0 }],
       [4, { x: 5, crouch: 4, lean: 2, head: -2, fhx: 136, fhy: 70, wr: -30, glow: 1.5, footF: 13, liftF: 4, cape: 0.6, burst: 0 }],
       [5, { x: 10, crouch: 2, lean: 4, head: -4, fhx: 142, fhy: 58, wr: -47, glow: 1.4, burst: 1, footF: 14, liftF: 0, cape: 0.85 }],
-      [6, { x: 10, crouch: 2, lean: 3, head: -4, fhx: 140, fhy: 58, wr: -46, glow: 1.25, burst: 0.5, footF: 14, cape: 0.7 }],
-      [7, { x: 8, crouch: 3, lean: 2, head: -3, fhx: 136, fhy: 60, wr: -42, glow: 1.15, burst: 0.2, footF: 12, cape: 0.5 }],
+      [6, { x: 10, crouch: 2, lean: 3, head: -4, fhx: 140, fhy: 58, wr: -46, glow: 1.25, burst: 0.5, footF: 14, liftF: 0, cape: 0.7 }],
+      [7, { x: 8, crouch: 3, lean: 2, head: -3, fhx: 136, fhy: 60, wr: -42, glow: 1.15, burst: 0.2, footF: 12, liftF: 0, cape: 0.5 }],
       [8, { ws: 1, x: 4, crouch: 2, lean: 2, head: 0, fhx: 128, fhy: 64, wr: -38, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
     ],
   },
@@ -719,12 +730,12 @@ const VARIANT_CLIPS: Record<VariantClip, Record<Variant, PoseKeys<MagePose>>> = 
     // огонёк над кулаком, пламя посоха притухает (свет перешёл в ладонь), голова склонена к огоньку; 3–6 — держит;
     // 8 — ладонь к груди, огонёк гаснет; 9–10 — рука уходит под полу.
     b: [
-      [1, { ws: 1, crouch: 2, lean: 3, head: 6, fhx: 124, fhy: 70, wr: -44, glow: 0.9, nfront: 1, nhx: 62, nhy: 82, nl: 1.05, palm: 0.3 }],
+      [1, { ws: 1, crouch: 2, lean: 3, head: 6, fhx: 124, fhy: 70, wr: -44, glow: 0.9, nfront: 1, nhx: 62, nhy: 82, nl: 1.05, palm: 0 }],
       [2, { crouch: 3, lean: 4, head: 12, fhx: 124, fhy: 70, wr: -44, glow: 0.8, nfront: 1, nhx: 90, nhy: 70, nl: 1.1, palm: 1 }],
       [4, { crouch: 3, lean: 4, head: 13, nfront: 1, nhx: 90, nhy: 69, nl: 1.1, palm: 1.15 }],
       [6, { crouch: 3, lean: 4, head: 12, nfront: 1, nhx: 90, nhy: 70, nl: 1.1, palm: 1.05 }],
       [8, { crouch: 2, lean: 3, head: 10, nfront: 1, nhx: 80, nhy: 68, nl: 1.08, palm: 0.6, glow: 0.9 }],
-      [9, { crouch: 1, lean: 1, head: 5, nfront: 1, nhx: 70, nhy: 76, nl: 1.04, palm: 0.2, glow: 1 }],
+      [9, { crouch: 1, lean: 1, head: 5, nfront: 1, nhx: 70, nhy: 76, nl: 1.04, palm: 0, glow: 1 }],
       [10, { ws: 1, crouch: 1, lean: 0, head: 2, fhx: 124, fhy: 69, wr: -43, nfront: 0, nhx: 54, nhy: 84, nl: 1, palm: 0, glow: 1 }],
     ],
   },
@@ -954,7 +965,7 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
 
   // ── Посох — позади всего: дальняя рука держит его с дальней стороны тела; низ древка скрыт рясой. Перед грудью
   //    (`ffront`) — в конце кадра, здесь пустые фигуры. ──
-  p.pose(up, () => staff(ff ? ghost : p, m, far.hx, far.hy, SW));
+  p.pose(up, () => staff(ff ? ghost : p, m, far.hx, far.hy, SW, P.slide));
 
   // ── Плащ за спиной: верх на плечах, низ стоит; изнанка — полосой под краем передней полы. ──
   // Низ плаща за спиной — чуть рваный.
@@ -1027,11 +1038,13 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
     p.ellipse(BUCKLE[0], BUCKLE[1], R(4.5), R(4.5), m.trim, { part: 'buckle', lift: 1.2 });
     p.ellipse(BUCKLE[0] + 0.3, BUCKLE[1] + 0.3, R(1.9), R(1.9), m.dark, { part: 'buckle', paint: true });
 
-    // Кошель у бедра.
-    p.poly(S(...POUCH), m.pouch, { part: 'pouch', bevel: 3, lift: 1.5 });
-    p.poly(S(70, 110, 83, 109, 84, 113, 70, 114), m.pouch, { part: 'pouch', paint: true, tone: -0.2 });
-    stroke(p, S(71, 114, 83, 113), m.leatherDark, 'pouch');
-    p.poly(S(74, 115, 78, 114, 79, 117, 75, 118), m.pouch, { part: 'pouch', paint: true, tone: 0.3 });
+    // Кошель у бедра. Павшему (смерть) — пустые фигуры: верх лёг вперёд на 72°, кошель уехал бы с ним на макушку кучи
+    // и читался «кулаком на спине»; под грудью, где он висит на самом деле, его не видно.
+    const pq = P.fall > 0.3 ? ghost : p;
+    pq.poly(S(...POUCH), m.pouch, { part: 'pouch', bevel: 3, lift: 1.5 });
+    pq.poly(S(70, 110, 83, 109, 84, 113, 70, 114), m.pouch, { part: 'pouch', paint: true, tone: -0.2 });
+    stroke(pq, S(71, 114, 83, 113), m.leatherDark, 'pouch');
+    pq.poly(S(74, 115, 78, 114, 79, 117, 75, 118), m.pouch, { part: 'pouch', paint: true, tone: 0.3 });
 
     // Ближняя рука под плащом: рукав от плеча до запястья, наружу у бедра — обшлаг и кулак.
     p.limb(near.sx, near.sy, R(6), near.ex, near.ey, R(5.5), m.sleeveN, { part: 'sleeveN', tone: -0.1 });
@@ -1095,11 +1108,11 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
     stroke(q, [far.ex + nUp[0] * R(4.5), far.ey + nUp[1] * R(4.5), wx + nUp[0] * R(4), wy + nUp[1] * R(4)], m.lit, 'sleeveF');
     // Край обшлага — снизу вверх (рукав слева от хода).
     trimEdge(q, m, floor(upTo([hx(wx, -R(8), R(23)), hy(wy, -R(8), R(23)), hx(wx, -R(5), R(13)), hy(wy, -R(5), R(13)), hx(wx + nUp[0] * R(2), -R(1), R(5)), hy(wy, -R(1), R(5)), wx + nUp[0] * R(6), wy + nUp[1] * R(6)], [wx - nx * R(4.8), wy - ny * R(4.8), wx - nx * R(1.6), wy - ny * R(1.6), wx + nx * R(1.6), wy + ny * R(1.6), wx + nx * R(4.8), wy + ny * R(4.8)])), 'sleeveF', 2);
-    if (whole) staff(q, m, far.hx, far.hy, SW);
+    if (whole) staff(q, m, far.hx, far.hy, SW, P.slide);
     else {
       // Древко под кулаком — поверх края раструба: на листе оно идёт ниже кулака правее обшлага и уходит за клин рясы.
       // Раструб, лежавший правее древка, закрывал его целиком — посох читался коротким скипетром с шаром на конце.
-      const [l0x, l0y] = staffPt(far.hx, far.hy, SW, -22, 0), [l1x, l1y] = staffPt(far.hx, far.hy, SW, -1, 0);
+      const [l0x, l0y] = staffPt(far.hx, far.hy, SW, -Math.min(22, STAFF_BUTT - P.slide), 0), [l1x, l1y] = staffPt(far.hx, far.hy, SW, -1, 0);
       q.limb(l0x, l0y, 1.9, l1x, l1y, 2, m.staff, { part: 'staffLow' });
     }
     fist(q, m, m.fistF, far.hx, far.hy, far.a2, R(4.2), 0.02, 'fistF', true);
@@ -1148,7 +1161,7 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
   }
 
   // Свет посоха — поверх всего, прямо в мире: кулак поворачивает посох, пламя стоит.
-  const [lx, ly] = toWorld(...staffPt(far.hx, far.hy, SW, RING_C[0], RING_C[1]));
+  const [lx, ly] = toWorld(...staffPt(far.hx, far.hy, SW, RING_C[0] + P.slide, RING_C[1]));
   if (P.burst > 0.02) {
     const r = R(11) + R(5) * P.burst;
     for (let k = 0; k < 8; k++) {
@@ -1172,7 +1185,7 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
   }
   if (P.spark > 0.05) {
     // Искры о древко — у середины между кулаком и навершием.
-    const [sx, sy] = toWorld(...staffPt(far.hx, far.hy, SW, 14, 0));
+    const [sx, sy] = toWorld(...staffPt(far.hx, far.hy, SW, 14 + P.slide, 0));
     // Искры — короткими чертами от древка наружу, к врагам и вверх (удар пришёл оттуда).
     const n = Math.round(9 * P.spark);
     for (let k = 0; k < n; k++) {
@@ -1186,7 +1199,7 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
   if (mageProbe.on) {
     const W = (x: number, y: number): [number, number] => map(...toWorld(x, y));
     const [hwx, hwy] = W(far.hx, far.hy), [swx, swy] = W(far.sx, far.sy), [ewx, ewy] = W(far.ex, far.ey);
-    const [bwx, bwy] = W(...staffPt(far.hx, far.hy, SW, -STAFF_BUTT, 0));
+    const [bwx, bwy] = W(...staffPt(far.hx, far.hy, SW, -STAFF_BUTT + P.slide, 0));
     const [hipX, hipY] = map(PELVIS[0] + udx, PELVIS[1] + udy), [tipX, tipY] = map(lx, ly);
     const [nhx, nhy] = W(near.hx, near.hy), [nex, ney] = W(near.ex, near.ey);
     mageProbe.on({
