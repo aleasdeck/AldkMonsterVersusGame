@@ -461,15 +461,15 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
     [1, { crouch: 3, lean: 3, head: 3, nws: 1, nhx: 40, nhy: 66, nwr: -5, nsx: 2, fws: 1, fhx: 106, fhy: 72, fwr: 4, bomb: 1 }],
     [2, { crouch: 2, lean: -2, head: -2, nhx: 60, nhy: 56, nwr: -30, nsx: 5, fhx: 108, fhy: 70 }],
     [3, { crouch: 4, lean: -5, head: -4, nhx: 62, nhy: 52, nwr: 5, nsx: 6, fhx: 104, fhy: 70, nover: 0, fback: 0, smoke: 0, bomb: 1 }],
-    [4, { crouch: 13, lean: 12, head: 10, nhx: 98, nhy: 74, nwr: -30, nsx: 8, fhx: 96, fhy: 70, fwr: 0, fback: 1, cape: 1, nover: 0, smoke: 0.36, fade: 0, bomb: 2 }],
+    [4, { crouch: 13, lean: 12, head: 10, nhx: 98, nhy: 74, nwr: -30, nsx: 8, fhx: 96, fhy: 70, fwr: 0, fback: 1, cape: 1, nover: 0, smoke: 0.26, fade: 0, bomb: 2 }],
     [5, { crouch: 15, lean: 10, head: 14, nhx: 86, nhy: 38, nwr: -10, nsx: 7, fhx: 92, fhy: 64, cape: 1, nover: 1, fback: 0, smoke: 0.55, fade: 0.3, bomb: 0 }],
     [6, { crouch: 15, lean: 10, head: 14, nhx: 86, nhy: 37, nwr: -10, nsx: 7, fhx: 92, fhy: 64, cape: 0.8, nover: 1, smoke: 0.85, fade: 0.9 }],
     [7, { crouch: 15, lean: 10, head: 14, nhx: 86, nhy: 37, nwr: -10, nsx: 7, fhx: 92, fhy: 64, cape: 0.8, nover: 1, smoke: 1, fade: 1, home: 0, thin: 0, nws: 1, fws: 1 }],
     [8, { smoke: 1.05, fade: 1, home: 1, thin: 0 }],
-    [9, { smoke: 1.05, fade: 0.72, home: 1, thin: 0.25 }],
+    [9, { smoke: 1.05, fade: 0.8, home: 1, thin: 0.25 }],
     [10, { smoke: 1.05, fade: 0.3, home: 1, thin: 0.5 }],
     [11, { smoke: 1.05, fade: 0.04, home: 1, thin: 0.72 }],
-    [12, { smoke: 1.05, fade: 0, home: 1, thin: 0.8 }],
+    [12, { smoke: 1.05, fade: 0, home: 1, thin: 0.92 }],
   ],
   // Блок — клинки крестом у лба: кисти подняты к лицу, предплечья его закрывают, ближний клинок вверх-вправо, передний —
   // вверх-влево (кисти подобраны перебором риггера: при плече (81,6; 41,3) и предплечье 24,4 передний клинок клонится
@@ -704,7 +704,9 @@ function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
   const feet: Record<string, number> = {};
 
   p.pose({ dx: P.x, dy: P.y }, () => {
-    p.shadow(X(84) - P.x * 0.5 + 16 * fall, 56 + 8 * fall, 4);
+    // Тень гаснет вместе с растворённым силуэтом: под полупрозрачным дымом две полупрозрачные декали движок сводит в
+    // непрозрачную — выходила чёрная полоса. В покое и остальных клипах `fade` 0, тень прежняя.
+    p.shadow(X(84) - P.x * 0.5 + 16 * fall, 56 + 8 * fall, 4, 0.34 * (1 - P.fade));
 
     // Выпавший дальний клинок — с дальней стороны тела, за ним; ближний — после верха, перед телом.
     if (!held) droppedBlade(p, m, fa, FSW, 'far', P.drop, toWorld, floorY, rot);
@@ -946,17 +948,25 @@ function bladeGlint(p: Painter, a: ArmSolve, sw: number): void {
   for (const [dx, dy] of [[1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]]) p.px(x + dx, y + dy, '#d8cfc4');
 }
 
-/** Дымовая шашка: глиняный шарик в тёмной обводке — светлее обмоток и куртки, иначе тонул в кулаке; латунный фитиль, искра. */
-const BOMB = { r: R(5), rim: '#1a1210', clay: '#7e6e62', lit: '#b4a290', fuse: LOOK.brass[4], spark: '#ffb040', hot: '#fff0b8' };
+/**
+ * Дымовая шашка: глиняный шарик в тёмной обводке — светлее обмоток и куртки, иначе тонул в кулаке; объём тремя дисками
+ * (тень, глина, блик), фитиль тёмной чертой, на конце — искра.
+ */
+const BOMB = { r: R(6), rim: '#1a1210', shade: '#5e5046', clay: '#7e6e62', lit: '#b4a290', spark: '#ffb040', hot: '#fff0b8' };
 
-/** Шарик шашки с бликом сверху слева и фитилём; `fuse` — фитиль тлеет искрой. */
-function bombBall(p: Painter, x: number, y: number, fuse: boolean): void {
-  p.disc(x, y, BOMB.r + 0.9, BOMB.rim);
-  p.disc(x, y, BOMB.r, BOMB.clay);
-  p.px(x - BOMB.r * 0.35, y - BOMB.r * 0.35, BOMB.lit);
-  if (!fuse) return;
-  p.px(x + BOMB.r * 0.3, y - BOMB.r - 1, BOMB.fuse);
-  p.px(x + BOMB.r * 0.3 + 1, y - BOMB.r - 2.5, BOMB.spark);
+/**
+ * Шарик шашки: обводка, тень, глина со сдвигом к свету, блик сверху слева — плоский диск в пять клеток на масштабе
+ * игры сливался с обмоткой; фитиль — черта вверх-вправо, на конце тлеет искра.
+ */
+function bombBall(p: Painter, x: number, y: number): void {
+  const r = BOMB.r;
+  p.disc(x, y, r + 1.2, BOMB.rim);
+  p.disc(x, y, r, BOMB.shade);
+  p.disc(x - r * 0.2, y - r * 0.2, r * 0.75, BOMB.clay);
+  p.disc(x - r * 0.4, y - r * 0.4, r * 0.3, BOMB.lit);
+  p.line(x + r * 0.3, y - r - 0.5, x + r * 0.3 + 1.5, y - r - 3, BOMB.rim);
+  p.px(x + r * 0.3 + 2, y - r - 4.5, BOMB.hot);
+  p.px(x + r * 0.3 + 3.5, y - r - 4.5, BOMB.spark);
 }
 
 /**
@@ -967,26 +977,30 @@ function bombInFist(p: Painter, a: ArmSolve, sw: number): void {
   const ux = Math.cos(sw * DEG), uy = Math.sin(sw * DEG);
   const [nx, ny] = ux >= 0 ? [uy, -ux] : [-uy, ux];
   const k = R(8.2) * 0.5 + BOMB.r * 0.8;
-  bombBall(p, a.hx + nx * k - ux * 1.5, a.hy + ny * k - uy * 1.5, true);
+  bombBall(p, a.hx + nx * k - ux * 1.5, a.hy + ny * k - uy * 1.5);
 }
 
 /**
- * Шашка разбилась о землю у передней стопы (кадр контакта): шарик под первым клубом, короткая тёплая вспышка и искры
- * врассыпную — поверх дыма, чтобы удар читался до того, как дым встанет стеной.
+ * Шашка разбилась о землю у передней стопы (кадр контакта): осколки глины, короткая тёплая вспышка ступенями (светлое
+ * ядро, оранжевый край) и искры врассыпную — поверх дыма, чтобы удар читался до того, как дым встанет стеной. Целый
+ * шарик в середине вспышки читался мишенью, а оранжевый с альфой 0x90 поверх дыма давал бурое пятно.
  */
 function bombBurst(p: Painter): void {
-  const y = G - BOMB.r - 1.5;
+  const y = G - 5.2;
   // Вспышка — полупрозрачными клетками поверх первого клуба (`glow` светит только в пустые клетки, дым её закрыл бы).
   const d = HERO_PIXEL;
   for (let j = Math.floor((y - 14 + PAD) / d); (j + 0.5) * d - PAD < G - 1; j++) {
     for (let i = Math.floor((SMOKE_AT - 14 + PAD) / d); (i + 0.5) * d - PAD <= SMOKE_AT + 14; i++) {
       const cx = (i + 0.5) * d - PAD, cy = (j + 0.5) * d - PAD;
       const q = Math.hypot(cx - SMOKE_AT, (cy - y + 3) * 1.3) / 13;
-      const a = q < 0.4 ? '90' : q < 0.7 ? '58' : q < 1 && BAYER4[(j & 3) * 4 + (i & 3)] > 0.5 ? '30' : '';
-      if (a) p.px(cx, cy, `#ffb060${a}`);
+      const c = q < 0.22 ? '#ffd890c8' : q < 0.45 ? '#ffb06090' : q < 0.7 ? '#ffb06058' : q < 1 && BAYER4[(j & 3) * 4 + (i & 3)] > 0.5 ? '#ffb06030' : '';
+      if (c) p.px(cx, cy, c);
     }
   }
-  bombBall(p, SMOKE_AT, y, false);
+  for (const [dx, dy] of [[-6, -2], [6, -4], [-1, -8], [4, 1], [-4, 1]] as const) {
+    p.px(SMOKE_AT + dx, y + dy, BOMB.clay);
+    p.px(SMOKE_AT + dx + 1.5, y + dy, BOMB.rim);
+  }
   const sparks: Array<[number, number, number, number]> = [[-10, -8, -3, -2], [6, -12, 2, -3], [13, -4, 3, -1], [-3, -16, -1, -3]];
   sparks.forEach(([dx, dy, tx, ty], k) => p.line(SMOKE_AT + dx, y + dy, SMOKE_AT + dx + tx, y + dy + ty, k % 2 ? BOMB.spark : BOMB.hot));
 }
@@ -1055,7 +1069,7 @@ function smokeNoise(x: number, y: number): number {
 
 /**
  * Дым: поле плотности — сумма клубов, край и дыры порваны пятнами плавного шума (решётка давала гранит). Нормаль — на
- * четверть от клубов по вкладу в квадрате (доли тучи), на три четверти от наклона всего поля (туча одна, а не кладка
+ * пятую часть от клубов по вкладу в квадрате (доли тучи), на четыре пятых от наклона всего поля (туча одна, а не кладка
  * шаров); ступени почти без дизеринга. Верх тучи светлее и прозрачнее низа, над ним — клочья: на тёмном фоне туча не
  * сливается в ком. Клубы встают от места удара шашки в стороны и вверх (`smoke`), с ходом клипа (`p.u`) растут,
  * поднимаются и покачиваются. Редея (`thin`), дым поднимается и расползается, нижние клубы гаснут первыми (земля
@@ -1073,18 +1087,18 @@ function drawSmoke(p: Painter, s: number, thin: number): void {
     const q = thin / last;
     const r = r0 * (0.45 + 0.55 * g) * (1 + 0.3 * q + 0.2 * age);
     const cx = x + ((k % 3) - 1) * 4 * q + 2.5 * Math.sin(k * 1.7 + u * 7);
-    const cy = G - hy * (0.55 + 0.45 * g) - thin * 22 - age * 8 * (0.6 + 0.4 * (k % 2));
+    const cy = G - hy * (0.55 + 0.45 * g) - thin * 22 - age * 16 * (0.6 + 0.4 * (k % 2));
     live.push([cx, cy, r, g * (1 - q * q)]);
   });
   const wisps: Array<[number, number, number, number]> = [];
   WISPS.forEach(([x, hy, r0], k) => {
-    const g = Math.max(0, Math.min(1, (s - 0.55 - 0.04 * k) / 0.3));
+    const g = Math.max(0, Math.min(1, (s - 0.75 - 0.04 * k) / 0.25));
     const w = 0.85 * g * (1 - thin ** 1.5);
     if (w <= 0.05) return;
-    wisps.push([x + 4 * Math.sin(k * 2.3 + u * 6), G - hy * (0.8 + 0.2 * g) - age * 26 - thin * 18, r0 * (0.6 + 0.4 * g) * (1 + 0.4 * thin), w]);
+    wisps.push([x + 4 * Math.sin(k * 2.3 + u * 6), G - hy * (0.7 + 0.3 * g) - age * 26 - thin * 18, r0 * (0.6 + 0.4 * g) * (1 + 0.4 * thin), w]);
   });
   if (!live.length && !wisps.length) return;
-  /** Плотность: клубы — круглые, клочья чуть вытянуты вверх. */
+  /** Плотность: клубы — круглые, клочья вытянуты вверх (круглые висели над тучей подброшенной галькой). */
   const sum = (x: number, y: number): number => {
     let F = 0;
     for (const [cx, cy, r, w] of live) {
@@ -1092,7 +1106,7 @@ function drawSmoke(p: Painter, s: number, thin: number): void {
       if (e < 3) F += w * Math.exp(-1.8 * e);
     }
     for (const [cx, cy, r, w] of wisps) {
-      const e = ((x - cx) / r) ** 2 + ((y - cy) / (r * 1.25)) ** 2;
+      const e = ((x - cx) / r) ** 2 + ((y - cy) / (r * 1.7)) ** 2;
       if (e < 3) F += w * Math.exp(-1.8 * e);
     }
     return F;
@@ -1129,7 +1143,7 @@ function drawSmoke(p: Painter, s: number, thin: number): void {
       const gx = (sum(x + 5, y) - sum(x - 5, y)) * 2;
       const gy = (sum(x, y + 5) - sum(x, y - 5)) * 2;
       const vField = (-gx * lx - gy * ly + lz) / Math.hypot(gx, gy, 1);
-      const v = 0.35 * vPuff + 0.65 * vField;
+      const v = 0.2 * vPuff + 0.8 * vField;
       const bay = BAYER4[(j & 3) * 4 + (i & 3)];
       let t = Math.floor(((v + 0.1) / 1.1) * 4 + 0.35 * (bay - 0.5) + top * 1.3);
       if (y > G - 8) t -= 1;
