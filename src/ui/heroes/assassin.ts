@@ -485,16 +485,16 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
     [0, { x: -7, crouch: 3, lean: -14, head: -16, nws: 1, nhx: 12, nhy: 52, nwr: 0, fws: 1, fhx: 116, fhy: 80, fwr: 4, cape: 1 }],
     [1, { x: -8, crouch: 6, lean: -12, head: -20, nhx: 8, nhy: 48, fhx: 120, fhy: 78, drop: 0, limp: 0, kneel: 0, cape: 1.4 }],
     [2, { x: -8, crouch: 9, lean: -2, head: -4, drop: 0.25, limp: 0.3, kneel: 0.4, cape: 1 }],
-    [3, { x: -8, crouch: 13.5, lean: 6, head: 12, drop: 0.6, limp: 0.7, kneel: 1, kneelF: 0, cape: 0.6 }],
-    [4, { x: -8, crouch: 14.5, lean: 8, head: 16, drop: 1, limp: 1, kneel: 1, kneelF: 0, cape: 0.4 }],
-    [5, { crouch: 15, lean: 10, head: 18, kneelF: 0.55, cape: 0.2 }],
-    [6, { crouch: 15.5, lean: 10, head: 18, kneelF: 1, fall: 0 }],
+    [3, { x: -8, crouch: 12, lean: 6, head: 12, drop: 0.6, limp: 0.7, kneel: 1, kneelF: 0, cape: 0.6 }],
+    [4, { x: -8, crouch: 12.5, lean: 8, head: 16, drop: 1, limp: 1, kneel: 1, kneelF: 0, cape: 0.4 }],
+    [5, { crouch: 12.5, lean: 10, head: 18, kneelF: 0.55, cape: 0.2 }],
+    [6, { crouch: 12.5, lean: 10, head: 18, kneelF: 1, fall: 0 }],
     [7, { fall: 0.12, head: 20 }],
     [8, { fall: 0.3 }],
     [9, { fall: 0.55, head: 16 }],
-    [10, { fall: 1, head: 12 }],
-    [11, { fall: 1.03, head: 14 }],
-    [12, { fall: 1, head: 12 }],
+    [10, { fall: 1, head: 4 }],
+    [11, { fall: 1.03, head: 6 }],
+    [12, { fall: 1, head: 4 }],
   ],
 };
 
@@ -528,8 +528,8 @@ const CLIPS_B: Partial<Record<AssassinClip, PoseKeys<AssassinPose>>> = {
   // её; присед 18), сапог на носке, голова склонена, клинки остриём к земле перед коленом; держит до 8; 9–10 — встаёт.
   heal: [
     [1, { crouch: 8, lean: 4, head: 6, nws: 1, nhx: 40, nhy: 64, nwr: 0, fws: 1, fhx: 102, fhy: 76, fwr: 4, kneel: 0.45, cape: 0.2 }],
-    [2, { crouch: 16, lean: 8, head: 14, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.3 }],
-    [8, { crouch: 16, lean: 7, head: 16, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.2 }],
+    [2, { crouch: 15.5, lean: 8, head: 14, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.3 }],
+    [8, { crouch: 15.5, lean: 7, head: 16, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.2 }],
     [9, { crouch: 9, lean: 4, head: 6, nhx: 42, nhy: 66, fhx: 104, fhy: 74, kneel: 0.45, cape: 0.1 }],
     [10, { crouch: 3, lean: 1, head: 2, nws: 1, nhx: 24, nhy: 64, nwr: 2, fws: 1, fhx: 108, fhy: 74, fwr: 4, kneel: 0 }],
   ],
@@ -675,17 +675,17 @@ const KNEEL_ANKLE = { far: kneelAnkle(BOOT_F, 1), near: kneelAnkle(BOOT_N, -1) }
  * ближнего (22 против 30,5): на колене оно встаёт в плоскость рисунка и удлиняется (`FAR_THIGH_KNEEL`) — иначе дальнее
  * колено висело над землёй.
  */
-const FALL_ROT = 85;
+const FALL_ROT = 100;
 const FAR_THIGH_KNEEL = 1.35;
 /** Падая, полы висят по отвесу мира на эту долю поворота корпуса (вокруг пояса), шарф — на свою (вокруг шеи). */
-const CLOTH_HANG = 0.85;
+const CLOTH_HANG = 1;
 const CLOTH_PIVOT = P(92, 92);
-const SCARF_HANG = 0.6;
+const SCARF_HANG = 0.15;
 /**
  * Где лежат выпавшие клинки: x в кадре (постоянные — клинок, упавший на землю, не едет за падающим телом; там, куда
  * кисти роняют их к кадру 4), высота над землёй и угол: ближний перед телом остриём назад, дальний за ним к врагам.
  */
-const DROP_AT = { near: [48, 4.5, 180], far: [99, 6, 0] } as const;
+const DROP_AT = { near: [48, 5, 180], far: [99, 6.5, 0] } as const;
 
 function drawAssassin(p: Painter, P: AssassinPose, m: Mats): void {
   const breath = p.bob(2, 2);

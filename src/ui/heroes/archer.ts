@@ -216,8 +216,8 @@ function bowFrame(gx: number, gy: number, a: number, bend: number): (dx: number,
   };
 }
 
-/** Лук: плечи одной частью, обмотки краской; отдаёт узлы тетивы и полку для стрелы (над кулаком). */
-function bow(p: Painter, m: Mats, gx: number, gy: number, a: number, bend: number): { top: [number, number]; bot: [number, number]; rest: [number, number] } {
+/** Лук: плечи одной частью, обмотки краской; отдаёт узлы тетивы, полку для стрелы (над кулаком) и концы плеч (зонд). */
+function bow(p: Painter, m: Mats, gx: number, gy: number, a: number, bend: number): { top: [number, number]; bot: [number, number]; rest: [number, number]; endTop: [number, number]; endBot: [number, number] } {
   const q = bowFrame(gx, gy, a, bend);
   const chain = (pts: Array<[number, number, number]>): Array<[number, number, number]> => pts.map(([dx, dy, r]) => [...q(dx, dy), r] as [number, number, number]);
   const grip: Array<[number, number, number]> = [[0, 0, 2.3]];
@@ -228,7 +228,8 @@ function bow(p: Painter, m: Mats, gx: number, gy: number, a: number, bend: numbe
     const [x0, y0] = q(-5, dy), [x1, y1] = q(4, dy);
     stroke(p, [x0, y0, x1, y1], m.lace, 'bow');
   }
-  return { top: q(...BOW.nockU), bot: q(...BOW.nockL), rest: q(-1.5, -8.5) };
+  const endU = BOW.upper[BOW.upper.length - 1], endL = BOW.lower[BOW.lower.length - 1];
+  return { top: q(...BOW.nockU), bot: q(...BOW.nockL), rest: q(-1.5, -8.5), endTop: q(endU[0], endU[1]), endBot: q(endL[0], endL[1]) };
 }
 
 /** Длина стрелы от ушка до острия. */
@@ -617,24 +618,24 @@ const COMMON: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
   // лук кивает вперёд; перезарядка — как у выстрела.
   power: [
     [1, { crouch: 4, lean: 1, head: 8, nhx: 76, nhy: 45.5, fhx: 113.5, glint: 0, draw: 1, arrow: 1 }],
-    [2, { crouch: 6, lean: 2, head: 10, nhx: 70, nhy: 45, fhx: 115, glint: 0.6 }],
-    [3, { crouch: 6, lean: 2, head: 10, nhx: 69.5, nhy: 45, fhx: 115, glint: 1 }],
+    [2, { crouch: 6, lean: 2, head: 10, nhx: 71.5, nhy: 45, nl: 1.5, fhx: 115, glint: 0.6 }],
+    [3, { crouch: 6, lean: 2, head: 10, nhx: 71.5, nhy: 45, fhx: 115, glint: 1 }],
     [4, { crouch: 4, lean: -5, head: 4, x: -2, nhx: 52, nhy: 33, nl: 1.9, nf: 0.5, fhx: 117, fhy: 58, bow: 16, draw: 0, arrow: 0, twang: 3.5, glint: 0 }],
-    [5, { crouch: 2, lean: -2, head: 3, x: -1, nhx: QX, nhy: QY, nl: 2, nf: 1, bow: 5, twang: -2 }],
-    [6, { crouch: 2, lean: 0, head: 6, x: 0, nhx: HX, nhy: HY, nl: 1, fhx: FH[0], bow: 1, draw: 1, arrow: 1, twang: 0 }],
+    [5, { crouch: 2, lean: -2, head: 3, x: -1, nhx: QX, nhy: QY, nl: 2, nf: 1, bow: 5, twang: -2, arrow: 1, nocked: 0, aa: -60, agrip: 6 }],
+    [6, { crouch: 2, lean: 0, head: 6, x: 0, nhx: HX, nhy: HY, nl: 1, fhx: FH[0], bow: 1, draw: 1, arrow: 1, nocked: 1, twang: 0 }],
   ],
   // Клич «Лук вскинут»: снимает стрелу с тетивы и зажимает её в кулаке остриём вниз, сжимается — выпрямляясь,
   // вскидывает лук над головой прямой рукой (лук поперёк кулака — лёжа над головой: торчком его держат только как
   // факел), кулак со стрелой у груди, голова запрокинута; держит, пока длится эффект; лук опускается к прицелу, стрела
   // снова на тетиве.
   buff: [
-    [1, { crouch: 4, lean: 4, head: 12, draw: 0, nocked: 0, aa: 95, agrip: 12, nhx: 74, nhy: 58, nl: 1.6, fhx: 108, fhy: 64, bow: -4, cape: 0.05 }],
+    [1, { crouch: 4, lean: 4, head: 12, draw: 0, nocked: 0, aa: 95, agrip: 12, nhx: 74, nhy: 58, nl: 2, nf: 0.8, fhx: 108, fhy: 64, bow: -4, cape: 0.05 }],
     [2, { crouch: 2, lean: 0, head: 3, nhx: 73, nhy: 57, fhx: 110, fhy: 44, fl: 1.05, bow: -6, cape: 0.15 }],
     [3, { crouch: 0, lean: -4, head: -8, nhx: 72, nhy: 57, fhx: 104, fhy: 16, fl: 1.15, bow: -10, cape: 0.35 }],
     [4, { crouch: -1, lean: -6, head: -16, nhx: 73, nhy: 58, fhx: 98, fhy: -2, fl: 1.25, bow: -14, cape: 0.6 }],
     [6, { crouch: -1, lean: -6, head: -17, nhx: 73, nhy: 58, fhx: 98, fhy: -1, fl: 1.25, bow: -14, cape: 0.5 }],
-    [7, { crouch: 0, lean: -3, head: -6, nhx: 75, nhy: 55, fhx: 105, fhy: 20, fl: 1.15, bow: -8, cape: 0.3 }],
-    [8, { crouch: 1, lean: 0, head: 4, draw: 1, nocked: 1, nhx: HX, nhy: HY, nl: 1, fhx: 112, fhy: 48, fl: 1.02, bow: -2, cape: 0.1 }],
+    [7, { crouch: 0, lean: -3, head: -6, nhx: 75, nhy: 55, aa: 15, agrip: 8, fhx: 105, fhy: 20, fl: 1.15, bow: -8, cape: 0.3 }],
+    [8, { crouch: 1, lean: 0, head: 4, draw: 1, nocked: 1, nhx: HX, nhy: HY, nl: 1, nf: 1, fhx: 112, fhy: 48, fl: 1.02, bow: -2, cape: 0.1 }],
   ],
   // Блок «Уклон»: уходит корпусом — пригнулся и отклонился назад, голова в плечи, не опуская натянутого лука; в кадр
   // удара (2) — ниже всего, передняя стопа легла, дальше выпрямляется.
@@ -654,7 +655,7 @@ const COMMON: Partial<Record<ArcherClip, PoseKeys<ArcherPose>>> = {
     [3, { x: -8, crouch: 18, lean: 2, head: 8, kneel: 0.9, drop: 0.65 }],
     [4, { x: -8, crouch: 21, lean: 4, head: 12, kneel: 1, drop: 1, cape: 0.1 }],
     [5, { crouch: 21, lean: 0, head: 6, fall: 0.1, kneel: 1 }],
-    [6, { x: -5, fall: 0.35, kneel: 0.6, head: -4, nhx: 62, nhy: 88, nl: 2.3, nel: 0, fhx: 82, fhy: 88 }],
+    [6, { x: -5, fall: 0.35, kneel: 0.6, head: -4, nhx: 62, nhy: 88, nl: 2.3, nf: 0.65, nel: 0, fhx: 64, fhy: 100 }],
     [7, { fall: 0.68, kneel: 0.2, head: -10 }],
     [8, { x: -2, fall: 1, kneel: 0, head: -8 }],
     [9, { fall: 1.04, head: -5 }],
@@ -679,8 +680,8 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
       [2, { nhx: 76, nhy: 45, fhx: 113.5, head: 8, lean: -1 }],
       [3, { nhx: 75.5, nhy: 45, fhx: 113.5, head: 8, lean: -1, draw: 1, arrow: 1, twang: 0 }],
       [4, { nhx: 56, nhy: 37, nl: 1.9, nf: 0.4, fhx: 114.5, fhy: 58.5, bow: 9, head: 5, lean: -2, draw: 0, arrow: 0, twang: 2.5 }],
-      [5, { nhx: QX, nhy: QY, nl: 2, nf: 1, bow: 4, head: 4, lean: -1, draw: 0, arrow: 0, twang: -1.5 }],
-      [6, { nhx: HX, nhy: HY, nl: 1, bow: 1, head: 6, lean: 0, draw: 1, arrow: 1, twang: 0 }],
+      [5, { nhx: QX, nhy: QY, nl: 2, nf: 1, bow: 4, head: 4, lean: -1, draw: 0, arrow: 1, nocked: 0, aa: -60, agrip: 6, twang: -1.5 }],
+      [6, { nhx: HX, nhy: HY, nl: 1, bow: 1, head: 6, lean: 0, draw: 1, arrow: 1, nocked: 1, twang: 0 }],
     ],
     // «С шагом»: 1 — вес назад, передняя стопа отрывается; 2 — шаг; 3 — стопа встала, корпус вперёд, добор; 4 — спуск на
     // приземлении; 5 — отдача: вес назад, стопа отходит, кисть к колчану; 6 — стрела на тетиве.
@@ -688,9 +689,9 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
       [1, { ik: 1, bws: 1, x: -2, crouch: 3, lean: -3, liftF: 2, footF: 0, nhx: 80, nhy: 45.5, head: 7, draw: 1, arrow: 1 }],
       [2, { x: 1, crouch: 2, lean: 0, liftF: 5, footF: 7, nhx: 78, nhy: 45.5, head: 7, cape: 0.2 }],
       [3, { x: 6, crouch: 4, lean: 4, liftF: 0, footF: 12, nhx: 76, nhy: 45, fhx: 114, head: 8, cape: 0.4, draw: 1, arrow: 1, twang: 0 }],
-      [4, { x: 8, crouch: 5, lean: 6, footF: 12, nhx: 58, nhy: 39, nl: 1.3, fhx: 116, bow: 10, head: 5, cape: 0.6, draw: 0, arrow: 0, twang: 2.5 }],
-      [5, { x: 3, crouch: 3, lean: 1, footF: 7, liftF: 3, nhx: QX, nhy: QY, nl: 2, fhx: 113, bow: 4, head: 4, cape: 0.35, draw: 0, arrow: 0, twang: -1.5 }],
-      [6, { x: 1, crouch: 2, lean: 0, footF: 2, liftF: 1, nhx: HX, nhy: HY, nl: 1, bow: 1, head: 6, cape: 0.1, draw: 1, arrow: 1, twang: 0 }],
+      [4, { x: 8, crouch: 5, lean: 6, footF: 12, nhx: 55, nhy: 36, nl: 1.9, nf: 0.4, fhx: 116, bow: 10, head: 5, cape: 0.6, draw: 0, arrow: 0, twang: 2.5 }],
+      [5, { x: 3, crouch: 3, lean: 1, footF: 7, liftF: 3, nhx: QX, nhy: QY, nl: 2, nf: 1, fhx: 113, bow: 4, head: 4, cape: 0.35, draw: 0, arrow: 1, nocked: 0, aa: -60, agrip: 6, twang: -1.5 }],
+      [6, { x: 1, crouch: 2, lean: 0, footF: 2, liftF: 1, nhx: HX, nhy: HY, nl: 1, bow: 1, head: 6, cape: 0.1, draw: 1, arrow: 1, nocked: 1, twang: 0 }],
     ],
   },
   heavy: {
@@ -699,25 +700,25 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
     // уровне пояса врага; 6 — держит; 7 — нога идёт назад; 8 — стопа встала.
     a: [
       [1, { x: -3, crouch: 2, lean: -3, liftF: 3, footF: 0, kick: 0, head: 7 }],
-      [2, { x: -4, crouch: 1, lean: -7, footF: 4, liftF: 20, kick: 0.5, head: 5, cape: 0.1 }],
-      [3, { x: -4, crouch: 1, lean: -10, footF: 14, liftF: 30, kick: 1, head: 3, cape: 0.2 }],
+      [2, { x: -4, crouch: 1, lean: -7, footF: 4, liftF: 20, kick: 0.5, head: 5, cape: 0.1, fhy: 52, nhy: 40, bow: 20 }],
+      [3, { x: -4, crouch: 1, lean: -10, footF: 14, liftF: 30, kick: 1, head: 3, cape: 0.2, fhy: 44, nhy: 34, bow: 44 }],
       [4, { x: -3, crouch: 2, lean: -13, footF: 24, liftF: 35, head: 2, cape: 0.3 }],
       [5, { x: -2, crouch: 2, lean: -14, footF: 30, liftF: 36, head: 2, cape: 0.4 }],
-      [6, { x: -3, crouch: 2, lean: -12, footF: 24, liftF: 34, head: 3, cape: 0.35 }],
-      [7, { x: -3, crouch: 2, lean: -7, footF: 10, liftF: 20, kick: 0.6, head: 5, cape: 0.2 }],
-      [8, { x: -1, crouch: 2, lean: -2, footF: 2, liftF: 3, kick: 0, head: 6, cape: 0.05 }],
+      [6, { x: -3, crouch: 2, lean: -12, footF: 24, liftF: 34, head: 3, cape: 0.35, fhy: 44, nhy: 34, bow: 44 }],
+      [7, { x: -3, crouch: 2, lean: -7, footF: 10, liftF: 20, kick: 0.6, head: 5, cape: 0.2, fhy: 52, nhy: 40, bow: 20 }],
+      [8, { x: -1, crouch: 2, lean: -2, footF: 2, liftF: 3, kick: 0, head: 6, cape: 0.05, fhy: 57, nhy: 46, bow: 1 }],
     ],
     // «Стрелой»: 1 — снял стрелу с тетивы, лук уходит вниз в сторону; 2 — кисть со стрелой отведена к бедру, вес назад;
     // 3 — шаг; 4 — стопа встала, кисть вперёд; 5 — удар: рука во всю длину, стрела остриём во врага; 6 — держит;
     // 7 — выдернул, шаг назад; 8 — стрела снова на тетиве.
     b: [
       [1, { x: -1, crouch: 2, lean: -2, draw: 0, nocked: 0, aa: 5, agrip: 10, nhx: 72, nhy: 52, nl: 1.3, nel: 150, fhx: 106, fhy: 70, bow: -12, head: 6 }],
-      [2, { x: -3, crouch: 3, lean: -4, liftF: 3, nhx: 58, nhy: 64, nl: 1.8, aa: -4, fhx: 102, fhy: 76, bow: -18, head: 8, cape: 0.1 }],
-      [3, { x: 2, crouch: 3, lean: 3, footF: 9, liftF: 5, nhx: 76, nhy: 58, nl: 2, aa: 0, head: 8, cape: 0.3 }],
-      [4, { x: 8, crouch: 6, lean: 9, footF: 15, liftF: 0, nhx: 96, nhy: 54, nl: 2.3, nsx: 3, aa: 2, head: 8, cape: 0.6 }],
+      [2, { x: -3, crouch: 3, lean: -4, liftF: 3, nhx: 58, nhy: 64, nl: 1.8, nf: 0.6, aa: -4, fhx: 102, fhy: 76, bow: -18, head: 8, cape: 0.1 }],
+      [3, { x: 2, crouch: 3, lean: 3, footF: 9, liftF: 5, nhx: 76, nhy: 58, nl: 2, nf: 0.75, aa: 0, head: 8, cape: 0.3 }],
+      [4, { x: 8, crouch: 6, lean: 9, footF: 15, liftF: 0, nhx: 96, nhy: 54, nl: 2.3, nf: 0.65, nsx: 3, aa: 2, head: 8, cape: 0.6 }],
       [5, { x: 11, crouch: 8, lean: 13, footF: 15, nhx: 112, nhy: 50, nl: 2.5, nsx: 6, aa: 0, head: 8, cape: 0.8 }],
       [6, { x: 11, crouch: 8, lean: 13, nhx: 110, nhy: 51, nsx: 5, cape: 0.7 }],
-      [7, { x: 6, crouch: 4, lean: 5, footF: 9, liftF: 2, nhx: 86, nhy: 54, nl: 1.8, nsx: 1, aa: 4, fhx: 110, fhy: 62, bow: -4, cape: 0.35 }],
+      [7, { x: 6, crouch: 4, lean: 5, footF: 9, liftF: 2, nhx: 86, nhy: 54, nl: 1.8, nf: 1, nsx: 1, aa: 4, fhx: 110, fhy: 62, bow: -4, cape: 0.35 }],
       [8, { x: 2, crouch: 2, lean: 1, footF: 3, liftF: 1, nocked: 1, draw: 1, nhx: HX, nhy: HY, nl: 1, nsx: 0, nel: 199, fhx: FH[0], fhy: FH[1], bow: 0, cape: 0.1 }],
     ],
   },
@@ -725,24 +726,24 @@ const VARIANT_KEYS: Partial<Record<ArcherClip, Record<Variant, PoseKeys<ArcherPo
     // «Глоток»: 1 — отпустил тетиву (стрела на ней), лук опущен, рука к сумке на боку, взгляд вниз; 2 (контакт) — склянка
     // у рта, голова запрокинута; 3–7 — пьёт; 8 — склянка вниз; 9 — убрал в сумку; 10 — кисть на тетиве.
     a: [
-      [1, { crouch: 2, lean: 2, head: 14, draw: 0, flask: 0, nhx: 50, nhy: 72, nl: 2.4, nf: 0.85, fhx: 108, fhy: 72, bow: -6 }],
+      [1, { crouch: 2, lean: 2, head: 14, draw: 0, flask: 1, fla: 250, nhx: 50, nhy: 72, nl: 2.4, nf: 0.65, fhx: 108, fhy: 72, bow: -6 }],
       [2, { crouch: 1, lean: -3, head: -14, flask: 1, fla: 150, nhx: 79, nhy: 33.5, nl: 1.7, nf: 0.8, nel: 80, fhx: 108, fhy: 74 }],
       [4, { lean: -4, head: -17, fla: 158, nhx: 78, nhy: 31.5 }],
       [7, { lean: -4, head: -18, fla: 162, nhx: 78, nhy: 31 }],
-      [8, { crouch: 2, lean: 0, head: 4, fla: 250, nhx: 70, nhy: 56, nl: 1.8, nf: 0.8 }],
-      [9, { crouch: 2, lean: 2, head: 12, flask: 0, nhx: 50, nhy: 72, nl: 2.4, nf: 0.85, nel: 199 }],
+      [8, { crouch: 2, lean: 0, head: 4, fla: 250, nhx: 70, nhy: 56, nl: 1.8, nf: 0.7 }],
+      [9, { crouch: 2, lean: 2, head: 12, flask: 0, nhx: 50, nhy: 72, nl: 2.4, nf: 0.65, nel: 199 }],
       [10, { crouch: 1, lean: 0, head: 6, draw: 1, nhx: HX, nhy: HY, nl: 1, nf: 1, fhx: FH[0], fhy: FH[1], bow: 0 }],
     ],
     // «На колено»: 1 — отпустил тетиву (стрела на ней), опускается, лук идёт к земле; 2 (контакт) — ближнее колено на
     // земле, лук упёрт нижним концом в землю, ладонь на груди, голова склонена; 3–7 — переводит дух; 8–9 — встаёт;
     // 10 — кисть на тетиве.
     b: [
-      [1, { crouch: 12, kneel: 0.5, lean: 3, head: 10, draw: 0, nhx: 70, nhy: 58, nl: 1.6, fhx: 113, fhy: 68, bow: -3 }],
-      [2, { crouch: 21, kneel: 1, lean: 5, head: 18, nhx: 75, nhy: 55, nl: 1.8, nf: 0.8, nel: 100, fhx: 120, fhy: 72, fl: 1.05, bow: -20 }],
-      [4, { crouch: 21, kneel: 1, lean: 6, head: 21, nhx: 75, nhy: 54 }],
-      [7, { crouch: 21, kneel: 1, lean: 5, head: 19, nhx: 75, nhy: 55 }],
-      [8, { crouch: 13, kneel: 0.5, lean: 3, head: 10, nhx: 72, nhy: 58, nf: 1, nel: 199, fhy: 68, fl: 1 }],
-      [9, { crouch: 4, kneel: 0, lean: 1, head: 6, nhx: 80, nhy: 52, nl: 1.2, fhx: 113, fhy: 60, bow: -1 }],
+      [1, { crouch: 12, kneel: 0.5, lean: 3, head: 10, draw: 0, nhx: 70, nhy: 58, nl: 1.8, nf: 0.8, fhx: 113, fhy: 68, bow: -3 }],
+      [2, { crouch: 21, kneel: 1, lean: 5, head: 18, nhx: 75, nhy: 48, nl: 1.8, nf: 0.8, nel: 100, fhx: 120, fhy: 69, fl: 1.05, bow: -20 }],
+      [4, { crouch: 21, kneel: 1, lean: 6, head: 21, nhx: 75, nhy: 47 }],
+      [7, { crouch: 21, kneel: 1, lean: 5, head: 19, nhx: 75, nhy: 48 }],
+      [8, { crouch: 13, kneel: 0.5, lean: 3, head: 10, nhx: 72, nhy: 58, nf: 0.8, nel: 199, fhy: 68, fl: 1 }],
+      [9, { crouch: 4, kneel: 0, lean: 1, head: 6, nhx: 80, nhy: 52, nl: 1.2, nf: 1, fhx: 113, fhy: 60, bow: -1 }],
       [10, { crouch: 2, lean: 0, draw: 1, nhx: HX, nhy: HY, nl: 1, fhx: FH[0], fhy: FH[1], bow: 0 }],
     ],
   },
@@ -1015,12 +1016,12 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       const [hwx, hwy] = toWorld(fA.hx, fA.hy);
       const gx = lerp(hwx, BOW_LAND[0] - P.x, drop), gy = lerp(hwy, floorY - BOW_LAND[1], drop * drop);
       const b = bow(p, m, gx, gy, lerp(bowA + rot / DEG, 90, drop), bend * (1 - drop));
-      bowTips = [...b.bot, ...b.top];
+      bowTips = [...b.endBot, ...b.endTop];
       const chord: [number, number] = [lerp(b.top[0], b.bot[0], 0.53), lerp(b.top[1], b.bot[1], 0.53)];
       const aOn = Math.atan2(b.rest[1] - chord[1], b.rest[0] - chord[0]) / DEG;
       nock = [lerp(chord[0], ARROW_LAND[0] - P.x, drop), lerp(chord[1], floorY - ARROW_LAND[1], drop * drop)];
       tip = arrow(p, m, nock[0], nock[1], aOn + nrm(-4 - aOn) * drop, P.arrow <= 0.5);
-      p.line(b.top[0], b.top[1], b.bot[0], b.bot[1], m.string);
+      p.line(b.top[0], b.top[1], b.bot[0], b.bot[1], m.string, true);
     }
 
     // ── Ноги: бедро от таза, колено — ik в больших сдвигах (шаг), в малых идёт за тазом и стопой наполовину; стопы
@@ -1042,8 +1043,8 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       let toe = 0;
       const kneelY = G - P.y - KNEEL_ANKLE;
       if (kneel > 0) {
-        // Колено на земле под бедром, голень назад по земле к сапогу, упёртому носком.
-        ax = lerp(ax, hx - lg.L2.l2 * 0.95 + R(6), kneel);
+        // Колено на земле под бедром, голень назад по земле к сапогу, упёртому носком. Стопа остаётся на месте (у листа
+        // стойка широкая — щиколотка и так позади бедра на голень): к бедру её тянуло на 10, сапог скользил вперёд.
         ay = lerp(ay, kneelY, kneel);
         toe += KNEEL_TOE * kneel;
       }
@@ -1062,9 +1063,18 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       const lie: [number, number] = lg.side === 'far' ? [hipX + 44, G - 7] : [hipX + 38, G - 6];
       ax = lerp(ax, lie[0], fall);
       ay = lerp(ay, lie[1], fall);
-      const bend: [number, number] = [lerp(lerp(lg.bend[0], 0.3, kneel), 0.2, fall), lerp(lerp(lg.bend[1], 1, kneel), -1, fall)];
-      const [ikx, iky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, bend[0], bend[1]);
+      // Колено в стойке смотрит назад-наружу, на земле — вниз-вперёд: сгиб ik по смешанному направлению перескакивал
+      // на другую сторону линии бедро — щиколотка (на 40 за кадр). Оба решения — и между ними по `kneel` (как у Берсерка).
+      let [ikx, iky] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, lerp(lg.bend[0], 0.2, fall), lerp(lg.bend[1], -1, fall));
+      if (kneel > 0) {
+        const [qx, qy] = ik(hx, hy, ax, ay, lg.L2.l1, lg.L2.l2, lerp(0.3, 0.2, fall), lerp(1, -1, fall));
+        ikx = lerp(ikx, qx, kneel);
+        iky = lerp(iky, qy, kneel);
+      }
       const kx = lerp(lg.g.knee[0] + dax / 2, ikx, w), ky = lerp(lg.g.knee[1] + (dhy + day) / 2, iky, w);
+      probeInfo[`${lg.side}KneeX`] = kx + P.x;
+      probeInfo[`${lg.side}KneeY`] = ky + P.y;
+      probeInfo[`${lg.side}AnkY`] = ay + P.y;
       if (lg.side === 'far') probeInfo.footF = ax + P.x;
       else probeInfo.footN = ax + P.x;
       const leg = `${lg.side}Leg`, shin = `${lg.side}Shin`, foot = `${lg.side}Foot`, knee = `${lg.side}Knee`;
@@ -1117,7 +1127,7 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       }
       stroke(p, [...at(fA.sx, fA.sy, ua - 90, R(5)), ...at(fA.ex, fA.ey, ua - 90, R(5))], m.lace, 'farArm');
       const b = bowWorld ? null : bow(p, m, fA.hx, fA.hy, bowA, bend);
-      if (b) bowTips = [...b.bot, ...b.top];
+      if (b) bowTips = [...b.endBot, ...b.endTop];
       p.ellipse(fA.hx, fA.hy, R(5.6), R(5), m.hand, { part: 'fistF', lift: 1, tone: -0.08, rot: (fa + 90) * DEG });
       stroke(p, [fA.hx - R(1), fA.hy - R(3.5), fA.hx - R(1), fA.hy + R(3.5)], L.skin[1], 'fistF');
 
@@ -1139,7 +1149,7 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
       // Присел ниже, чем достаёт полоса, — она ложится складками на землю (сжимается от бедра), а не уходит под неё.
       const tf = P.cape * 5;
       const fold = (G - 1 - (hipY - PELVIS[1]) - Y(112)) / (Y(161) - Y(112));
-      const tb = fold < 1 && fall <= 0 ? (pts: number[]): number[] => pts.map((v, i) => (i % 2 && v > Y(112) ? Y(112) + (v - Y(112)) * Math.max(0.3, fold) : v)) : (pts: number[]): number[] => pts;
+      const tb = fold < 1 ? (pts: number[]): number[] => pts.map((v, i) => (i % 2 && v > Y(112) ? Y(112) + (v - Y(112)) * Math.max(0.3, fold) : v)) : (pts: number[]): number[] => pts;
       p.poly(tb(S(85, 93, 105, 93, 107, 112, 104 - tf * 0.5, 132, 99 - tf, 150, 95 - tf, 161, 90 - tf, 150, 87 - tf * 0.5, 133, 83, 112)), m.tabard, { part: 'tabard', bevel: 2.4 });
       stroke(p, tb(S(91, 98, 90 - tf, 140)), m.fold, 'tabard');
       stroke(p, tb(S(99, 98, 99 - tf, 142)), m.fold, 'tabard');
@@ -1211,8 +1221,9 @@ function drawArcher(p: Painter, P: ArcherPose, m: Mats, probe?: HeroProbe): void
           const l = Math.hypot(tx - sx, ty - sy) || 1;
           return [sx + ((tx - sx) / l) * cut, sy + ((ty - sy) / l) * cut];
         };
-        p.line(b.top[0], b.top[1], ...edge(b.top[0], b.top[1]), m.string);
-        p.line(...edge(b.bot[0], b.bot[1]), b.bot[0], b.bot[1], m.string);
+        const behind = P.draw <= 0.02 && Math.abs(nrm(bowA + rot / DEG)) > 45;
+        p.line(b.top[0], b.top[1], ...edge(b.top[0], b.top[1]), m.string, behind);
+        p.line(...edge(b.bot[0], b.bot[1]), b.bot[0], b.bot[1], m.string, behind);
       }
 
       // Блик на наконечнике — прицел (приём): свечение и крестик в пиксель.
