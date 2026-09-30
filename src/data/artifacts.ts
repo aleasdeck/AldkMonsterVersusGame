@@ -467,6 +467,8 @@ const list: ArtifactDef[] = [
   },
   {
     id: 'smoke_bomb',
+    // Свой клип Ассасина — исчезновение в дыму; у героя без него — клич (clips.ts, `instead`).
+    fx: { clip: 'vanish' },
     name: 'Дымовая шашка',
     glyph: '☁',
     kind: 'active',
