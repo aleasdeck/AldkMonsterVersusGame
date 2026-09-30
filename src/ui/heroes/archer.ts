@@ -501,21 +501,29 @@ function cloakOutline(cut: ArcherLookSpec['cloakCut']): number[] {
 // ─── Голова ─────────────────────────────────────────────────────────────────
 
 /**
- * Капюшон, проём и лицо (точки листа). Капюшон — треугольник (решение пользователя: «более треугольный капюшон»):
- * острая макушка вверх и чуть назад, к спине, прямые скаты вниз к плечам, внизу он расходится к пелерине; купол с
- * плавным верхом снят. Силуэт — многоугольник с фаской, свет по граням: скат к свету (задний, вверх-влево) светлее,
- * передний скат над лицом — в тени, между ними ребро от острия вниз; складки вдоль скатов. Проём — клином под острием.
+ * Капюшон, проём и лицо (точки листа). Капюшон — между треугольником и куполом (решения пользователя: «более
+ * треугольный капюшон», потом «слишком острый»): макушка вверх и чуть назад, к спине, со скруглённым острием, скаты чуть
+ * выпуклые, внизу капюшон расходится к пелерине. Насколько он мягкий, задаёт `HOOD_SOFT`: 0 — треугольник (острие,
+ * прямые скаты), 1 — близко к прежнему куполу. Силуэт — многоугольник с фаской, свет по граням: задний скат к свету
+ * (вверх-влево) светлее, передний скат над лицом — в тени, между ними ребро от макушки вниз; складки вдоль скатов.
+ * Проём — клином под передним скатом.
  * Лицо — своя часть поверх тёмного проёма: глаз не видно (у героя они не светятся); «Следопыт» — светлый клин щеки у
  * заднего края проёма, низ лица в тени, как на листе; «Ворон» — козырёк клювом над лицом и хвост за спину, из тени
  * только кончик носа, щетина в тени; «Листопад» — толстый отворот вокруг проёма, платок до носа (как на прежнем
  * портрете), видна полоса у глаз под тенью лба.
  */
+const HOOD_SOFT = 0.55;
+
 interface HoodSpec {
-  /** Силуэт капюшона: острие, задний и передний скаты, низ к пелерине. */
-  outer: number[];
-  /** Грани: задний скат к свету (светлее) и передний скат над лицом (в тени). */
-  litPlane: number[];
-  darkPlane: number[];
+  /**
+   * Силуэт капюшона: задний низ `base`, острие треугольника `apex` (мягкость 0) и верх купола `dome` (мягкость 1),
+   * конец переднего ската над лицом `brim`, дальше `rest` — край вокруг лица и низ назад к `base`.
+   */
+  base: [number, number];
+  apex: [number, number];
+  dome: [number, number];
+  brim: [number, number];
+  rest: number[];
   /** Хвост капюшона за спину и его светлая кромка («Ворон»), толстый отворот вокруг лица («Листопад»). */
   tail?: number[];
   tailLit?: number[];
@@ -529,17 +537,18 @@ interface HoodSpec {
   tones: [number, number];
   scarf: number[];
   scarfFolds: number[][];
-  /** Ребро от острия вниз, светлая кромка заднего ската, складки вдоль скатов. */
-  ridge: number[];
-  lit: number[];
-  folds: number[][];
+  /** Светлая кромка заднего ската — до какой высоты (y листа); складка переднего ската — есть ли у облика вторая. */
+  litTo: number;
+  frontFolds: number;
 }
 
 const HOODS: Record<ArcherLookSpec['hoodCut'], HoodSpec> = {
   point: {
-    outer: [70, 47, 72.5, 38, 75.5, 28, 78.5, 18, 81, 9.5, 88, 13.5, 95, 17.5, 102, 21.5, 109, 25.5, 116, 29.5, 120, 32, 118, 38, 117, 44, 115, 51, 111, 56, 104, 58, 96, 57, 86, 54, 77, 51],
-    litPlane: [81, 9.5, 78.5, 18, 75.5, 28, 72.5, 38, 70, 47, 77, 51, 86, 54, 88, 49, 85, 30, 82.5, 14],
-    darkPlane: [81, 9.5, 88, 13.5, 95, 17.5, 102, 21.5, 109, 25.5, 116, 29.5, 120, 32, 116, 33, 107, 28.5, 99, 24.5, 91, 20, 84, 15],
+    base: [70, 47],
+    apex: [81, 9.5],
+    dome: [93, 13],
+    brim: [120, 32],
+    rest: [118, 38, 117, 44, 115, 51, 111, 56, 104, 58, 96, 57, 86, 54, 77, 51],
     opening: [120, 33, 112, 29, 106, 26.5, 101, 30, 97, 39, 98, 50, 104, 56, 112, 55, 116, 47],
     face: [98, 40, 102, 35.5, 107, 31.5, 109, 33, 108.5, 39.5, 106, 43, 100, 43.5],
     nose: [106.5, 33, 108.5, 33.5, 108.5, 40, 106.5, 40.5],
@@ -547,14 +556,15 @@ const HOODS: Record<ArcherLookSpec['hoodCut'], HoodSpec> = {
     tones: [0.18, 0.12],
     scarf: [98, 44, 106, 44.5, 113, 43, 117, 44, 115, 51, 110, 56, 103, 55, 98, 50],
     scarfFolds: [],
-    ridge: [82.5, 14, 85, 30, 88, 49],
-    lit: [80.5, 12, 78, 21, 75, 31, 72, 41],
-    folds: [[79.5, 21, 77, 32, 75, 44], [91, 20.5, 99, 25]],
+    litTo: 41,
+    frontFolds: 1,
   },
   peak: {
-    outer: [70, 47, 72.5, 38, 75.5, 28, 78.5, 18, 81, 9, 88, 13, 95, 17, 102, 21, 109, 25, 115, 28.5, 121, 31, 127, 34, 121, 36, 118, 39, 117, 44, 115, 51, 111, 56, 104, 58, 96, 57, 86, 54, 77, 51],
-    litPlane: [81, 9, 78.5, 18, 75.5, 28, 72.5, 38, 70, 47, 77, 51, 86, 54, 88, 49, 85, 30, 82.5, 14],
-    darkPlane: [81, 9, 88, 13, 95, 17, 102, 21, 109, 25, 115, 28.5, 121, 31, 127, 34, 121, 36, 113, 31, 105, 27, 97, 23, 90, 18.5, 84, 14.5],
+    base: [70, 47],
+    apex: [81, 9],
+    dome: [93, 12.5],
+    brim: [121, 31],
+    rest: [127, 34, 121, 36, 118, 39, 117, 44, 115, 51, 111, 56, 104, 58, 96, 57, 86, 54, 77, 51],
     tail: [79, 15, 72, 26, 66, 38, 61, 51, 58, 64, 59, 71, 63, 58, 69, 45, 75, 33, 80, 24],
     tailLit: [78, 18, 70, 30, 65, 41, 62.5, 48],
     opening: [121, 36, 114, 31.5, 107, 28, 102, 31.5, 99, 42, 100, 50, 105, 56, 112, 55, 116, 47, 118, 39],
@@ -564,14 +574,15 @@ const HOODS: Record<ArcherLookSpec['hoodCut'], HoodSpec> = {
     tones: [-0.05, 0.21],
     scarf: [101, 44.5, 108, 45.5, 114, 44, 117.5, 45.5, 115, 51, 110, 56, 103, 55, 100, 50],
     scarfFolds: [],
-    ridge: [82.5, 13.5, 85, 30, 88, 49],
-    lit: [80.5, 11.5, 78, 20],
-    folds: [[79.5, 21, 77, 32, 75, 44], [91, 19.5, 100, 24.5, 108, 29]],
+    litTo: 21,
+    frontFolds: 1,
   },
   cowl: {
-    outer: [68, 49, 71, 38, 74.5, 27, 78, 17, 81, 9.5, 88, 13.5, 95, 17.5, 102, 21.5, 109, 25.5, 116, 29.5, 119.5, 34, 119.5, 41, 119, 46, 117, 52, 112, 57, 104, 59, 95, 58, 85, 55, 76, 52],
-    litPlane: [81, 9.5, 78, 17, 74.5, 27, 71, 38, 68, 49, 76, 52, 85, 55, 88, 50, 85, 30, 82.5, 14],
-    darkPlane: [81, 9.5, 88, 13.5, 95, 17.5, 102, 21.5, 109, 25.5, 116, 29.5, 119.5, 34, 116, 32.5, 107, 28, 99, 24, 91, 19.5, 84, 15],
+    base: [68, 49],
+    apex: [81, 9.5],
+    dome: [93, 12],
+    brim: [116, 29.5],
+    rest: [119.5, 34, 119.5, 41, 119, 46, 117, 52, 112, 57, 104, 59, 95, 58, 85, 55, 76, 52],
     rim: [119.5, 34, 109, 26.5, 103, 27, 99, 32, 97.5, 40, 100.5, 40, 102, 33.5, 105, 30, 108.5, 30.5, 116, 34.5],
     opening: [116, 34.5, 108.5, 30.5, 105, 30, 102, 33.5, 101.5, 42, 102.5, 50, 107, 56, 114, 54, 117, 46],
     face: [103, 37.5, 109, 33.5, 115, 34.5, 117.5, 38.5, 113, 40.5, 104, 41],
@@ -580,11 +591,79 @@ const HOODS: Record<ArcherLookSpec['hoodCut'], HoodSpec> = {
     tones: [0, 0.26],
     scarf: [101, 40.5, 110, 40.8, 117.5, 38.8, 118.5, 44, 116, 51, 111, 56, 104, 55, 101, 48],
     scarfFolds: [[104, 47, 110, 49, 116, 45]],
-    ridge: [82.5, 14, 85, 30, 88, 50],
-    lit: [80.5, 12, 77.5, 21, 74, 32, 70.5, 43],
-    folds: [[79, 21, 76.5, 32, 74, 45], [91, 20.5, 99, 25]],
+    litTo: 43,
+    frontFolds: 1,
   },
 };
+
+/** Точка на ломаной `pts` [x0, y0, …], сдвинутая на `off` по нормали вправо от хода (внутрь капюшона). */
+function offsetLine(pts: number[], off: number): number[] {
+  const n = pts.length / 2, out: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1);
+    const tx = pts[b * 2] - pts[a * 2], ty = pts[b * 2 + 1] - pts[a * 2 + 1], l = Math.hypot(tx, ty) || 1;
+    out.push(pts[k * 2] - (ty / l) * off, pts[k * 2 + 1] + (tx / l) * off);
+  }
+  return out;
+}
+
+/** Выпуклый скат: квадратичная кривая от `a` к `b`, середина вынесена наружу (влево от хода) на `bulge`, `n` отрезков. */
+function slope(a: readonly number[], b: readonly number[], bulge: number, n: number): number[] {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+  const cx = (a[0] + b[0]) / 2 + (dy / l) * bulge * 2, cy = (a[1] + b[1]) / 2 - (dx / l) * bulge * 2;
+  const out: number[] = [];
+  for (let k = 0; k <= n; k++) {
+    const t = k / n, u = 1 - t;
+    out.push(u * u * a[0] + 2 * u * t * cx + t * t * b[0], u * u * a[1] + 2 * u * t * cy + t * t * b[1]);
+  }
+  return out;
+}
+
+/**
+ * Силуэт капюшона при мягкости `soft` (точки листа): задний скат от низа к макушке, скруглённая макушка, передний скат
+ * к козырьку, край вокруг лица. Острие опускается к верху купола и уходит вперёд, скаты выгибаются, макушка
+ * скругляется дугой радиусом до 9 точек листа. Отдаёт и сами скаты — по ним ложатся грани, кромка и складки.
+ */
+function hoodShape(h: HoodSpec, soft: number): { outer: number[]; back: number[]; front: number[]; top: [number, number] } {
+  const apex: [number, number] = [lerp(h.apex[0], h.dome[0], soft), lerp(h.apex[1], h.dome[1], soft)];
+  const back = slope(h.base, apex, 5 * soft, 8), front = slope(apex, h.brim, 6 * soft, 8);
+  const r = 9 * soft;
+  let backCut = back, frontCut = front, arc: number[] = [];
+  let top: [number, number] = apex;
+  if (r > 0.01) {
+    // Скругление макушки: дуга, касательная к обоим скатам; от скатов срезаются точки ближе точки касания.
+    const n = back.length;
+    const u1 = [apex[0] - back[n - 4], apex[1] - back[n - 3]], u2 = [front[2] - apex[0], front[3] - apex[1]];
+    const l1 = Math.hypot(u1[0], u1[1]), l2 = Math.hypot(u2[0], u2[1]);
+    u1[0] /= l1; u1[1] /= l1; u2[0] /= l2; u2[1] /= l2;
+    const theta = Math.acos(Math.max(-1, Math.min(1, -u1[0] * u2[0] - u1[1] * u2[1])));
+    const t = r / Math.tan(theta / 2), dc = r / Math.sin(theta / 2);
+    const bx = -u1[0] + u2[0], by = -u1[1] + u2[1], bl = Math.hypot(bx, by) || 1;
+    const c = [apex[0] + (bx / bl) * dc, apex[1] + (by / bl) * dc];
+    const p1 = [apex[0] - u1[0] * t, apex[1] - u1[1] * t], p2 = [apex[0] + u2[0] * t, apex[1] + u2[1] * t];
+    const keep = (pts: number[]) => pts.filter((_, i) => Math.hypot(pts[i - (i % 2)] - apex[0], pts[i - (i % 2) + 1] - apex[1]) > t);
+    backCut = keep(back.slice(0, -2));
+    frontCut = keep(front.slice(2));
+    const a1 = Math.atan2(p1[1] - c[1], p1[0] - c[0]), a2 = Math.atan2(p2[1] - c[1], p2[0] - c[0]);
+    let da = a2 - a1;
+    while (da > Math.PI) da -= 2 * Math.PI;
+    while (da < -Math.PI) da += 2 * Math.PI;
+    for (let k = 0; k <= 4; k++) arc.push(c[0] + r * Math.cos(a1 + (da * k) / 4), c[1] + r * Math.sin(a1 + (da * k) / 4));
+    const mid = a1 + da / 2;
+    top = [c[0] + r * Math.cos(mid), c[1] + r * Math.sin(mid)];
+  } else arc = [...apex];
+  const backAll = [...backCut, ...arc], frontAll = [...arc, ...frontCut];
+  return { outer: [...backAll, ...frontCut, ...h.rest], back: backAll, front: frontAll, top };
+}
+
+/** Ломаная [x0, y0, …] в обратном порядке точек. */
+const rev = (pts: number[]): number[] => pts.flatMap((_, i) => (i % 2 ? [] : [pts[pts.length - 2 - i], pts[pts.length - 1 - i]]));
+
+/** Точки ломаной между высотами `y0` и `y1` (листа) — для кромки и складок вдоль ската. */
+const between = (pts: number[], y0: number, y1: number): number[] => pts.filter((_, i) => {
+  const y = pts[i - (i % 2) + 1];
+  return y >= y0 && y <= y1;
+});
 
 function head(p: Painter, m: Mats, L: ArcherLookSpec): void {
   const h = HOODS[L.hoodCut];
@@ -592,14 +671,18 @@ function head(p: Painter, m: Mats, L: ArcherLookSpec): void {
     p.poly(S(...h.tail), m.hood, { part: 'hoodTail', bevel: 2, tone: 0.04 });
     if (h.tailLit) stroke(p, S(...h.tailLit), m.hoodTailLit, 'hoodTail');
   }
-  // Треугольник с фаской; плоские грани краской: задний скат к свету светлее, передний над лицом в тени.
-  p.poly(S(...h.outer), m.hood, { part: 'hood', bevel: 3.5, flat: 0.55 });
-  p.poly(S(...h.litPlane), m.hood, { part: 'hood', paint: true, tone: 0.12 });
-  p.poly(S(...h.darkPlane), m.hood, { part: 'hood', paint: true, tone: -0.14 });
-  stroke(p, S(...h.ridge), m.hoodFold, 'hood');
-  for (const f of h.folds) stroke(p, S(...f), m.hoodFold, 'hood');
+  // Силуэт с фаской; плоские грани краской: задний скат к свету светлее, передний над лицом в тени; ребро от макушки
+  // вниз, кромка к свету и складки — вдоль скатов (число точек у каждой — постоянное: от мягкости, а не от кадра).
+  const sh = hoodShape(h, HOOD_SOFT);
+  p.poly(S(...sh.outer), m.hood, { part: 'hood', bevel: 3.5, flat: 0.55 });
+  const ridge = [sh.top[0] + 1.5, sh.top[1] + 4, 85, 30, 88, 49];
+  p.poly(S(...sh.back, ...rev(ridge), 86, 54, 77, 51), m.hood, { part: 'hood', paint: true, tone: 0.12 });
+  p.poly(S(...sh.front, ...rev(offsetLine(sh.front, 4.5))), m.hood, { part: 'hood', paint: true, tone: -0.14 });
+  stroke(p, S(...ridge), m.hoodFold, 'hood');
+  stroke(p, S(...between(offsetLine(sh.back, 4), 20, 45)), m.hoodFold, 'hood');
+  if (h.frontFolds) stroke(p, S(...between(offsetLine(sh.front, 3.5).filter((_, i, a) => a[i - (i % 2)] > sh.top[0] + 6), 0, 30)), m.hoodFold, 'hood');
   // Кромка заднего ската к свету: у «Ворона» тоном ткани и короче — светлое ребро по своду читалось бликом шлема.
-  stroke(p, S(...h.lit), L.hoodCut === 'peak' ? m.hoodTailLit : m.hoodLit, 'hood');
+  stroke(p, S(...between(offsetLine(sh.back, 1.5), 0, h.litTo)), L.hoodCut === 'peak' ? m.hoodTailLit : m.hoodLit, 'hood');
   if (h.rim) p.poly(S(...h.rim), m.hood, { part: 'hood', paint: true, tone: 0.14 });
   p.poly(S(...h.opening), m.dark, { part: 'hood', paint: true });
   // Лицо: свет сверху слева, из-за спины — у «Следопыта», как на листе, светлый клин щеки у заднего края проёма, нос
