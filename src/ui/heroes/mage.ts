@@ -793,7 +793,7 @@ const AVATAR_SKYLINE: AvatarSpec['skyline'] = [[0.05, 0.07, 0.62, 0.3], [0.13, 0
  * портрете: кулак с посохом внизу справа, пламя справа от капюшона); C — огонёк в ближней ладони перед грудью (как
  * лечение «Огонёк в ладони»), голова склонена к нему, маска подсвечена снизу (`faceLit`).
  */
-const PORTRAIT_B: MagePose = { ...REST, ws: 1, fhx: 128, fhy: 54, wr: -54, head: 4, glow: 1.25 };
+const PORTRAIT_B: MagePose = { ...REST, ws: 1, fhx: 128, fhy: 57, wr: -54, head: 4, glow: 1.25 };
 const PORTRAIT_C: MagePose = { ...REST, crouch: 2, lean: 3, head: 7, nfront: 1, nhx: 94, nhy: 76, nl: 1.15, palm: 1.15, glow: 0.85, faceLit: 1 };
 
 /**
@@ -804,7 +804,7 @@ const PORTRAIT_C: MagePose = { ...REST, crouch: 2, lean: 3, head: 7, nfront: 1, 
  */
 function avatarOf(m: Mats, v: MageAvatar): AvatarSpec {
   const base = { colors: AVATAR_COLORS, skyline: AVATAR_SKYLINE, emblem: { polys: EMBLEM_POLYS, color: '#0c1535' } };
-  if (v === 'b') return { ...base, draw: (p) => drawMage(p, PORTRAIT_B, m), crop: [44, -14, 96], halo: [92, 8, 22] };
+  if (v === 'b') return { ...base, draw: (p) => drawMage(p, PORTRAIT_B, m), crop: [44, -14, 96], halo: [86, -1, 20] };
   if (v === 'c') return { ...base, draw: (p) => drawMage(p, PORTRAIT_C, m), crop: [36, -10, 94], halo: [82, 10, 22] };
   return { ...base, draw: (p) => drawMage(p, REST, m), crop: [55, -18, 102], halo: [94, 6, 23] };
 }
