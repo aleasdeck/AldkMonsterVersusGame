@@ -10,8 +10,11 @@ import { at, DEG, ease, ik, lerp, reachFoot, stroke } from './rig';
  * набедренной полосы и конец кушака, как на листе. Облики B «Отравитель» и C «Сумрак» — в истории ветки. В игру ещё не
  * входит: записи в `HERO_MODELS` нет, инструменты находят модель по имени файла (`assassinModel()`).
  *
- * Шаг 4 — клипы: девять общих, своих нет. У удара, сильного удара и лечения по два варианта на выбор пользователя
- * (`ASSASSIN_VARIANTS`, `assassinModel({ variants })`, по умолчанию — рекомендация `ASSASSIN_REC_VARIANTS`). Обе руки
+ * Шаг 4 — клипы: девять общих, своих нет (Дымовая шашка и Тень покрова — клич, Двойной выпад — сильный удар). Решения
+ * пользователя со страницы «Лепка троих»: удар — «Выпад» передней рукой, сильный удар — «Ножницы» (оба клинка разом
+ * вперёд, затем рывком врозь), лечение — «Вдох» стоя; смерть — ничком, как у Берсерка (после ревью риггера). Отвергнутые
+ * варианты — удар «Снизу», сильный удар «Раз-два», лечение «На колено», падение на спину — и сгиб локтя «пешнёй» для
+ * отвергнутых глотка и удара сверху — в истории ветки. Риг правился по двум кругам ревью агента-риггера. Обе руки
  * ведутся кистью; клинки обратным хватом продолжают предплечье — в клипах они идут от предплечья с пределом запястья
  * `WRIST` ±35°. Из этого правило поз: поднятая кисть при обычном сгибе смотрит клинком вверх («факел»), поэтому удары —
  * передней рукой вперёд и ближней ниже шарфа, а не над головой (у ближней руки плечо сзади на высоте маски, и её выпад
@@ -298,14 +301,6 @@ export interface AssassinPose extends Record<string, number> {
   /** Дальняя рука — то же для второго клинка. */
   fhx: number; fhy: number; fsw: number; fwr: number; fws: number; fsx: number; fsy: number;
   /**
-   * Сгиб локтя: 0 — как в стойке (локоть ниже линии плечо — кисть, поднятая кисть смотрит клинком вверх), 1 — локоть по
-   * другую сторону линии: поднят над кистью, предплечье висит от него, и клинок обратного хвата смотрит вниз — хват
-   * «пешнёй». Между 0 и 1 локоть проходит через линию — рука поворачивается в глубину и в проекции короче; переключать,
-   * пока рука почти прямая или за один-два кадра. В нынешних клипах не нужен (глоток и удар сверху обеими, где он был,
-   * отвергнуты: поднятый локоть ложился на капюшон) — оставлен для правок, где клинку у поднятой кисти надо смотреть вниз.
-   */
-  nbend: number; fbend: number;
-  /**
    * Слои рук: `nover` 1 — ближняя рука поверх накидки, головы и шарфа (кулак у лица, рука над плечом); `fback` 1 —
    * дальнее предплечье с клинком за туловищем (замах назад); `ffront` 1 — дальнее предплечье перед головой и шарфом
    * (клинки крестом перед лицом). По умолчанию ближняя рука под накидкой, дальнее предплечье перед туловищем.
@@ -313,7 +308,7 @@ export interface AssassinPose extends Record<string, number> {
   nover: number; fback: number; ffront: number;
   footF: number; footN: number; liftF: number; liftN: number;
   /**
-   * Ближнее колено на земле (лечение на колено, смерть), `kneelF` — дальнее; таз опускать приседом (колено касается
+   * Ближнее колено на земле (смерть), `kneelF` — дальнее; таз опускать приседом (колено касается
    * земли при `crouch + y` ≈ 16). Сапог встаёт на носок.
    */
   kneel: number; kneelF: number;
@@ -338,47 +333,17 @@ const REST: AssassinPose = {
   x: 0, y: 0, crouch: 0, lean: 0, head: 0,
   nhx: M.armN.hand[0], nhy: M.armN.hand[1], nsw: BLADE_N, nwr: BLADE_N - FORE_N, nws: 0, nsx: 0, nsy: 0,
   fhx: M.armF.hand[0], fhy: M.armF.hand[1], fsw: BLADE_F, fwr: BLADE_F - FORE_F, fws: 0, fsx: 0, fsy: 0,
-  nbend: 0, fbend: 0,
   nover: 0, fback: 0, ffront: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, kneel: 0, kneelF: 0, cape: 0, turn: 0, fall: 0, drop: 0, limp: 0, spark: 0,
 };
-
-/** Выбор варианта клипа на обсуждении: у удара, сильного удара и лечения — по два. */
-export interface AssassinOpts {
-  variants?: Partial<Record<SculptClip, 'a' | 'b'>>;
-}
-
-/** Варианты клипов для страницы обсуждения: имя (1–3 слова) и чем отличается. */
-export const ASSASSIN_VARIANTS: Partial<Record<SculptClip, readonly { id: 'a' | 'b'; name: string; note: string }[]>> = {
-  attack: [
-    { id: 'a', name: 'Выпад', note: 'Передняя рука с клинком у пояса — шаг, и рука во всю длину на врага, клинок продолжает её на уровне груди. Ближняя рука уходит назад противовесом.' },
-    { id: 'b', name: 'Снизу', note: 'Передняя рука опущена к колену, клинок вниз — на шаге рез снизу вверх через врага, в конце клинок смотрит вверх-вперёд.' },
-  ],
-  heavy: [
-    { id: 'a', name: 'Раз-два', note: 'Два удара разными руками: рез снизу передней рукой (первое касание), затем подскоком ещё глубже — укол ближней в живот (второе).' },
-    { id: 'b', name: 'Ножницы', note: 'Оба клинка разом от пояса вперёд — на уровне груди и живота (первое касание), затем рывком врозь: передний вверх, ближний вниз (второе).' },
-  ],
-  heal: [
-    { id: 'a', name: 'Вдох', note: 'Стоя: выдох с поклоном — и вдох, голова запрокинута, грудь раскрыта, ближняя рука отведена назад; держит и возвращается в стойку.' },
-    { id: 'b', name: 'На колено', note: 'Ближнее колено на землю, голова склонена, клинки остриём к земле перед коленом; держит и встаёт.' },
-  ],
-};
-
-/**
- * Рекомендация аниматора — её же модель берёт по умолчанию. Удар — «Выпад»: «Снизу» первыми тремя кадрами повторяет
- * сильный удар «Раз-два», и простая атака выглядела бы его первой половиной. Лечение — «На колено» (после ревью риггера):
- * ключевая поза «Вдоха» — наклон назад, голова запрокинута, рука отведена — почти повторяет урон, а в ×1 разница — 2–3
- * пикселя наклона головы под капюшоном; колено — общий язык лечения, силуэт опускается на 16 и держится шесть кадров.
- */
-export const ASSASSIN_REC_VARIANTS: Partial<Record<SculptClip, 'a' | 'b'>> = { attack: 'a', heavy: 'a', heal: 'b' };
 
 /** Что показывает каждый клип — подписи плиток страницы обсуждения. */
 export const ASSASSIN_CLIP_NOTES: Partial<Record<SculptClip, string>> = {
   idle: 'Низкая стойка, клинки обратным хватом вниз; дыхание, вес с ноги на ногу, раз за цикл голова подаётся к врагам.',
   attack: 'Обычная атака клинком с шагом; контакт — на пятом кадре, клинок в груди врага.',
-  heavy: 'Приём вплотную в два касания (Двойной выпад, Кровопускание): первое — в кадр контакта, второе — через кадр, к цифре второго удара.',
+  heavy: 'Приём вплотную «Ножницы» (Двойной выпад, Кровопускание): оба клинка разом вперёд — в грудь и в живот (первое касание, кадр контакта), через кадр рывком врозь (второе).',
   power: 'Бросок из-за головы (нож, склянка): рука через верх, в кадр контакта кулак над капюшоном, передняя рука целится; проводка — к бедру.',
-  heal: 'Лечение и зелье: короткий жест к кадру 3, дальше держит и возвращается в стойку.',
+  heal: 'Лечение и зелье «Вдох»: выдох с поклоном — к кадру 3 вдох, голова запрокинута, грудь раскрыта; держит и возвращается в стойку.',
   buff: 'Дымовая шашка и Тень покрова: рука к кошелю — бросок под ноги рукой вперёд-вниз в кадр контакта — присел и закрыл лицо предплечьем.',
   block: 'Клинки крестом у лба, предплечья закрывают лицо: отдача назад, искры в месте скрещения в кадр удара.',
   hurt: 'Удар отбросил корпус назад, голова запрокинута, ближняя рука отлетела назад; белая вспышка.',
@@ -396,7 +361,7 @@ type AssassinClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite'>;
  * ноль явным ключом на кадре перед нужным.
  */
 const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
-  // Удар A «Выпад» (рекомендация) — укол передней рукой: она ближе к врагам, и её выпад не пересекает ни корпус, ни лицо.
+  // Удар «Выпад» (выбор пользователя) — укол передней рукой: она ближе к врагам, и её выпад не пересекает ни корпус, ни лицо.
   // 1–2 — вес назад, передний кулак у пояса за корпусом (`fback`), клинок уже смотрит вперёд — из-за живота торчит одно
   // остриё; ближняя рука отведена назад; передняя стопа оторвалась; 3 — шаг, рука идёт вперёд перед корпусом; 4 — стопа
   // встала, таз и корпус вперёд, рука во всю длину на уровне груди врага, клинок её продолжает (запястье −8); ближняя
@@ -412,23 +377,20 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
     [5, { x: 12, crouch: 7, lean: 9, head: 4, fhx: 131, fhy: 51, fwr: -6, nhx: 8, nhy: 53, footN: 7, footF: 14, liftF: 0, cape: 2, liftN: 0 }],
     [6, { x: 5, crouch: 4, lean: 3, head: 2, fws: 1, fhx: 112, fhy: 66, fwr: 0, nws: 1, nhx: 14, nhy: 62, nwr: 2, footN: 7, footF: 5, liftF: 3, cape: 1, liftN: 2 }],
   ],
-  // Сильный удар A «Раз-два» (рекомендация) — два касания разными руками, как требует Двойной выпад (два удара по 200 мс
-  // цифр: второе касание — кадр 7, цифра — 617 мс). 1–2 — присел, передний кулак опущен к колену (клинок вниз-назад),
-  // ближний у пояса клинком вперёд; 3–4 — шаг, передняя рука идёт снизу вверх; 5 — первое касание: рез снизу через
-  // врага, клинок вперёд-вверх; 6 — передняя рука уходит вверх, ближняя трогается от пояса; 7 — второе касание: укол
-  // ближней в живот под шарфом — второй выпад: в кадре 6 подскок (обе стопы в воздухе), в 7 корпус ещё на 14 вперёд
-  // (x 28), плечо развёрнуто (`nsx` 16), остриё до 156 — достаёт врага, как первое касание (172) и удар (170); при x 16
-  // укол кончался в 36 от врага — «в воздух»; передняя рука поднята и не закрывает укол; 8 — шаг назад (обе стопы в
-  // воздухе), кисть на полпути к покою: из глубокого выпада до покоя два кадра, конец клинка — по 82 и 71.
+  // Сильный удар «Ножницы» (выбор пользователя) — оба клинка разом, два касания, как требует Двойной выпад (два удара с
+  // шагом цифр 200 мс: вторая цифра — 617 мс, кадр 7,4). 1–2 — оба кулака у пояса клинками вперёд (передний за корпусом,
+  // `fback`); 3–4 — шаг, задняя стопа переставлена за один кадр; 5 — первое касание: передний клинок в грудь, ближний в
+  // живот (плечо вперёд `nsx` 11); 6 — держит; 7 — второе касание: рывком врозь — передний вверх-вперёд, ближний вниз;
+  // 8 — шаг назад.
   heavy: [
-    [1, { x: -3, crouch: 5, lean: -4, head: -2, fws: 1, fhx: 100, fhy: 84, fwr: 12, nws: 1, nhx: 32, nhy: 60, nwr: -30, liftF: 1, cape: 0.3 }],
-    [2, { x: -3, crouch: 6, lean: -3, head: -2, fhx: 100, fhy: 90, fwr: 22, nhx: 30, nhy: 61, nwr: -32, footN: 0, footF: 0, liftF: 3, cape: 0.5 }],
-    [3, { x: 5, crouch: 6, lean: 3, head: 1, fhx: 122, fhy: 76, fwr: 8, nhx: 30, nhy: 61, footN: 0, footF: 8, liftF: 4, cape: 1.2 }],
-    [4, { x: 11, crouch: 7, lean: 7, head: 3, fhx: 134, fhy: 58, fwr: -8, footN: 8, footF: 15, liftF: 0, cape: 2 }],
-    [5, { x: 13, crouch: 8, lean: 8, head: 4, fhx: 136, fhy: 42, fwr: -18, nhx: 34, nhy: 61, nsx: 0, footN: 8, footF: 15, liftF: 0, cape: 2.5, liftN: 0 }],
-    [6, { x: 14, crouch: 8, lean: 8, head: 4, fhx: 126, fhy: 26, fwr: -28, nhx: 56, nhy: 62, nwr: -30, nsx: 3, footN: 14, footF: 19, liftF: 3, cape: 2.5, liftN: 2 }],
-    [7, { x: 28, crouch: 11, lean: 13, head: 5, fhx: 122, fhy: 32, fwr: -22, nhx: 98, nhy: 56, nwr: -35, nsx: 16, footN: 22, footF: 24, liftF: 0, cape: 2.5, liftN: 0 }],
-    [8, { x: 12, crouch: 7, lean: 6, head: 3, fws: 1, fhx: 112, fhy: 68, fwr: 4, nws: 1, nhx: 44, nhy: 64, nwr: -6, nsx: 4, footN: 9, footF: 12, liftF: 3, cape: 1.2, liftN: 3 }],
+    [1, { x: -3, crouch: 5, lean: -5, head: -2, fws: 1, fhx: 98, fhy: 64, fwr: -25, fback: 1, nws: 1, nhx: 32, nhy: 60, nwr: -30, liftF: 1, cape: 0.3 }],
+    [2, { x: -4, crouch: 6, lean: -6, head: -3, fhx: 94, fhy: 62, fwr: -28, nhx: 30, nhy: 61, nwr: -32, nsx: -2, footN: 0, footF: 0, liftF: 3, cape: 0.5, fback: 1 }],
+    [3, { x: 4, crouch: 6, lean: 2, head: 0, fhx: 112, fhy: 58, fwr: -15, nhx: 50, nhy: 62, nwr: -30, nsx: 3, footN: 0, footF: 8, liftF: 4, cape: 1.2, fback: 0 }],
+    [4, { x: 12, crouch: 8, lean: 7, head: 3, fhx: 126, fhy: 52, fwr: -8, nhx: 78, nhy: 64, nwr: -32, nsx: 8, footN: 9, footF: 15, liftF: 0, cape: 2 }],
+    [5, { x: 15, crouch: 9, lean: 9, head: 4, fhx: 131, fhy: 50, fwr: -6, nhx: 90, nhy: 64, nwr: -34, nsx: 11, footN: 9, footF: 15, liftF: 0, cape: 2.5 }],
+    [6, { x: 16, crouch: 10, lean: 10, head: 5, fhx: 132, fhy: 50, fwr: -5, nhx: 91, nhy: 65, nwr: -34, nsx: 11, footN: 9, footF: 15, liftF: 0, cape: 2.5 }],
+    [7, { x: 14, crouch: 9, lean: 7, head: 3, fhx: 130, fhy: 32, fwr: -20, nhx: 54, nhy: 72, nwr: -5, nsx: 4, footN: 9, footF: 15, liftF: 0, cape: 2.2, liftN: 0 }],
+    [8, { x: 7, crouch: 5, lean: 4, head: 2, fws: 1, fhx: 116, fhy: 58, fwr: 0, nws: 1, nhx: 30, nhy: 66, nwr: 2, nsx: 1, footN: 5, footF: 7, liftF: 3, cape: 1, liftN: 3 }],
   ],
   // Приём — бросок из-за головы (нож, склянка): снаряд вылетает в кадр контакта 4. 1 — ближняя рука отведена назад, передняя
   // целится клинком во врага; 2 — замах: кулак за плечом, клинок назад; 3 — локоть вперёд-вверх, кулак над затылком
@@ -443,7 +405,7 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
     [5, { x: 10, crouch: 7, lean: 12, head: 4, nhx: 84, nhy: 68, nwr: 10, nsx: 8, fhx: 104, fhy: 80, footN: 6, footF: 12, liftF: 0, cape: 1.2, nover: 0, liftN: 0 }],
     [6, { x: 4, crouch: 3, lean: 5, head: 1, nws: 1, nhx: 31, nhy: 64, nwr: 2, nsx: 2, fws: 1, fhx: 108, fhy: 76, fwr: 4, footN: 6, footF: 5, liftF: 3, cape: 0.6, nover: 0, liftN: 2 }],
   ],
-  // Лечение A «Вдох»: выдох с поклоном — к кадру контакта (2) вдох: выпрямился, голова запрокинута, грудь
+  // Лечение «Вдох» (выбор пользователя): выдох с поклоном — к кадру контакта (2) вдох: выпрямился, голова запрокинута, грудь
   // раскрыта, ближняя рука отведена назад, передняя висит; держит до 6, выдыхает и встаёт в стойку. Глоток из кулака
   // отвергнут: при обратном хвате клинок продолжает предплечье, и у лица он либо торчит вверх («факел»), либо рука с
   // поднятым локтем ложится на капюшон — «рука по лицу».
@@ -517,44 +479,6 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
   ],
 };
 
-/** Варианты клипов на обсуждении: ключи второго варианта (B); первый (A) — в `CLIPS`. */
-const CLIPS_B: Partial<Record<AssassinClip, PoseKeys<AssassinPose>>> = {
-  // Удар B «Снизу» — рез передней рукой снизу вверх: 1–2 — присел, передний кулак опущен к колену, клинок вниз-назад;
-  // 3 — шаг, рука идёт вперёд, клинок вниз-вперёд; 4 — контакт: клинок проходит врага на уровне груди; 5 — проводка вверх,
-  // клинок вперёд-вверх; 6 — назад. Ближняя рука держит клинок у бедра.
-  attack: [
-    [1, { x: -2, crouch: 5, lean: -3, head: -2, fws: 1, fhx: 100, fhy: 84, fwr: 12, nws: 1, nhx: 26, nhy: 56, nwr: -10, liftF: 1, cape: 0.2 }],
-    [2, { x: -3, crouch: 6, lean: -3, head: -2, fhx: 100, fhy: 90, fwr: 22, nhx: 24, nhy: 54, footF: 0, liftF: 3, cape: 0.4 }],
-    [3, { x: 5, crouch: 6, lean: 3, head: 1, fhx: 122, fhy: 76, fwr: 8, nhx: 22, nhy: 56, footN: 0, footF: 7, liftF: 4, cape: 1 }],
-    [4, { x: 11, crouch: 7, lean: 8, head: 3, fhx: 135, fhy: 50, fwr: -12, nhx: 18, nhy: 58, footN: 7, footF: 13, liftF: 0, cape: 2.5 }],
-    [5, { x: 11, crouch: 6, lean: 6, head: 1, fhx: 130, fhy: 28, fwr: -25, nhx: 18, nhy: 60, footN: 7, footF: 13, liftF: 0, cape: 2, liftN: 0 }],
-    [6, { x: 5, crouch: 3, lean: 3, head: 1, fws: 1, fhx: 118, fhy: 58, fwr: 5, nws: 1, nhx: 20, nhy: 64, nwr: 2, footN: 7, footF: 5, liftF: 3, cape: 1, liftN: 2 }],
-  ],
-  // Сильный удар B «Ножницы» — оба клинка разом: 1–2 — оба кулака у пояса клинками вперёд (передний за корпусом,
-  // `fback`); 3–4 — шаг; 5 — первое касание: передний клинок в грудь, ближний в живот (плечо вперёд `nsx` 11); 6 — держит;
-  // 7 — второе касание: рывком врозь — передний вверх-вперёд, ближний вниз; 8 — шаг назад.
-  heavy: [
-    [1, { x: -3, crouch: 5, lean: -5, head: -2, fws: 1, fhx: 98, fhy: 64, fwr: -25, fback: 1, nws: 1, nhx: 32, nhy: 60, nwr: -30, liftF: 1, cape: 0.3 }],
-    [2, { x: -4, crouch: 6, lean: -6, head: -3, fhx: 94, fhy: 62, fwr: -28, nhx: 30, nhy: 61, nwr: -32, nsx: -2, footN: 0, footF: 0, liftF: 3, cape: 0.5, fback: 1 }],
-    [3, { x: 4, crouch: 6, lean: 2, head: 0, fhx: 112, fhy: 58, fwr: -15, nhx: 50, nhy: 62, nwr: -30, nsx: 3, footN: 0, footF: 8, liftF: 4, cape: 1.2, fback: 0 }],
-    [4, { x: 12, crouch: 8, lean: 7, head: 3, fhx: 126, fhy: 52, fwr: -8, nhx: 78, nhy: 64, nwr: -32, nsx: 8, footN: 9, footF: 15, liftF: 0, cape: 2 }],
-    [5, { x: 15, crouch: 9, lean: 9, head: 4, fhx: 131, fhy: 50, fwr: -6, nhx: 90, nhy: 64, nwr: -34, nsx: 11, footN: 9, footF: 15, liftF: 0, cape: 2.5 }],
-    [6, { x: 16, crouch: 10, lean: 10, head: 5, fhx: 132, fhy: 50, fwr: -5, nhx: 91, nhy: 65, nwr: -34, nsx: 11, footN: 9, footF: 15, liftF: 0, cape: 2.5 }],
-    [7, { x: 14, crouch: 9, lean: 7, head: 3, fhx: 130, fhy: 32, fwr: -20, nhx: 54, nhy: 72, nwr: -5, nsx: 4, footN: 9, footF: 15, liftF: 0, cape: 2.2, liftN: 0 }],
-    [8, { x: 7, crouch: 5, lean: 4, head: 2, fws: 1, fhx: 116, fhy: 58, fwr: 0, nws: 1, nhx: 30, nhy: 66, nwr: 2, nsx: 1, footN: 5, footF: 7, liftF: 3, cape: 1, liftN: 3 }],
-  ],
-  // Лечение B «На колено» (рекомендация): 1 — оседает; 2 — ближнее колено на земле (присед 15,5 — по низу наколенника, при
-  // 18 он уходил под землю), сапог на носке, голова склонена, клинки остриём к земле перед коленом (запястья держатся
-  // ключом и в 8 — иначе клинки медленно поворачивались в «держит»); держит до 8; 9–10 — встаёт.
-  heal: [
-    [1, { crouch: 8, lean: 4, head: 6, nws: 1, nhx: 40, nhy: 64, nwr: 0, fws: 1, fhx: 102, fhy: 76, fwr: 4, kneel: 0.45, cape: 0.2 }],
-    [2, { crouch: 15.5, lean: 8, head: 14, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.3 }],
-    [8, { crouch: 15.5, lean: 7, head: 16, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.2 }],
-    [9, { crouch: 9, lean: 4, head: 6, nhx: 42, nhy: 66, fhx: 104, fhy: 74, kneel: 0.45, cape: 0.1 }],
-    [10, { crouch: 3, lean: 1, head: 2, nws: 1, nhx: 24, nhy: 64, nwr: 2, fws: 1, fhx: 108, fhy: 74, fwr: 4, kneel: 0 }],
-  ],
-};
-
 /**
  * Предел запястья при обратном хвате: клинок выходит из-под мизинца и в стойке продолжает предплечье (≈ +2° и +4°);
  * кисть отклоняется в обе стороны не больше, чем на 35°. Вне предела клинок встаёт поперёк предплечья, как при прямом
@@ -576,18 +500,13 @@ interface ArmSolve { sx: number; sy: number; ex: number; ey: number; hx: number;
  * Рука кистью в точке (tx, ty) от плеча (sx, sy): локоть — ik по ту же сторону от линии плечо — кисть, что в стойке
  * (обе руки листа чуть согнуты локтем наружу-вверх); кисть не дальше длины руки.
  */
-function reachArm(sx: number, sy: number, tx: number, ty: number, l1: number, l2: number, bend = 0): ArmSolve {
+function reachArm(sx: number, sy: number, tx: number, ty: number, l1: number, l2: number): ArmSolve {
   const vx = tx - sx, vy = ty - sy, d = Math.hypot(vx, vy), reach = l1 + l2 - 0.05;
   if (d > reach) {
     tx = sx + (vx * reach) / d;
     ty = sy + (vy * reach) / d;
   }
-  let [ex, ey] = ik(sx, sy, tx, ty, l1, l2, -vy, vx);
-  if (bend > 0) {
-    const [bx, by] = ik(sx, sy, tx, ty, l1, l2, vy, -vx);
-    ex = lerp(ex, bx, bend);
-    ey = lerp(ey, by, bend);
-  }
+  const [ex, ey] = ik(sx, sy, tx, ty, l1, l2, -vy, vx);
   return { sx, sy, ex, ey, hx: tx, hy: ty, a1: Math.atan2(ey - sy, ex - sx) / DEG, a2: Math.atan2(ty - ey, tx - ex) / DEG };
 }
 
@@ -606,9 +525,9 @@ function followShoulder(sh: readonly number[], rest: number, solve: (sx: number,
   return lift > 0 || fwd > 0 ? solve(sx0 + 2.5 * fwd - 2 * back, sy0 - 3 * lift) : first;
 }
 const nearArm = (P: AssassinPose): ArmSolve =>
-  followShoulder([M.armN.sh[0] + P.nsx, M.armN.sh[1] + P.nsy], M.armN.hand[0], (sx, sy) => reachArm(sx, sy, P.nhx, P.nhy, ARM_N.l1, ARM_N.l2, P.nbend), ARM_N.l1);
+  followShoulder([M.armN.sh[0] + P.nsx, M.armN.sh[1] + P.nsy], M.armN.hand[0], (sx, sy) => reachArm(sx, sy, P.nhx, P.nhy, ARM_N.l1, ARM_N.l2), ARM_N.l1);
 const farArm = (P: AssassinPose): ArmSolve =>
-  followShoulder([M.armF.sh[0] + P.fsx, M.armF.sh[1] + P.fsy], M.armF.hand[0], (sx, sy) => reachArm(sx, sy, P.fhx, P.fhy, ARM_F.l1, ARM_F.l2, P.fbend), ARM_F.l1);
+  followShoulder([M.armF.sh[0] + P.fsx, M.armF.sh[1] + P.fsy], M.armF.hand[0], (sx, sy) => reachArm(sx, sy, P.fhx, P.fhy, ARM_F.l1, ARM_F.l2), ARM_F.l1);
 
 /**
  * Покой: лёгкое дыхание — верх с капюшоном поднимается на пиксель, таз оседает на четверть цикла позже, раз за цикл
@@ -642,13 +561,13 @@ function idlePose(p: Painter): AssassinPose {
   return P;
 }
 
-/** Поза кадра: ключи клипа (выбранного варианта) поверх покоя в фазе 0 или сам покой. */
-function framePose(p: Painter, variants: Partial<Record<SculptClip, 'a' | 'b'>>): AssassinPose {
+/** Поза кадра: ключи клипа поверх покоя в фазе 0 или сам покой. */
+function framePose(p: Painter): AssassinPose {
   const base = idlePose(p);
   const c = clipAt(p);
   if (!c) return base;
   const clip = c.clip as AssassinClip;
-  const keys = (variants[clip] === 'b' ? CLIPS_B[clip] : undefined) ?? CLIPS[clip];
+  const keys = CLIPS[clip];
   return keys?.length ? poseAt(base, keys, c.f, c.n, HERO_CLIPS[c.clip].hold) : base;
 }
 
@@ -1058,8 +977,7 @@ function avatarOf(m: Mats): AvatarSpec {
 }
 
 /** Ассасин; рост в покое — `HERO_BODY_HEIGHT.assassin` (120) в пикселе `HERO_PIXEL`. */
-export function assassinModel(opts: AssassinOpts = {}): HeroModel {
-  const variants = { ...ASSASSIN_REC_VARIANTS, ...opts.variants };
+export function assassinModel(): HeroModel {
   const m = matsOf(LOOK);
   return {
     id: 'assassin',
@@ -1069,6 +987,6 @@ export function assassinModel(opts: AssassinOpts = {}): HeroModel {
     h: 128,
     ground: G,
     pad: 80,
-    draw: (p: Painter) => drawAssassin(p, framePose(p, variants), m),
+    draw: (p: Painter) => drawAssassin(p, framePose(p), m),
   };
 }
