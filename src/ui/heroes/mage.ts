@@ -1,14 +1,16 @@
-import { type Mat, type Painter } from '../mobs/pixel';
+import { type Mat, type Painter, type Shape } from '../mobs/pixel';
 import type { AvatarSpec } from './avatar';
 import type { HeroModel, HeroProbe } from './model';
 import { clipAt, HERO_CLIPS, poseAt, type PoseKeys, type SculptClip } from './clips';
-import { at, DEG, ik, lerp, solid, stroke } from './rig';
+import { at, DEG, ease, ik, lerp, solid, stroke } from './rig';
 
 /**
- * Маг пиксельной лепкой — шаги 1–3 рецепта docs/lepka-geroev.md: мерки с прежнего листа, модель в стойке с покоем
- * и три облика одной лепкой на выбор пользователя (A «С листа», B «Звездочёт», C «Отшельник»). Клипов ещё нет: все
- * клипы, кроме покоя, рисуют первый кадр покоя. В `HERO_MODELS` модели нет — игра и тесты её не видят, инструменты
- * находят по имени файла (`mageModel(look)`).
+ * Маг пиксельной лепкой — шаги 1–4 рецепта docs/lepka-geroev.md: мерки с прежнего листа, модель в стойке с покоем
+ * и девять общих клипов (своих нет: Волшебная стрела и Огненная волна — снаряды, клип приёма). Решение пользователя —
+ * облик A «С листа» (облики B «Звездочёт» и C «Отшельник» — в истории ветки): посох в дальней руке, как во всех рядах
+ * листа, маска на лице. У удара, сильного удара и лечения — по два варианта на выбор (`MAGE_VARIANTS`, рекомендация —
+ * `MAGE_REC_VARIANTS`); рост — параметром (120 по таблице, на обсуждении ещё 106 и 98). В `HERO_MODELS` модели нет — игра
+ * и тесты её не видят, инструменты находят по имени файла (`mageModel(opts)`).
  *
  * Референс — прежний рисованный лист `src/assets/heroes/mage.png` (ячейка 186, ряды idle, battle, attack, power,
  * block, hurt, death), мерки — первый кадр ряда `battle`: непрозрачная фигура x 23…153, y 53…155, язык пламени над
@@ -23,8 +25,6 @@ import { at, DEG, ik, lerp, solid, stroke } from './rig';
  * пряжкой, кошель у ближнего бедра; сапоги из-под подола. Посох — в ДАЛЬНЕЙ руке, как на листе (все семь рядов):
  * рукав-колокол вытянут к врагам, кулак у края рукава, древко наклонено к врагам, наверху — открытое кольцо-крюк
  * с синим пламенем. Ближняя рука свободна: кулак выглядывает из-под плаща у бедра (в ряду удара он поднимается).
- * В плане по героям стояло наоборот («дальняя рука — свободная кисть заклинаний»): лист держит посох дальней — вопрос
- * пользователю в отчёте.
  *
  * Смотрит вправо, на врагов. Ближняя сторона — левая (плащ, кошель, свободный кулак поверх рясы), дальняя — правая
  * (рука с посохом, её рукав под пелериной). Свет общий с врагами — сверху слева, из-за спины героя.
@@ -33,68 +33,39 @@ import { at, DEG, ik, lerp, solid, stroke } from './rig';
  * материал встретился в кадре (`Painter`); число фигур в кадре покоя постоянно — иначе фактура «кипит».
  */
 
-// ─── Облики ─────────────────────────────────────────────────────────────────
+// ─── Облик ───────────────────────────────────────────────────────────────────
 
-export type MageLook = 'a' | 'b' | 'c';
-
-/** Облики на обсуждении: одна лепка и мерки листа, меняются голова, посох, кромки, пояс и палитра. */
-export const MAGE_LOOKS: readonly { id: MageLook; name: string; note: string }[] = [
-  {
-    id: 'a',
-    name: 'С листа',
-    note: 'Палитра и детали листа, приглушённые под сцену: ряса индиго с бронзовой кромкой, капюшон с заломленной макушкой, деревянный посох с кольцом-крюком и синим пламенем, кошель у бедра.',
-  },
-  {
-    id: 'b',
-    name: 'Звездочёт',
-    note: 'Полуночно-синяя ряса, тусклое серебро кромок, фестоны на пелерине, палантин со звёздами и раздвоенным концом; тёмный железный посох в серебряных кольцах с полумесяцем рогами вверх и холодной звездой над ним вместо пламени, у бедра вместо кошеля — тубус звёздных карт.',
-  },
-  {
-    id: 'c',
-    name: 'Отшельник',
-    note: 'Мешковина цвета пыли и сухой травы без металла, рваные края капюшона и подола, тёмная борода в тени капюшона; посох — узловатый корень, корни держат кристалл с бледным бирюзовым светом, на верёвочном поясе — книга и костяные обереги.',
-  },
-];
-
-/** Рекомендация: облик листа — герой узнаётся в ряду выбора, синее пламя остаётся его знаком. */
-export const MAGE_RECOMMENDED: MageLook = 'a';
-
-/** Палитры облика: рампы от тени к свету, по пять тонов. */
-interface LookSpec {
-  id: MageLook;
+/** Палитра облика: рампы от тени к свету, по пять тонов. */
+interface MageLook {
   /** Нижняя ряса до земли, верхняя ряса с клиньями и палантин (на полступени светлее), плащ, пелерина и капюшон. */
   robe: string[];
   tunic: string[];
   cloak: string[];
   /** Изнанка плаща в тени. */
   lining: string;
-  /** Кромки: рамп металла (бронза, серебро) или `null` — без металла, края швом. */
-  trim: string[] | null;
+  /** Кромки — тусклая бронза. */
+  trim: string[];
   /** Складка ткани, светлый край ткани. */
   fold: string;
   lit: string;
   leather: string[];
   skin: string[];
-  /** Древко: дерево или железо. */
+  /** Древко — дерево. */
   staff: string[];
   /** Свет посоха: край, середина, ядро; ореол. */
   fire: readonly [string[], string[], string[]];
   halo: string;
-  /** Кожа сапог, если не та же, что у пояса (у отшельника пояс — верёвка). */
-  boot?: string[];
-  /** Рваный край ткани (`shag` материала): у отшельника — лохмотья. */
+  /** Рваный край ткани (`shag` материала). */
   shag: number;
-  /** Борода (только у отшельника). */
-  beard?: string[];
 }
 
 /**
- * A «С листа»: ряса индиго — лиловый листа (#4e4771, ≈249°) сдвинут к 235° и приглушён на пятую часть: лиловая ряса
- * с золотом и огнём на посохе перекликалась с некромантом и личем (ревью моделлера); кромки — тусклая бронза,
- * кожа кошеля и сапог — красно-бурая, пламя синее (у врагов огонь зелёный, пурпурный и рыжий — синий остаётся Магу).
+ * Облик A «С листа» (выбор пользователя): ряса индиго — лиловый листа (#4e4771, ≈249°) сдвинут к 235° и приглушён
+ * на пятую часть: лиловая ряса с золотом и огнём на посохе перекликалась с некромантом и личем (ревью моделлера);
+ * кромки — тусклая бронза, кожа кошеля и сапог — красно-бурая, пламя синее (у врагов огонь зелёный, пурпурный и
+ * рыжий — синий остаётся Магу).
  */
-const LOOK_A: LookSpec = {
-  id: 'a',
+const LOOK: MageLook = {
   robe: ['#16182a', '#292b43', '#3e415e', '#555879', '#6e7092'],
   tunic: ['#181a2c', '#2d2f48', '#444766', '#5c5f82', '#75789b'],
   cloak: ['#131424', '#23253c', '#363855', '#4c4f70', '#656889'],
@@ -115,71 +86,14 @@ const LOOK_A: LookSpec = {
 };
 
 /**
- * B «Звездочёт»: ряса полуночно-синяя, кромки — потемневшее серебро, железный посох; свет — холодная бело-голубая
- * звезда (не пламя). Кожа ремня — серая. Рамп на ступень светлее первого: почти чёрное тело пропадало в Склепе и на
- * Корабле (ревью моделлера).
- */
-const LOOK_B: LookSpec = {
-  id: 'b',
-  robe: ['#171d31', '#252c45', '#363f5a', '#4a5470', '#606b88'],
-  tunic: ['#1a2035', '#29314b', '#3b4562', '#515c7a', '#687492'],
-  cloak: ['#131725', '#1f2436', '#2f354b', '#434a62', '#5a627a'],
-  lining: '#0a0c16',
-  trim: ['#4a4e56', '#747a84', '#9ea4ac', '#c4c8ce', '#e2e4e8'],
-  fold: '#0b0d16',
-  lit: '#56607c',
-  leather: ['#121012', '#262124', '#3a3337', '#52494e', '#6a6166'],
-  skin: ['#342220', '#644440', '#946a60', '#b68c7e', '#d0ac9c'],
-  staff: ['#0c0d10', '#1a1c21', '#2a2d33', '#3e424a', '#585d66'],
-  fire: [
-    ['#1c4a8a', '#2462a8', '#2e7ac4', '#3c92da', '#4eaaec'],
-    ['#7cc8f4', '#8ed4f8', '#a2e0fc', '#b8eafe', '#cef4ff'],
-    ['#e8f8ff', '#f0fbff', '#f8feff', '#ffffff', '#ffffff'],
-  ],
-  halo: '#8ccfff',
-  shag: 0.04,
-};
-
-/**
- * C «Отшельник»: мешковина цвета пыли и сухой травы, без металла — края швом, лохмотья по подолу; верёвка, кость,
- * узловатое дерево; свет — бледная бирюза кристалла (зелёный — огонь некроманта, бирюза от него отходит в синеву).
- * Пара «капюшон + седая борода» — мотив некроманта (ревью моделлера): борода тёмная, в тени капюшона, а серо-зелёная
- * мешковина первой сборки тонула в Лесу и Склепе — ряса светлее и теплее.
- */
-const LOOK_C: LookSpec = {
-  id: 'c',
-  robe: ['#221e17', '#3d362b', '#585040', '#746a56', '#90856e'],
-  tunic: ['#26211a', '#433b2f', '#5f5645', '#7b715c', '#978c74'],
-  cloak: ['#1a1712', '#2f2a21', '#463f32', '#5e5545', '#776d5a'],
-  lining: '#0e0c09',
-  trim: null,
-  fold: '#2a251c',
-  lit: '#7b715c',
-  leather: ['#241a10', '#46351f', '#6a5432', '#8e764f', '#ae966c'],
-  skin: ['#342018', '#62402e', '#8e644c', '#b0846a', '#caa486'],
-  staff: ['#1a120a', '#332314', '#4e3822', '#6c5234', '#8a6e4c'],
-  fire: [
-    ['#0c4a50', '#10626a', '#167c84', '#20969c', '#2eb0b2'],
-    ['#48c8c4', '#5cd6d0', '#74e2da', '#90ece4', '#acf4ec'],
-    ['#dcfff8', '#e6fffa', '#f0fffc', '#f8fffe', '#ffffff'],
-  ],
-  halo: '#40d0c8',
-  shag: 0.14,
-  boot: ['#16110c', '#2c2118', '#433226', '#5c4636', '#765c48'],
-  beard: ['#141210', '#221e1a', '#322c26', '#443c34', '#584e44'],
-};
-
-const LOOKS: Record<MageLook, LookSpec> = { a: LOOK_A, b: LOOK_B, c: LOOK_C };
-
-/**
- * Материалы облика — свой объект на каждую часть (движок заводит зерно фактуры на объект). Ткань — вытянутые волокна
+ * Материалы — свой объект на каждую часть (движок заводит зерно фактуры на объект). Ткань — вытянутые волокна
  * вдоль падения складок (`fur` со `stretch`, угол ≈ 90°; полосы `stripes` рябили частоколом светлых черт), рваный
  * край — `shag` облика; свет посоха светится сам (`glow`). Дизеринга нет ни у ткани, ни у кожи, ни у древка
  * (`dither: 0`): сетка Байера движка стоит по месту фигуры, и когда верх сдвигается на пиксель (12 переходов из 24
  * в покое), капюшон, пелерина и кошель перебрасывали тон целиком — 13 % пикселей на сдвиг против 0,6 % без дизеринга
  * (ревью моделлера; общий вопрос движка вынесен пользователю).
  */
-function matsOf(L: LookSpec) {
+function matsOf(L: MageLook) {
   const cloth = (ramp: string[], angle: number, shag = 0, amp = 0.1): Mat => ({ base: ramp[2], ramp, shag, dither: 0, tex: { kind: 'fur', scale: 2.6, amp, stretch: 3, angle } });
   const flat = (c: string): Mat => ({ base: c, ramp: [c, c, c, c, c], dither: 0 });
   const light = (ramp: string[], outline = true): Mat => ({ base: ramp[2], ramp, glow: true, dither: 0, noOutline: !outline });
@@ -196,22 +110,18 @@ function matsOf(L: LookSpec) {
     capelet: cloth(L.cloak, 0.7, L.shag * 0.5),
     /** Капюшон глаже рясы: волокна на крупной форме головы рябят. */
     hood: { base: L.cloak[2], ramp: L.cloak, shag: L.shag * 0.5, dither: 0, tex: { kind: 'noise', scale: 2.6, amp: 0.1 } } as Mat,
-    trim: L.trim ? ({ base: L.trim[2], ramp: L.trim, dither: 0 } as Mat) : null,
-    trimLit: L.trim ? L.trim[4] : L.lit,
+    trim: { base: L.trim[2], ramp: L.trim, dither: 0 } as Mat,
+    trimLit: L.trim[4],
     leather: { base: L.leather[2], ramp: L.leather, dither: 0, tex: { kind: 'noise', scale: 2, amp: 0.16 } } as Mat,
     pouch: { base: L.leather[2], ramp: L.leather, dither: 0, tex: { kind: 'noise', scale: 2.2, amp: 0.18 } } as Mat,
-    boot: { base: (L.boot ?? L.leather)[2], ramp: L.boot ?? L.leather, dither: 0, tex: { kind: 'noise', scale: 2, amp: 0.14 } } as Mat,
+    boot: { base: L.leather[2], ramp: L.leather, dither: 0, tex: { kind: 'noise', scale: 2, amp: 0.14 } } as Mat,
     fistN: { base: L.skin[2], ramp: L.skin, dither: 0 } as Mat,
     fistF: { base: L.skin[2], ramp: L.skin, dither: 0 } as Mat,
     face: { base: L.skin[2], ramp: L.skin, dither: 0 } as Mat,
-    staff: L.id === 'b'
-      ? ({ base: L.staff[2], ramp: L.staff, dither: 0, metal: 0.35, tex: { kind: 'spots', scale: 2.2, amp: 0.16, density: 0.18 } } as Mat)
-      : ({ base: L.staff[2], ramp: L.staff, dither: 0, tex: { kind: 'stripes', scale: 1.6, amp: 0.18, angle: 0.4 } } as Mat),
+    staff: { base: L.staff[2], ramp: L.staff, dither: 0, tex: { kind: 'stripes', scale: 1.6, amp: 0.18, angle: 0.4 } } as Mat,
     fireOuter: light(L.fire[0]),
     fireMid: light(L.fire[1], false),
     fireCore: light(L.fire[2], false),
-    beard: L.beard ? ({ base: L.beard[2], ramp: L.beard, shag: 0.3, dither: 0, tex: { kind: 'fur', scale: 1.6, amp: 0.2, stretch: 2, angle: 1.4 } } as Mat) : null,
-    bone: { base: '#b8ae96', ramp: ['#4a4436', '#7a705c', '#a89e86', '#c8bea4', '#e0d8c2'], dither: 0 } as Mat,
     dark: flat('#0c0a12'),
     lining: L.lining,
     fold: L.fold,
@@ -291,11 +201,6 @@ const TUNIC_F = [95, 108, 112, 104, 121, 108, 123, 116, 121, 124, 122, 131, 119,
 const TUNIC_F_EDGE = [96, 109, 97, 112, 100, 117, 104, 124, 108, 131, 112, 137, 116, 134, 119, 132, 122, 131];
 /** Палантин от пряжки до острого конца между клиньями. */
 const STOLE = [86, 109, 95, 109, 95, 124, 94, 140, 93, 149, 89, 154, 86, 149, 85, 139, 86, 124];
-/**
- * Палантин Звездочёта — конец ласточкиным хвостом: узкая полоса с серебряной кромкой, острым концом и пряжкой-«навершием»
- * читалась мечом в ножнах (ревью моделлера).
- */
-const STOLE_B = [86, 109, 95, 109, 95, 124, 95, 140, 95.5, 151, 90.5, 147.5, 85.5, 151, 85.5, 140, 86, 124];
 /** Грудь рясы под пелериной и клином воротника. */
 const TORSO = [66, 86, 80, 86, 92, 93, 104, 92, 114, 94, 118, 100, 114, 106, 100, 108, 66, 109, 62, 98];
 /** Пояс поднимается к врагам (ракурс); пряжка, кошель у ближнего бедра. */
@@ -361,118 +266,55 @@ function staffPt(x: number, y: number, a: number, s: number, t: number): [number
   return [x + c * s - sn * t, y + sn * s + c * t];
 }
 
-/**
- * Древко и навершие облика от кулака (x, y) под углом `a`: A — дерево и кольцо-крюк листа с бронзовой обоймой,
- * B — железо с серебряными поясами и полумесяц, C — узловатый корень, наверху корни обнимают кристалл. Свет — `light`.
- */
-function staff(p: Painter, m: Mats, L: LookSpec, x: number, y: number, a: number): void {
+/** Древко и навершие от кулака (x, y) под углом `a`: дерево и кольцо-крюк листа с бронзовой обоймой. */
+function staff(p: Painter, m: Mats, x: number, y: number, a: number): void {
   const q = (s: number, t: number): [number, number] => staffPt(x, y, a, s, t);
   const top = RING_BASE[0];
-  if (L.id === 'c') {
-    // Узловатое древко до корней: толщина гуляет, узлы — утолщения.
-    const [cs, ct] = RING_C;
-    const base = cs - R(12);
-    const pts: Array<[number, number, number]> = [];
-    for (let k = 0; k <= 8; k++) {
-      const s = -STAFF_BUTT + ((base + STAFF_BUTT) * k) / 8;
-      pts.push([...q(s, 0.9 * Math.sin(k * 1.7)), [2.2, 2.6, 2.0, 2.5, 2.1, 2.7, 2.2, 2.4, 2.8][k]]);
-    }
-    p.chain(pts, m.staff, { part: 'staff' });
-    // Корни навершия — клеткой вокруг кристалла: два обнимают его с боков и сходятся над ним, третий держит снизу.
-    const roots: Array<Array<[number, number]>> = [
-      [[-12, 0], [-8, -6], [-1, -8.5], [6, -6.5], [10.5, -2]],
-      [[-12, 0.5], [-7, 6], [0, 8.5], [7, 5.5], [10, 1.5]],
-      [[-12, 0], [-7, -1.5], [-3, 0.5]],
-    ];
-    for (const r of roots) p.chain(r.map(([ds, dt], k): [number, number, number] => [...q(cs + R(ds), ct + R(dt)), lerp(2.3, 1.1, k / (r.length - 1))]), m.staff, { part: 'staffTop' });
-    return;
-  }
   // Прямое древко.
   p.limb(...q(-STAFF_BUTT, 0), 1.9, ...q(top + 1, 0), 2.1, m.staff, { part: 'staff' });
-  if (L.id === 'a') {
-    // Кольцо-крюк листа — дерево, концы загнуты внутрь; обойма под кольцом — бронза.
-    const ring = (loc: number[], r0: number, r1: number): void => {
-      const pts: Array<[number, number, number]> = [];
-      for (let k = 0; k < loc.length; k += 2) {
-        const [px, py] = q(loc[k], loc[k + 1]);
-        pts.push([px, py, lerp(r0, r1, k / (loc.length - 2))]);
-      }
-      p.chain(pts, m.staff, { part: 'staffTop' });
-    };
-    ring(RING_L, 2.1, 1.4);
-    ring(RING_R, 2.1, 1.2);
-    if (m.trim) {
-      const [b0x, b0y] = q(top - 3.5, 0), [b1x, b1y] = q(top - 0.5, 0);
-      p.limb(b0x, b0y, 2.6, b1x, b1y, 2.6, m.trim, { part: 'staffBand', lift: 0.6 });
+  // Кольцо-крюк листа — дерево, концы загнуты внутрь; обойма под кольцом — бронза.
+  const ring = (loc: number[], r0: number, r1: number): void => {
+    const pts: Array<[number, number, number]> = [];
+    for (let k = 0; k < loc.length; k += 2) {
+      const [px, py] = q(loc[k], loc[k + 1]);
+      pts.push([px, py, lerp(r0, r1, k / (loc.length - 2))]);
     }
-    return;
-  }
-  // B: серебряные пояса и полумесяц рогами вверх вокруг звезды.
-  if (m.trim) {
-    for (const s0 of [4, 13, top - 3]) {
-      const [b0x, b0y] = q(s0, 0), [b1x, b1y] = q(s0 + 0.6, 0);
-      p.limb(b0x, b0y, 2.2, b1x, b1y, 2.2, m.trim, { part: 'staffBand', lift: 0.6, tone: -0.15 });
-    }
-  }
-  // Полумесяц рогами вверх — круг без такого же круга, сдвинутого вверх на 0,7 радиуса: низ толстый, рога сужаются
-  // к остриям над серединой. Дуга −15…195° с тонкой каймой почти замыкалась в кольцо, и навершие со звездой внутри
-  // читалось лупой (ревью моделлера); тонкие рога на пикселе 1,5 пропадали, и оставалась плоская чаша. Звезда стоит
-  // над рогами (`staffLight`).
-  const [cx, cy] = q(RING_C[0], RING_C[1]);
-  const ro = R(11), off = 0.7 * ro, tip = Math.asin(off / 2 / ro) / DEG;
-  const moon: number[] = [];
-  for (let k = 0; k <= 14; k++) {
-    const t = (-tip + ((180 + 2 * tip) * k) / 14) * DEG;
-    moon.push(cx + ro * Math.cos(t), cy + ro * Math.sin(t));
-  }
-  for (let k = 13; k >= 1; k--) {
-    const t = (tip + ((180 - 2 * tip) * k) / 14) * DEG;
-    moon.push(cx + ro * Math.cos(t), cy - off + ro * Math.sin(t));
-  }
-  if (m.trim) p.poly(moon, m.trim, { part: 'staffTop', bevel: 1.2, lift: 0.8 });
+    p.chain(pts, m.staff, { part: 'staffTop' });
+  };
+  ring(RING_L, 2.1, 1.4);
+  ring(RING_R, 2.1, 1.2);
+  const [b0x, b0y] = q(top - 3.5, 0), [b1x, b1y] = q(top - 0.5, 0);
+  p.limb(b0x, b0y, 2.6, b1x, b1y, 2.6, m.trim, { part: 'staffBand', lift: 0.6 });
 }
 
 /**
- * Свет посоха в координатах мира (пламя стоит прямо, как ни наклонён посох): A — синее пламя в кольце, язык к врагам
- * и вверх; B — холодная восьмилучевая звезда; C — кристалл в корнях. Форма колеблется по фазе покоя, число фигур
- * постоянно. `glow` — сила света (1 — покой).
+ * Свет посоха в координатах мира (пламя стоит прямо, как ни наклонён посох): синее пламя в кольце, язык к врагам
+ * и вверх. Форма колеблется по фазе покоя, число фигур постоянно. `glow` — сила света (1 — покой): ореол растёт с ним,
+ * пламя — медленнее (заклинание раздувает его, в смерти оно гаснет).
  */
-function staffLight(p: Painter, m: Mats, L: LookSpec, cx: number, cy: number, glow: number): void {
+function staffLight(p: Painter, m: Mats, cx: number, cy: number, glow: number): void {
   const w1 = Math.sin(2 * Math.PI * (3 * p.t)), w2 = Math.sin(2 * Math.PI * (3 * p.t + 0.33)), w3 = Math.sin(2 * Math.PI * (2 * p.t + 0.6));
-  if (L.id === 'a') {
-    // Пламя листа — шар во всё кольцо и язык вверх к врагам, второй язычок слева; ядро — два светлых пятна.
-    p.glow(cx + R(2), cy - R(5), R(15) * glow, m.halo, 0.28);
-    p.ellipse(cx, cy + R(1.5), R(8.4), R(8.6), m.fireOuter, { part: 'fire' });
-    p.chain([[cx + R(2.5), cy - R(3), R(5.6)], [cx + R(5.5) + w1, cy - R(11), R(2.8)], [cx + R(8) + 1.2 * w2, cy - R(19) - w3, R(0.6)]], m.fireOuter, { part: 'fire' });
-    p.chain([[cx - R(3.5), cy - R(4), R(2)], [cx - R(4.5) + w2, cy - R(9) + w1, R(0.6)]], m.fireOuter, { part: 'fire' });
-    p.ellipse(cx + R(0.5), cy + R(1.8), R(5.8), R(6), m.fireMid, { part: 'fireMid', noLine: true });
-    p.chain([[cx + R(2.5), cy - R(3), R(3.4)], [cx + R(5) + 0.7 * w1, cy - R(10), R(0.6)]], m.fireMid, { part: 'fireMid', noLine: true });
-    p.ellipse(cx - R(1.5), cy + R(3), R(2.6), R(2.8), m.fireCore, { part: 'fireCore', noLine: true });
-    p.ellipse(cx + R(2.5), cy - R(4) + 0.5 * w3, R(1.6), R(1.8), m.fireCore, { part: 'fireCore', noLine: true });
-    return;
-  }
-  if (L.id === 'b') {
-    // Звезда: ядро, четыре длинных луча и четыре коротких косых — восьмилучевая, чтобы не читаться крестом (крест лучей —
-    // свет Паладина); мерцает.
-    cy -= R(8.5);
-    p.glow(cx, cy, R(13) * glow, m.halo, 0.26);
-    const r = R(3.2) + 0.4 * w1;
-    const d = Math.SQRT1_2;
-    for (const [dx, dy, l] of [[0, -1, R(10)], [0, 1, R(8)], [-1, 0, R(8)], [1, 0, R(8)], [d, -d, R(4.5)], [-d, -d, R(4.5)], [d, d, R(4)], [-d, d, R(4)]] as const) {
-      p.limb(cx, cy, 1.4, cx + dx * (l + w2), cy + dy * (l + w2), 0.5, m.fireMid, { part: 'fireMid', noLine: true });
-    }
-    p.ellipse(cx, cy, r, r, m.fireOuter, { part: 'fire' });
-    p.ellipse(cx, cy, r * 0.6, r * 0.6, m.fireCore, { part: 'fireCore', noLine: true });
-    return;
-  }
-  // C: кристалл — вытянутый шестигранник, грань к свету светлее; ореол дышит.
-  p.glow(cx, cy - R(2), R(12) * glow + 0.8 * w3, m.halo, 0.24);
-  const h = R(10), w = R(4.2);
-  p.poly([cx, cy - h - R(1), cx + w, cy - h * 0.45, cx + w * 0.9, cy + h * 0.5, cx, cy + h * 0.8, cx - w * 0.9, cy + h * 0.4, cx - w, cy - h * 0.5], m.fireOuter, { part: 'fire', bevel: 1 });
-  p.poly([cx - w * 0.2, cy - h * 0.8, cx + w * 0.6, cy - h * 0.35, cx + w * 0.4, cy + h * 0.3, cx - w * 0.3, cy + h * 0.1], m.fireMid, { part: 'fire', paint: true });
-  p.poly([cx - w * 0.1, cy - h * 0.55, cx + w * 0.3, cy - h * 0.3, cx + w * 0.15, cy - h * 0.05], m.fireCore, { part: 'fire', paint: true });
-  // Корень поперёк кристалла спереди — кристалл в клетке, а не на палке.
-  p.chain([[cx - w * 1.4, cy + h * 0.55, 1.5], [cx - w * 0.2, cy + h * 0.05, 1.2], [cx + w * 0.9, cy - h * 0.5, 0.9]], m.staff, { part: 'staffRoot' });
+  const f = glow === 1 ? 1 : Math.max(0.35, Math.min(1.7, glow)) ** 0.6;
+  const r = (v: number): number => R(v) * f;
+  // Пламя листа — шар во всё кольцо и язык вверх к врагам, второй язычок слева; ядро — два светлых пятна.
+  p.glow(cx + R(2), cy - R(5), R(15) * glow, m.halo, 0.28);
+  p.ellipse(cx, cy + R(1.5), r(8.4), r(8.6), m.fireOuter, { part: 'fire' });
+  p.chain([[cx + r(2.5), cy - r(3), r(5.6)], [cx + r(5.5) + w1, cy - r(11), r(2.8)], [cx + r(8) + 1.2 * w2, cy - r(19) - w3, r(0.6)]], m.fireOuter, { part: 'fire' });
+  p.chain([[cx - r(3.5), cy - r(4), r(2)], [cx - r(4.5) + w2, cy - r(9) + w1, r(0.6)]], m.fireOuter, { part: 'fire' });
+  p.ellipse(cx + r(0.5), cy + r(1.8), r(5.8), r(6), m.fireMid, { part: 'fireMid', noLine: true });
+  p.chain([[cx + r(2.5), cy - r(3), r(3.4)], [cx + r(5) + 0.7 * w1, cy - r(10), r(0.6)]], m.fireMid, { part: 'fireMid', noLine: true });
+  p.ellipse(cx - r(1.5), cy + r(3), r(2.6), r(2.8), m.fireCore, { part: 'fireCore', noLine: true });
+  p.ellipse(cx + r(2.5), cy - r(4) + 0.5 * w3, r(1.6), r(1.8), m.fireCore, { part: 'fireCore', noLine: true });
+}
+
+/** Огонёк в ближней ладони (лечение «Свет в ладони»): то же синее пламя, маленькое; `k` — сила 0..1. */
+function palmLight(p: Painter, m: Mats, x: number, y: number, k: number): void {
+  const w1 = Math.sin(2 * Math.PI * (3 * p.u + 0.2));
+  p.glow(x, y - R(3), R(12) * k, m.halo, 0.32);
+  p.ellipse(x, y, R(4.6) * k, R(4.8) * k, m.fireOuter, { part: 'palmFire' });
+  p.chain([[x + R(0.6), y - R(2) * k, R(3) * k], [x + R(1.6) + 0.8 * w1, y - R(10.5) * k, R(0.6)]], m.fireOuter, { part: 'palmFire' });
+  p.ellipse(x + R(0.2), y + R(0.4), R(3) * k, R(3.2) * k, m.fireMid, { part: 'palmMid', noLine: true });
+  p.ellipse(x - R(0.5), y + R(1), R(1.4) * k, R(1.5) * k, m.fireCore, { part: 'palmCore', noLine: true });
 }
 
 // ─── Кромки ─────────────────────────────────────────────────────────────────
@@ -515,16 +357,14 @@ function fist(p: Painter, m: Mats, mat: Mat, x: number, y: number, fa: number, r
   p.poly([x - r * 0.7, y - r * 0.4, x - r * 0.25, y - r * 0.75, x + r * 0.1, y - r * 0.65, x - r * 0.35, y - r * 0.2], mat, { part, paint: true, tone: tone + 0.24 });
 }
 
-/** Обшлаг у запястья кисти (x, y) с предплечьем под углом `fa`: раструб поперёк руки и кромка облика по краю. */
+/** Обшлаг у запястья кисти (x, y) с предплечьем под углом `fa`: раструб поперёк руки и бронзовая кромка по краю. */
 function cuff(p: Painter, m: Mats, x: number, y: number, fa: number, part: string, tone: number): void {
   const ux = Math.cos(fa * DEG), uy = Math.sin(fa * DEG), nx = -uy, ny = ux;
   const [cx, cy] = at(x, y, fa, -R(5.8));
   const w0 = R(5), w1 = R(6.6), d = R(2.2);
   const pts = [cx - ux * d + nx * w0, cy - uy * d + ny * w0, cx + ux * d + nx * w1, cy + uy * d + ny * w1, cx + ux * d - nx * w1, cy + uy * d - ny * w1, cx - ux * d - nx * w0, cy - uy * d - ny * w0];
   p.poly(pts, m.sleeveN, { part, bevel: 1.6, tone });
-  const edge = [cx + ux * d + nx * w1, cy + uy * d + ny * w1, cx + ux * d - nx * w1, cy + uy * d - ny * w1];
-  if (m.trim) stroke(p, edge, m.trimLit, part);
-  else stroke(p, edge, m.fold, part);
+  stroke(p, [cx + ux * d + nx * w1, cy + uy * d + ny * w1, cx + ux * d - nx * w1, cy + uy * d - ny * w1], m.trimLit, part);
 }
 
 /** Складка ткани: тёмная черта долины и светлый гребень рядом со стороны света (слева сверху). */
@@ -533,10 +373,9 @@ function fold(p: Painter, m: Mats, pts: number[], part: string): void {
   stroke(p, pts, m.fold, part);
 }
 
-/** Кромка облика: металл полосой (A, B) или шов тёмной чертой у края (C — мешковина без металла). */
+/** Кромка — бронза полосой. */
 function trimEdge(p: Painter, m: Mats, pts: number[], part: string, w = 2.2, tone = 0): void {
-  if (m.trim) edgeBand(p, pts, w, m.trim, part, tone);
-  else edgeBand(p, pts, 1.2, solid(m.fold), part);
+  edgeBand(p, pts, w, m.trim, part, tone);
 }
 
 /**
@@ -565,44 +404,370 @@ function tatters(pts: number[], amp: number, step: number, side: 1 | -1, pattern
 // ─── Поза ───────────────────────────────────────────────────────────────────
 
 /**
- * Поза Мага. Посох — в дальней руке (кисть точкой `fhx`/`fhy` в координатах верха, угол посоха `sw`), ближняя рука
- * свободна (кулак `nhx`/`nhy`). Остальное — как у Воина (docs/lepka-geroev.md «Каркас позы»): таз и верх (`x`, `y`,
- * `crouch`), наклон верха и головы (`lean`, `head`, плюс — к врагам), шаг (`footF`, `footN`, `liftF`, `liftN`), плащ
- * (`cape`: 0 висит, 1 взвился назад), сила света посоха (`glow`, 1 — покой). Поля клипов (запястье `ws`/`wr`, колено,
- * падение) добавит шаг 4.
+ * Поза Мага. Посох — в дальней руке, обе руки ведутся кистью (точка в координатах верха, локоть — ik), как у Берсерка.
+ * Координаты кистей — в координатах верха (до наклона `lean`), углы — градусы по `at` (0 — к врагам, 90 — вниз),
+ * наклоны — градусы, плюс к врагам. Таз и верх (`x`, `y`, `crouch`), шаг (`footF`, `footN`, `liftF`, `liftN`) — как
+ * у Воина (docs/lepka-geroev.md «Каркас позы»); ног под рясой нет — шаг двигает сапог и подол над ним.
+ *
+ * Замечания ревью модели, отложенные на клипы. Плечо дальней руки лежит внутри контура груди, а её верх рисуется после
+ * туловища: в утверждённом покое кусок рукава между пелериной и колоколом виден на дальнем боку груди, и перенос его под
+ * туловище поменял бы покой (и зерно всей рясы — ловушка «Порядок фигур»). Поэтому в клипах плечо остаётся под
+ * пелериной и капюшоном, дальний край пелерины поднимается за рукой (`capeletTurn`), локоть держится у края груди или
+ * снаружи (кисть всегда сбоку от корпуса), а плечевой сустав сам ходит за рукой (`farArm`). Длины: дальняя рука снята
+ * в плоскости рисунка (45), ближняя — в ракурсе (37); ближняя, поднятая в плоскость (жест, оберег, огонёк в ладони),
+ * удлиняется `nl` до 1,15.
  */
 export interface MagePose extends Record<string, number> {
   x: number; y: number;
   crouch: number;
   lean: number;
   head: number;
-  fhx: number; fhy: number;
-  sw: number;
-  nhx: number; nhy: number;
+  /**
+   * Дальняя рука с посохом: кисть точкой; `fl` — длина руки к мерке (1 — мерка листа, рука в плоскости рисунка);
+   * `fsx`/`fsy` — сдвиг плечевого сустава: плечо ходит за рукой (вверх — поднятый локоть, вперёд — рука к врагам,
+   * назад — замах).
+   */
+  fhx: number; fhy: number; fl: number; fsx: number; fsy: number;
+  /** Посох: угол в координатах верха (`sw`, покой) или от предплечья (`wr`) с долей `ws` (1 — от предплечья, предел — `WRIST`). */
+  sw: number; wr: number; ws: number;
+  /**
+   * Ближняя рука: кисть точкой; `nl` — длина к мерке: мерка листа снята в ракурсе (рука висит под плащом, к зрителю),
+   * она короче дальней (37 против 45), и рука, поднятая в плоскость рисунка, длиннее — до 1,2; `nsx`/`nsy` — сдвиг
+   * плечевого сустава; хват посоха — доля `ng` и место `nd` вдоль древка от дальнего кулака (минус — к концу).
+   */
+  nhx: number; nhy: number; nl: number; nsx: number; nsy: number; ng: number; nd: number;
+  /**
+   * Слои (0 или 1, порог 0,5): `ffront` — предплечье с рукавом-колоколом, посох и дальний кулак поверх корпуса,
+   * пелерины и капюшона (посох перед грудью: приём, блок); `nfront` — ближнее предплечье с кулаком поверх всего
+   * (жест ближней кистью, хват посоха двумя руками). Плечо руки остаётся под пелериной и полой плаща.
+   */
+  ffront: number; nfront: number;
   footF: number; footN: number; liftF: number; liftN: number;
+  /** Плащ, пола и подол: 0 — висят, 1 — взвились назад. */
   cape: number;
-  glow: number;
+  /**
+   * Смерть: `fall` — верх валится вперёд вокруг таза (0 стоит → 1 лежит ничком на подоле); `hold` — дальний кулак
+   * и посох держатся за точку мира (`gx`, `gy` — кулак, `gsw` — угол посоха в мире): посох лёг на землю, кулак на нём.
+   */
+  fall: number; hold: number; gx: number; gy: number; gsw: number;
+  /**
+   * Сгиб дальнего локтя: 1 — локоть по ту сторону линии плечо — кисть, что в стойке (вниз и наружу), −1 — по другую.
+   * Лежащему (смерть) локоть вниз ушёл бы под землю: там он вверху. Переключать, пока рука почти прямая, — иначе локоть
+   * перепрыгнет.
+   */
+  fbend: number;
+  /**
+   * Свет: `glow` — сила пламени на навершии (1 — покой; пламя и ореол растут вместе с ним), `burst` — вспышка
+   * навершия в кадр контакта (ореол и лучи), `spark` — искры о древко (блок), `palm` — огонёк в ближней ладони.
+   */
+  glow: number; burst: number; spark: number; palm: number;
+  /** Пыль у навершия — удар в землю. */
+  dust: number;
 }
+
+/** Угол предплечья дальней руки в стойке — от него в клипах отсчитывается угол посоха (`wr`). */
+const FORE_F = dirOf(M.armF.el, M.armF.hand);
+/** Угол плеча дальней руки в стойке — от него дальний край пелерины поворачивается за поднятой рукой. */
+const UPPER_F = dirOf(M.armF.sh, M.armF.el);
 
 const REST: MagePose = {
   x: 0, y: 0, crouch: 0, lean: 0, head: 0,
-  fhx: M.armF.hand[0], fhy: M.armF.hand[1], sw: STAFF_ANGLE,
-  nhx: M.armN.hand[0], nhy: M.armN.hand[1],
-  footF: 0, footN: 0, liftF: 0, liftN: 0, cape: 0, glow: 1,
+  fhx: M.armF.hand[0], fhy: M.armF.hand[1], fl: 1, fsx: 0, fsy: 0,
+  sw: STAFF_ANGLE, wr: STAFF_ANGLE - FORE_F, ws: 0,
+  nhx: M.armN.hand[0], nhy: M.armN.hand[1], nl: 1, nsx: 0, nsy: 0, ng: 0, nd: 0,
+  ffront: 0, nfront: 0,
+  footF: 0, footN: 0, liftF: 0, liftN: 0, cape: 0,
+  fall: 0, hold: 0, gx: 0, gy: 0, gsw: 0, fbend: 1,
+  glow: 1, burst: 0, spark: 0, palm: 0, dust: 0,
 };
 
-/** Ключи клипов — шаг 4 рецепта; пока пусто, и любой клип рисует первый кадр покоя. */
-const CLIPS: Partial<Record<SculptClip, PoseKeys<MagePose>>> = {};
+/**
+ * Предел запястья: угол посоха к предплечью (`sw` − угол предплечья) — по ту же сторону, что в стойке (≈ −42°: навершие
+ * над предплечьем), и не дальше, чем отклоняется кисть. Вне предела посох встаёт в продолжение руки («палка») или
+ * перекидывается «за» предплечье — кисть ломается (ловушка Паладина).
+ */
+const WRIST: [number, number] = [-125, -25];
+const nrm = (a: number): number => { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
+/** Угол посоха в координатах верха: покой — `sw`, клип — от предплечья (`a2 + wr`) с пределом запястья. */
+function staffAngle(P: MagePose, a2: number): number {
+  if (P.ws <= 0) return P.sw;
+  const sw = lerp(P.sw, a2 + P.wr, P.ws);
+  const d = nrm(sw - a2), c = Math.max(WRIST[0], Math.min(WRIST[1], d));
+  return sw + (c - d);
+}
+
+interface ArmSolve { sx: number; sy: number; ex: number; ey: number; hx: number; hy: number; a1: number; a2: number }
 
 /** Рука кистью в точке (tx, ty) от плеча (sx, sy): локоть — ik с изгибом `bend` (сторона от линии плечо — кисть). */
-function reachArm(sx: number, sy: number, tx: number, ty: number, l1: number, l2: number, bend: 1 | -1): { ex: number; ey: number; hx: number; hy: number; a1: number; a2: number } {
+function reachArm(sx: number, sy: number, tx: number, ty: number, l1: number, l2: number, bend: 1 | -1): ArmSolve {
   const vx = tx - sx, vy = ty - sy, d = Math.hypot(vx, vy), reach = l1 + l2 - 0.05;
   if (d > reach) {
     tx = sx + (vx * reach) / d;
     ty = sy + (vy * reach) / d;
   }
   const [ex, ey] = ik(sx, sy, tx, ty, l1, l2, -vy * bend, vx * bend);
-  return { ex, ey, hx: tx, hy: ty, a1: Math.atan2(ey - sy, ex - sx) / DEG, a2: Math.atan2(ty - ey, tx - ex) / DEG };
+  return { sx, sy, ex, ey, hx: tx, hy: ty, a1: Math.atan2(ey - sy, ex - sx) / DEG, a2: Math.atan2(ty - ey, tx - ex) / DEG };
+}
+
+/**
+ * Дальняя рука с посохом: кисть в точке (или за точкой мира — `hold`, её переводит `drawMage`), длина `fl`, сдвиг плеча
+ * `fsx`/`fsy`. Плечевой сустав сам ходит за рукой, как у Паладина: локоть выше плеча поднимает его до 3 единиц, кисть,
+ * вынесенная к врагам дальше стойки, выносит вперёд до 2,5, поднятая кисть за плечом (замах) уводит назад до 2. Отсчёт —
+ * от стойки с запасом: в покое кисть гуляет на единицу, и утверждённый покой не меняется.
+ */
+function farArm(P: MagePose, tx = P.fhx, ty = P.fhy): ArmSolve {
+  const solve = (sx: number, sy: number): ArmSolve => reachArm(sx, sy, tx, ty, ARM_F.l1 * P.fl, ARM_F.l2 * P.fl, P.fbend < 0 ? -1 : 1);
+  const sx0 = M.armF.sh[0] + P.fsx, sy0 = M.armF.sh[1] + P.fsy;
+  const first = solve(sx0, sy0);
+  const lift = Math.max(0, Math.min(1, (sy0 - first.ey) / ARM_F.l1 + 0.3));
+  const fwd = Math.max(0, Math.min(1, (first.hx - M.armF.hand[0] - 4) / 16));
+  const back = lift * Math.max(0, Math.min(1, (sx0 - first.hx) / 12));
+  return lift > 0 || fwd > 0 ? solve(sx0 + 2.5 * fwd - 2 * back, sy0 - 3 * lift) : first;
+}
+
+/** Ближняя рука: кисть в точке или на древке (`ng`, место `nd` от дальнего кулака); длина `nl`, сдвиг плеча. */
+function nearArm(P: MagePose, far: ArmSolve, sw: number): ArmSolve {
+  let tx = P.nhx, ty = P.nhy;
+  if (P.ng > 0) {
+    const [gx, gy] = staffPt(far.hx, far.hy, sw, P.nd, 0);
+    tx = lerp(tx, gx, P.ng);
+    ty = lerp(ty, gy, P.ng);
+  }
+  return reachArm(M.armN.sh[0] + P.nsx, M.armN.sh[1] + P.nsy, tx, ty, ARM_N.l1 * P.nl, ARM_N.l2 * P.nl, 1);
+}
+
+/**
+ * Дальний край пелерины идёт за поднятой рукой на половину угла плеча (как наплечник Паладина): неподвижный, он
+ * закрывал бы руку, поднятую из-под него, повёрнутый целиком — вставал бы чашей. Поворот до 10° гасится ровной
+ * ступенью — в покое рука гуляет на 2–3°, и утверждённый покой не меняется; пределы — 50° вверх и 12° вниз.
+ */
+function capeletTurn(far: ArmSolve): number {
+  const d = nrm(far.a1 - UPPER_F);
+  const follow = Math.sign(d) * Math.max(0, Math.abs(d) - 10);
+  return Math.max(-50, Math.min(12, 0.5 * follow));
+}
+
+/**
+ * Пустой художник: те же фигуры с теми же материалами и частями, но без клеток. Зерно фактуры движок заводит по
+ * порядку фигур (ловушка «Порядок фигур»), и часть, перенесённая в другой слой, на своём прежнем месте оставляет
+ * пустые фигуры — всё, что нарисовано после, сохраняет зерно, и смена слоя посреди клипа не перебрасывает фактуру
+ * рясы. Перенесённое рисуется в конце кадра, после него — только свет посоха (у пламени нет фактуры).
+ */
+function ghostOf(p: Painter): Painter {
+  const g = Object.create(p) as Painter;
+  const skip = (mat: Mat, o?: Shape): void => p.poly([], mat, o);
+  g.ellipse = (_x, _y, _rx, _ry, mat, o) => skip(mat, o);
+  g.limb = (_x1, _y1, _r1, _x2, _y2, _r2, mat, o) => skip(mat, o);
+  g.chain = (pts, mat, o) => { for (let k = 0; k + 1 < pts.length; k++) skip(mat, o); };
+  g.poly = (_pts, mat, o) => skip(mat, o);
+  g.pose = (_o, fn) => fn();
+  g.scope = (_s, _x, _y, fn) => fn();
+  const none = (): void => undefined;
+  g.glow = none; g.px = none; g.line = none; g.disc = none; g.shadow = none; g.block = none; g.film = none; g.eye = none; g.erase = none;
+  return g;
+}
+
+// ─── Клипы ──────────────────────────────────────────────────────────────────
+
+/** Клипы, которые рисует Маг: все общие; своих нет (Волшебная стрела и Огненная волна — снаряды, приём `power`). */
+type MageClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite'>;
+/** Клипы с вариантами на обсуждении. */
+type VariantClip = 'attack' | 'heavy' | 'heal';
+type Variant = 'a' | 'b';
+
+/**
+ * Ключи клипов по кадрам (номер кадра с нуля; кадр контакта — `contact` в HERO_CLIPS). Поле без ключа держит свою
+ * интерполяцию, после последнего ключа — покой к последнему кадру (смерть держится); вспышка, пыль и искры — явным нулём
+ * на кадре перед контактом. Кадр 0 — сам покой (ключа на нём нет), кроме урона и смерти: они начинаются с удара. Посох
+ * в клипах ведётся от предплечья (`ws: 1` на первом и последнем ключе, угол к предплечью `wr` в пределах `WRIST`), как
+ * молот Паладина; кисти — точкой, локти решает ik.
+ *
+ * Ограничения, которые держат позы. Плечо дальней руки сидит под краем капюшона, а рука длинная (45): кисть ближе ~30 от
+ * плеча складывает её «куриным крылом», поэтому посох всегда держится сбоку от корпуса, а не перед грудью (попытка
+ * держать его перед лицом, как на листе в ряду приёма, закрывала пламенем лицо — слой `ffront` для этого есть). Навершие
+ * держится над предплечьем (запястье −25…−125°): чтобы навершие смотрело на врагов, кулак ниже плеча и предплечье
+ * смотрит вперёд-вниз. Пламя рисуется поверх всего — навершие не заходит за капюшон: на замахе над головой оно выше
+ * макушки, а не за затылком. Шаг — стопа отрывается (`liftF`), пока едет, и садится почти на место.
+ */
+const CLIPS: Record<Exclude<MageClip, VariantClip>, PoseKeys<MagePose>> = {
+  // Приём — главный клип Мага, заклинание (Волшебная стрела, Огненная волна): снаряд вылетает из навершия в кадр контакта 4.
+  // 1–2 — посох вскинут торчком сбоку от капюшона, корпус откинут, пламя разгорается (`glow` до 1,7); 3 — шаг, взмах:
+  // навершие идёт вперёд; 4 — рука почти прямая к врагам, навершие смотрит на них чуть вверх (≈ −25° в мире), вспышка
+  // (`burst`) — ореол и лучи; 5 — держит, вспышка гаснет; 6 — стопа назад, посох в стойку.
+  power: [
+    [1, { ws: 1, x: -1, crouch: 2, lean: -3, head: -4, fhx: 128, fhy: 56, wr: -30, glow: 1.2, cape: 0.1 }],
+    [2, { x: -3, crouch: 1, lean: -6, head: -8, fhx: 132, fhy: 47, wr: -50, glow: 1.7, cape: 0.3, burst: 0 }],
+    [3, { x: 2, crouch: 3, lean: 2, head: -2, fhx: 138, fhy: 46, wr: -45, glow: 1.6, footF: 9, liftF: 4, cape: 0.5, burst: 0 }],
+    [4, { x: 6, crouch: 5, lean: 8, head: 3, fhx: 138, fhy: 62, wr: -36, glow: 1.4, burst: 1, footF: 10, liftF: 0, cape: 0.7 }],
+    [5, { x: 6, crouch: 5, lean: 7, head: 3, fhx: 136, fhy: 64, wr: -32, glow: 1.2, burst: 0.35, footF: 10, cape: 0.5 }],
+    [6, { ws: 1, x: 2, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 68, wr: -39, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.2 }],
+  ],
+  // Клич (приём на себя): 1 — сжался, посох у бедра, пламя притухло; 2–3 — выпрямился, посох вверх; 4 — кадр контакта:
+  // рука вскинута почти прямой, посох над головой наклонён назад (≈ −110° в мире: отвесный над рукой — «факел»), капюшон
+  // запрокинут, плащ взвился, пламя вспыхивает во весь рост (`glow` 2,1) — рёв рисует слой эффектов; 5–6 держит; 7–8 опускает.
+  buff: [
+    [1, { ws: 1, crouch: 5, lean: 5, head: 8, fhx: 122, fhy: 72, wr: -55, glow: 0.9, nhx: 46, nhy: 84, cape: 0.1 }],
+    [2, { crouch: 2, lean: -1, head: -2, fhx: 130, fhy: 44, wr: -48, glow: 1.4, cape: 0.3, burst: 0 }],
+    [3, { y: -1, crouch: 0, lean: -5, head: -10, fhx: 126, fhy: 22, wr: -50, glow: 1.8, nhx: 38, nhy: 86, cape: 0.6, burst: 0 }],
+    [4, { y: -2, crouch: 0, lean: -7, head: -16, fhx: 126, fhy: 20, wr: -55, glow: 2.1, burst: 0.9, nhx: 36, nhy: 85, cape: 1 }],
+    [5, { y: -2, crouch: 0, lean: -7, head: -16, fhx: 126, fhy: 20, wr: -55, glow: 2.2, burst: 0.6, cape: 0.95 }],
+    [6, { y: -1, crouch: 0, lean: -6, head: -14, fhx: 126, fhy: 21, wr: -54, glow: 2, burst: 0.3, cape: 0.8 }],
+    [7, { y: 0, crouch: 1, lean: -3, head: -8, fhx: 130, fhy: 40, wr: -48, glow: 1.5, burst: 0, nhx: 42, nhy: 86, cape: 0.5 }],
+    [8, { ws: 1, crouch: 1, lean: 0, head: -2, fhx: 126, fhy: 62, wr: -42, glow: 1.1, cape: 0.2 }],
+  ],
+  // Блок: 1 — посох подтянут торчком к плечу, ближняя ладонь выставлена перед грудью (оберег), голова ушла в капюшон;
+  // 2 — кадр удара: отдача назад, присел, искры о древко; 3 — держит; 4 — ладонь под полу, посох в стойку.
+  block: [
+    [1, { ws: 1, crouch: 4, lean: 2, head: 10, fhx: 130, fhy: 58, wr: -58, nfront: 1, nhx: 84, nhy: 64, nl: 1.1, spark: 0 }],
+    [2, { x: -4, crouch: 6, lean: -3, head: 12, fhx: 129, fhy: 59, wr: -58, nfront: 1, nhx: 82, nhy: 62, nl: 1.1, spark: 1 }],
+    [3, { x: -3, crouch: 5, lean: -1, head: 11, fhx: 129, fhy: 59, wr: -58, nfront: 1, nhx: 82, nhy: 63, nl: 1.1, spark: 0.4 }],
+    [4, { ws: 1, x: -1, crouch: 2, lean: 1, head: 4, fhx: 124, fhy: 66, wr: -42, nfront: 0, nhx: 50, nhy: 86, nl: 1, spark: 0 }],
+  ],
+  // Урон: 0 — удар отбросил корпус назад, капюшон запрокинут, ближний кулак отлетел назад, пламя вздрогнуло; кулак
+  // с посохом отстаёт — навершие клонится вперёд; 1–2 — возврат; вспышку добавляет движок.
+  hurt: [
+    [0, { x: -7, crouch: 2, lean: -14, head: -18, ws: 1, fhx: 128, fhy: 74, wr: -40, nhx: 32, nhy: 78, nl: 1.1, glow: 0.8, cape: 0.6 }],
+    [1, { x: -6, crouch: 2, lean: -12, head: -14, fhx: 126, fhy: 74, wr: -45, nhx: 34, nhy: 80, glow: 0.85, cape: 0.5 }],
+    [2, { x: -3, crouch: 1, lean: -5, head: -6, fhx: 125, fhy: 70, wr: -42, nhx: 40, nhy: 86, nl: 1, glow: 0.95, cape: 0.3 }],
+    [3, { ws: 1, x: -1, lean: -1, head: -1, wr: -42, cape: 0.1 }],
+  ],
+  // Смерть (последний кадр держится до итогов) — как на листе: оседает и валится ничком кучей ткани. 0–1 — удар отбросил,
+  // пламя тускнеет; 2 — ноги подкосились, голова свесилась, посох клонится вперёд; 3–5 — оседает (присед до 28), посох
+  // ложится на землю перед ним, кулак на древке держится за точку мира (`hold`); 6–7 — верх валится вперёд (`fall`),
+  // дальний локоть выходит вверх (`fbend`: вниз он ушёл бы под землю); 8 — удар о землю, отскок; дальше лежит: капюшон
+  // у земли, пелерина и плащ сверху, посох впереди, пламя едва тлеет.
+  death: [
+    [0, { x: -7, crouch: 2, lean: -14, head: -18, ws: 1, fhx: 128, fhy: 74, wr: -40, nhx: 32, nhy: 78, nl: 1.1, glow: 0.8, cape: 0.6 }],
+    [1, { x: -8, crouch: 4, lean: -12, head: -22, fhx: 127, fhy: 76, wr: -42, glow: 0.7, cape: 0.55, hold: 0, fall: 0 }],
+    [2, { x: -8, crouch: 10, lean: -2, head: 4, fhx: 124, fhy: 76, wr: -35, glow: 0.65, cape: 0.4, hold: 0 }],
+    [3, { x: -8, crouch: 18, lean: 10, head: 14, hold: 0.3, gx: 146, gy: 121, gsw: -18, glow: 0.6, cape: 0.3, fall: 0 }],
+    [4, { x: -8, crouch: 24, head: 16, fall: 0.15, hold: 0.7, gx: 146, gy: 121, gsw: -18, glow: 0.55 }],
+    [5, { crouch: 28, fall: 0.35, hold: 1, fbend: 1 }],
+    [6, { crouch: 30, fall: 0.6, fbend: -1, gsw: -6 }],
+    [7, { crouch: 26, fall: 0.85, fbend: -1, gx: 142, gy: 121, gsw: -5 }],
+    [8, { fall: 1.04 }],
+    [9, { fall: 1, glow: 0.5 }],
+  ],
+};
+
+/** Ключи клипов с вариантами (подписи — `MAGE_VARIANTS`). */
+const VARIANT_CLIPS: Record<VariantClip, Record<Variant, PoseKeys<MagePose>>> = {
+  attack: {
+    // A «Выпад» (как ряд удара листа): 1–2 — посох подтянут к плечу, пламя собирается, ближний кулак выставлен перед
+    // грудью; 3 — шаг, толчок; 4 — контакт: рука во всю длину, навершие на врагов, вспышка; ближний кулак ушёл назад.
+    a: [
+      [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -3, fhx: 120, fhy: 64, wr: -37, glow: 1.15, nfront: 1, nhx: 84, nhy: 70, nl: 1.1, cape: 0.1 }],
+      [2, { x: -3, crouch: 2, lean: -7, head: -4, fhx: 118, fhy: 60, fsx: -3, wr: -34, glow: 1.35, liftF: 2, nfront: 1, nhx: 82, nhy: 66, nl: 1.1, cape: 0.15, burst: 0 }],
+      [3, { x: 4, crouch: 3, lean: 4, head: 0, fhx: 132, fhy: 58, fsx: 0, wr: -29, glow: 1.4, footF: 11, liftF: 4, nfront: 0, nhx: 44, nhy: 88, nl: 1, cape: 0.5, burst: 0 }],
+      [4, { x: 8, crouch: 5, lean: 9, head: 3, fhx: 140, fhy: 58, wr: -34, glow: 1.35, burst: 1, footF: 12, liftF: 0, nhx: 38, nhy: 86, cape: 0.8 }],
+      [5, { x: 8, crouch: 5, lean: 8, head: 3, fhx: 138, fhy: 60, wr: -31, glow: 1.2, burst: 0.35, footF: 12, nhx: 40, nhy: 87, cape: 0.6 }],
+      [6, { ws: 1, x: 3, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 66, wr: -35, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
+    ],
+    // B «Взмах»: 1–2 — посох заведён над головой, навершие вверху-сзади (над макушкой, не за ней); 3 — шаг, посох
+    // проходит торчком над головой; 4 — контакт: навершие опускается на врагов, вспышка.
+    b: [
+      [1, { ws: 1, x: -2, crouch: 2, lean: -5, head: -4, fhx: 122, fhy: 28, wr: -40, glow: 1.2, liftF: 2, nhx: 48, nhy: 84, cape: 0.15 }],
+      [2, { x: -4, y: -1, crouch: 0, lean: -9, head: -7, fhx: 120, fhy: 22, wr: -47, glow: 1.45, liftF: 4, nhx: 50, nhy: 83, cape: 0.3, burst: 0 }],
+      [3, { x: 3, y: 0, crouch: 2, lean: 2, head: -1, fhx: 134, fhy: 30, wr: -59, glow: 1.5, footF: 11, liftF: 4, nhx: 42, nhy: 86, cape: 0.5, burst: 0 }],
+      [4, { x: 9, crouch: 6, lean: 10, head: 4, fhx: 140, fhy: 60, wr: -30, glow: 1.35, burst: 1, footF: 13, liftF: 0, nhx: 38, nhy: 86, cape: 0.9 }],
+      [5, { x: 9, crouch: 6, lean: 9, head: 4, fhx: 138, fhy: 62, wr: -31, glow: 1.2, burst: 0.35, footF: 13, nhx: 40, nhy: 87, cape: 0.6 }],
+      [6, { ws: 1, x: 3, crouch: 2, lean: 3, head: 1, fhx: 128, fhy: 66, wr: -33, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
+    ],
+  },
+  heavy: {
+    // A «Сверху в землю»: 1–2 — посох заносится над головой (навершие над макушкой), вес назад; 3 — шаг, посох торчком
+    // над головой; 4 — навершие идёт вниз-вперёд; 5 — контакт: широкий шаг, присед, навершие бьёт в землю перед врагом —
+    // вспышка, пыль; 6–7 — держит; 8 — выпрямляется, стопа назад.
+    a: [
+      [1, { ws: 1, x: -3, y: -1, crouch: 1, lean: -6, head: -4, fhx: 116, fhy: 24, wr: -28, glow: 1.25, liftF: 2, cape: 0.2, dust: 0, burst: 0 }],
+      [2, { x: -5, y: -3, crouch: 0, lean: -12, head: -8, fhx: 108, fhy: 16, wr: -32, glow: 1.5, liftF: 5, footF: 2, cape: 0.35 }],
+      [3, { x: 0, y: -2, crouch: 1, lean: -3, head: -3, fhx: 126, fhy: 24, wr: -31, glow: 1.55, footF: 8, liftF: 6, cape: 0.5 }],
+      [4, { x: 7, y: -1, crouch: 5, lean: 8, head: 4, fhx: 134, fhy: 46, wr: -26, glow: 1.5, footF: 15, liftF: 3, cape: 0.75, dust: 0, burst: 0 }],
+      [5, { x: 12, y: 0, crouch: 10, lean: 16, head: 8, fhx: 124, fhy: 84, wr: -30, glow: 1.4, burst: 1, dust: 1, footF: 16, liftF: 0, footN: -2, cape: 0.9 }],
+      [6, { x: 12, crouch: 11, lean: 17, head: 8, fhx: 124, fhy: 84, wr: -30, glow: 1.25, burst: 0.6, dust: 1.2, footF: 16, footN: -2, cape: 0.8 }],
+      [7, { x: 11, crouch: 10, lean: 15, head: 7, fhx: 124, fhy: 83, wr: -31, glow: 1.15, burst: 0.25, dust: 0.8, footF: 16, footN: -2, cape: 0.6 }],
+      [8, { ws: 1, x: 5, crouch: 5, lean: 6, head: 3, fhx: 126, fhy: 72, wr: -35, glow: 1.05, burst: 0, dust: 0.3, footF: 3, liftF: 4, footN: -1, cape: 0.3 }],
+    ],
+    // B «Снизу»: 1–3 — присел, посох опущен навершием вперёд-вниз, у колен (рука висит почти прямой); 4 — шаг, посох
+    // идёт вверх; 5 — контакт: навершие вскинуто снизу на врага на высоте головы, вспышка; 6–7 — держит; 8 — назад.
+    b: [
+      [1, { ws: 1, x: -2, crouch: 4, lean: 2, head: 2, fhx: 120, fhy: 82, wr: -30, glow: 1.1, cape: 0.1, burst: 0 }],
+      [2, { x: -4, crouch: 7, lean: 5, head: 4, fhx: 118, fhy: 88, wr: -28, glow: 1.25, liftF: 2, cape: 0.2 }],
+      [3, { x: -3, crouch: 7, lean: 4, head: 3, fhx: 116, fhy: 90, wr: -30, glow: 1.4, liftF: 3, cape: 0.25, burst: 0 }],
+      [4, { x: 5, crouch: 4, lean: 2, head: -2, fhx: 136, fhy: 70, wr: -30, glow: 1.5, footF: 13, liftF: 4, cape: 0.6, burst: 0 }],
+      [5, { x: 10, crouch: 2, lean: 4, head: -4, fhx: 142, fhy: 58, wr: -47, glow: 1.4, burst: 1, footF: 14, liftF: 0, cape: 0.85 }],
+      [6, { x: 10, crouch: 2, lean: 3, head: -4, fhx: 140, fhy: 58, wr: -46, glow: 1.25, burst: 0.5, footF: 14, cape: 0.7 }],
+      [7, { x: 8, crouch: 3, lean: 2, head: -3, fhx: 136, fhy: 60, wr: -42, glow: 1.15, burst: 0.2, footF: 12, cape: 0.5 }],
+      [8, { ws: 1, x: 4, crouch: 2, lean: 2, head: 0, fhx: 128, fhy: 64, wr: -38, glow: 1.05, burst: 0, footF: 2, liftF: 3, cape: 0.25 }],
+    ],
+  },
+  heal: {
+    // A «Пламя посоха»: 1–2 — посох поднят торчком сбоку от капюшона, пламя разгорается (круг лечения — в кадр 2), голова
+    // склонена, ближний кулак прижат к груди; 3–8 — держит, пламя дышит; 9–10 — опускает.
+    a: [
+      [1, { ws: 1, crouch: 2, lean: 2, head: 5, fhx: 128, fhy: 56, wr: -50, glow: 1.2, nfront: 1, nhx: 74, nhy: 70, nl: 1.05, cape: 0.05 }],
+      [2, { crouch: 3, lean: 3, head: 12, fhx: 132, fhy: 50, wr: -57, glow: 1.7, nfront: 1, nhx: 84, nhy: 66, nl: 1.1, cape: 0.1 }],
+      [5, { crouch: 3, lean: 3, head: 13, fhx: 132, fhy: 50, wr: -57, glow: 1.85, nfront: 1, nhx: 84, nhy: 65, nl: 1.1, cape: 0.1 }],
+      [8, { crouch: 3, lean: 3, head: 12, fhx: 132, fhy: 51, wr: -56, glow: 1.6, nfront: 1, nhx: 84, nhy: 66, nl: 1.1, cape: 0.1 }],
+      [9, { crouch: 2, lean: 1, head: 6, fhx: 128, fhy: 58, wr: -48, glow: 1.25, nfront: 1, nhx: 72, nhy: 76, nl: 1.05, cape: 0.05 }],
+      [10, { ws: 1, crouch: 1, lean: 0, head: 2, fhx: 126, fhy: 66, wr: -44, glow: 1.05, nfront: 0, nhx: 48, nhy: 87, nl: 1, cape: 0 }],
+    ],
+    // B «Огонёк в ладони»: 1–2 — ближняя ладонь поднята перед грудью, в ней зажигается синий огонёк, пламя посоха
+    // притухает (свет перешёл в ладонь), голова склонена к огоньку; 3–6 — держит; 8 — ладонь к груди, огонёк гаснет;
+    // 10 — рука под полу.
+    b: [
+      [1, { ws: 1, crouch: 2, lean: 3, head: 6, fhx: 124, fhy: 70, wr: -44, glow: 0.9, nfront: 1, nhx: 76, nhy: 74, nl: 1.05, palm: 0.4 }],
+      [2, { crouch: 3, lean: 4, head: 12, fhx: 124, fhy: 70, wr: -44, glow: 0.8, nfront: 1, nhx: 90, nhy: 66, nl: 1.1, palm: 1 }],
+      [4, { crouch: 3, lean: 4, head: 13, nfront: 1, nhx: 90, nhy: 65, nl: 1.1, palm: 1.15 }],
+      [6, { crouch: 3, lean: 4, head: 12, nfront: 1, nhx: 90, nhy: 66, nl: 1.1, palm: 1.05 }],
+      [8, { crouch: 2, lean: 3, head: 10, nfront: 1, nhx: 80, nhy: 60, nl: 1.08, palm: 0.6, glow: 0.9 }],
+      [9, { crouch: 1, lean: 1, head: 5, nfront: 1, nhx: 70, nhy: 68, nl: 1.04, palm: 0.2, glow: 1 }],
+      [10, { ws: 1, crouch: 1, lean: 0, head: 2, fhx: 124, fhy: 69, wr: -43, nfront: 0, nhx: 48, nhy: 87, nl: 1, palm: 0, glow: 1 }],
+    ],
+  },
+};
+
+/** Варианты удара, сильного удара и лечения — для страницы обсуждения. */
+export const MAGE_VARIANTS: Partial<Record<SculptClip, readonly { id: Variant; name: string; note: string }[]>> = {
+  attack: [
+    { id: 'a', name: 'Выпад', note: 'Как ряд удара листа: посох подтянут к плечу, ближний кулак перед грудью — шаг, и навершие толчком на врагов; снаряд вылетает из него со вспышкой.' },
+    { id: 'b', name: 'Взмах', note: 'Посох заведён над головой — шаг, и навершие опускается дугой через верх на врагов; размашистее, но дольше читается.' },
+  ],
+  heavy: [
+    { id: 'a', name: 'Сверху в землю', note: 'Посох заносится над головой, широкий шаг и присед — навершие бьёт в землю перед врагом: вспышка и пыль.' },
+    { id: 'b', name: 'Снизу', note: 'Присел, навершие у колен — шаг, и посох вскидывается снизу вверх, навершие на врага на высоте головы.' },
+  ],
+  heal: [
+    { id: 'a', name: 'Пламя посоха', note: 'Посох поднят торчком у капюшона, пламя разгорается во весь рост, голова склонена, кулак у груди.' },
+    { id: 'b', name: 'Огонёк в ладони', note: 'В поднятой ладони зажигается синий огонёк (пламя посоха притухает), голова склонена к нему; ладонь к груди — огонёк гаснет.' },
+  ],
+};
+
+/**
+ * Рекомендация аниматора; её же модель берёт, когда вариант не задан. Удар A — как на листе и короче читается; сильный
+ * удар A — «тяжёлый» по-настоящему (замах, шаг, удар в землю), B легче удара; лечение B — единственное, где посох не
+ * вскидывается (приём и клич уже поднимают посох с пламенем) и лечение не спутать с заклинанием.
+ */
+export const MAGE_REC_VARIANTS: Partial<Record<SculptClip, Variant>> = { attack: 'a', heavy: 'a', heal: 'b' };
+
+/** Что показывает каждый клип (подписи плиток страницы); у клипов с вариантами — общее. */
+export const MAGE_CLIP_NOTES: Partial<Record<SculptClip, string>> = {
+  idle: 'Стойка: посох в дальней руке, пламя пляшет, грудь дышит, капюшон раз за цикл кивает к врагам.',
+  attack: 'Удар посохом: снаряд вылетает из навершия в кадр контакта — навершие смотрит на врагов, вспышка.',
+  heavy: 'Приём вплотную посохом (Порез, Двойной выпад, Таран): удар навершием с шагом, контакт — на шестом кадре.',
+  power: 'Заклинание: посох вскинут, пламя разгорается — шаг, взмах, и навершие на врагов; снаряд вылетает из него со вспышкой.',
+  heal: 'Лечение и зелье: свет собирается в синем пламени; круг лечения — в третий кадр.',
+  buff: 'Приём на себя: посох вскинут над головой, пламя вспыхивает во весь рост, капюшон запрокинут, плащ взвился.',
+  block: 'Блок: посох подтянут к плечу, ближняя ладонь выставлена оберегом, голова в капюшон; в кадр удара — отдача и искры о древко.',
+  hurt: 'Урон: отбросило назад, капюшон запрокинут, пламя вздрогнуло, ближний кулак отлетел; белая вспышка.',
+  death: 'Смерть, как на листе: оседает и валится ничком кучей ткани, капюшон у земли; посох ложится вперёд, пламя едва тлеет.',
+};
+
+/** Ключи всех клипов модели при выбранных вариантах. */
+function clipKeys(variants: Partial<Record<SculptClip, Variant>>): Partial<Record<SculptClip, PoseKeys<MagePose>>> {
+  const out: Partial<Record<SculptClip, PoseKeys<MagePose>>> = { ...CLIPS };
+  for (const c of Object.keys(VARIANT_CLIPS) as VariantClip[]) out[c] = VARIANT_CLIPS[c][variants[c] ?? MAGE_REC_VARIANTS[c] ?? 'a'];
+  return out;
 }
 
 /**
@@ -625,22 +790,28 @@ function idlePose(p: Painter): MagePose {
   return P;
 }
 
-/** Поза кадра: ключи клипа поверх покоя в фазе 0 или сам покой. */
-function framePose(p: Painter): MagePose {
+/**
+ * Поза кадра: ключи клипа поверх покоя в фазе 0 (клип начинается и кончается им — стык без скачка: в покое кисти
+ * висят своим путём, а таз осел) или сам покой.
+ */
+function framePose(p: Painter, keys: Partial<Record<SculptClip, PoseKeys<MagePose>>>): MagePose {
   const base = idlePose(p);
   const c = clipAt(p);
   let P = base;
   if (c) {
-    const keys = CLIPS[c.clip];
-    if (keys) P = poseAt(base, keys, c.f, c.n, HERO_CLIPS[c.clip].hold);
+    const k = keys[c.clip];
+    if (k) P = poseAt(base, k, c.f, c.n, HERO_CLIPS[c.clip].hold);
   } else {
     P.head += 2 * p.blink(0.62, 0.16);
   }
   return P;
 }
 
-/** Зонд: таз, кулак с посохом, середина света (конец оружия), суставы дальней руки. Свет в земле нарочно — нигде. */
-export const mageProbe: HeroProbe = { grounded: [] };
+/**
+ * Зонд: таз, дальний кулак, середина пламени на навершии (конец оружия), конец древка, суставы дальней руки, угол
+ * посоха к предплечью и сгиб локтя, ближний кулак и локоть. Навершие в земле нарочно — только в смерти (посох лёг).
+ */
+export const mageProbe: HeroProbe = { grounded: ['death'] };
 
 // ─── Модель ─────────────────────────────────────────────────────────────────
 
@@ -648,9 +819,9 @@ export const mageProbe: HeroProbe = { grounded: [] };
  * Временная аватарка — поза покоя в кадре бюста (капюшон слева от середины, навершие посоха с пламенем у правого
  * края), цвета прежнего портрета: ночное синее небо, луна-ореол за капюшоном, шпили по краям. Шлифовка — шаг 5.
  */
-function avatarOf(m: Mats, L: LookSpec): AvatarSpec {
+function avatarOf(m: Mats): AvatarSpec {
   return {
-    draw: (p) => drawMage(p, REST, m, L),
+    draw: (p) => drawMage(p, REST, m),
     crop: [40, -12, 112],
     halo: [84, 28, 30],
     colors: { top: '#162856', bottom: '#070c1a', halo: '#1a3375', haloEdge: '#2a4a94', skyline: '#080e1d', frameDark: '#05080f', frame: '#152348', frameLight: '#2e4a86' },
@@ -658,50 +829,90 @@ function avatarOf(m: Mats, L: LookSpec): AvatarSpec {
   };
 }
 
+/** Варианты клипов и рост Мага (страница обсуждения). */
+export interface MageOpts {
+  /** Варианты клипов на обсуждении (`MAGE_VARIANTS`); без записи — рекомендация `MAGE_REC_VARIANTS`. */
+  variants?: Partial<Record<SculptClip, Variant>>;
+  /** Рост в покое, единиц поля; по умолчанию — 120 (`HERO_BODY_HEIGHT.mage`). */
+  height?: number;
+}
+
 /**
- * Маг облика `look`; рост в покое — `height` единиц поля в пикселе `HERO_PIXEL`, по умолчанию `HERO_BODY_HEIGHT.mage`
+ * Маг; рост в покое — `opts.height` единиц поля в пикселе `HERO_PIXEL`, по умолчанию `HERO_BODY_HEIGHT.mage`
  * (120). Другой рост — для страницы обсуждения: прежний лист в бою стоял ниже таблицы (≈ 96: мерка листа 134 снята
  * с искрами пламени), и пользователь выбирает между 120, 106 и 98. Масштаб — вокруг середины стопы на земле (`p.scope`),
  * поэтому мерки, пиксель и земля не меняются; поза кадра считается внутри масштаба — сдвиги покоя остаются целыми
  * пикселями. Аватарка от роста не зависит.
  */
-export function mageModel(look: MageLook = MAGE_RECOMMENDED, height = 120): HeroModel {
-  const L = LOOKS[look];
-  const m = matsOf(L);
+export function mageModel(opts: MageOpts = {}): HeroModel {
+  const height = opts.height ?? 120;
+  const m = matsOf(LOOK);
+  const keys = clipKeys(opts.variants ?? {});
   const s = height / 120, ox = X(90) * (1 - s), oy = G * (1 - s);
   const map = (x: number, y: number): [number, number] => [x * s + ox, y * s + oy];
   return {
     id: 'mage',
-    avatar: avatarOf(m, L),
+    avatar: avatarOf(m),
     probe: mageProbe,
     w: 162,
     h: 132,
     ground: G,
     pad: 80,
-    draw: (p: Painter) => (s === 1 ? drawMage(p, framePose(p), m, L) : p.scope(s, ox, oy, () => drawMage(p, framePose(p), m, L, map))),
+    draw: (p: Painter) => (s === 1 ? drawMage(p, framePose(p, keys), m) : p.scope(s, ox, oy, () => drawMage(p, framePose(p, keys), m, map))),
   };
 }
 
 // ─── Рисунок ────────────────────────────────────────────────────────────────
 
+/**
+ * Смерть — осел и повалился вперёд ничком на подол, как на листе: верх ложится вокруг таза (таз — из ключей: присел),
+ * капюшон у земли перед сапогами, пелерина и плащ сверху кучей. Не 90°: спина выше к плечам — куча, а не доска.
+ */
+const FALL_ROT = 72;
+/** Сколько взвивается от `cape` 1: плащ за спиной, пола, подол и клинья рясы. */
+const FLARE = { cloak: 26, flap: 18, skirt: 5, tunic: 8 };
+
+/**
+ * Свет Мага: ореол и лучи вспышки — синее пламени, искры о древко — белые с голубым.
+ */
+const LIGHT = { ray: '#bfe4ff', rayDim: '#6fb0ff', burst: '#4d8dff', spark: '#e6f4ff', sparkDim: '#8cc4ff' };
+
+/**
+ * Луч света в два пикселя шириной от `r0` до `r1` по направлению `ang` — только по пустым клеткам (копия луча
+ * Паладина). Рисуется раньше ореола: декаль «под» ложится только в пустую клетку, и ореол, нарисованный первым,
+ * съедал бы лучи.
+ */
+function ray(p: Painter, x: number, y: number, ang: number, r0: number, r1: number, color: string): void {
+  const nx = Math.cos((ang + 90) * DEG) * 0.75, ny = Math.sin((ang + 90) * DEG) * 0.75;
+  const [x0, y0] = at(x, y, ang, r0), [x1, y1] = at(x, y, ang, r1);
+  p.line(x0 + nx, y0 + ny, x1 + nx, y1 + ny, color, true);
+  p.line(x0 - nx, y0 - ny, x1 - nx, y1 - ny, color, true);
+}
+
 /** Маг в позе `P`; `map` — точки зонда в кадр, когда модель нарисована в своём масштабе (рост не по таблице). */
-function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: number, y: number): [number, number] => [x, y]): void {
+function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number): [number, number] => [x, y]): void {
   const breath = p.bob(2, 2);
-  const rot = P.lean * DEG;
+  const fall = P.fall > 0 ? ease(Math.min(1, P.fall)) : 0;
+  const bounce = P.fall > 1 ? (P.fall - 1) * 40 : 0;
+  const rot = fall > 0 ? lerp(P.lean, FALL_ROT, fall) * DEG : P.lean * DEG;
   // Верх: таз с приседом, сдвиг веса и дыхание — целыми пикселями (поза их прижимает к сетке, ткань — тоже).
-  const udx = p.snap(P.x), udy = p.snap(P.y + P.crouch - breath);
+  const udx = p.snap(P.x), udy = p.snap(P.y + P.crouch - breath - bounce);
   const up = { dx: udx, dy: udy, rot, px: PELVIS[0], py: PELVIS[1] };
   const cr = Math.cos(rot), sr = Math.sin(rot);
   const toWorld = (x: number, y: number): [number, number] =>
     [PELVIS[0] + cr * (x - PELVIS[0]) - sr * (y - PELVIS[1]) + udx, PELVIS[1] + sr * (x - PELVIS[0]) + cr * (y - PELVIS[1]) + udy];
+  const toLocal = (x: number, y: number): [number, number] => {
+    const dx = x - udx - PELVIS[0], dy = y - udy - PELVIS[1];
+    return [PELVIS[0] + cr * dx + sr * dy, PELVIS[1] - sr * dx + cr * dy];
+  };
   /**
    * Ткань, которая висит на верхе: вверху (`top`, y листа) идёт с ним целиком, у земли стоит, между — доля по высоте;
-   * `cape` относит низ назад. Подол не отрывается от пола, когда грудь дышит. `closed` — многоугольник: фактура
-   * и дизеринг фигуры привязаны к её первой вершине, и у висящей ткани первой ставится самая нижняя — подол стоит,
-   * и узор на нём не ползёт (с вершиной у пояса волокна подола переливались каждый вдох). Ломаные кромок и складок
-   * не переставляются.
+   * `cape` относит низ назад на `flare`. Подол не отрывается от пола, когда грудь дышит. `closed` — многоугольник:
+   * фактура и дизеринг фигуры привязаны к её первой вершине, и у висящей ткани первой ставится самая нижняя — подол
+   * стоит, и узор на нём не ползёт (с вершиной у пояса волокна подола переливались каждый вдох). Ломаные кромок
+   * и складок не переставляются. `step` — ткань над дальним сапогом: шаг уносит её низ вперёд вместе с ним.
    */
-  const hang = (pts: number[], top: number, closed = false): number[] => {
+  const hang = (pts: number[], top: number, closed = false, flare = FLARE.skirt, step = 0): number[] => {
     const out: number[] = [];
     const yt = Y(top);
     let low = 0;
@@ -715,27 +926,40 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: numbe
       // Сдвиг — целыми пикселями: дробный сдвиг точек у подола перекатывал край и фактуру клиньев на каждом вдохе.
       // Край ткани у земли — на пиксель выше неё: пряди `shag` свисают вниз, и с подолом ровно на земле они уходили
       // под пол на два-три пикселя (тест «стопы на земле» допускает два).
-      out.push(x + p.snap(w * (wx - x) - P.cape * 8 * lo * lo), Math.min(y + p.snap(w * (wy - y)), closed ? HEM_FLOOR : G));
+      let dx = w * (wx - x) - P.cape * flare * lo * lo;
+      if (step && P.footF) dx += P.footF * step * lo * Math.max(0, Math.min(1, (x - X(96)) / R(24)));
+      out.push(x + p.snap(dx), Math.min(y + p.snap(w * (wy - y)), closed ? HEM_FLOOR : G));
     }
     return out;
   };
-  const far = reachArm(M.armF.sh[0], M.armF.sh[1], P.fhx, P.fhy, ARM_F.l1, ARM_F.l2, 1);
-  const near = reachArm(M.armN.sh[0], M.armN.sh[1], P.nhx, P.nhy, ARM_N.l1, ARM_N.l2, 1);
-  const SW = P.sw;
+  // Дальний кулак держится за точку мира (посох лёг на землю) — перевод в координаты верха.
+  let fx = P.fhx, fy = P.fhy;
+  if (P.hold > 0) {
+    const [lx, ly] = toLocal(P.gx, P.gy);
+    fx = lerp(fx, lx, P.hold);
+    fy = lerp(fy, ly, P.hold);
+  }
+  const far = P.hold > 0 ? farArm(P, fx, fy) : farArm(P);
+  let SW = staffAngle(P, far.a2);
+  if (P.hold > 0) SW = lerp(SW, P.gsw - rot / DEG, P.hold);
+  const near = nearArm(P, far, SW);
   const probeInfo: Record<string, number> = {};
+  const ff = P.ffront > 0.5, nf = P.nfront > 0.5;
+  const ghost = ghostOf(p);
 
-  p.shadow(X(80) + P.x * 0.5, R(56), 4.5);
+  p.shadow(fall > 0 ? X(80) + P.x * 0.5 + 22 * fall : X(80) + P.x * 0.5, fall > 0 ? R(56) + 12 * fall : R(56), 4.5);
 
-  // ── Посох — позади всего: дальняя рука держит его с дальней стороны тела; низ древка скрыт рясой. ──
-  p.pose(up, () => staff(p, m, L, far.hx, far.hy, SW));
+  // ── Посох — позади всего: дальняя рука держит его с дальней стороны тела; низ древка скрыт рясой. Перед грудью
+  //    (`ffront`) — в конце кадра, здесь пустые фигуры. ──
+  p.pose(up, () => staff(ff ? ghost : p, m, far.hx, far.hy, SW));
 
   // ── Плащ за спиной: верх на плечах, низ стоит; изнанка — полосой под краем передней полы. ──
-  // Низ плаща за спиной — рваный: у A и B чуть-чуть, у отшельника лохмотьями.
-  const cloakHem = tatters(S(...CLOAK.slice(34, 50)), R(L.id === 'c' ? 4 : 2), R(L.id === 'c' ? 3.5 : 5), -1);
-  p.poly(hang([...S(...CLOAK.slice(0, 34)), ...cloakHem, ...S(...CLOAK.slice(50))], 86, true), m.cloak, { part: 'cloak', tone: -0.08, bevel: 9 });
-  p.poly(hang(S(...LINING), 100, true), solid(m.lining), { part: 'cloak', paint: true });
-  fold(p, m, hang(S(40, 132, 33, 150), 86), 'cloak');
-  fold(p, m, hang(S(48, 128, 44, 152), 86), 'cloak');
+  // Низ плаща за спиной — чуть рваный.
+  const cloakHem = tatters(S(...CLOAK.slice(34, 50)), R(2), R(5), -1);
+  p.poly(hang([...S(...CLOAK.slice(0, 34)), ...cloakHem, ...S(...CLOAK.slice(50))], 86, true, FLARE.cloak), m.cloak, { part: 'cloak', tone: -0.08, bevel: 9 });
+  p.poly(hang(S(...LINING), 100, true, FLARE.cloak), solid(m.lining), { part: 'cloak', paint: true });
+  fold(p, m, hang(S(40, 132, 33, 150), 86, false, FLARE.cloak), 'cloak');
+  fold(p, m, hang(S(48, 128, 44, 152), 86, false, FLARE.cloak), 'cloak');
 
   // ── Сапоги из-под подола: ближний носком назад, дальний — к врагам; шаг двигает стопу. ──
   const feet = [
@@ -753,50 +977,39 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: numbe
   }
 
   // ── Нижняя ряса до земли; на дальней стороне подол поднят шагом. ──
-  const skirtPts = L.id === 'c'
-    ? hang([...S(...SKIRT.slice(0, 28)), ...tatters(S(100, 156, 82, 156, 64, 156), R(3), R(5), -1).slice(2), ...S(...SKIRT.slice(30))], 104, true)
-    : hang(S(...SKIRT), 104, true);
-  p.poly(skirtPts, m.skirt, { part: 'skirt', tone: -0.04, bevel: 6 });
+  p.poly(hang(S(...SKIRT), 104, true, FLARE.skirt, 0.7), m.skirt, { part: 'skirt', tone: -0.04, bevel: 6 });
   stroke(p, hang(S(70, 141, 68, 155), 104), m.fold, 'skirt');
-  stroke(p, hang(S(100, 143, 99, 155), 104), m.fold, 'skirt');
-  stroke(p, hang(S(118, 139, 116, 149), 104), m.fold, 'skirt');
+  stroke(p, hang(S(100, 143, 99, 155), 104, false, FLARE.skirt, 0.7), m.fold, 'skirt');
+  stroke(p, hang(S(118, 139, 116, 149), 104, false, FLARE.skirt, 0.7), m.fold, 'skirt');
   // Ноги под рясой выпадом: задняя (ближняя) прямая — складка от таза к сапогу, передняя — к колену и вниз; тень между
   // ногами у подола. Две прямые складки к сапогам читались «шпагатом».
-  p.poly(hang(S(78, 156, 90, 134, 104, 156), 104, true), m.skirt, { part: 'skirt', paint: true, tone: -0.35 });
+  p.poly(hang(S(78, 156, 90, 134, 104, 156), 104, true, FLARE.skirt, 0.7), m.skirt, { part: 'skirt', paint: true, tone: -0.35 });
   fold(p, m, hang(S(84, 118, 55, 148), 104), 'skirt');
-  fold(p, m, hang(S(98, 118, 117, 127, 122, 146), 104), 'skirt');
+  fold(p, m, hang(S(98, 118, 117, 127, 122, 146), 104, false, FLARE.skirt, 0.7), 'skirt');
   trimEdge(p, m, hang(S(...SKIRT_HEM_N), 104), 'skirt', 2);
-  trimEdge(p, m, hang(S(...SKIRT_HEM_F), 104), 'skirt', 2);
+  trimEdge(p, m, hang(S(...SKIRT_HEM_F), 104, false, FLARE.skirt, 0.7), 'skirt', 2);
 
-  // ── Верхняя ряса — два клина с острым подолом и палантин. У отшельника клинья без кромки, концы рваные. ──
-  p.poly(hang(S(...TUNIC_N), 106, true), m.tunicN, { part: 'tunicN', bevel: 5 });
-  fold(p, m, hang(S(74, 112, 67, 136), 106), 'tunicN');
-  trimEdge(p, m, hang(S(...TUNIC_N_EDGE), 106), 'tunicN');
-  p.poly(hang(S(...TUNIC_F), 106, true), m.tunicF, { part: 'tunicF', bevel: 5, tone: -0.08 });
-  stroke(p, hang(S(110, 110, 117, 127), 106), m.fold, 'tunicF');
-  trimEdge(p, m, hang(S(...TUNIC_F_EDGE), 106), 'tunicF');
-  if (L.id === 'b') {
-    // Длинные края — швом, серебро только по низу хвоста: серебряная кромка во всю длину делала из палантина меч.
-    p.poly(hang(S(...STOLE_B), 106, true), m.stole, { part: 'stole', bevel: 2, tone: 0.04 });
-    edgeBand(p, hang(S(86, 109, 85.5, 124, 85.5, 140, 85.5, 151, 90.5, 147.5, 95.5, 151, 95, 140, 95, 124, 95, 109), 106), 1.2, solid(m.fold), 'stole');
-    trimEdge(p, m, hang(S(85.5, 151, 90.5, 147.5, 95.5, 151), 106), 'stole', 1.6);
-  } else {
-    p.poly(hang(S(...STOLE), 106, true), m.stole, { part: 'stole', bevel: 2, tone: 0.04 });
-    trimEdge(p, m, hang(S(86, 109, 85, 124, 85, 139, 86, 149, 89, 154, 93, 149, 94, 140, 95, 124, 95, 109), 106), 'stole', 1.8);
-  }
-  if (L.id === 'b' && m.trim) {
-    // Звёзды по палантину — по пикселю серебра.
-    for (const [sx, sy] of [[90, 120], [90, 132], [89.5, 144]]) {
-      const [wx, wy] = hang(S(sx, sy), 106);
-      p.px(wx, wy, m.trimLit);
-    }
-  }
-  if (L.id === 'c') {
-    // Заплата на ближнем клине — квадрат светлее, стежки швом.
-    const patch = hang(S(62, 122, 70, 121, 71, 129, 63, 130), 106, true);
-    p.poly(patch, m.tunicN, { part: 'tunicN', paint: true, tone: 0.14 });
-    stroke(p, patch.concat(patch.slice(0, 2)), m.fold, 'tunicN');
-  }
+  // ── Верхняя ряса — два клина с острым подолом и палантин. ──
+  p.poly(hang(S(...TUNIC_N), 106, true, FLARE.tunic), m.tunicN, { part: 'tunicN', bevel: 5 });
+  fold(p, m, hang(S(74, 112, 67, 136), 106, false, FLARE.tunic), 'tunicN');
+  trimEdge(p, m, hang(S(...TUNIC_N_EDGE), 106, false, FLARE.tunic), 'tunicN');
+  p.poly(hang(S(...TUNIC_F), 106, true, FLARE.tunic, 0.5), m.tunicF, { part: 'tunicF', bevel: 5, tone: -0.08 });
+  stroke(p, hang(S(110, 110, 117, 127), 106, false, FLARE.tunic, 0.5), m.fold, 'tunicF');
+  trimEdge(p, m, hang(S(...TUNIC_F_EDGE), 106, false, FLARE.tunic, 0.5), 'tunicF');
+  p.poly(hang(S(...STOLE), 106, true, FLARE.tunic), m.stole, { part: 'stole', bevel: 2, tone: 0.04 });
+  trimEdge(p, m, hang(S(86, 109, 85, 124, 85, 139, 86, 149, 89, 154, 93, 149, 94, 140, 95, 124, 95, 109), 106, false, FLARE.tunic), 'stole', 1.8);
+
+  /**
+   * Ближнее предплечье, обшлаг и кулак — под полой плаща (кулак выглядывает у бедра) или, в жесте (`nfront`), поверх
+   * всего в конце кадра; плечо руки всегда под полой и пелериной.
+   */
+  const nearFore = (q: Painter): void => {
+    const [wx, wy] = at(near.hx, near.hy, near.a2, -R(4));
+    q.limb(near.ex, near.ey, R(5.5), wx, wy, R(5.2), m.sleeveN, { part: 'sleeveN', tone: -0.1 });
+    // Обшлаг у запястья — под краем полы, с бронзовой кромкой: кулак растёт из рукава, а не висит шариком.
+    cuff(q, m, near.hx, near.hy, near.a2, 'cuffN', 0.1);
+    fist(q, m, m.fistN, near.hx, near.hy, near.a2, R(5), 0, 'fistN');
+  };
 
   // ── Верх: грудь, пояс, кошель, ближняя рука; дальний рукав; пелерина; капюшон. ──
   p.pose(up, () => {
@@ -804,149 +1017,173 @@ function drawMage(p: Painter, P: MagePose, m: Mats, L: LookSpec, map = (x: numbe
     stroke(p, S(84, 96, 82, 106), m.fold, 'torso');
     stroke(p, S(104, 96, 106, 106), m.fold, 'torso');
 
-    // Пояс; у отшельника — верёвка.
-    if (L.id === 'c') {
-      p.poly(S(...BELT), m.leather, { part: 'belt', bevel: 1.6 });
-      for (let k = 0; k < 9; k++) {
-        const x0 = 66 + k * 5;
-        stroke(p, S(x0, 109 - k * 0.55, x0 + 3, 104 - k * 0.55), m.leatherDark, 'belt');
-      }
-    } else {
-      p.poly(S(...BELT), m.leather, { part: 'belt', bevel: 1.8 });
-      stroke(p, S(65, 105.8, 109, 101.4), m.leatherLit, 'belt');
-    }
+    // Пояс, ремешок от клина воротника к пряжке, бронзовая пряжка-кольцо.
+    p.poly(S(...BELT), m.leather, { part: 'belt', bevel: 1.8 });
+    stroke(p, S(65, 105.8, 109, 101.4), m.leatherLit, 'belt');
+    p.poly(S(91.5, 94, 95, 94, 94.5, 103, 91.5, 103), m.leather, { part: 'strap', bevel: 1 });
+    p.ellipse(BUCKLE[0], BUCKLE[1], R(4.5), R(4.5), m.trim, { part: 'buckle', lift: 1.2 });
+    p.ellipse(BUCKLE[0] + 0.3, BUCKLE[1] + 0.3, R(1.9), R(1.9), m.dark, { part: 'buckle', paint: true });
 
-    // Ремешок от клина воротника к пряжке (A, B).
-    if (L.id !== 'c') {
-      p.poly(S(91.5, 94, 95, 94, 94.5, 103, 91.5, 103), m.leather, { part: 'strap', bevel: 1 });
-    }
-
-    // Пряжка: A — бронзовое кольцо, B — серебряная звезда, C — узел верёвки с концами.
-    if (L.id === 'c') {
-      p.ellipse(BUCKLE[0], BUCKLE[1], R(3.6), R(3), m.leather, { part: 'knot', lift: 1 });
-      p.limb(...PT(92, 108), R(1.4), ...PT(90, 122), R(1.1), m.leather, { part: 'knotEnd' });
-      p.limb(...PT(94, 108), R(1.4), ...PT(97, 119), R(1.1), m.leather, { part: 'knotEnd' });
-    } else if (m.trim) {
-      p.ellipse(BUCKLE[0], BUCKLE[1], R(4.5), R(4.5), m.trim, { part: 'buckle', lift: 1.2 });
-      p.ellipse(BUCKLE[0] + 0.3, BUCKLE[1] + 0.3, R(1.9), R(1.9), m.dark, { part: 'buckle', paint: true });
-      if (L.id === 'b') p.px(BUCKLE[0] - 1, BUCKLE[1] - 1.5, m.trimLit);
-    }
-
-    // У бедра: A — кошель, B — астролябия на цепочке, C — книга на шнуре и костяные обереги.
-    if (L.id === 'a') {
-      p.poly(S(...POUCH), m.pouch, { part: 'pouch', bevel: 3, lift: 1.5 });
-      p.poly(S(70, 110, 83, 109, 84, 113, 70, 114), m.pouch, { part: 'pouch', paint: true, tone: -0.2 });
-      stroke(p, S(71, 114, 83, 113), m.leatherDark, 'pouch');
-      p.poly(S(74, 115, 78, 114, 79, 117, 75, 118), m.pouch, { part: 'pouch', paint: true, tone: 0.3 });
-    } else if (L.id === 'b' && m.trim) {
-      // Тубус звёздных карт наискось у бедра: кожа, серебряные колпачки и пояс. Астролябия диском читалась гербом.
-      const [t0x, t0y] = PT(71, 109), [t1x, t1y] = PT(80, 127);
-      p.limb(t0x, t0y, R(3.4), t1x, t1y, R(3.4), m.pouch, { part: 'tube', lift: 1, tone: 0.2 });
-      for (const f of [0.06, 0.5, 0.94]) {
-        const cx = lerp(t0x, t1x, f), cy = lerp(t0y, t1y, f), w = f === 0.5 ? R(0.5) : R(1);
-        const ux = (t1x - t0x) / Math.hypot(t1x - t0x, t1y - t0y), uy = (t1y - t0y) / Math.hypot(t1x - t0x, t1y - t0y);
-        p.poly([cx - ux * w - uy * R(3.6), cy - uy * w + ux * R(3.6), cx + ux * w - uy * R(3.6), cy + uy * w + ux * R(3.6), cx + ux * w + uy * R(3.6), cy + uy * w - ux * R(3.6), cx - ux * w + uy * R(3.6), cy - uy * w - ux * R(3.6)], m.trim, { part: 'tube', paint: true, tone: -0.1 });
-      }
-    } else {
-      stroke(p, S(78, 108, 77, 112), m.leatherDark, 'torso');
-      p.poly(S(70, 112, 83, 111, 84, 124, 71, 125), m.boot, { part: 'book', bevel: 1.6, lift: 1 });
-      p.poly(S(81.5, 112, 83, 111, 84, 124, 82.5, 124.5), m.bone, { part: 'book', paint: true, tone: -0.2 });
-      p.poly(S(75, 116.5, 83, 116, 83, 119, 75, 119.5), m.bone, { part: 'book', paint: true });
-      p.ellipse(...PT(98, 113), R(1.6), R(2), m.bone, { part: 'charm' });
-      p.ellipse(...PT(100, 116), R(1.4), R(1.8), m.bone, { part: 'charm' });
-    }
+    // Кошель у бедра.
+    p.poly(S(...POUCH), m.pouch, { part: 'pouch', bevel: 3, lift: 1.5 });
+    p.poly(S(70, 110, 83, 109, 84, 113, 70, 114), m.pouch, { part: 'pouch', paint: true, tone: -0.2 });
+    stroke(p, S(71, 114, 83, 113), m.leatherDark, 'pouch');
+    p.poly(S(74, 115, 78, 114, 79, 117, 75, 118), m.pouch, { part: 'pouch', paint: true, tone: 0.3 });
 
     // Ближняя рука под плащом: рукав от плеча до запястья, наружу у бедра — обшлаг и кулак.
-    const [wx, wy] = at(near.hx, near.hy, near.a2, -R(4));
-    p.limb(M.armN.sh[0], M.armN.sh[1], R(6), near.ex, near.ey, R(5.5), m.sleeveN, { part: 'sleeveN', tone: -0.1 });
-    p.limb(near.ex, near.ey, R(5.5), wx, wy, R(5.2), m.sleeveN, { part: 'sleeveN', tone: -0.1 });
-    // Обшлаг у запястья — под краем полы, с кромкой облика: кулак растёт из рукава, а не висит шариком.
-    cuff(p, m, near.hx, near.hy, near.a2, 'cuffN', 0.1);
-    fist(p, m, m.fistN, near.hx, near.hy, near.a2, R(5), 0, 'fistN');
+    p.limb(near.sx, near.sy, R(6), near.ex, near.ey, R(5.5), m.sleeveN, { part: 'sleeveN', tone: -0.1 });
+    nearFore(nf ? ghost : p);
   });
 
   // ── Передняя пола плаща — поверх ближней руки, кулак выглядывает из-под её края. ──
-  const flapPts = L.id === 'c' ? hang([...S(...FLAP.slice(0, 22)), ...tatters(S(24, 130, 23, 134, 27, 133), R(3), R(3), 1).slice(2), ...S(...FLAP.slice(26))], 90, true) : hang(S(...FLAP), 90, true);
-  p.poly(flapPts, m.flap, { part: 'flap', bevel: 7 });
-  fold(p, m, hang(S(60, 100, 36, 124), 90), 'flap');
-  stroke(p, hang(S(50, 104, 30, 126), 90), m.lit, 'flap');
-  trimEdge(p, m, hang(S(...FLAP_EDGE), 90), 'flap');
+  p.poly(hang(S(...FLAP), 90, true, FLARE.flap), m.flap, { part: 'flap', bevel: 7 });
+  fold(p, m, hang(S(60, 100, 36, 124), 90, false, FLARE.flap), 'flap');
+  stroke(p, hang(S(50, 104, 30, 126), 90, false, FLARE.flap), m.lit, 'flap');
+  trimEdge(p, m, hang(S(...FLAP_EDGE), 90, false, FLARE.flap), 'flap');
 
-  p.pose(up, () => {
-    // Дальний рукав-колокол: плечо, раструб от локтя, край обшлага свисает ниже кисти; кулак на древке.
+  /**
+   * Дальнее предплечье: рукав-колокол от локтя, край обшлага свисает ниже кисти, древко под кулаком и кулак на древке.
+   * Перед грудью (`ffront`) — в конце кадра, и древко там целиком (`whole`), а не только под кулаком.
+   */
+  const farFore = (q: Painter, whole: boolean): void => {
     const u = [Math.cos(far.a2 * DEG), Math.sin(far.a2 * DEG)], nUp = [u[1], -u[0]];
     const [wx, wy] = at(far.hx, far.hy, far.a2, -R(5));
-    p.limb(M.armF.sh[0], M.armF.sh[1], R(5.2), far.ex, far.ey, R(5.6), m.sleeveF, { part: 'sleeveF', tone: -0.05 });
-    const bell = [
+    // Раструб висит по отвесу мира, а не верха: наклон и падение верха (смерть) не заводят его край вбок и под землю.
+    const hx = (x: number, dx: number, dy: number): number => (rot ? x + dx * cr + dy * sr : x + dx);
+    const hy = (y: number, dx: number, dy: number): number => (rot ? y - dx * sr + dy * cr : y + dy);
+    // Лежащему раструб не уходит под землю: точка ниже земли (в мире) поднимается на неё.
+    const floor = (pts: number[]): number[] => {
+      if (!fall) return pts;
+      for (let k = 0; k < pts.length; k += 2) {
+        const [bx, by] = toWorld(pts[k], pts[k + 1]);
+        if (by > G - 1.5) [pts[k], pts[k + 1]] = toLocal(bx, G - 1.5);
+      }
+      return pts;
+    };
+    const bell = floor([
       far.ex + nUp[0] * R(6.5), far.ey + nUp[1] * R(6.5),
       wx + nUp[0] * R(6), wy + nUp[1] * R(6),
-      wx + nUp[0] * R(2) - R(1), wy + R(5),
-      wx - R(5), wy + R(13),
-      wx - R(8), wy + R(23),
-      wx - R(12), wy + R(19),
-      far.ex + R(1), far.ey + R(11),
-      far.ex - R(4), far.ey + R(4),
-    ];
-    // У отшельника кромки нет — рукав на полступени светлее клина рясы, иначе они сливались одним тоном.
-    p.poly(bell, m.sleeveF, { part: 'sleeveF', bevel: 5, tone: L.id === 'c' ? 0.1 : -0.03 });
-    stroke(p, [far.ex + R(1), far.ey + R(4), wx - R(8), wy + R(18)], m.fold, 'sleeveF');
+      hx(wx + nUp[0] * R(2), -R(1), R(5)), hy(wy, -R(1), R(5)),
+      hx(wx, -R(5), R(13)), hy(wy, -R(5), R(13)),
+      hx(wx, -R(8), R(23)), hy(wy, -R(8), R(23)),
+      hx(wx, -R(12), R(19)), hy(wy, -R(12), R(19)),
+      hx(far.ex, R(1), R(11)), hy(far.ey, R(1), R(11)),
+      hx(far.ex, -R(4), R(4)), hy(far.ey, -R(4), R(4)),
+    ]);
+    q.poly(bell, m.sleeveF, { part: 'sleeveF', bevel: 5, tone: -0.03 });
+    stroke(q, floor([hx(far.ex, R(1), R(4)), hy(far.ey, R(1), R(4)), hx(wx, -R(8), R(18)), hy(wy, -R(8), R(18))]), m.fold, 'sleeveF');
     // Верх вытянутой руки — на свету: на листе рукав к врагам светлый, в тени он сливался с грудью.
-    stroke(p, [far.ex + nUp[0] * R(4.5), far.ey + nUp[1] * R(4.5), wx + nUp[0] * R(4), wy + nUp[1] * R(4)], m.lit, 'sleeveF');
+    stroke(q, [far.ex + nUp[0] * R(4.5), far.ey + nUp[1] * R(4.5), wx + nUp[0] * R(4), wy + nUp[1] * R(4)], m.lit, 'sleeveF');
     // Край обшлага — снизу вверх (рукав слева от хода).
-    trimEdge(p, m, [wx - R(8), wy + R(23), wx - R(5), wy + R(13), wx + nUp[0] * R(2) - R(1), wy + R(5), wx + nUp[0] * R(6), wy + nUp[1] * R(6)], 'sleeveF', 2);
-    // Древко под кулаком — поверх края раструба: на листе оно идёт ниже кулака правее обшлага и уходит за клин рясы.
-    // Раструб, лежавший правее древка, закрывал его целиком — посох читался коротким скипетром с шаром на конце.
-    const [l0x, l0y] = staffPt(far.hx, far.hy, SW, -22, 0), [l1x, l1y] = staffPt(far.hx, far.hy, SW, -1, 0);
-    const knot = L.id === 'c' ? 0.4 : 0;
-    p.limb(l0x, l0y, 1.9 + knot, l1x, l1y, 2 + knot, m.staff, { part: 'staffLow' });
-    fist(p, m, m.fistF, far.hx, far.hy, far.a2, R(4.2), 0.02, 'fistF', true);
+    trimEdge(q, m, floor([hx(wx, -R(8), R(23)), hy(wy, -R(8), R(23)), hx(wx, -R(5), R(13)), hy(wy, -R(5), R(13)), hx(wx + nUp[0] * R(2), -R(1), R(5)), hy(wy, -R(1), R(5)), wx + nUp[0] * R(6), wy + nUp[1] * R(6)]), 'sleeveF', 2);
+    if (whole) staff(q, m, far.hx, far.hy, SW);
+    else {
+      // Древко под кулаком — поверх края раструба: на листе оно идёт ниже кулака правее обшлага и уходит за клин рясы.
+      // Раструб, лежавший правее древка, закрывал его целиком — посох читался коротким скипетром с шаром на конце.
+      const [l0x, l0y] = staffPt(far.hx, far.hy, SW, -22, 0), [l1x, l1y] = staffPt(far.hx, far.hy, SW, -1, 0);
+      q.limb(l0x, l0y, 1.9, l1x, l1y, 2, m.staff, { part: 'staffLow' });
+    }
+    fist(q, m, m.fistF, far.hx, far.hy, far.a2, R(4.2), 0.02, 'fistF', true);
+  };
 
-    // Пелерина на плечах — поверх рукава и полы; кромка по низу.
-    // Низ пелерины: A — ровный край листа, B — фестоны клиньями, C — лохмотья.
-    const capeEdge = L.id === 'a' ? S(...CAPELET_EDGE_N) : L.id === 'b' ? tatters(S(...CAPELET_EDGE_N), R(6), R(12), -1, [1]) : tatters(S(...CAPELET_EDGE_N), R(2.5), R(3.5), -1);
-    p.poly([...S(...CAPELET.slice(0, 16)), ...capeEdge, ...S(...CAPELET.slice(28))], m.capelet, { part: 'capelet', bevel: 8, lift: 1 });
+  p.pose(up, () => {
+    // Плечо дальней руки — под пелериной; предплечье — здесь или в конце кадра.
+    p.limb(far.sx, far.sy, R(5.2), far.ex, far.ey, R(5.6), m.sleeveF, { part: 'sleeveF', tone: -0.05 });
+    farFore(ff ? ghost : p, false);
+
+    // Пелерина на плечах — поверх рукава и полы; кромка по низу. Дальний край идёт за поднятой рукой (`capeletTurn`).
+    const turn = capeletTurn(far);
+    const lift = (pts: number[]): number[] => {
+      if (!turn) return pts;
+      const out = [...pts];
+      for (let k = 0; k < out.length; k += 2) {
+        const w = Math.max(0, Math.min(1, (out[k] - X(92)) / R(12)));
+        if (w <= 0) continue;
+        const a = turn * w * DEG, c = Math.cos(a), s = Math.sin(a), dx = out[k] - far.sx, dy = out[k + 1] - far.sy;
+        out[k] = far.sx + c * dx - s * dy;
+        out[k + 1] = far.sy + s * dx + c * dy;
+      }
+      return out;
+    };
+    const capeEdge = S(...CAPELET_EDGE_N);
+    p.poly(lift([...S(...CAPELET.slice(0, 16)), ...capeEdge, ...S(...CAPELET.slice(28))]), m.capelet, { part: 'capelet', bevel: 8, lift: 1 });
     // Плечо под пелериной — купол: ткань лежит на нём, свет сверху слева.
     p.ellipse(...PT(68, 86), R(15), R(9), m.capelet, { part: 'capelet', lift: 2, rot: -0.45 });
     fold(p, m, S(70, 78, 60, 93), 'capelet');
     fold(p, m, S(78, 80, 72, 89), 'capelet');
-    // Фестоны Звездочёта — краем швом: серебряная кромка по зубцам ложилась строкой «VVVV», похожей на руны.
-    if (L.id === 'b') edgeBand(p, capeEdge, 1.2, solid(m.fold), 'capelet');
-    else trimEdge(p, m, capeEdge, 'capelet', 2.2);
-    trimEdge(p, m, S(...CAPELET_EDGE_F), 'capelet', 2, -0.1);
+    trimEdge(p, m, capeEdge, 'capelet', 2.2);
+    trimEdge(p, m, lift(S(...CAPELET_EDGE_F)), 'capelet', 2, -0.1);
 
     // Капюшон с воротником: кивает вокруг шеи.
-    p.pose({ rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => hood(p, m, L));
+    p.pose({ rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => hood(p, m));
   });
+
+  // ── Перенесённое вперёд: дальнее предплечье с посохом и кулаком, потом ближнее — оно ближе к зрителю. ──
+  if (ff) p.pose(up, () => farFore(p, true));
+  if (nf) p.pose(up, () => nearFore(p));
+
+  // Огонёк в ближней ладони (лечение): над кулаком, прямо в мире.
+  if (P.palm > 0.02) {
+    const [hx, hy] = toWorld(...at(near.hx, near.hy, near.a2, R(3)));
+    palmLight(p, m, hx, hy - R(4) * P.palm, P.palm);
+  }
 
   // Свет посоха — поверх всего, прямо в мире: кулак поворачивает посох, пламя стоит.
   const [lx, ly] = toWorld(...staffPt(far.hx, far.hy, SW, RING_C[0], RING_C[1]));
-  staffLight(p, m, L, lx, ly, P.glow);
+  if (P.burst > 0.02) {
+    const r = R(11) + R(5) * P.burst;
+    for (let k = 0; k < 8; k++) {
+      // Луч, который ушёл бы под землю (навершие у земли — удар в землю), укорочен до неё.
+      const a = k * 45 + 22.5, sn = Math.sin(a * DEG);
+      let r1 = r + (k % 2 ? R(5) : R(12)) * (0.5 + P.burst);
+      if (sn > 0) r1 = Math.min(r1, (G - 1.5 - ly) / sn);
+      if (r1 > r) ray(p, lx, ly, a, r, r1, k % 2 ? LIGHT.rayDim : LIGHT.ray);
+    }
+    p.glow(lx, ly, R(12) + R(10) * P.burst, LIGHT.burst, 0.3 + 0.2 * Math.min(1, P.burst));
+  }
+  staffLight(p, m, lx, ly, P.glow);
+  if (P.dust > 0.05) {
+    // Пыль из-под навершия, ударившего в землю; синие искры пламени в ней.
+    const dx0 = Math.min(lx, 190);
+    for (let k = 0; k < 9; k++) {
+      const r = (2 + 4 * P.dust) * (0.6 + ((k * 37) % 5) / 8);
+      const c = k % 3 === 0 ? '#8cc4ffc0' : k % 2 ? '#6a6070c0' : '#8a8090c0';
+      p.disc(dx0 + (k - 4) * 5 * P.dust, G - 2 - (k % 3) * 3 * P.dust - (k % 2) * 2, r * 0.5, c, true);
+    }
+  }
+  if (P.spark > 0.05) {
+    // Искры о древко — у середины между кулаком и навершием.
+    const [sx, sy] = toWorld(...staffPt(far.hx, far.hy, SW, 14, 0));
+    // Искры — короткими чертами от древка наружу, к врагам и вверх (удар пришёл оттуда).
+    const n = Math.round(9 * P.spark);
+    for (let k = 0; k < n; k++) {
+      const a = -120 + k * 26, r0 = 4 + 4 * P.spark + (k % 2) * 2;
+      const [x0, y0] = at(sx, sy, a, r0), [x1, y1] = at(sx, sy, a, r0 + 3 + 3 * P.spark);
+      p.line(x0, y0, x1, y1, k % 2 ? LIGHT.sparkDim : LIGHT.spark);
+    }
+    p.glow(sx, sy, 7 * P.spark, LIGHT.burst, 0.5);
+  }
 
   if (mageProbe.on) {
     const W = (x: number, y: number): [number, number] => map(...toWorld(x, y));
-    const [hwx, hwy] = W(far.hx, far.hy), [swx, swy] = W(M.armF.sh[0], M.armF.sh[1]), [ewx, ewy] = W(far.ex, far.ey);
+    const [hwx, hwy] = W(far.hx, far.hy), [swx, swy] = W(far.sx, far.sy), [ewx, ewy] = W(far.ex, far.ey);
     const [bwx, bwy] = W(...staffPt(far.hx, far.hy, SW, -STAFF_BUTT, 0));
     const [hipX, hipY] = map(PELVIS[0] + udx, PELVIS[1] + udy), [tipX, tipY] = map(lx, ly);
-    const nrm = (a: number): number => { a = ((a % 360) + 360) % 360; return a > 180 ? a - 360 : a; };
+    const [nhx, nhy] = W(near.hx, near.hy), [nex, ney] = W(near.ex, near.ey);
     mageProbe.on({
       footF: map(probeInfo.footF, G)[0], footN: map(probeInfo.footN, G)[0], hipX, hipY, handX: hwx, handY: hwy, tipX, tipY, ground: G,
       shX: swx, shY: swy, elX: ewx, elY: ewy, butX: bwx, butY: bwy, wrist: nrm(SW - far.a2), elbow: 180 - Math.abs(nrm(far.a2 - far.a1)),
+      nearX: nhx, nearY: nhy, nearElX: nex, nearElY: ney, nearElbow: 180 - Math.abs(nrm(near.a2 - near.a1)),
     });
   }
 }
 
 /**
  * Капюшон в координатах листа (поворот головы — снаружи): купол с заломленной макушкой, проём лица в тени — скула
- * и спинка носа на свету, ниже тёмная маска, как на прежнем портрете; бровь капюшона — кромкой облика; клин
- * воротника на груди. C — рваная бровь зубцами над лицом, тёмная борода в тени, хвост капюшона по спине.
+ * и спинка носа на свету, ниже тёмная маска, как на прежнем портрете; бровь капюшона — бронзовой кромкой; клин
+ * воротника на груди.
  */
-function hood(p: Painter, m: Mats, L: LookSpec): void {
-  if (L.id === 'c') {
-    // Хвост капюшона отшельника — висит от макушки по спине на пелерину: узкий, сужается к рваному концу, складка
-    // посередине и своя часть с тенью — широкий хвост в тон капюшона лежал на плече плоской «доской» (ревью моделлера).
-    p.poly([...S(80, 57, 74, 59.5, 67.5, 65.5, 62, 74, 59, 83), ...tatters(S(59, 83, 58, 91, 61.5, 90), R(1.6), R(2), 1).slice(2), ...S(63, 83, 67, 75, 73, 68, 80, 62.5)], m.hood, { part: 'hoodTail', bevel: 2.4, tone: -0.12 });
-    stroke(p, S(77, 61, 70, 67, 65, 75, 61.5, 85), m.fold, 'hoodTail');
-  }
+function hood(p: Painter, m: Mats): void {
   p.poly(S(...HOOD), m.hood, { part: 'hood', bevel: 7, lift: 1.5 });
   // Голова под тканью — купол: капюшон круглится по черепу, а не плоский лоскут.
   p.ellipse(...PT(95, 67), R(13), R(13), m.hood, { part: 'hood', lift: 2.5 });
@@ -960,25 +1197,10 @@ function hood(p: Painter, m: Mats, L: LookSpec): void {
   p.poly(S(...CHEEK), m.face, { part: 'face', paint: true, tone: -0.12 });
   p.poly(S(...NOSE), m.face, { part: 'face', paint: true, tone: 0.25 });
   p.poly(S(...SOCKET), m.dark, { part: 'face', paint: true });
-  if (L.id === 'c' && m.beard) {
-    // Борода из тени на клин воротника: клин прядей, кончик раздвоен.
-    p.poly(S(95, 81, 101, 79.5, 108, 79.5, 109.5, 84, 108, 91, 105.5, 97, 103, 102, 101.5, 108, 99.5, 101, 97.5, 95, 95.5, 88), m.beard, { part: 'beard', bevel: 2.2, tone: 0.05 });
-    // Усы — тень под носом, пряди — светлые черты вниз к кончику.
-    stroke(p, S(99, 81, 107, 80.5), m.beard.ramp![1], 'beard');
-    stroke(p, S(100, 84, 101, 100), m.beard.ramp![4], 'beard');
-    stroke(p, S(104.5, 84, 103.5, 97), m.beard.ramp![4], 'beard');
-  } else {
-    // Маска — тёмная ткань ниже носа, чуть светлее тени проёма; верхний край — складкой.
-    p.poly(S(...MASK), solid(L.id === 'b' ? '#141826' : '#1b1726'), { part: 'hood', paint: true });
-    stroke(p, S(94, 81.5, 99, 79.5, 101.5, 80, 104, 81, 107.5, 80), L.id === 'b' ? '#252c3e' : '#2c2638', 'hood');
-  }
-  // Бровь капюшона — кромкой; у отшельника — рваные зубцы ткани над лицом.
-  if (L.id === 'c') {
-    p.poly([...S(113, 62, 106, 66, 100, 70, 94, 74, 91, 77), ...tatters(S(91, 77, 94, 76.5, 100, 73, 106, 69, 113, 63.5), R(3), R(3), 1).slice(2)], m.hood, { part: 'hoodRag', bevel: 1.2, tone: 0.05 });
-  } else {
-    trimEdge(p, m, S(...BROW), 'hood', 2.4, 0.1);
-  }
+  // Маска — тёмная ткань ниже носа, чуть светлее тени проёма; верхний край — складкой.
+  p.poly(S(...MASK), solid('#1b1726'), { part: 'hood', paint: true });
+  stroke(p, S(94, 81.5, 99, 79.5, 101.5, 80, 104, 81, 107.5, 80), '#2c2638', 'hood');
+  // Бровь капюшона — кромкой.
+  trimEdge(p, m, S(...BROW), 'hood', 2.4, 0.1);
   trimEdge(p, m, S(...HOOD_EDGE), 'hood');
-  // Звезды-застёжки на клине воротника у Звездочёта нет: на пикселе 1,5 она выходила плюсом 4×3 и рядом с Паладином
-  // читалась крестиком; звёзды есть на посохе и палантине.
 }
