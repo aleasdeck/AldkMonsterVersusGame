@@ -475,6 +475,8 @@ export interface MagePose extends Record<string, number> {
    * — навершие поднимается только на остаток.
    */
   slide: number;
+  /** Маска подсвечена снизу огоньком в ладони — только поза портрета (аватарка C); в клипах 0. */
+  faceLit: number;
 }
 
 /** Угол предплечья дальней руки в стойке — от него в клипах отсчитывается угол посоха (`wr`). */
@@ -490,7 +492,7 @@ const REST: MagePose = {
   ffront: 0, nfront: 0,
   footF: 0, footN: 0, liftF: 0, liftN: 0, cape: 0,
   fall: 0, hold: 0, gx: 0, gy: 0, gsw: 0, fbend: 1,
-  glow: 1, burst: 0, spark: 0, palm: 0, slide: 0,
+  glow: 1, burst: 0, spark: 0, palm: 0, slide: 0, faceLit: 0,
 };
 
 /**
@@ -753,22 +755,71 @@ export const mageProbe: HeroProbe = { grounded: ['death'] };
 
 // ─── Модель ─────────────────────────────────────────────────────────────────
 
+// ─── Аватарка ───────────────────────────────────────────────────────────────
+
+/** Варианты аватарки на обсуждении (шаг 5 рецепта). */
+export type MageAvatar = 'a' | 'b' | 'c';
+
 /**
- * Временная аватарка — поза покоя в кадре бюста (капюшон слева от середины, навершие посоха с пламенем у правого
- * края), цвета прежнего портрета: ночное синее небо, луна-ореол за капюшоном, шпили по краям. Шлифовка — шаг 5.
+ * Знак в ореоле прежнего портрета — кольцо со звездой-перекрестием и тонкими спицами наружу; координаты — в радиусах
+ * ореола от его центра, y вниз (`AvatarSpec.emblem`). Кольцо — одним многоугольником «с замочной скважиной»: внешняя
+ * окружность и внутренняя обратным ходом (чётность пересечений оставляет пустую середину).
  */
-function avatarOf(m: Mats): AvatarSpec {
-  return {
-    draw: (p) => drawMage(p, REST, m),
-    crop: [40, -12, 112],
-    halo: [84, 28, 30],
-    colors: { top: '#162856', bottom: '#070c1a', halo: '#1a3375', haloEdge: '#2a4a94', skyline: '#080e1d', frameDark: '#05080f', frame: '#152348', frameLight: '#2e4a86' },
-    skyline: [[0.05, 0.06, 0.55, 0.22], [0.13, 0.05, 0.42, 0.16], [0.9, 0.05, 0.5, 0.2], [0.97, 0.05, 0.62, 0.24]],
-  };
+const EMBLEM_POLYS: number[][] = (() => {
+  const ring: number[] = [];
+  const N = 36;
+  for (let k = 0; k <= N; k++) ring.push(0.64 * Math.cos((2 * Math.PI * k) / N), 0.64 * Math.sin((2 * Math.PI * k) / N));
+  for (let k = N; k >= 0; k--) ring.push(0.53 * Math.cos((2 * Math.PI * k) / N), 0.53 * Math.sin((2 * Math.PI * k) / N));
+  const star = [0, -0.5, 0.09, -0.09, 0.42, 0, 0.09, 0.09, 0, 0.5, -0.09, 0.09, -0.42, 0, -0.09, -0.09];
+  const spikes: number[][] = [];
+  for (let k = 0; k < 8; k++) {
+    const a = ((k * 45 + 22.5) * Math.PI) / 180, w = 0.09, r0 = 0.66, r1 = k % 2 ? 0.84 : 0.94;
+    spikes.push([r0 * Math.cos(a - w), r0 * Math.sin(a - w), r1 * Math.cos(a), r1 * Math.sin(a), r0 * Math.cos(a + w), r0 * Math.sin(a + w)]);
+  }
+  return [ring, star, ...spikes];
+})();
+
+/**
+ * Цвета прежнего портрета: ночное небо (тёмно-синее сверху, почти чёрное снизу), ореол-луна за капюшоном, знак — тёмным
+ * по ореолу, готические шпили по краям. Рамка — темнее неба (урок Воина: яркая рамка выделяла лепку в ряду рисованных);
+ * на прежнем портрете она светлее неба.
+ */
+const AVATAR_COLORS: AvatarSpec['colors'] = { top: '#11204a', bottom: '#070c1a', halo: '#1a3375', haloEdge: '#26438a', skyline: '#070d1a', frameDark: '#05080f', frame: '#0f1a38', frameLight: '#22386c' };
+/** Готические шпили: высокие и острые, слева гуще — как на прежнем портрете. */
+const AVATAR_SKYLINE: AvatarSpec['skyline'] = [[0.05, 0.07, 0.62, 0.3], [0.13, 0.05, 0.5, 0.3], [0.2, 0.04, 0.42, 0.2], [0.88, 0.05, 0.46, 0.26], [0.96, 0.06, 0.58, 0.3]];
+
+/**
+ * Позы портрета — поза `MagePose`, как в клипах: B — посох поднят торчком к капюшону, пламя у лица (как на прежнем
+ * портрете: кулак с посохом внизу справа, пламя справа от капюшона); C — огонёк в ближней ладони перед грудью (как
+ * лечение «Огонёк в ладони»), голова склонена к нему, маска подсвечена снизу (`faceLit`).
+ */
+const PORTRAIT_B: MagePose = { ...REST, ws: 1, fhx: 128, fhy: 54, wr: -54, head: 4, glow: 1.25 };
+const PORTRAIT_C: MagePose = { ...REST, crouch: 2, lean: 3, head: 7, nfront: 1, nhx: 94, nhy: 76, nl: 1.15, palm: 1.15, glow: 0.85, faceLit: 1 };
+
+/**
+ * Аватарка — бюст из той же лепки в кадре прежнего портрета: капюшон левее середины, ореол со знаком над ним, шпили
+ * по краям. A «Покой» — поза стойки (рецепт: «поза — сначала покой»), пламя посоха у правого края; B «Пламя у лица» —
+ * посох поднят к капюшону; C «Огонёк в ладони» — свет в ладони перед грудью. Кадр — левый верхний угол и сторона
+ * в единицах модели; от роста модели не зависит (рисуется без масштаба).
+ */
+function avatarOf(m: Mats, v: MageAvatar): AvatarSpec {
+  const base = { colors: AVATAR_COLORS, skyline: AVATAR_SKYLINE, emblem: { polys: EMBLEM_POLYS, color: '#0c1535' } };
+  if (v === 'b') return { ...base, draw: (p) => drawMage(p, PORTRAIT_B, m), crop: [44, -14, 96], halo: [92, 8, 22] };
+  if (v === 'c') return { ...base, draw: (p) => drawMage(p, PORTRAIT_C, m), crop: [36, -10, 94], halo: [82, 10, 22] };
+  return { ...base, draw: (p) => drawMage(p, REST, m), crop: [55, -18, 102], halo: [94, 6, 23] };
 }
 
-/** Рост Мага (страница обсуждения). */
+/**
+ * Рекомендация аниматора — вариант аватарки по умолчанию: B — ближе всех к прежнему портрету (пламя у капюшона, кулак
+ * с посохом внизу справа), на 44 клетках читаются капюшон и пламя; в A пламя у самого края кадра, в C огонёк в ладони
+ * мелкий, и посох за кадром — Мага узнают по посоху с синим пламенем.
+ */
+export const MAGE_REC_AVATAR: MageAvatar = 'b';
+
+/** Варианты аватарки и рост Мага (страница обсуждения). */
 export interface MageOpts {
+  /** Варианты на обсуждении: `avatar` — аватарка (по умолчанию — `MAGE_REC_AVATAR`). */
+  variants?: { avatar?: MageAvatar };
   /** Рост в покое, единиц поля; по умолчанию — `MAGE_HEIGHT` (106). */
   height?: number;
 }
@@ -793,7 +844,7 @@ export function mageModel(opts: MageOpts = {}): HeroModel {
   const map = (x: number, y: number): [number, number] => [x * s + ox, y * s + oy];
   return {
     id: 'mage',
-    avatar: avatarOf(m),
+    avatar: avatarOf(m, opts.variants?.avatar ?? MAGE_REC_AVATAR),
     probe: mageProbe,
     w: 162,
     h: 132,
@@ -1074,7 +1125,7 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
     trimEdge(p, m, lift(S(...CAPELET_EDGE_F)), 'capelet', 2, -0.1);
 
     // Капюшон с воротником: кивает вокруг шеи.
-    p.pose({ rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => hood(p, m));
+    p.pose({ rot: P.head * DEG, px: M.neck[0], py: M.neck[1] }, () => hood(p, m, P.faceLit));
   });
 
   // ── Перенесённое вперёд: дальнее предплечье с посохом и кулаком, потом ближнее — оно ближе к зрителю. ──
@@ -1127,7 +1178,7 @@ function drawMage(p: Painter, P: MagePose, m: Mats, map = (x: number, y: number)
  * и спинка носа на свету, ниже тёмная маска, как на прежнем портрете; бровь капюшона — бронзовой кромкой; клин
  * воротника на груди.
  */
-function hood(p: Painter, m: Mats): void {
+function hood(p: Painter, m: Mats, lit = 0): void {
   p.poly(S(...HOOD), m.hood, { part: 'hood', bevel: 7, lift: 1.5 });
   // Голова под тканью — купол: капюшон круглится по черепу, а не плоский лоскут.
   p.ellipse(...PT(95, 67), R(13), R(13), m.hood, { part: 'hood', lift: 2.5 });
@@ -1147,4 +1198,9 @@ function hood(p: Painter, m: Mats): void {
   // Бровь капюшона — кромкой.
   trimEdge(p, m, S(...BROW), 'hood', 2.4, 0.1);
   trimEdge(p, m, S(...HOOD_EDGE), 'hood');
+  if (lit > 0) {
+    // Портрет C: огонёк в ладони подсвечивает снизу низ маски, подбородок и кромку воротника холодным синим.
+    p.poly(S(94, 86, 99, 92, 105, 90, 108.5, 85, 106, 86.5, 100, 89, 96, 84.5), solid('#2e3a78'), { part: 'hood', paint: true });
+    p.poly(S(104, 76.5, 106.5, 77.5, 106, 79, 103.5, 78.5), m.face, { part: 'face', paint: true, tone: 0.1 });
+  }
 }
