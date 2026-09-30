@@ -8,14 +8,15 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { mageModel, MAGE_CLIP_NOTES, MAGE_HEIGHT } from '../../src/ui/heroes/mage';
-import { assassinModel, ASSASSIN_CLIP_NOTES } from '../../src/ui/heroes/assassin';
-import { archerModel, ARCHER_CLIP_NOTES } from '../../src/ui/heroes/archer';
+import { mageModel, MAGE_CLIP_NOTES, MAGE_HEIGHT, MAGE_REC_AVATAR } from '../../src/ui/heroes/mage';
+import { assassinModel, ASSASSIN_CLIP_NOTES, ASSASSIN_REC_AVATAR } from '../../src/ui/heroes/assassin';
+import { archerModel, ARCHER_AVATARS, ARCHER_CLIP_NOTES, ARCHER_AVATAR_REC } from '../../src/ui/heroes/archer';
 import { warriorModel } from '../../src/ui/heroes/warrior';
 import { paladinModel } from '../../src/ui/heroes/paladin';
 import { berserkModel } from '../../src/ui/heroes/berserk';
 import { modelClip, modelClips, type HeroModel } from '../../src/ui/heroes/model';
 import { HERO_CLIPS, HERO_STYLE, type SculptClip } from '../../src/ui/heroes/clips';
+import { renderAvatar } from '../../src/ui/heroes/avatar';
 import { HERO_BODY_HEIGHT } from '../../src/data/characterSizes';
 import { Actor, heroSet, later, mobSet, setSpeed, type Anim, type ActorSet } from './anim';
 
@@ -354,10 +355,142 @@ function queue(jobs: Array<() => void>): void {
 }
 
 /** Всё, что зависит от локации: сцена, отряд и плитки. Сначала — то, что видно первым. */
+let avatarsDrawn = false;
 function drawAll(): void {
   const jobs: Array<() => void> = [drawScene, drawSquad];
+  // Аватарки от локации не зависят — рисуются один раз, в той же очереди (новая очередь отменяет прежнюю).
+  if (!avatarsDrawn) jobs.push(drawSelectRow, ...HERO_IDS.map((id) => () => drawAvatarCards(id)), () => { avatarsDrawn = true; });
   for (const id of HERO_IDS) drawHero(id, jobs);
   queue(jobs);
+}
+
+// ─── Аватарка ───────────────────────────────────────────────────────────────
+
+type AvatarKey = 'a' | 'b' | 'c';
+/** Подписи вариантов аватарки — из отчётов лепщиков. */
+const AVATAR_NAMES: Record<HeroId, Record<AvatarKey, string>> = {
+  mage: { a: 'Покой', b: 'Пламя у лица', c: 'Огонёк в ладони' },
+  assassin: { a: 'Покой', b: 'Клинок у груди', c: 'Накрест' },
+  archer: Object.fromEntries(ARCHER_AVATARS.map((v) => [v.id, v.name])) as Record<AvatarKey, string>,
+};
+/**
+ * Варианты аватарки (docs/lepka-geroev.md, шаг 5): A — поза покоя в кадре бюста, B и C — свои позы портрета; подписи —
+ * из отчётов лепщиков, рекомендация — из файла модели (`*_REC_AVATAR`, она же вариант по умолчанию).
+ */
+const AVATARS: Record<HeroId, { rec: AvatarKey; names: Record<AvatarKey, string>; make: (v: AvatarKey) => HeroModel }> = {
+  mage: { rec: MAGE_REC_AVATAR, names: AVATAR_NAMES.mage, make: (v) => mageModel({ variants: { avatar: v } }) },
+  assassin: { rec: ASSASSIN_REC_AVATAR, names: AVATAR_NAMES.assassin, make: (v) => assassinModel({ variants: { avatar: v } }) },
+  archer: { rec: ARCHER_AVATAR_REC, names: AVATAR_NAMES.archer, make: (v) => archerModel({ variants: { avatar: v } }) },
+};
+const AV_KEYS: AvatarKey[] = ['a', 'b', 'c'];
+/** Вариант каждого героя в строке выбора — по умолчанию рекомендованный. */
+const avPick: Record<HeroId, AvatarKey> = { mage: AVATARS.mage.rec, assassin: AVATARS.assassin.rec, archer: AVATARS.archer.rec };
+
+const avModels = new Map<string, HeroModel>();
+function avModel(id: HeroId | 'warrior' | 'paladin' | 'berserk', v: AvatarKey = 'a'): HeroModel {
+  const key = `${id}|${v}`;
+  let m = avModels.get(key);
+  if (!m) avModels.set(key, (m = id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : id === 'berserk' ? berserkModel() : AVATARS[id].make(v)));
+  return m;
+}
+
+/** Холст аватарки: `px` — размер в игре (112, 80, 44), клетки — как в игре (`avatarCells`), `k` — увеличение. */
+function avatarCanvas(model: HeroModel, px: number, k: number, label: string): HTMLCanvasElement {
+  const n = px >= 64 ? Math.round(px / 2) : 44;
+  const c = h('canvas');
+  c.width = c.height = n;
+  c.getContext('2d')?.putImageData(new ImageData(renderAvatar(model, n), n, n), 0, 0);
+  c.style.width = `${px * k}px`;
+  c.style.imageRendering = px >= 64 ? 'pixelated' : 'auto';
+  c.setAttribute('role', 'img');
+  c.setAttribute('aria-label', label);
+  return c;
+}
+
+/** Раздел героя: прежний портрет и три варианта — 112 ×2, как на FullHD, под ним 80 и 44 в размер кадра 960. */
+function drawAvatarCards(id: HeroId): void {
+  const host = document.querySelector<HTMLElement>(`[data-avatars="${id}"]`);
+  if (!host) return;
+  host.replaceChildren();
+  const old = h('figure', 'av-card');
+  const img = h('img');
+  img.src = ASSETS.avatars[id];
+  img.width = img.height = 224;
+  img.alt = `${HEROES[id].name}, прежний рисованный портрет`;
+  const cap = h('figcaption');
+  cap.append(h('b', '', 'Было'), document.createTextNode(' — рисованный портрет генератора'));
+  old.append(img, cap);
+  host.appendChild(old);
+  const av = AVATARS[id];
+  for (const v of AV_KEYS) {
+    const card = h('figure', v === av.rec ? 'av-card rec' : 'av-card');
+    const model = avModel(id, v);
+    const name = `${v.toUpperCase()} «${av.names[v]}»`;
+    const small = h('div', 'small');
+    small.append(avatarCanvas(model, 80, 1, `${HEROES[id].name}, ${name}, 80 точек`), avatarCanvas(model, 44, 1, `${HEROES[id].name}, ${name}, 44 точки`));
+    const c = h('figcaption');
+    c.append(h('b', '', name));
+    if (v === av.rec) c.append(h('span', 'tag', 'рекомендую'));
+    c.append(h('br'), document.createTextNode('112 ×2 · ниже 80 и 44 в размер кадра'));
+    card.append(avatarCanvas(model, 112, 2, `${HEROES[id].name}, ${name}, 112 точек`), small, c);
+    host.appendChild(card);
+  }
+}
+
+/** Строка выбора героя: шесть плиток по 112 из лепки и та же строка, как сейчас в игре (рисованные портреты троих). */
+const SELECT: Array<{ id: HeroId | 'warrior' | 'paladin' | 'berserk'; name: string }> = [
+  { id: 'warrior', name: 'Воин' }, { id: 'mage', name: 'Маг' }, { id: 'assassin', name: 'Ассасин' },
+  { id: 'paladin', name: 'Паладин' }, { id: 'berserk', name: 'Берсерк' }, { id: 'archer', name: 'Лучник' },
+];
+function drawSelectRow(): void {
+  const row = document.getElementById('avatar-row');
+  const was = document.getElementById('avatar-row-old');
+  if (!row || !was) return;
+  row.replaceChildren();
+  was.replaceChildren();
+  for (const s of SELECT) {
+    const mine = s.id in HEROES;
+    const v = mine ? avPick[s.id as HeroId] : 'a';
+    const f = h('figure', mine ? 'new' : '');
+    f.append(avatarCanvas(avModel(s.id, v), 112, 1, `${s.name}, аватарка из лепки`), h('figcaption', '', mine ? `${s.name} · ${v.toUpperCase()}` : s.name));
+    row.appendChild(f);
+    const g = h('figure');
+    if (mine) {
+      const img = h('img');
+      img.src = ASSETS.avatars[s.id as HeroId];
+      img.width = img.height = 112;
+      img.alt = `${s.name}, рисованный портрет`;
+      g.appendChild(img);
+    } else g.appendChild(avatarCanvas(avModel(s.id), 112, 1, `${s.name}, аватарка из лепки`));
+    g.appendChild(h('figcaption', '', mine ? `${s.name} · было` : s.name));
+    was.appendChild(g);
+  }
+}
+
+/** Переключатели вариантов строки выбора: по группе на героя. */
+function avatarPickers(): void {
+  const host = document.getElementById('avatar-pick');
+  if (!host) return;
+  for (const id of HERO_IDS) {
+    const g = h('span', 'tog');
+    g.setAttribute('role', 'group');
+    g.setAttribute('aria-label', `Аватарка: ${HEROES[id].name}`);
+    g.append(h('span', 'tog-label', HEROES[id].name));
+    for (const v of AV_KEYS) {
+      const b = button(v.toUpperCase(), v);
+      b.title = AVATARS[id].names[v];
+      g.appendChild(b);
+    }
+    g.addEventListener('click', (e) => {
+      const v = (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v as AvatarKey | undefined;
+      if (!v) return;
+      avPick[id] = v;
+      toggle(g, v);
+      drawSelectRow();
+    });
+    toggle(g, avPick[id]);
+    host.appendChild(g);
+  }
 }
 
 /** Прежние портреты рядом с заголовком героя — характер и палитра. */
@@ -417,6 +550,7 @@ function start(): void {
   });
   toggle(document.getElementById('speed')!, '1');
   drawPortraits();
+  avatarPickers();
   // Сначала показать текст, потом рисовать: шесть героев по 24 кадра покоя и десятки клипов — секунды работы потока.
   document.getElementById('scene')!.textContent = 'рисую кадры…';
   document.getElementById('squad')!.textContent = 'рисую кадры…';
