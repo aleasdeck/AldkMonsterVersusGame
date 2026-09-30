@@ -1,5 +1,5 @@
 // Страница обсуждения «Лепка троих» (docs/lepka-geroev.md, шаг 4 — клипы): Маг, Ассасин и Лучник в облике A, девять
-// общих клипов в выбранных пользователем вариантах; сцена боя с врагами, отряд из шести героев на одном полу. Модели —
+// общих клипов в выбранных пользователем вариантах и личные клипы (Исчезновение Ассасина — Дымовая шашка); сцена боя с врагами, отряд из шести героев на одном полу. Модели —
 // src/ui/heroes/{mage,assassin,archer}.ts (в игру ещё не входят), Воин, Паладин и Берсерк — из игры, враги и фоны — тоже,
 // тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero trio. Облики B и C, отвергнутые варианты клипов и
 // прежняя сверка силуэта — в истории ветки.
@@ -8,13 +8,13 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { mageModel, MAGE_CLIP_NOTES } from '../../src/ui/heroes/mage';
+import { mageModel, MAGE_CLIP_NOTES, MAGE_HEIGHT } from '../../src/ui/heroes/mage';
 import { assassinModel, ASSASSIN_CLIP_NOTES } from '../../src/ui/heroes/assassin';
 import { archerModel, ARCHER_CLIP_NOTES } from '../../src/ui/heroes/archer';
 import { warriorModel } from '../../src/ui/heroes/warrior';
 import { paladinModel } from '../../src/ui/heroes/paladin';
 import { berserkModel } from '../../src/ui/heroes/berserk';
-import type { HeroModel } from '../../src/ui/heroes/model';
+import { modelClip, modelClips, type HeroModel } from '../../src/ui/heroes/model';
 import { HERO_CLIPS, HERO_STYLE, type SculptClip } from '../../src/ui/heroes/clips';
 import { HERO_BODY_HEIGHT } from '../../src/data/characterSizes';
 import { Actor, heroSet, later, mobSet, setSpeed, type Anim, type ActorSet } from './anim';
@@ -59,14 +59,14 @@ const HERO_X = 130;
 const FOE_X = [380, 600, 823];
 
 /**
- * Что сейчас на странице: локация, герой сцены, лепка или прежний лист и рост Мага: 120 по таблице, 106 — площадь Воина,
- * 98 — как прежний лист стоял в бою.
+ * Что сейчас на странице: локация, герой сцены, лепка или прежний лист и рост Мага: 106 — выбран (площадь Воина);
+ * для сравнения 120 — прежнее число таблицы и 98 — как прежний лист стоял в бою.
  */
 const state: { loc: Loc; hero: HeroId; ref: boolean; mageH: number } = {
   loc: 'forest',
   hero: 'mage',
   ref: false,
-  mageH: 120,
+  mageH: MAGE_HEIGHT,
 };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
@@ -124,11 +124,22 @@ function cached(key: string, make: () => ActorSet): ActorSet {
   if (!set) sets.set(key, (set = make()));
   return set;
 }
+const models = new Map<string, HeroModel>();
+/** Модель героя (у Мага — в выбранном росте). */
+function modelOf(id: HeroId): HeroModel {
+  const key = `${id}|${heightOf(id)}`;
+  let m = models.get(key);
+  if (!m) models.set(key, (m = HEROES[id].model(heightOf(id))));
+  return m;
+}
 /** Лепка героя (у Мага — в выбранном росте). */
 function modelSet(id: HeroId): ActorSet {
-  const height = heightOf(id);
-  return cached(`${id}|${height}`, () => heroSet(HEROES[id].model(height), HERO_STYLE));
+  return cached(`${id}|${heightOf(id)}`, () => heroSet(modelOf(id), HERO_STYLE));
 }
+/** Личные клипы модели — после общих, в разделе героя и в кнопках сцены. */
+const ownClips = (id: HeroId): SculptClip[] => modelClips(modelOf(id)).filter((c) => HERO_CLIPS[c].own);
+/** Все личные клипы троих — кнопки сцены. */
+const OWN: SculptClip[] = [...new Set(HERO_IDS.flatMap(ownClips))];
 const refOf = (id: HeroId): ActorSet => cached(`${id}|ref`, () => refSet(id));
 const readySet = (id: 'warrior' | 'paladin' | 'berserk'): ActorSet =>
   cached(id, () => heroSet(id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : berserkModel(), HERO_STYLE));
@@ -272,8 +283,12 @@ function drawScene(): void {
   toggle(document.getElementById('scene-hero')!, state.hero);
   toggle(document.getElementById('scene-src')!, state.ref ? 'ref' : 'sculpt');
   toggle(document.getElementById('scene-loc')!, state.loc);
-  // Клипы, которых у прежнего листа нет, приглушены.
-  for (const b of document.querySelectorAll<HTMLButtonElement>('#scene-clips button[data-v]')) b.classList.toggle('off', !set.get(b.dataset.v!));
+  // Клипы, которых у прежнего листа нет, приглушены; у лепки — чужие личные (они играют замену).
+  const mine = new Set(state.ref ? [] : modelClips(modelOf(state.hero)));
+  for (const b of document.querySelectorAll<HTMLButtonElement>('#scene-clips button[data-v]')) {
+    const c = b.dataset.v as SculptClip;
+    b.classList.toggle('off', state.ref ? !set.get(c) : !mine.has(c));
+  }
 }
 
 /**
@@ -320,6 +335,7 @@ function drawHero(id: HeroId, jobs: Array<() => void>): void {
   const host = document.querySelector<HTMLElement>(`[data-clips="${id}"]`)!;
   host.replaceChildren();
   for (const clip of COMMON) host.appendChild(tileCard(jobs, () => modelSet(id), clip, HERO_CLIPS[clip].name, hero.notes[clip] ?? '', CHOSEN[id][clip] ?? ''));
+  for (const clip of ownClips(id)) host.appendChild(tileCard(jobs, () => modelSet(id), clip, HERO_CLIPS[clip].name, hero.notes[clip] ?? '', 'личный клип'));
 }
 
 /** Очередь плиток: рисуются по одной, чтобы страница не вставала на кадрах. */
@@ -373,9 +389,10 @@ function start(): void {
     drawScene();
   });
   const clipGroup = document.getElementById('scene-clips')!;
-  for (const id of COMMON) clipGroup.appendChild(button(HERO_CLIPS[id].name, id));
+  for (const id of [...COMMON, ...OWN]) clipGroup.appendChild(button(HERO_CLIPS[id].name, id));
+  // Чужой личный клип лепка играет так же, как игра: заменой из таблицы (Исчезновение у Мага — клич).
   on('scene-clips', (v) => {
-    if (scene) perform(scene, v as SculptClip);
+    if (scene) perform(scene, state.ref ? (v as SculptClip) : modelClip(modelOf(state.hero), v as SculptClip));
   });
   on('scene-loc', (v) => {
     state.loc = v as Loc;
