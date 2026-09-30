@@ -399,11 +399,11 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
   // сзади и на высоте маски, рука (41) не достаёт дальше середины корпуса и уходит под шарф или ложится поперёк лица.
   attack: [
     [1, { x: -3, crouch: 4, lean: -5, head: -2, fws: 1, fhx: 98, fhy: 64, fwr: -25, fback: 1, nws: 1, nhx: 16, nhy: 60, nwr: 2, liftF: 1, cape: 0.3 }],
-    [2, { x: -4, crouch: 5, lean: -6, head: -3, fhx: 94, fhy: 62, fwr: -28, nhx: 14, nhy: 58, footF: 0, liftF: 3, cape: 0.5, fback: 1 }],
-    [3, { x: 4, crouch: 6, lean: 2, head: 0, fhx: 114, fhy: 56, fwr: -15, nhx: 12, nhy: 56, footF: 7, liftF: 4, cape: 1.2, fback: 0 }],
-    [4, { x: 12, crouch: 7, lean: 8, head: 4, fhx: 130, fhy: 50, fwr: -8, nhx: 8, nhy: 52, footF: 14, liftF: 0, cape: 2.5 }],
-    [5, { x: 12, crouch: 7, lean: 9, head: 4, fhx: 131, fhy: 51, fwr: -6, nhx: 8, nhy: 53, footF: 14, liftF: 0, cape: 2 }],
-    [6, { x: 5, crouch: 4, lean: 3, head: 2, fws: 1, fhx: 112, fhy: 66, fwr: 0, nws: 1, nhx: 14, nhy: 62, nwr: 2, footF: 5, liftF: 3, cape: 1 }],
+    [2, { x: -4, crouch: 5, lean: -6, head: -3, fhx: 94, fhy: 62, fwr: -28, nhx: 14, nhy: 58, footN: 0, footF: 0, liftF: 3, cape: 0.5, fback: 1 }],
+    [3, { x: 4, crouch: 6, lean: 2, head: 0, fhx: 114, fhy: 56, fwr: -15, nhx: 12, nhy: 56, footN: 2, footF: 7, liftF: 4, cape: 1.2, fback: 0 }],
+    [4, { x: 12, crouch: 7, lean: 8, head: 4, fhx: 130, fhy: 50, fwr: -8, nhx: 8, nhy: 52, footN: 7, footF: 14, liftF: 0, cape: 2.5 }],
+    [5, { x: 12, crouch: 7, lean: 9, head: 4, fhx: 131, fhy: 51, fwr: -6, nhx: 8, nhy: 53, footN: 7, footF: 14, liftF: 0, cape: 2 }],
+    [6, { x: 5, crouch: 4, lean: 3, head: 2, fws: 1, fhx: 112, fhy: 66, fwr: 0, nws: 1, nhx: 14, nhy: 62, nwr: 2, footN: 3, footF: 5, liftF: 3, cape: 1 }],
   ],
   // Сильный удар A «Раз-два» (рекомендация) — два касания разными руками, как требует Двойной выпад (два удара по 200 мс
   // цифр: второе касание — кадр 7, цифра — 617 мс). 1–2 — присел, передний кулак опущен к колену (клинок вниз-назад),
@@ -412,13 +412,13 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
   // ближней в живот под шарфом, плечо развёрнуто вперёд (`nsx` 10), передняя поднята и не закрывает его; 8 — шаг назад.
   heavy: [
     [1, { x: -3, crouch: 5, lean: -4, head: -2, fws: 1, fhx: 100, fhy: 84, fwr: 12, nws: 1, nhx: 32, nhy: 60, nwr: -30, liftF: 1, cape: 0.3 }],
-    [2, { x: -3, crouch: 6, lean: -3, head: -2, fhx: 100, fhy: 90, fwr: 22, nhx: 30, nhy: 61, nwr: -32, footF: 0, liftF: 3, cape: 0.5 }],
-    [3, { x: 5, crouch: 6, lean: 3, head: 1, fhx: 122, fhy: 76, fwr: 8, nhx: 30, nhy: 61, footF: 8, liftF: 4, cape: 1.2 }],
-    [4, { x: 11, crouch: 7, lean: 7, head: 3, fhx: 134, fhy: 58, fwr: -8, footF: 15, liftF: 0, cape: 2 }],
-    [5, { x: 13, crouch: 8, lean: 8, head: 4, fhx: 136, fhy: 42, fwr: -18, nhx: 34, nhy: 61, nsx: 0, footF: 15, liftF: 0, cape: 2.5 }],
-    [6, { x: 14, crouch: 8, lean: 8, head: 4, fhx: 126, fhy: 26, fwr: -28, nhx: 56, nhy: 62, nwr: -30, nsx: 3, footF: 15, liftF: 0, cape: 2.5 }],
-    [7, { x: 16, crouch: 10, lean: 10, head: 5, fhx: 122, fhy: 32, fwr: -22, nhx: 90, nhy: 64, nwr: -34, nsx: 10, footF: 15, liftF: 0, cape: 2.5 }],
-    [8, { x: 7, crouch: 5, lean: 5, head: 3, fws: 1, fhx: 112, fhy: 68, fwr: 4, nws: 1, nhx: 42, nhy: 63, nwr: -8, nsx: 2, footF: 7, liftF: 3, cape: 1.2 }],
+    [2, { x: -3, crouch: 6, lean: -3, head: -2, fhx: 100, fhy: 90, fwr: 22, nhx: 30, nhy: 61, nwr: -32, footN: 0, footF: 0, liftF: 3, cape: 0.5 }],
+    [3, { x: 5, crouch: 6, lean: 3, head: 1, fhx: 122, fhy: 76, fwr: 8, nhx: 30, nhy: 61, footN: 2, footF: 8, liftF: 4, cape: 1.2 }],
+    [4, { x: 11, crouch: 7, lean: 7, head: 3, fhx: 134, fhy: 58, fwr: -8, footN: 7, footF: 15, liftF: 0, cape: 2 }],
+    [5, { x: 13, crouch: 8, lean: 8, head: 4, fhx: 136, fhy: 42, fwr: -18, nhx: 34, nhy: 61, nsx: 0, footN: 8, footF: 15, liftF: 0, cape: 2.5 }],
+    [6, { x: 14, crouch: 8, lean: 8, head: 4, fhx: 126, fhy: 26, fwr: -28, nhx: 56, nhy: 62, nwr: -30, nsx: 3, footN: 9, footF: 15, liftF: 0, cape: 2.5 }],
+    [7, { x: 16, crouch: 10, lean: 10, head: 5, fhx: 122, fhy: 32, fwr: -22, nhx: 90, nhy: 64, nwr: -34, nsx: 10, footN: 10, footF: 15, liftF: 0, cape: 2.5 }],
+    [8, { x: 7, crouch: 5, lean: 5, head: 3, fws: 1, fhx: 112, fhy: 68, fwr: 4, nws: 1, nhx: 42, nhy: 63, nwr: -8, nsx: 2, footN: 4, footF: 7, liftF: 3, cape: 1.2 }],
   ],
   // Приём — бросок из-за головы (нож, склянка): снаряд вылетает в кадр контакта 4. 1 — ближняя рука отведена назад, передняя
   // целится клинком во врага; 2 — замах: кулак за плечом, клинок назад; 3 — локоть вперёд-вверх, кулак над затылком
@@ -427,10 +427,10 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
   power: [
     [1, { x: -3, crouch: 3, lean: -6, head: -2, nws: 1, nhx: 14, nhy: 36, nwr: 0, fws: 1, fhx: 120, fhy: 58, fwr: -5, liftF: 1, cape: 0.2 }],
     [2, { x: -4, crouch: 3, lean: -9, head: -3, nhx: 22, nhy: 8, nsx: -3, fhx: 122, fhy: 56, footF: 0, liftF: 4, cape: 0.3, nover: 0 }],
-    [3, { x: 1, crouch: 4, lean: -4, head: -1, nhx: 34, nhy: -6, nwr: 25, nsx: 0, fhx: 116, fhy: 62, footF: 6, liftF: 3, cape: 0.6, nover: 1 }],
-    [4, { x: 8, crouch: 6, lean: 6, head: 2, nhx: 76, nhy: -10, nwr: 30, nsx: 4, fhx: 106, fhy: 78, footF: 12, liftF: 0, cape: 1.5 }],
-    [5, { x: 10, crouch: 7, lean: 12, head: 4, nhx: 86, nhy: 46, nsx: 8, fhx: 104, fhy: 80, footF: 12, liftF: 0, cape: 1.2, nover: 1 }],
-    [6, { x: 4, crouch: 3, lean: 5, head: 1, nws: 1, nhx: 46, nhy: 64, nwr: 0, nsx: 2, fws: 1, fhx: 108, fhy: 76, fwr: 4, footF: 5, liftF: 3, cape: 0.6, nover: 0 }],
+    [3, { x: 1, crouch: 4, lean: -4, head: -1, nhx: 34, nhy: -6, nwr: 25, nsx: 0, fhx: 116, fhy: 62, footN: 0, footF: 6, liftF: 3, cape: 0.6, nover: 1 }],
+    [4, { x: 8, crouch: 6, lean: 6, head: 2, nhx: 76, nhy: -10, nwr: 30, nsx: 4, fhx: 106, fhy: 78, footN: 4, footF: 12, liftF: 0, cape: 1.5, nover: 1 }],
+    [5, { x: 10, crouch: 7, lean: 12, head: 4, nhx: 84, nhy: 68, nwr: 10, nsx: 8, fhx: 104, fhy: 80, footN: 6, footF: 12, liftF: 0, cape: 1.2, nover: 0 }],
+    [6, { x: 4, crouch: 3, lean: 5, head: 1, nws: 1, nhx: 46, nhy: 64, nwr: 0, nsx: 2, fws: 1, fhx: 108, fhy: 76, fwr: 4, footN: 2, footF: 5, liftF: 3, cape: 0.6, nover: 0 }],
   ],
   // Лечение A «Вдох» (рекомендация): выдох с поклоном — к кадру контакта (2) вдох: выпрямился, голова запрокинута, грудь
   // раскрыта, ближняя рука отведена назад, передняя висит; держит до 6, выдыхает и встаёт в стойку. Глоток из кулака
@@ -462,9 +462,9 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
   // на каждом кадре, иначе интерполяция 1 → 0 прятала руку под шарф посреди блока. 2 — удар: отдача назад, искры в месте
   // скрещения; 3 — держит; 4 — руки вниз. При погашенном ударе игра играет клип с кадра контакта.
   block: [
-    [1, { crouch: 3, lean: -1, head: 4, nws: 1, nhx: 52, nhy: 54, nwr: -20, fws: 1, fhx: 108, fhy: 54, fwr: -20, nover: 1, ffront: 1, spark: 0 }],
-    [2, { x: -4, crouch: 5, lean: -5, head: 8, nhx: 66, nhy: 47, nwr: -30, fhx: 103, fhy: 43, fwr: -30, nover: 1, ffront: 1, spark: 1 }],
-    [3, { x: -3, crouch: 5, lean: -3, head: 7, nhx: 66, nhy: 48, fhx: 103, fhy: 44, nover: 1, ffront: 1, spark: 0.4 }],
+    [1, { crouch: 3, lean: -1, head: 4, nws: 1, nhx: 62, nhy: 48, nwr: -20, fws: 1, fhx: 102, fhy: 42, fwr: -25, nover: 1, ffront: 1, spark: 0 }],
+    [2, { x: -4, crouch: 5, lean: -5, head: 8, nhx: 74, nhy: 37, nwr: -25, fhx: 96, fhy: 27, fwr: -35, nover: 1, ffront: 1, spark: 1 }],
+    [3, { x: -3, crouch: 5, lean: -3, head: 7, nhx: 74, nhy: 38, nwr: -22, fhx: 96, fhy: 28, fwr: -32, nover: 1, ffront: 1, spark: 0.4 }],
     [4, { x: -1, crouch: 2, lean: 0, head: 3, nws: 1, nhx: 32, nhy: 60, nwr: 0, fws: 1, fhx: 108, fhy: 66, fwr: 2, nover: 0, ffront: 0, spark: 0 }],
   ],
   // Урон: корпус отброшен назад, голова запрокинута, ближняя рука отлетела назад, передняя вытянулась вперёд-вниз —
@@ -485,8 +485,8 @@ const CLIPS: Record<AssassinClip, PoseKeys<AssassinPose>> = {
     [0, { x: -7, crouch: 3, lean: -14, head: -16, nws: 1, nhx: 12, nhy: 52, nwr: 0, fws: 1, fhx: 116, fhy: 80, fwr: 4, cape: 1 }],
     [1, { x: -8, crouch: 6, lean: -12, head: -20, nhx: 8, nhy: 48, fhx: 120, fhy: 78, drop: 0, limp: 0, kneel: 0, cape: 1.4 }],
     [2, { x: -8, crouch: 11, lean: -2, head: -4, drop: 0.25, limp: 0.3, kneel: 0.4, cape: 1 }],
-    [3, { x: -8, crouch: 16, lean: 6, head: 12, drop: 0.6, limp: 0.7, kneel: 1, cape: 0.6 }],
-    [4, { x: -8, crouch: 17, lean: 8, head: 16, drop: 1, limp: 1, kneel: 1, fall: 0, cape: 0.4 }],
+    [3, { x: -8, crouch: 13.5, lean: 6, head: 12, drop: 0.6, limp: 0.7, kneel: 1, cape: 0.6 }],
+    [4, { x: -8, crouch: 14.5, lean: 8, head: 16, drop: 1, limp: 1, kneel: 1, fall: 0, cape: 0.4 }],
     [5, { lean: 4, head: 10, fall: 0.12 }],
     [6, { fall: 0.35, head: 0, kneel: 0.6 }],
     [7, { fall: 0.68, head: -8, kneel: 0.2 }],
@@ -504,30 +504,30 @@ const CLIPS_B: Partial<Record<AssassinClip, PoseKeys<AssassinPose>>> = {
   attack: [
     [1, { x: -2, crouch: 5, lean: -3, head: -2, fws: 1, fhx: 100, fhy: 84, fwr: 12, nws: 1, nhx: 26, nhy: 56, nwr: -10, liftF: 1, cape: 0.2 }],
     [2, { x: -3, crouch: 6, lean: -3, head: -2, fhx: 100, fhy: 90, fwr: 22, nhx: 24, nhy: 54, footF: 0, liftF: 3, cape: 0.4 }],
-    [3, { x: 5, crouch: 6, lean: 3, head: 1, fhx: 122, fhy: 76, fwr: 8, nhx: 22, nhy: 56, footF: 7, liftF: 4, cape: 1 }],
-    [4, { x: 11, crouch: 7, lean: 8, head: 3, fhx: 135, fhy: 50, fwr: -12, nhx: 18, nhy: 58, footF: 13, liftF: 0, cape: 2.5 }],
-    [5, { x: 11, crouch: 6, lean: 6, head: 1, fhx: 130, fhy: 28, fwr: -25, nhx: 18, nhy: 60, footF: 13, liftF: 0, cape: 2 }],
-    [6, { x: 5, crouch: 3, lean: 3, head: 1, fws: 1, fhx: 118, fhy: 58, fwr: 5, nws: 1, nhx: 20, nhy: 64, nwr: 2, footF: 5, liftF: 3, cape: 1 }],
+    [3, { x: 5, crouch: 6, lean: 3, head: 1, fhx: 122, fhy: 76, fwr: 8, nhx: 22, nhy: 56, footN: 0, footF: 7, liftF: 4, cape: 1 }],
+    [4, { x: 11, crouch: 7, lean: 8, head: 3, fhx: 135, fhy: 50, fwr: -12, nhx: 18, nhy: 58, footN: 7, footF: 13, liftF: 0, cape: 2.5 }],
+    [5, { x: 11, crouch: 6, lean: 6, head: 1, fhx: 130, fhy: 28, fwr: -25, nhx: 18, nhy: 60, footN: 7, footF: 13, liftF: 0, cape: 2 }],
+    [6, { x: 5, crouch: 3, lean: 3, head: 1, fws: 1, fhx: 118, fhy: 58, fwr: 5, nws: 1, nhx: 20, nhy: 64, nwr: 2, footN: 2, footF: 5, liftF: 3, cape: 1 }],
   ],
   // Сильный удар B «Ножницы» — оба клинка разом: 1–2 — оба кулака у пояса клинками вперёд (передний за корпусом,
   // `fback`); 3–4 — шаг; 5 — первое касание: передний клинок в грудь, ближний в живот (плечо вперёд `nsx` 11); 6 — держит;
   // 7 — второе касание: рывком врозь — передний вверх-вперёд, ближний вниз; 8 — шаг назад.
   heavy: [
     [1, { x: -3, crouch: 5, lean: -5, head: -2, fws: 1, fhx: 98, fhy: 64, fwr: -25, fback: 1, nws: 1, nhx: 32, nhy: 60, nwr: -30, liftF: 1, cape: 0.3 }],
-    [2, { x: -4, crouch: 6, lean: -6, head: -3, fhx: 94, fhy: 62, fwr: -28, nhx: 30, nhy: 61, nwr: -32, nsx: -2, footF: 0, liftF: 3, cape: 0.5, fback: 1 }],
-    [3, { x: 4, crouch: 6, lean: 2, head: 0, fhx: 112, fhy: 58, fwr: -15, nhx: 50, nhy: 62, nwr: -30, nsx: 3, footF: 8, liftF: 4, cape: 1.2, fback: 0 }],
-    [4, { x: 12, crouch: 8, lean: 7, head: 3, fhx: 126, fhy: 52, fwr: -8, nhx: 78, nhy: 64, nwr: -32, nsx: 8, footF: 15, liftF: 0, cape: 2 }],
-    [5, { x: 15, crouch: 9, lean: 9, head: 4, fhx: 131, fhy: 50, fwr: -6, nhx: 90, nhy: 64, nwr: -34, nsx: 11, footF: 15, liftF: 0, cape: 2.5 }],
-    [6, { x: 16, crouch: 10, lean: 10, head: 5, fhx: 132, fhy: 50, fwr: -5, nhx: 91, nhy: 65, nwr: -34, nsx: 11, footF: 15, liftF: 0, cape: 2.5 }],
-    [7, { x: 14, crouch: 9, lean: 7, head: 3, fhx: 130, fhy: 32, fwr: -20, nhx: 54, nhy: 72, nwr: -5, nsx: 4, footF: 15, liftF: 0, cape: 2.2 }],
-    [8, { x: 7, crouch: 5, lean: 4, head: 2, fws: 1, fhx: 116, fhy: 58, fwr: 0, nws: 1, nhx: 30, nhy: 66, nwr: 2, nsx: 1, footF: 7, liftF: 3, cape: 1 }],
+    [2, { x: -4, crouch: 6, lean: -6, head: -3, fhx: 94, fhy: 62, fwr: -28, nhx: 30, nhy: 61, nwr: -32, nsx: -2, footN: 0, footF: 0, liftF: 3, cape: 0.5, fback: 1 }],
+    [3, { x: 4, crouch: 6, lean: 2, head: 0, fhx: 112, fhy: 58, fwr: -15, nhx: 50, nhy: 62, nwr: -30, nsx: 3, footN: 2, footF: 8, liftF: 4, cape: 1.2, fback: 0 }],
+    [4, { x: 12, crouch: 8, lean: 7, head: 3, fhx: 126, fhy: 52, fwr: -8, nhx: 78, nhy: 64, nwr: -32, nsx: 8, footN: 8, footF: 15, liftF: 0, cape: 2 }],
+    [5, { x: 15, crouch: 9, lean: 9, head: 4, fhx: 131, fhy: 50, fwr: -6, nhx: 90, nhy: 64, nwr: -34, nsx: 11, footN: 10, footF: 15, liftF: 0, cape: 2.5 }],
+    [6, { x: 16, crouch: 10, lean: 10, head: 5, fhx: 132, fhy: 50, fwr: -5, nhx: 91, nhy: 65, nwr: -34, nsx: 11, footN: 11, footF: 15, liftF: 0, cape: 2.5 }],
+    [7, { x: 14, crouch: 9, lean: 7, head: 3, fhx: 130, fhy: 32, fwr: -20, nhx: 54, nhy: 72, nwr: -5, nsx: 4, footN: 10, footF: 15, liftF: 0, cape: 2.2 }],
+    [8, { x: 7, crouch: 5, lean: 4, head: 2, fws: 1, fhx: 116, fhy: 58, fwr: 0, nws: 1, nhx: 30, nhy: 66, nwr: 2, nsx: 1, footN: 4, footF: 7, liftF: 3, cape: 1 }],
   ],
   // Лечение B «На колено»: 1 — оседает; 2 — ближнее колено на земле (центр колена 118 при земле 124 — наколенник касается
   // её; присед 18), сапог на носке, голова склонена, клинки остриём к земле перед коленом; держит до 8; 9–10 — встаёт.
   heal: [
     [1, { crouch: 8, lean: 4, head: 6, nws: 1, nhx: 40, nhy: 64, nwr: 0, fws: 1, fhx: 102, fhy: 76, fwr: 4, kneel: 0.45, cape: 0.2 }],
-    [2, { crouch: 18, lean: 8, head: 14, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.3 }],
-    [8, { crouch: 18, lean: 7, head: 16, nhx: 58, nhy: 68, fhx: 98, fhy: 70, kneel: 1, cape: 0.2 }],
+    [2, { crouch: 16, lean: 8, head: 14, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.3 }],
+    [8, { crouch: 16, lean: 7, head: 16, nhx: 58, nhy: 68, nwr: -25, fhx: 98, fhy: 70, fwr: 20, kneel: 1, cape: 0.2 }],
     [9, { crouch: 9, lean: 4, head: 6, nhx: 42, nhy: 66, fhx: 104, fhy: 74, kneel: 0.45, cape: 0.1 }],
     [10, { crouch: 3, lean: 1, head: 2, nws: 1, nhx: 24, nhy: 64, nwr: 2, fws: 1, fhx: 108, fhy: 74, fwr: 4, kneel: 0 }],
   ],
