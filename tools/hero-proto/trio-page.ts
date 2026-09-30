@@ -1,42 +1,57 @@
-// Страница обсуждения «Лепка троих» (docs/lepka-geroev.md, шаги 1–3): Маг, Ассасин и Лучник — по три облика одной
-// лепки у каждого рядом с прежним рисованным листом; сцена боя, отряд из шести героев на одном полу и сверка силуэта.
-// Модели — src/ui/heroes/{mage,assassin,archer}.ts (в игру ещё не входят, облик — `<герой>Model(look)`), Воин,
-// Паладин и Берсерк — из игры, враги и фоны — тоже, тонировка — та же, что в бою (tint.ts). Сборка — build.mjs --hero trio.
-import { Painter, type Model } from '../../src/ui/mobs/pixel';
+// Страница обсуждения «Лепка троих» (docs/lepka-geroev.md, шаг 4 — клипы): Маг, Ассасин и Лучник в облике A (выбор
+// пользователя), девять общих клипов, у удара, сильного удара и лечения — по два варианта; сцена боя с врагами, отряд из
+// шести героев на одном полу. Модели — src/ui/heroes/{mage,assassin,archer}.ts (в игру ещё не входят: `<герой>Model(opts)`),
+// Воин, Паладин и Берсерк — из игры, враги и фоны — тоже, тонировка — та же, что в бою (tint.ts).
+// Сборка — build.mjs --hero trio. Облики B и C и прежняя сверка силуэта — в истории ветки.
+import type { Model } from '../../src/ui/mobs/pixel';
 import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { mageModel, MAGE_LOOKS, MAGE_RECOMMENDED } from '../../src/ui/heroes/mage';
-import { assassinModel, ASSASSIN_LOOKS, ASSASSIN_RECOMMENDED } from '../../src/ui/heroes/assassin';
-import { archerModel, ARCHER_LOOKS, ARCHER_RECOMMENDED } from '../../src/ui/heroes/archer';
+import { mageModel, MAGE_CLIP_NOTES, MAGE_REC_VARIANTS, MAGE_VARIANTS } from '../../src/ui/heroes/mage';
+import { assassinModel, ASSASSIN_CLIP_NOTES, ASSASSIN_REC_VARIANTS, ASSASSIN_VARIANTS } from '../../src/ui/heroes/assassin';
+import { archerModel, ARCHER_CLIP_NOTES, ARCHER_REC_VARIANTS, ARCHER_VARIANTS } from '../../src/ui/heroes/archer';
 import { warriorModel } from '../../src/ui/heroes/warrior';
 import { paladinModel } from '../../src/ui/heroes/paladin';
 import { berserkModel } from '../../src/ui/heroes/berserk';
 import type { HeroModel } from '../../src/ui/heroes/model';
-import { HERO_STYLE } from '../../src/ui/heroes/clips';
+import { HERO_CLIPS, HERO_STYLE, type SculptClip } from '../../src/ui/heroes/clips';
 import { HERO_BODY_HEIGHT } from '../../src/data/characterSizes';
-import { Actor, heroSet, mobSet, setSpeed, type Anim, type ActorSet } from './anim';
+import { Actor, heroSet, later, mobSet, setSpeed, type Anim, type ActorSet } from './anim';
 
 type Loc = 'forest' | 'crypt' | 'caves';
 type HeroId = 'mage' | 'assassin' | 'archer';
-type Look = 'a' | 'b' | 'c';
-/** Что стоит у героя в сцене и в отряде: облик лепки или прежний лист. */
-type Pick = Look | 'ref';
+type V = 'a' | 'b';
+type Variants = Partial<Record<SculptClip, V>>;
+interface VariantInfo { id: V; name: string; note: string }
 
 /** Фоны, прежние листы и портреты — data URI из build.mjs. Свой тип, а не `Window.ASSETS`: у страниц одиночных героев он другой. */
 const ASSETS = (window as unknown as { ASSETS: { bg: Record<Loc, string>; refs: Record<HeroId, string>; avatars: Record<HeroId, string> } }).ASSETS;
 
-interface LookInfo { id: Look; name: string; note: string }
+/** Общие клипы по порядку страницы (покой — в сцене и отряде). */
+const COMMON: SculptClip[] = ['attack', 'heavy', 'power', 'heal', 'buff', 'block', 'hurt', 'death'];
 
 /**
- * Герои страницы: облики и рекомендация лепщика — из файла модели; ряд прежнего листа, по которому снимались мерки
- * (у Мага — ряд боевой стойки `battle`, у остальных на листе только покой), и его частота, как в игре (CLIP_MS).
+ * Герои страницы: модель с вариантами клипов и ростом, варианты и рекомендация аниматора, подписи клипов — из файла
+ * модели. Прежний лист: ячейка, рост фигуры в игре (`body` из HERO_SHEETS) и ряды клипов — у Мага на листе семь рядов,
+ * у остальных только покой.
  */
-const HEROES: Record<HeroId, { name: string; looks: readonly LookInfo[]; rec: Look; model: (look: Look, height: number) => HeroModel; cell: number; row: number; fps: number; body: number }> = {
-  mage: { name: 'Маг', looks: MAGE_LOOKS, rec: MAGE_RECOMMENDED, model: (l, height) => mageModel(l, height), cell: 186, row: 1, fps: 8000 / 1300, body: 134 },
-  assassin: { name: 'Ассасин', looks: ASSASSIN_LOOKS, rec: ASSASSIN_RECOMMENDED, model: (l) => assassinModel(l), cell: 182, row: 0, fps: 5, body: 166 },
-  archer: { name: 'Лучник', looks: ARCHER_LOOKS, rec: ARCHER_RECOMMENDED, model: (l) => archerModel(l), cell: 186, row: 0, fps: 5, body: 170 },
+const HEROES: Record<HeroId, {
+  name: string;
+  model: (v: Variants, height: number) => HeroModel;
+  variants: Partial<Record<SculptClip, readonly VariantInfo[]>>;
+  rec: Variants;
+  notes: Partial<Record<SculptClip, string>>;
+  cell: number;
+  body: number;
+  rows: Partial<Record<SculptClip, number>>;
+}> = {
+  mage: {
+    name: 'Маг', model: (variants, height) => mageModel({ variants, height }), variants: MAGE_VARIANTS, rec: MAGE_REC_VARIANTS, notes: MAGE_CLIP_NOTES,
+    cell: 186, body: 134, rows: { idle: 1, attack: 2, heavy: 2, power: 3, heal: 3, buff: 3, block: 4, hurt: 5, death: 6 },
+  },
+  assassin: { name: 'Ассасин', model: (variants) => assassinModel({ variants }), variants: ASSASSIN_VARIANTS, rec: ASSASSIN_REC_VARIANTS, notes: ASSASSIN_CLIP_NOTES, cell: 182, body: 166, rows: { idle: 0 } },
+  archer: { name: 'Лучник', model: (variants) => archerModel({ variants }), variants: ARCHER_VARIANTS, rec: ARCHER_REC_VARIANTS, notes: ARCHER_CLIP_NOTES, cell: 186, body: 170, rows: { idle: 0 } },
 };
 const HERO_IDS = Object.keys(HEROES) as HeroId[];
 
@@ -50,83 +65,83 @@ const HERO_X = 130;
 const FOE_X = [380, 600, 823];
 
 /**
- * `mageH` — рост Мага на выбор: 120 по таблице игры, 106 — площадь Воина, 98 — как прежний лист стоял в бою
- * (`body` 134 в HERO_SHEETS снят вместе с искрами пламени, и фигура в бою выходила около 96).
+ * Что сейчас на странице: локация, герой сцены, лепка или прежний лист, выбранные варианты клипов (по умолчанию —
+ * рекомендация аниматора) и рост Мага: 120 по таблице, 106 — площадь Воина, 98 — как прежний лист стоял в бою.
  */
-const state: { loc: Loc; hero: HeroId; pick: Record<HeroId, Pick>; mageH: number } = {
+const state: { loc: Loc; hero: HeroId; ref: boolean; vars: Record<HeroId, Variants>; mageH: number } = {
   loc: 'forest',
   hero: 'mage',
+  ref: false,
+  vars: { mage: { ...MAGE_REC_VARIANTS }, assassin: { ...ASSASSIN_REC_VARIANTS }, archer: { ...ARCHER_REC_VARIANTS } },
   mageH: 120,
-  pick: { mage: MAGE_RECOMMENDED, assassin: ASSASSIN_RECOMMENDED, archer: ARCHER_RECOMMENDED },
 };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
 
 const REF_IMG = new Map<HeroId, HTMLImageElement>();
 
-/** Рамка непрозрачных точек кадра листа: x0…x1, y0…y1 включительно. */
-interface Box { x0: number; y0: number; x1: number; y1: number }
-
-/** Кадр листа героя холстом: ряд из HEROES, `i`-й кадр. */
-function refFrame(id: HeroId, i: number): HTMLCanvasElement {
-  const { cell, row } = HEROES[id];
-  const c = document.createElement('canvas');
-  c.width = cell;
-  c.height = cell;
-  c.getContext('2d')!.drawImage(REF_IMG.get(id)!, i * cell, row * cell, cell, cell, 0, 0, cell, cell);
-  return c;
-}
-
-function alphaBox(c: HTMLCanvasElement): Box {
-  const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-  const b: Box = { x0: c.width, y0: c.height, x1: -1, y1: -1 };
-  for (let j = 0; j < c.height; j++) for (let i = 0; i < c.width; i++) {
-    if (d[(j * c.width + i) * 4 + 3] < 128) continue;
-    b.x0 = Math.min(b.x0, i); b.x1 = Math.max(b.x1, i); b.y0 = Math.min(b.y0, j); b.y1 = Math.max(b.y1, j);
-  }
-  return b;
-}
+/** Длительность рядов прежнего листа в игре, мс (CLIP_MS в heroSprite.ts). */
+const REF_MS: Partial<Record<SculptClip, number>> = { idle: 1300, attack: 520, heavy: 640, power: 560, heal: 800, buff: 560, block: 560, hurt: 400, death: 1000 };
 
 /**
- * Прежний рисованный лист: 8 кадров ряда стойки, опора — середина рамки фигуры и её низ (земля). Масштаб на плитках —
- * как мерки лепки (рост фигуры первого кадра → HERO_BODY_HEIGHT), в сцене и отряде (`game`) — как лист стоял в игре:
- * `body` из HERO_SHEETS → HERO_BODY_HEIGHT.
+ * Прежний рисованный лист в масштабе игры (`body` → HERO_BODY_HEIGHT): 8 кадров на ряд, опора — середина рамки фигуры
+ * первого кадра стойки и её низ. У Мага клипы — ряды листа, как их играла игра; у остальных только стойка.
  */
-function refSet(id: HeroId, game: boolean): ActorSet {
-  const frames = Array.from({ length: 8 }, (_, i) => refFrame(id, i));
-  const b = alphaBox(frames[0]);
-  const k = HERO_BODY_HEIGHT[id] / (game ? HEROES[id].body : b.y1 + 1 - b.y0);
-  const cell = HEROES[id].cell;
-  const idle: Anim = { frames, fps: HEROES[id].fps, loop: true, hold: false };
+function refSet(id: HeroId): ActorSet {
+  const { cell, body, rows } = HEROES[id];
+  const img = REF_IMG.get(id)!;
+  const frame = (row: number, i: number): HTMLCanvasElement => {
+    const c = document.createElement('canvas');
+    c.width = cell;
+    c.height = cell;
+    c.getContext('2d')!.drawImage(img, i * cell, row * cell, cell, cell, 0, 0, cell, cell);
+    return c;
+  };
+  const first = frame(rows.idle ?? 0, 0);
+  const d = first.getContext('2d')!.getImageData(0, 0, cell, cell).data;
+  let x0 = cell, x1 = -1, y1 = -1;
+  for (let j = 0; j < cell; j++) for (let i = 0; i < cell; i++) {
+    if (d[(j * cell + i) * 4 + 3] < 128) continue;
+    x0 = Math.min(x0, i); x1 = Math.max(x1, i); y1 = Math.max(y1, j);
+  }
+  const k = HERO_BODY_HEIGHT[id] / body;
+  const cache = new Map<string, Anim>();
   return {
-    w: cell * k, h: cell * k, ax: ((b.x0 + b.x1 + 1) / 2) * k, ay: (b.y1 + 1) * k, smooth: true,
-    has: (clip) => clip === 'idle',
-    get: (clip) => (clip === 'idle' ? idle : undefined),
+    w: cell * k, h: cell * k, ax: ((x0 + x1 + 1) / 2) * k, ay: (y1 + 1) * k, smooth: true,
+    has: (clip) => cache.has(clip),
+    get(clip) {
+      const row = rows[clip as SculptClip];
+      if (row === undefined) return undefined;
+      let a = cache.get(clip);
+      if (!a) {
+        const ms = REF_MS[clip as SculptClip] ?? 600;
+        a = { frames: Array.from({ length: 8 }, (_, i) => frame(row, i)), fps: 8000 / ms, loop: clip === 'idle', hold: clip === 'death', contact: clip === 'block' ? 3 : 4 };
+        cache.set(clip, a);
+      }
+      return a;
+    },
   };
 }
 
+/** Полный набор вариантов героя: рекомендация аниматора, поверх — выбранное. */
+const fullVars = (id: HeroId, v: Variants): Variants => ({ ...HEROES[id].rec, ...v });
+const varKey = (v: Variants): string => COMMON.filter((c) => v[c]).map((c) => `${c}=${v[c]}`).join(',');
+const heightOf = (id: HeroId): number => (id === 'mage' ? state.mageH : HERO_BODY_HEIGHT[id]);
+
 const sets = new Map<string, ActorSet>();
-/**
- * Набор кадров по ключу: `mage:a@106` — облик лепки и рост, `mage:ref` — прежний лист в масштабе мерок, `mage:game` —
- * как лист стоял в игре, `warrior` — герой из игры. Рисуется при первом запросе.
- */
-function setOf(key: string): ActorSet {
+function cached(key: string, make: () => ActorSet): ActorSet {
   let set = sets.get(key);
-  if (set) return set;
-  const [id, rest] = key.split(':') as [string, string | undefined];
-  const [look, height] = (rest ?? '').split('@');
-  if (look === 'ref' || look === 'game') set = refSet(id as HeroId, look === 'game');
-  else if (look) set = heroSet(HEROES[id as HeroId].model(look as Look, Number(height)), HERO_STYLE);
-  else set = heroSet(id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : berserkModel(), HERO_STYLE);
-  sets.set(key, set);
+  if (!set) sets.set(key, (set = make()));
   return set;
 }
-const heightOf = (id: HeroId): number => (id === 'mage' ? state.mageH : HERO_BODY_HEIGHT[id]);
-/** Ключ плитки: облик в выбранном росте или лист в масштабе мерок. */
-const tileKey = (id: HeroId, pick: Pick): string => (pick === 'ref' ? `${id}:ref` : `${id}:${pick}@${heightOf(id)}`);
-/** Ключ сцены и отряда: облик из карточек или лист — таким, каким он стоял в игре. */
-const liveKey = (id: HeroId): string => (state.pick[id] === 'ref' ? `${id}:game` : tileKey(id, state.pick[id]));
-
+/** Лепка героя с вариантами клипов: одинаковые наборы вариантов делят кадры. */
+function modelSet(id: HeroId, v: Variants = state.vars[id]): ActorSet {
+  const full = fullVars(id, v), height = heightOf(id);
+  return cached(`${id}|${varKey(full)}|${height}`, () => heroSet(HEROES[id].model(full, height), HERO_STYLE));
+}
+const refOf = (id: HeroId): ActorSet => cached(`${id}|ref`, () => refSet(id));
+const readySet = (id: 'warrior' | 'paladin' | 'berserk'): ActorSet =>
+  cached(id, () => heroSet(id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : berserkModel(), HERO_STYLE));
 const foeSets = new Map<string, ActorSet>();
 function foeAnim(loc: Loc, id: string): ActorSet {
   let set = foeSets.get(id);
@@ -143,8 +158,10 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = ''): 
   return el;
 }
 
-/** Поле 960 × 320: фон локации, тонировка, бойцы — живые холсты общего цикла кадров. */
-function field(loc: Loc, actors: Array<{ set: ActorSet; x: number }>): HTMLElement {
+interface Scene { hero: Actor; foes: Actor[] }
+
+/** Поле 960 × 320: фон локации, тонировка, враги (если нужны), лишние бойцы и герой на HERO_X — живые холсты общего цикла. */
+function field(loc: Loc, hero: ActorSet | null, foes: boolean, extra: Array<{ set: ActorSet; x: number }> = []): { f: HTMLElement; scene: Scene | null } {
   tintVar(loc);
   const f = h('div', 'field');
   const bg = h('img', 'bg');
@@ -152,8 +169,13 @@ function field(loc: Loc, actors: Array<{ set: ActorSet; x: number }>): HTMLEleme
   bg.alt = '';
   f.appendChild(bg);
   const filter = `url(#mv-tint-${loc})`;
-  for (const a of actors) f.appendChild(new Actor(a.set, a.x, GROUND, filter).el);
-  return f;
+  const foeActors = foes ? LOCS[loc].foes.map((id, i) => new Actor(foeAnim(loc, id), FOE_X[i], GROUND, filter)) : [];
+  for (const a of foeActors) f.appendChild(a.el);
+  for (const a of extra) f.appendChild(new Actor(a.set, a.x, GROUND, filter).el);
+  if (!hero) return { f, scene: null };
+  const heroActor = new Actor(hero, HERO_X, GROUND, filter);
+  f.appendChild(heroActor.el);
+  return { f, scene: { hero: heroActor, foes: foeActors } };
 }
 
 const observers = new WeakMap<HTMLElement, ResizeObserver>();
@@ -165,30 +187,62 @@ function observe(host: HTMLElement, fit: () => void): void {
   fit();
 }
 
-/**
- * Окно на поле во всю ширину блока: кусок `cw × ch` (x от `left`, низ — чуть ниже земли), масштаб по ширине блока.
- * Сцена и отряд — так же, как кадр игры на экране.
- */
-function fitWindow(host: HTMLElement, f: HTMLElement, left: number, cw: number, ch: number): void {
+/** Окно на поле во всю ширину блока: кусок `cw × ch`, низ — чуть ниже земли (но не ниже кадра), масштаб по ширине блока. */
+function fitWindow(host: HTMLElement, f: HTMLElement, cw: number, ch: number): void {
   const win = h('div', 'win');
   win.appendChild(f);
   host.replaceChildren(win);
-  // Низ окна — чуть ниже земли, но не ниже кадра: сцена во всю высоту показывает поле целиком.
   const top = Math.max(0, Math.min(320 - ch, GROUND + 14 - ch));
   observe(host, () => {
     const k = host.clientWidth / cw;
     win.style.height = `${ch * k}px`;
-    f.style.transform = `scale(${k}) translate(${-left}px, ${-top}px)`;
+    f.style.transform = `scale(${k}) translate(0px, ${-top}px)`;
   });
 }
 
+/** Момент контакта клипа от его начала, мс. */
+function contactMs(set: ActorSet, clip: string): number {
+  const a = set.get(clip);
+  return a?.contact !== undefined ? (a.contact * 1000) / a.fps : 0;
+}
+
 /**
- * Крупный план: кусок поля 160 × 184 вокруг героя целым увеличением — ×2, как кадр игры на FullHD (пиксель 1,5 —
- * ровно три точки экрана). Не влезает в ширину плитки — ×1.
+ * Сыграть клип героя так, как его покажет игра (app.ts): удар и приём — враг вздрагивает в кадр контакта героя; блок,
+ * урон и смерть — сначала бьёт враг, и блок или отдача приходятся на его контакт.
  */
-const TW = 160, TH = 184;
-function tile(host: HTMLElement, set: ActorSet): void {
-  const f = field(state.loc, [{ set, x: HERO_X }]);
+function perform(sc: Scene, clip: SculptClip): void {
+  const foe = sc.foes[0];
+  const hero = sc.hero;
+  const foeHit = foe ? contactMs(foe.set, 'attack') : 0;
+  switch (clip) {
+    case 'attack': case 'heavy': case 'power':
+      hero.play(clip);
+      if (foe) later(contactMs(hero.set, clip), () => foe.play('hurt'));
+      break;
+    case 'block':
+      if (!foe) { hero.play(clip); break; }
+      foe.play('attack');
+      later(Math.max(0, foeHit - contactMs(hero.set, clip)), () => hero.play(clip));
+      break;
+    case 'hurt': case 'death':
+      if (!foe) { hero.play(clip); break; }
+      foe.play('attack');
+      later(foeHit, () => hero.play(clip));
+      break;
+    default:
+      hero.play(clip);
+  }
+}
+
+/**
+ * Плитка клипа: кусок поля 240 × 240 вокруг героя, клип повторяется с паузой в покое. ×2, как кадр игры на FullHD
+ * (пиксель 1,5 — ровно три точки экрана), если влезает в ширину, иначе ×1.
+ */
+const TW = 240, TH = 240;
+function animTile(host: HTMLElement, set: ActorSet, clip: SculptClip): void {
+  const { f, scene } = field(state.loc, set, false);
+  scene!.hero.auto = { clip, gap: 700 };
+  scene!.hero.play(clip);
   const win = h('div', 'tile-win');
   win.appendChild(f);
   host.replaceChildren(win);
@@ -196,104 +250,8 @@ function tile(host: HTMLElement, set: ActorSet): void {
     const z = Math.max(1, Math.min(2, Math.floor(host.clientWidth / TW)));
     win.style.width = `${TW * z}px`;
     win.style.height = `${TH * z}px`;
-    f.style.transform = `scale(${z}) translate(${-(HERO_X - TW / 2)}px, ${-(GROUND + 12 - TH)}px)`;
+    f.style.transform = `scale(${z}) translate(${-(HERO_X - 100)}px, ${-(GROUND + 14 - TH)}px)`;
   });
-}
-
-// ─── Сверка силуэта ─────────────────────────────────────────────────────────
-
-/**
- * Лист, пересчитанный в сетку лепки (пиксель 1,5), лепка (первый кадр покоя) и карта расхождений: красное — только на
- * листе, голубое — только в лепке. Масштаб листа — тот же, что у мерок (рост фигуры → HERO_BODY_HEIGHT), низ фигуры —
- * на земле модели; по горизонтали лист подвинут туда, где силуэты совпадают больше всего (у каждого лепщика свой
- * отступ x, а сверяется форма).
- */
-function drawOverlay(id: HeroId): void {
-  const host = document.querySelector<HTMLElement>(`[data-overlay="${id}"]`);
-  if (!host) return;
-  const pick = state.pick[id];
-  const look: Look = pick === 'ref' ? HEROES[id].rec : pick;
-  const m = HEROES[id].model(look, HERO_BODY_HEIGHT[id]);
-  const p = new Painter(m, HERO_STYLE, 0);
-  m.draw(p);
-  const fig = p.finish();
-  const d = HERO_STYLE.d, pad = m.pad ?? 80, G = m.ground;
-  const sculptAt = (x: number, y: number): number[] | null => {
-    const fi = Math.floor((x + pad) / d), fj = Math.floor((y + pad) / d), so = (fj * p.W + fi) * 4;
-    return fi >= 0 && fj >= 0 && fi < p.W && fj < p.H && fig[so + 3] > 0 ? [fig[so], fig[so + 1], fig[so + 2]] : null;
-  };
-  // Рамка лепки в единицах поля.
-  let sx0 = Infinity, sx1 = -Infinity, sy0 = Infinity;
-  for (let j = 0; j < p.H; j++) for (let i = 0; i < p.W; i++) {
-    if (fig[(j * p.W + i) * 4 + 3] === 0) continue;
-    const x = i * d - pad, y = j * d - pad;
-    sx0 = Math.min(sx0, x); sx1 = Math.max(sx1, x + d); sy0 = Math.min(sy0, y);
-  }
-  const rc = refFrame(id, 0);
-  const ref = rc.getContext('2d')!.getImageData(0, 0, rc.width, rc.height).data;
-  const b = alphaBox(rc);
-  const k = HERO_BODY_HEIGHT[id] / (b.y1 + 1 - b.y0);
-  const cell = HEROES[id].cell;
-  const refAt = (x: number, y: number, dx: number): number[] | null => {
-    const px = Math.floor(b.x0 + (x - dx) / k), py = Math.floor(b.y1 + 1 - (G - y) / k);
-    const ro = (py * cell + px) * 4;
-    return px >= 0 && py >= 0 && px < cell && py < cell && ref[ro + 3] > 127 ? [ref[ro], ref[ro + 1], ref[ro + 2]] : null;
-  };
-  // Сдвиг листа: левый край фигуры листа — в единицах поля; перебор в полосе ±30 от совпадения левых краёв.
-  const refW = (b.x1 + 1 - b.x0) * k;
-  const X0 = Math.floor(Math.min(sx0, sx0 - 30) - 6), X1 = Math.ceil(Math.max(sx1, sx0 + 30 + refW) + 6);
-  const Y0 = Math.floor(Math.min(sy0, G - HERO_BODY_HEIGHT[id]) - 6), Y1 = G + 3;
-  const cols = Math.round((X1 - X0) / d), rows = Math.round((Y1 - Y0) / d);
-  let best = sx0, bestScore = -1;
-  for (let dx = sx0 - 30; dx <= sx0 + 30; dx += d / 2) {
-    let both = 0, any = 0;
-    for (let j = 0; j < rows; j += 2) for (let i = 0; i < cols; i += 2) {
-      const x = X0 + (i + 0.5) * d, y = Y0 + (j + 0.5) * d;
-      const r = !!refAt(x, y, dx), s = !!sculptAt(x, y);
-      if (r && s) both++;
-      if (r || s) any++;
-    }
-    const score = any ? both / any : 0;
-    if (score > bestScore) { bestScore = score; best = dx; }
-  }
-  const panels = [0, 1, 2].map(() => new ImageData(cols, rows));
-  let onlyRef = 0, onlySculpt = 0, both = 0;
-  for (let j = 0; j < rows; j++) {
-    for (let i = 0; i < cols; i++) {
-      const x = X0 + (i + 0.5) * d, y = Y0 + (j + 0.5) * d;
-      const r = refAt(x, y, best), s2 = sculptAt(x, y);
-      const grid = Math.round(x) % 10 === 0 || Math.round(y) % 10 === 0;
-      const bg = grid ? [52, 48, 58] : [30, 27, 34];
-      const diff = r && s2 ? [120, 116, 124] : r ? [220, 70, 70] : s2 ? [70, 196, 220] : bg;
-      if (r && s2) both++; else if (r) onlyRef++; else if (s2) onlySculpt++;
-      [r ?? bg, s2 ?? bg, diff].forEach((c, n) => {
-        const o = (j * cols + i) * 4, data = panels[n].data;
-        data[o] = c[0];
-        data[o + 1] = c[1];
-        data[o + 2] = c[2];
-        data[o + 3] = 255;
-      });
-    }
-  }
-  const lookName = HEROES[id].looks.find((l) => l.id === look)?.name ?? look;
-  const names = ['Лист в пикселе 1,5', `Лепка, облик ${look.toUpperCase()} «${lookName}»`, 'Расхождения'];
-  const figs = panels.map((img, n) => {
-    const f = h('figure');
-    const c = h('canvas');
-    c.width = cols;
-    c.height = rows;
-    c.getContext('2d')!.putImageData(img, 0, 0);
-    c.style.width = `${cols * 2}px`;
-    c.setAttribute('role', 'img');
-    c.setAttribute('aria-label', names[n]);
-    f.append(c, h('figcaption', '', names[n]));
-    return f;
-  });
-  const total = both + onlyRef + onlySculpt;
-  const pct = (v: number): string => `${Math.round((v / total) * 100)} %`;
-  const sum = h('p', 'note overlay-sum');
-  sum.innerHTML = `Совпадает <b>${pct(both)}</b> общей площади, только на листе — <b class="minus">${pct(onlyRef)}</b>, только в лепке — <b class="plus">${pct(onlySculpt)}</b>.`;
-  host.replaceChildren(...figs, sum);
 }
 
 // ─── Отрисовка ──────────────────────────────────────────────────────────────
@@ -301,90 +259,106 @@ function drawOverlay(id: HeroId): void {
 function toggle(group: HTMLElement, value: string): void {
   for (const b of group.querySelectorAll<HTMLButtonElement>('button[data-v]')) b.setAttribute('aria-pressed', String(b.dataset.v === value));
 }
+function button(text: string, v: string): HTMLButtonElement {
+  const b = h('button', '', text);
+  b.type = 'button';
+  b.dataset.v = v;
+  return b;
+}
 
-/** Сцена: выбранный герой в выбранном облике против трёх врагов локации. */
+/** Подпись клипа: кадры, частота, длительность, контакт. */
+function clipMeta(id: SculptClip): string {
+  const spec = HERO_CLIPS[id];
+  return `${spec.frames} × ${spec.fps} к/с · ${Math.round((spec.frames * 1000) / spec.fps)} мс${spec.contact !== undefined ? ` · контакт ${spec.contact + 1}-й кадр` : ''}${spec.hold ? ' · держит последний кадр' : ''}`;
+}
+
+let scene: Scene | null = null;
+/** Сцена: выбранный герой (лепка с выбранными вариантами или прежний лист) против трёх врагов локации. */
 function drawScene(): void {
-  const host = document.getElementById('scene')!;
-  const actors = [{ set: setOf(liveKey(state.hero)), x: HERO_X }, ...LOCS[state.loc].foes.map((id, i) => ({ set: foeAnim(state.loc, id), x: FOE_X[i] }))];
-  fitWindow(host, field(state.loc, actors), 0, 960, 320);
+  const set = state.ref ? refOf(state.hero) : modelSet(state.hero);
+  const live = field(state.loc, set, true);
+  scene = live.scene;
+  fitWindow(document.getElementById('scene')!, live.f, 960, 320);
   toggle(document.getElementById('scene-hero')!, state.hero);
+  toggle(document.getElementById('scene-src')!, state.ref ? 'ref' : 'sculpt');
   toggle(document.getElementById('scene-loc')!, state.loc);
-  const looks = document.getElementById('scene-look')!;
-  looks.querySelectorAll('button').forEach((b) => b.remove());
-  for (const v of ['ref', ...HEROES[state.hero].looks.map((l) => l.id)] as Pick[]) {
-    const info = HEROES[state.hero].looks.find((l) => l.id === v);
-    const b = h('button', '', info ? `${v.toUpperCase()} «${info.name}»` : 'Лист (было)');
-    b.type = 'button';
-    b.dataset.v = v;
-    looks.appendChild(b);
+  // Варианты героя сцены: группа кнопок на клип с вариантами.
+  const vars = document.getElementById('scene-vars')!;
+  vars.replaceChildren();
+  const hero = HEROES[state.hero];
+  for (const clip of COMMON) {
+    const list = hero.variants[clip];
+    if (!list?.length) continue;
+    const g = h('span', 'tog');
+    g.setAttribute('role', 'group');
+    g.setAttribute('aria-label', `Вариант: ${HERO_CLIPS[clip].name}`);
+    g.dataset.clip = clip;
+    g.append(h('span', 'tog-label', HERO_CLIPS[clip].name));
+    for (const v of list) g.appendChild(button(`${v.id.toUpperCase()} «${v.name}»`, v.id));
+    toggle(g, fullVars(state.hero, state.vars[state.hero])[clip] ?? 'a');
+    vars.appendChild(g);
   }
-  toggle(looks, state.pick[state.hero]);
+  vars.classList.toggle('muted', state.ref);
+  // Клипы, которых у прежнего листа нет, приглушены.
+  for (const b of document.querySelectorAll<HTMLButtonElement>('#scene-clips button[data-v]')) b.classList.toggle('off', !set.get(b.dataset.v!));
 }
 
 /**
- * Отряд: шесть героев на одном полу в порядке игры — Воин, Паладин и Берсерк из игры, трое новых в выбранных обликах.
+ * Отряд: шесть героев на одном полу в порядке выбора героя — Воин, Паладин и Берсерк из игры, трое новых в облике A.
  * Проверка стиля: один свет, один пиксель, один рост.
  */
-const SQUAD: Array<{ key: string | HeroId; name: string }> = [
+const SQUAD: Array<{ key: HeroId | 'warrior' | 'paladin' | 'berserk'; name: string }> = [
   { key: 'warrior', name: 'Воин' }, { key: 'mage', name: 'Маг' }, { key: 'assassin', name: 'Ассасин' },
   { key: 'paladin', name: 'Паладин' }, { key: 'berserk', name: 'Берсерк' }, { key: 'archer', name: 'Лучник' },
 ];
 function drawSquad(): void {
   const host = document.getElementById('squad')!;
-  const actors = SQUAD.map((s, i) => ({ set: setOf(s.key in HEROES ? liveKey(s.key as HeroId) : s.key), x: 78 + i * 161 }));
-  fitWindow(host, field(state.loc, actors), 0, 960, 200);
-  const cap = document.getElementById('squad-names')!;
-  cap.replaceChildren(...SQUAD.map((s) => {
-    const pick = s.key in HEROES ? state.pick[s.key as HeroId] : null;
-    const look = pick && pick !== 'ref' ? HEROES[s.key as HeroId].looks.find((l) => l.id === pick) : null;
-    const el = h('span', pick ? 'new' : '');
-    const size = s.key === 'mage' && pick !== 'ref' ? `, рост ${state.mageH}` : '';
-    el.append(h('b', '', s.name), h('span', '', pick === 'ref' ? 'лист, как в игре' : look ? `${look.id.toUpperCase()} «${look.name}»${size}` : 'в игре'));
+  const extra = SQUAD.map((s, i) => ({ set: s.key in HEROES ? modelSet(s.key as HeroId) : readySet(s.key as 'warrior'), x: 78 + i * 161 }));
+  fitWindow(host, field(state.loc, null, false, extra).f, 960, 200);
+  document.getElementById('squad-names')!.replaceChildren(...SQUAD.map((s) => {
+    const el = h('span', s.key in HEROES ? 'new' : '');
+    el.append(h('b', '', s.name), h('span', '', s.key === 'mage' ? `облик A, рост ${state.mageH}` : s.key in HEROES ? 'облик A' : 'в игре'));
     return el;
   }));
 }
 
-/** Карточки героя: прежний лист и три облика; кнопка карточки ставит облик в сцену и отряд. */
-function drawCards(id: HeroId, jobs: Array<() => void>): void {
-  const host = document.querySelector<HTMLElement>(`[data-cards="${id}"]`)!;
-  host.replaceChildren();
+/** Карточка плитки: клип по кругу, шапка с именем и числами, подпись. */
+function tileCard(jobs: Array<() => void>, set: () => ActorSet, clip: SculptClip, title: string, note: string, badge = ''): HTMLElement {
+  const card = h('article', 'clip-card');
+  const view = h('div', 'clip-view', 'рисую кадры…');
+  const head = h('div', 'clip-head');
+  head.append(h('b', '', title));
+  if (badge) head.append(h('span', 'badge', badge));
+  head.append(h('span', 'mono', clipMeta(clip)));
+  card.append(view, head);
+  if (note) card.append(h('p', '', note));
+  jobs.push(() => animTile(view, set(), clip));
+  return card;
+}
+
+/** Раздел героя: пары вариантов (удар, сильный удар, лечение) и остальные клипы. */
+function drawHero(id: HeroId, jobs: Array<() => void>): void {
   const hero = HEROES[id];
-  const entries: Array<{ pick: Pick; name: string; note: string }> = [
-    { pick: 'ref', name: 'Лист', note: 'Прежний рисованный лист генератора — референс мерок, силуэта и палитры.' },
-    ...hero.looks.map((l) => ({ pick: l.id, name: l.name, note: l.note })),
-  ];
-  for (const e of entries) {
-    const card = h('article', 'look-card');
-    card.dataset.pick = e.pick;
-    const view = h('div', 'look-view', 'рисую кадры…');
-    const head = h('div', 'look-head');
-    head.append(h('span', 'look-letter', e.pick === 'ref' ? '—' : e.pick.toUpperCase()), h('b', '', e.name));
-    if (e.pick === hero.rec) head.appendChild(h('span', 'badge', 'рекомендует лепщик'));
-    const btn = h('button', 'pick', e.pick === 'ref' ? 'Лист в сцену' : 'В сцену и отряд');
-    btn.type = 'button';
-    btn.addEventListener('click', () => choose(id, e.pick));
-    card.append(view, head, h('p', '', e.note), btn);
-    host.appendChild(card);
-    jobs.push(() => tile(view, setOf(tileKey(id, e.pick))));
+  const pairs = document.querySelector<HTMLElement>(`[data-pairs="${id}"]`)!;
+  pairs.replaceChildren();
+  const rest = document.querySelector<HTMLElement>(`[data-clips="${id}"]`)!;
+  rest.replaceChildren();
+  for (const clip of COMMON) {
+    const list = hero.variants[clip];
+    if (list?.length) {
+      const row = h('div', 'pair');
+      row.append(h('h4', '', HERO_CLIPS[clip].name));
+      if (hero.notes[clip]) row.append(h('p', 'note prose', hero.notes[clip]!));
+      const grid = h('div', 'pair-grid');
+      for (const v of list) {
+        grid.appendChild(tileCard(jobs, () => modelSet(id, { ...state.vars[id], [clip]: v.id }), clip, `${v.id.toUpperCase()} «${v.name}»`, v.note, hero.rec[clip] === v.id ? 'рекомендует аниматор' : ''));
+      }
+      row.append(grid);
+      pairs.appendChild(row);
+    } else {
+      rest.appendChild(tileCard(jobs, () => modelSet(id), clip, HERO_CLIPS[clip].name, hero.notes[clip] ?? ''));
+    }
   }
-  markCards(id);
-}
-
-function markCards(id: HeroId): void {
-  for (const card of document.querySelectorAll<HTMLElement>(`[data-cards="${id}"] .look-card`)) {
-    const on = card.dataset.pick === state.pick[id];
-    card.classList.toggle('on', on);
-    card.querySelector('button.pick')?.setAttribute('aria-pressed', String(on));
-  }
-}
-
-function choose(id: HeroId, pick: Pick): void {
-  state.pick[id] = pick;
-  state.hero = id;
-  markCards(id);
-  drawScene();
-  drawSquad();
-  if (pick !== 'ref') drawOverlay(id);
 }
 
 /** Очередь плиток: рисуются по одной, чтобы страница не вставала на кадрах. */
@@ -402,11 +376,10 @@ function queue(jobs: Array<() => void>): void {
   window.setTimeout(next, 60);
 }
 
-/** Всё, что зависит от локации: сцена, отряд, плитки и сверка. Сначала — то, что видно первым. */
+/** Всё, что зависит от локации: сцена, отряд и плитки. Сначала — то, что видно первым. */
 function drawAll(): void {
   const jobs: Array<() => void> = [drawScene, drawSquad];
-  for (const id of HERO_IDS) drawCards(id, jobs);
-  for (const id of HERO_IDS) jobs.push(() => drawOverlay(id));
+  for (const id of HERO_IDS) drawHero(id, jobs);
   queue(jobs);
 }
 
@@ -424,17 +397,32 @@ function drawPortraits(): void {
 }
 
 function start(): void {
-  const on = (id: string, fn: (v: string) => void): void => {
+  const on = (id: string, fn: (v: string, el: HTMLElement) => void): void => {
     document.getElementById(id)!.addEventListener('click', (e) => {
-      const v = (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v;
-      if (v) fn(v);
+      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-v]');
+      if (el?.dataset.v) fn(el.dataset.v, el);
     });
   };
   on('scene-hero', (v) => {
     state.hero = v as HeroId;
     drawScene();
   });
-  on('scene-look', (v) => choose(state.hero, v as Pick));
+  on('scene-src', (v) => {
+    state.ref = v === 'ref';
+    drawScene();
+  });
+  on('scene-vars', (v, el) => {
+    const clip = el.closest<HTMLElement>('[data-clip]')?.dataset.clip as SculptClip | undefined;
+    if (!clip) return;
+    state.vars[state.hero] = { ...state.vars[state.hero], [clip]: v as V };
+    drawScene();
+    if (scene) perform(scene, clip);
+  });
+  const clipGroup = document.getElementById('scene-clips')!;
+  for (const id of COMMON) clipGroup.appendChild(button(HERO_CLIPS[id].name, id));
+  on('scene-clips', (v) => {
+    if (scene) perform(scene, v as SculptClip);
+  });
   on('scene-loc', (v) => {
     state.loc = v as Loc;
     drawAll();
@@ -446,10 +434,8 @@ function start(): void {
       if (!v) return;
       state.mageH = Number(v);
       for (const other of document.querySelectorAll<HTMLElement>('[data-mageh]')) toggle(other, v);
-      drawScene();
-      drawSquad();
-      const jobs: Array<() => void> = [];
-      drawCards('mage', jobs);
+      const jobs: Array<() => void> = [drawScene, drawSquad];
+      drawHero('mage', jobs);
       queue(jobs);
     });
     toggle(g, String(state.mageH));
@@ -460,7 +446,7 @@ function start(): void {
   });
   toggle(document.getElementById('speed')!, '1');
   drawPortraits();
-  // Сначала показать текст, потом рисовать: двенадцать героев по 24 кадра — несколько секунд работы главного потока.
+  // Сначала показать текст, потом рисовать: шесть героев по 24 кадра покоя и десятки клипов — секунды работы потока.
   document.getElementById('scene')!.textContent = 'рисую кадры…';
   document.getElementById('squad')!.textContent = 'рисую кадры…';
   window.requestAnimationFrame(() => window.setTimeout(drawAll, 60));
