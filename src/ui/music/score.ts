@@ -308,3 +308,23 @@ export const MINOR = [0, 2, 3, 5, 7, 8, 10];
 export const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 export const DORIAN = [0, 2, 3, 5, 7, 9, 10];
 export const HARMONIC_MINOR = [0, 2, 3, 5, 7, 8, 11];
+
+/** Рисунок такта n раз — через черту такта (у барабанов черта и пробелы ничего не значат). */
+export function bars(pattern: string, n: number): string {
+  return Array.from({ length: n }, () => pattern).join(' | ');
+}
+
+/** Только ноты от `from` до `to` доли: партия вступает и молчит на своих частях, длина трека прежняя. */
+export function span(seq: Seq, from: number, to: number): Seq {
+  return { items: seq.items.filter((n) => n.t >= from - 1e-9 && n.t < to - 1e-9), beats: seq.beats };
+}
+
+/** Без нот от `from` до `to` доли: партия смолкает на одну часть, длина трека прежняя. */
+export function mute(seq: Seq, from: number, to: number): Seq {
+  return { items: seq.items.filter((n) => n.t < from - 1e-9 || n.t >= to - 1e-9), beats: seq.beats };
+}
+
+/** Кусок на `semis` полутонов выше (минус — ниже): тот же мотив у виолончели октавой ниже. */
+export function transpose(seq: Seq, semis: number): Seq {
+  return { items: seq.items.map((n) => ({ ...n, midi: n.midi + semis })), beats: seq.beats };
+}

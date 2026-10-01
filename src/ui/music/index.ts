@@ -4,13 +4,16 @@
  *
  * Трек рендерится целиком в Web Worker (worker.ts) и играет петлёй из готового буфера — без шва и без нагрузки
  * на главный поток во время боя. Готовых буферов держится два (текущая локация и следующая — её трек заказывается
- * к концу акта, как фон), каждый — около 15–20 МБ.
+ * к концу акта, как фон), каждый — около 20–25 МБ (44,1 кГц, 32-битный float, стерео, минута).
+ *
+ * Внутри всё по id трека («forest-b»): у локации несколько вариантов, играет выбранный (SONGS), а отладка может
+ * завести любой вариант.
  *
  * Браузер не даёт звуку начаться без жеста игрока, поэтому AudioContext создаётся на первом нажатии мыши или клавиши;
  * до этого `want` только запоминает, что играть, и заказывает рендер. Вкладка в фоне — звук на паузе.
  */
 import type { LocationId } from '../../engine/types';
-import { SONGS } from './songs';
+import { SONGS, SONG_BY_ID } from './songs';
 import { renderSteps, type Rendered } from './synth';
 import type { MusicReply } from './worker';
 
@@ -23,7 +26,7 @@ const KEEP = 2;
 const SLICE_MS = 8;
 
 interface Playing {
-  id: LocationId;
+  id: string;
   src: AudioBufferSourceNode;
   gain: GainNode;
 }
@@ -32,12 +35,12 @@ export class Music {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private current: Playing | null = null;
-  /** Что должно играть по экрану (App.render) и что задано отладкой `&music=<локация>` поверх него. */
-  private wanted: LocationId | null = null;
-  private forced: LocationId | null = null;
+  /** Что должно играть по экрану (App.render) и что задано отладкой `&music=…` поверх него — id треков. */
+  private wanted: string | null = null;
+  private forced: string | null = null;
   /** Готовые треки; порядок вставки — порядок давности. */
-  private buffers = new Map<LocationId, AudioBuffer>();
-  private rendering = new Set<LocationId>();
+  private buffers = new Map<string, AudioBuffer>();
+  private rendering = new Set<string>();
   /** undefined — ещё не создавали, null — воркеры недоступны (рендер кусками в главном потоке). */
   private worker: Worker | null | undefined;
   private volume = 0.5;
@@ -71,28 +74,29 @@ export class Music {
     this.sync();
   }
 
-  /** Отладка: играть трек этой локации на любом экране (null — снова по экрану). */
-  force(id: LocationId | null): void {
-    this.forced = id;
+  /** Отладка: играть на любом экране трек локации («crypt») или вариант («crypt-b»); null — снова по экрану. */
+  force(id: string | null): void {
+    this.forced = id && id in SONGS ? SONGS[id as LocationId].id : id && SONG_BY_ID[id] ? id : null;
     this.sync();
   }
 
   /** Какую локацию играть сейчас; null — тишина. Зовётся на каждой перерисовке, повтор ничего не стоит. */
-  want(id: LocationId | null): void {
+  want(loc: LocationId | null): void {
+    const id = loc ? SONGS[loc].id : null;
     if (id === this.wanted) return;
     this.wanted = id;
     this.sync();
   }
 
   /** Заказать трек впрок (следующая локация к концу акта). */
-  warm(id: LocationId): void {
-    if (!this.silent()) this.request(id);
+  warm(loc: LocationId): void {
+    if (!this.silent()) this.request(SONGS[loc].id);
   }
 
   /** Название играющего или ожидаемого трека — для паузы. */
   title(): string | null {
     const id = this.target() ?? this.forced ?? this.wanted;
-    return id ? SONGS[id].title : null;
+    return id ? (SONG_BY_ID[id]?.title ?? null) : null;
   }
 
   private level(): number {
@@ -104,7 +108,7 @@ export class Music {
     return this.disabled || this.muted || this.volume <= 0;
   }
 
-  private target(): LocationId | null {
+  private target(): string | null {
     return this.silent() ? null : (this.forced ?? this.wanted);
   }
 
@@ -162,7 +166,7 @@ export class Music {
   }
 
   /** Заказать рендер трека, если его нет и он ещё не в работе. */
-  private request(id: LocationId): void {
+  private request(id: string): void {
     if (this.buffers.has(id) || this.rendering.has(id)) {
       // Трек нужен снова — он свежий, вытеснять его последним.
       const b = this.buffers.get(id);
@@ -198,8 +202,8 @@ export class Music {
   }
 
   /** Без воркера: тот же рендер кусками по SLICE_MS между кадрами, чтобы не подвешивать экран. */
-  private renderHere(id: LocationId): void {
-    const it = renderSteps(SONGS[id]);
+  private renderHere(id: string): void {
+    const it = renderSteps(SONG_BY_ID[id]);
     const step = (): void => {
       const until = performance.now() + SLICE_MS;
       for (;;) {
@@ -215,8 +219,8 @@ export class Music {
     window.setTimeout(step, 0);
   }
 
-  /** Трек готов: 16 бит → AudioBuffer, лишние старые — из памяти. */
-  private done(id: LocationId, r: Pick<Rendered, 'sampleRate' | 'left' | 'right'>): void {
+  /** Трек готов: каналы → AudioBuffer, лишние старые — из памяти. */
+  private done(id: string, r: Pick<Rendered, 'sampleRate' | 'left' | 'right'>): void {
     this.rendering.delete(id);
     let buf: AudioBuffer;
     try {
@@ -224,10 +228,8 @@ export class Music {
     } catch {
       return;
     }
-    [r.left, r.right].forEach((pcm, ch) => {
-      const out = buf.getChannelData(ch);
-      for (let i = 0; i < pcm.length; i++) out[i] = pcm[i] / 32768;
-    });
+    buf.getChannelData(0).set(r.left);
+    buf.getChannelData(1).set(r.right);
     this.buffers.set(id, buf);
     const keep = new Set([this.target(), this.current?.id, id]);
     for (const old of this.buffers.keys()) {
