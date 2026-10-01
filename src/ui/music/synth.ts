@@ -276,7 +276,7 @@ function bandpassCoefs(out: Float64Array, o: number, fc: number, q: number, sr: 
 // ─── Шина ────────────────────────────────────────────────────────────────
 
 /** Сухие каналы и посылы в эхо и зал; запись заворачивается по кругу — петля без шва. */
-interface Bus {
+export interface Bus {
   L: Float32Array;
   R: Float32Array;
   EL: Float32Array | null;
@@ -1026,8 +1026,7 @@ const STEREO_SPREAD = 23;
  * Зал: восемь гребёнок с глушением высоких в обратной связи и четыре фазовращателя на канал, предзадержка. Как и эхо,
  * по кругу петли: конец петли разогревает зал (хвост до 8 с), и только потом идёт проход, который пишет.
  */
-function applyReverb(bus: Bus, song: Song): void {
-  const rv = song.reverb;
+function applyReverb(bus: Bus, rv: Song['reverb'], loop = true): void {
   if (!rv || !bus.VL || !bus.VR) return;
   const { L, R, sr } = bus;
   const N = L.length;
@@ -1038,7 +1037,8 @@ function applyReverb(bus: Bus, song: Song): void {
   // Вход общий (сумма каналов): так поступает и «Фривёрб», стерео даёт разная длина линий.
   const input = new Float32Array(N);
   for (let i = 0; i < N; i++) input[i] = (bus.VL[i] + bus.VR[i]) * 0.015;
-  const start = warmFrom(N, sr, 8);
+  // Короткий звук (src/ui/sfx) — не петля: зал не разогревается концом, хвост уходит в тишину после звука.
+  const start = loop ? warmFrom(N, sr, 8) : N;
   const nc = COMBS.length;
   const na = ALLPASSES.length;
   [L, R].forEach((ch, side) => {
@@ -1079,13 +1079,13 @@ function applyReverb(bus: Bus, song: Song): void {
  * ФВЧ первого порядка на всём миксе: срезает гул ниже ~30 Гц (тайко, гонг и басовые гулы копят его так, что маленькие
  * колонки хрипят). По кругу петли: первый проход только разогревает фильтр, второй пишет.
  */
-function highPass(bus: Bus, cut: number): void {
+function highPass(bus: Bus, cut: number, loop = true): void {
   const N = bus.L.length;
   const r = 1 - (2 * Math.PI * cut) / bus.sr;
   for (const ch of [bus.L, bus.R]) {
-    let x1 = ch[N - 1];
+    let x1 = loop ? ch[N - 1] : 0;
     let y = 0;
-    for (let pass = 0; pass < 2; pass++)
+    for (let pass = loop ? 0 : 1; pass < 2; pass++)
       for (let i = 0; i < N; i++) {
         const x = ch[i];
         const out = x - x1 + r * y;
@@ -1160,7 +1160,7 @@ export function* renderSteps(song: Song, opts: RenderOpts = {}): Generator<numbe
     }
   }
   applyEcho(bus, song);
-  applyReverb(bus, song);
+  applyReverb(bus, song.reverb);
   highPass(bus, 30);
   // Сведение: громкость к TARGET_RMS, пики — в лимитер. Отсчёты остаются 32-битными float.
   const { L, R } = bus;
@@ -1186,4 +1186,48 @@ export function renderSong(song: Song, opts: RenderOpts = {}): Rendered {
     const r = it.next();
     if (r.done) return r.value;
   }
+}
+
+// ─── Короткие звуки ──────────────────────────────────────────────────────
+
+/*
+ * Звуки действий (src/ui/sfx, docs/zvuki.md) звучат теми же голосами, что музыка: те же инструменты, удары набора
+ * и зал. Разница одна — короткий звук не петля: шина длиннее звука на хвост зала, и ничего не заворачивается в начало.
+ */
+
+/** Шина короткого звука на N отсчётов; шум засеян строкой (id звука) — звук всегда одинаковый. */
+export function makeBus(N: number, sr: number, seed: string): Bus {
+  return { L: new Float32Array(N), R: new Float32Array(N), EL: null, ER: null, VL: new Float32Array(N), VR: new Float32Array(N), sr, rnd: makeRnd(hashOf(seed)), drums: new Map() };
+}
+
+/** Нота инструмента с отсчёта s0: gate — сколько секунд держится, сила, панорама и посыл в зал. */
+export function playNote(bus: Bus, inst: Instrument, s0: number, gate: number, midi: number, vel: number, pan: number, rev: number): void {
+  tone(bus, inst, s0, gate, midi, 0, vel, outOf(pan, vel * inst.gain, 0, rev));
+}
+
+/** Удар набора DRUMS; `cut` — оборвать через столько секунд с гашением (гонг и гром длиннее звука). */
+export function playDrum(bus: Bus, kind: string, s0: number, vel: number, pan: number, rev: number, cut?: number): void {
+  const smp = drumSample(bus, kind);
+  const o = outOf(pan + DRUMS[kind].pan, vel, 0, rev);
+  const n = cut ? Math.min(smp.length, Math.round(cut * bus.sr)) : smp.length;
+  const fade = Math.max(1, Math.round(n * 0.25));
+  for (let i = 0; i < n; i++) emit(bus, (s0 + i) % bus.L.length, smp[i] * (cut ? Math.min(1, (n - i) / fade) : 1), o);
+}
+
+/** Готовые отсчёты генератора звука; панорама может ехать от `pan` к `panTo` (стрела летит от героя к врагу). */
+export function playSamples(bus: Bus, smp: Float32Array, s0: number, vel: number, pan: number, panTo: number, rev: number): void {
+  const n = smp.length;
+  const N = bus.L.length;
+  let o = outOf(pan, vel, 0, rev);
+  for (let i = 0; i < n; i++) {
+    // Панорама едет шагами по 64 отсчёта (1,5 мс) — на слух плавно, а синус и косинус не на каждый отсчёт.
+    if (pan !== panTo && (i & 63) === 0) o = outOf(pan + ((panTo - pan) * i) / n, vel, 0, rev);
+    emit(bus, (s0 + i) % N, smp[i], o);
+  }
+}
+
+/** Зал без петли и ФВЧ 30 Гц — последний шаг короткого звука до сведения. */
+export function finishShot(bus: Bus, reverb: NonNullable<Song['reverb']>): void {
+  applyReverb(bus, reverb, false);
+  highPass(bus, 30, false);
 }
