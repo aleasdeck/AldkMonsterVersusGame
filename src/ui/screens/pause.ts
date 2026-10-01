@@ -1,7 +1,7 @@
 import { button, h } from '../dom';
 import { DIFFICULTIES } from '../../data/boons';
 import { paramTip } from '../tips';
-import { musicVolumeOf } from '../save';
+import { musicVolumeOf, sfxVolumeOf } from '../save';
 import type { App } from '../app';
 
 /** Пауза: продолжить, персонаж, лог боя, сид с копированием, в меню, бросить забег, сундук и музыка. Сид живёт здесь, а не в шапке. */
@@ -44,8 +44,25 @@ export function pauseMenu(app: App): HTMLElement {
         }),
       ),
       musicRow(app),
+      sfxRow(app),
       h('div', { class: 'pause-keys dim' }, '1–9 приём · Enter цель · Tab другая цель · Space конец хода, у сундука — взлом · C персонаж · L лог · M музыка · Esc снять выбор / пауза'),
     ),
+  );
+}
+
+/** Звуки действий: громкость шагом в 10 % и выключатель, отдельно от музыки. */
+function sfxRow(app: App): HTMLElement {
+  const vol = sfxVolumeOf(app.profile);
+  const muted = !!app.profile.sfxMuted;
+  const tip = paramTip('note', 'Звуки', 'Удары, приёмы, статусы, кнопки и события — тем же синтезатором, что музыка. Громкость и выключатель помнятся между забегами.');
+  return h(
+    'div',
+    { class: 'pause-seed' },
+    h('span', { class: 'dim', tip }, 'Звуки: '),
+    h('span', { tip }, muted || vol <= 0 ? 'выключены' : `${Math.round(vol * 100)}\u00a0%`),
+    button('−', () => app.stepSfx(-1), { class: 'small', tip: paramTip('note', 'Тише', 'Громкость звуков −10 %') }),
+    button('+', () => app.stepSfx(1), { class: 'small', tip: paramTip('note', 'Громче', 'Громкость звуков +10 %; с нуля — снова включает') }),
+    button(muted ? 'Включить' : 'Выключить', () => app.toggleSfx(), { class: 'small', tip: paramTip('note', 'Звуки', 'Выключить или включить звуки действий') }),
   );
 }
 
@@ -54,7 +71,7 @@ function musicRow(app: App): HTMLElement {
   const vol = musicVolumeOf(app.profile);
   const muted = !!app.profile.musicMuted;
   const title = app.music.title();
-  const tip = paramTip('note', 'Музыка', 'У каждой локации свой трек в духе 16-битных приставок. Громкость и выключатель помнятся между забегами.', {
+  const tip = paramTip('note', 'Музыка', 'У каждой локации свой трек под тёмное фэнтези в духе 32-битных приставок. Громкость и выключатель помнятся между забегами.', {
     note: title ? `Здесь играет «${title}»` : undefined,
   });
   return h(

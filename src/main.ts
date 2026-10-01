@@ -17,6 +17,7 @@ import type { Rng } from './engine/rng';
 import { setTint } from './ui/tint';
 import { music } from './ui/music';
 import { SONGS } from './ui/music/songs';
+import { sfx } from './ui/sfx';
 
 const HERO_LIST_IDS = HERO_LIST.map((d) => d.id);
 const WIDTH = 960;
@@ -58,6 +59,9 @@ else if (tintParam || tintColor) {
 const musicParam = params.get('music');
 if (musicParam === 'off') music.disable();
 else if (musicParam && musicParam in SONGS) music.force(musicParam);
+
+// &sfx=off — без звуков действий на этой странице (профиль не трогается)
+if (params.get('sfx') === 'off') sfx.disable();
 
 // &mock=1 — демо-профиль: статистика, часть коллекции (у артефактов — часть тиров) и половина бестиария (для отладки экранов);
 // экрану «Статистика» — демо-ответ таблицы вместо сети (mockRuns)
@@ -252,7 +256,7 @@ if (app.run && app.screen === 'run') {
 }
 
 // Для отладки из консоли: mv.run, mv.render(), mv.unlockAll() — открыть вторые персональные артефакты (false — закрыть),
-// mv.music.force('ship') — играть трек локации (null — снова по экрану)
+// mv.music.force('ship') — играть трек локации (null — снова по экрану), mv.sfx.play('hit_blade') — звук, mv.sfx.log — последние звуки
 (window as unknown as { mv: App }).mv = app;
 
 /** Демо-ответ ?data=runs для `&mock=1`: 90 забегов шести героев, победы у трети, гибели по разным клеткам — чтобы экран «Статистика» было на чём смотреть. */

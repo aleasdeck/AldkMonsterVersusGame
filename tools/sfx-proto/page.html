@@ -1,0 +1,543 @@
+<title>Звуки действий</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Handjet:wght@400;500;600;700&family=Tiny5&display=swap" rel="stylesheet">
+<style>
+/* Страница одного мира — тёмная, как сама игра и прошлая страница музыки: фон, панели, золото и шрифты из style.css.
+   Раскладка: шапка, сцены боя поверх музыки, потом по группе на смысл (цвет группы — цвет её анимации в игре),
+   в группе карточки звуков с вариантами; внизу — строка выбора для чата. */
+:root {
+  color-scheme: dark;
+  --bg: #0b0b12;
+  --panel: #151523;
+  --panel-2: #1e1e32;
+  --line: #34344f;
+  --text: #e8e6df;
+  --dim: #9a9ab0;
+  --accent: #ffd166;
+  --wave: #3b3b58;
+  --tint: #ffd166;
+  --display: 'Tiny5', 'Handjet', ui-monospace, monospace;
+  --body: 'Handjet', ui-monospace, 'Courier New', monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.25;
+  padding-inline: 16px;
+  padding-block: 0 120px;
+}
+.wrap { max-width: 1160px; margin: 0 auto; }
+header { padding-block: 40px 8px; display: grid; gap: 14px; }
+h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(32px, 6vw, 48px);
+  line-height: 1;
+  margin: 0;
+  color: var(--accent);
+  text-wrap: balance;
+}
+.lede { max-width: 68ch; margin: 0; }
+.lede.dim { color: var(--dim); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.facts li { border: 2px solid var(--line); background: var(--panel); padding: 2px 10px; font-size: 18px; color: var(--dim); }
+.facts b { color: var(--text); font-weight: 700; }
+
+nav.groups {
+  z-index: 4;
+  background: rgba(11, 11, 18, 0.96);
+  border-bottom: 2px solid var(--line);
+  margin-top: 18px;
+  padding-block: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Липкая навигация — только на широком экране: на телефоне она в шесть строк и закрыла бы полэкрана. */
+@media (min-width: 700px) { nav.groups { position: sticky; top: env(safe-area-inset-top, 0px); } }
+nav.groups a {
+  font-size: 18px;
+  color: var(--tint);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  padding: 0 8px;
+  background: var(--panel);
+}
+nav.groups a:hover { border-color: var(--tint); }
+
+h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(24px, 4vw, 32px);
+  margin: 0;
+  color: var(--tint);
+  text-wrap: balance;
+}
+section.group { margin-top: 34px; scroll-margin-top: 70px; }
+.ghead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; border-bottom: 2px solid var(--line); padding-bottom: 8px; }
+.ghead p { margin: 0; color: var(--dim); font-size: 19px; flex: 1 1 320px; min-width: 0; }
+.all {
+  font: inherit;
+  font-size: 18px;
+  color: var(--tint);
+  background: var(--bg);
+  border: 2px solid var(--tint);
+  padding: 2px 12px;
+  cursor: pointer;
+}
+.all:hover { background: var(--panel-2); }
+
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; align-items: start; }
+@media (max-width: 860px) { .cards { grid-template-columns: 1fr; } }
+.card { min-width: 0; scroll-margin-top: 70px; background: var(--panel); border: 2px solid var(--line); padding: 12px 14px 12px; display: grid; gap: 8px; }
+.card.playing { border-color: var(--tint); }
+.chead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.cname { font-family: var(--display); font-size: 21px; line-height: 1.05; color: var(--tint); }
+.chip { font-size: 16px; color: var(--dim); border: 1px solid var(--line); padding: 0 6px; font-variant-numeric: tabular-nums; }
+.uses { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 17px; color: var(--dim); line-height: 1.2; }
+.uses li::before { content: '› '; color: var(--tint); }
+
+.var { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; border-top: 1px dashed var(--line); padding-top: 8px; }
+.var.picked .letter { background: var(--accent); }
+.letter {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: 19px;
+  color: var(--bg);
+  background: var(--tint);
+}
+.vtitle { font-size: 20px; min-width: 0; }
+.vtitle .rec { font-size: 15px; color: var(--accent); border: 1px solid var(--accent); padding: 0 5px; margin-left: 6px; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 2px; }
+.vnote { grid-column: 2 / 4; margin: 0; font-size: 17px; color: var(--dim); }
+.vplay { grid-column: 1 / 4; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.play {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--tint);
+  background: var(--bg);
+  color: var(--tint);
+  font: inherit;
+  font-size: 19px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.play:hover { background: var(--panel-2); }
+canvas.wave { width: 100%; height: 36px; display: block; cursor: pointer; }
+.secs { font-size: 16px; color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pick {
+  font: inherit;
+  font-size: 17px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  padding: 1px 10px;
+  cursor: pointer;
+}
+.pick:hover { border-color: var(--accent); }
+.var.picked .pick { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.why { margin: 0; font-size: 17px; color: var(--dim); border-top: 1px dashed var(--line); padding-top: 8px; }
+.why b { color: var(--accent); font-weight: 700; }
+.notebtn { justify-self: start; font: inherit; font-size: 16px; color: var(--dim); background: none; border: 1px solid var(--line); padding: 0 8px; cursor: pointer; }
+.notebtn.has { color: var(--accent); border-color: var(--accent); }
+textarea { width: 100%; font: inherit; font-size: 18px; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 6px 8px; resize: vertical; }
+
+/* Сцены */
+.scenes { display: grid; gap: 12px; margin-top: 12px; }
+.scene { background: var(--panel); border: 2px solid var(--line); padding: 12px 14px 14px; display: grid; gap: 8px; min-width: 0; }
+.scene.playing { border-color: var(--accent); }
+.shead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.stitle { font-family: var(--display); font-size: 22px; color: var(--accent); }
+.scene p { margin: 0; font-size: 18px; color: var(--dim); max-width: 80ch; }
+/* Плеер сцены — прямой потомок сетки карточки: свой `grid-column: 1 / 4` от варианта здесь не нужен, иначе он
+   достраивает карточке три колонки. */
+.scene .vplay { grid-column: auto; }
+.scene canvas.wave { height: 52px; }
+.events { display: flex; flex-wrap: wrap; gap: 4px; }
+.events span { font-size: 16px; color: var(--dim); border: 1px solid var(--line); padding: 0 6px; font-variant-numeric: tabular-nums; }
+.events span.now { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(11, 11, 18, 0.97);
+  border-top: 2px solid var(--line);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 5;
+}
+.bar-in { max-width: 1160px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.summary { flex: 1 1 360px; min-width: 0; font-size: 18px; color: var(--dim); }
+.summary b { color: var(--text); }
+.copy { font: inherit; font-size: 19px; background: var(--accent); color: var(--bg); border: 0; padding: 6px 16px; cursor: pointer; }
+.copied { font-size: 17px; color: var(--accent); }
+.copytext { width: 100%; font: inherit; font-size: 16px; }
+/* Второй круг: заметка пользователя над вариантами переделанного звука и ссылка на неё из группы. */
+.said { margin: 0; font-size: 18px; color: var(--text); background: var(--panel-2); padding: 6px 10px; }
+.said b { color: var(--accent); font-weight: 700; }
+.moved { display: block; min-width: 0; border: 2px dashed var(--line); padding: 10px 14px; font-size: 19px; color: var(--dim); text-decoration: none; }
+.moved b { color: var(--tint); font-weight: 700; }
+.moved:hover { border-color: var(--tint); }
+.removed { margin: 10px 0 0; font-size: 18px; color: var(--dim); }
+.removed b { color: var(--text); }
+button:focus-visible, canvas.wave:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Звуки действий</h1>
+    <p class="lede">Второй круг. Ваш выбор из первого круга зафиксирован: у этих звуков остался один вариант, на карточке написано, какой. Семь звуков, к которым были заметки, сделаны заново, у каждого три варианта — они в первом разделе вместе с вашей заметкой. Волчий свисток убран: теперь он звучит Призывом.</p>
+    <p class="lede dim">Новые варианты слышны и в сценах (там стоят рекомендованные). Выберите по одному варианту у переделанных звуков, к любому звуку можно снова оставить заметку. Строку внизу скопируйте в чат.</p>
+    <ul class="facts" id="facts"></ul>
+  </header>
+  <nav class="groups" id="nav" aria-label="Группы звуков"></nav>
+  <section class="group" id="redo" style="--tint: var(--accent)">
+    <div class="ghead">
+      <h2>Переделано по заметкам</h2>
+      <p>Над вариантами — ваша заметка из первого круга. Рекомендация — с причиной под вариантами.</p>
+    </div>
+    <div class="cards" id="redoList"></div>
+    <p class="removed" id="removed"></p>
+  </section>
+  <section class="group" id="scenes" style="--tint: var(--accent)">
+    <div class="ghead">
+      <h2>Сцены</h2>
+      <p>Музыка и звуки на одной громкости ползунков — как по умолчанию в игре. Время удара в сцене совпадает с моментом удара в звуке.</p>
+    </div>
+    <div class="scenes" id="sceneList"></div>
+  </section>
+  <main id="groups"></main>
+</div>
+
+<div class="bar" role="region" aria-label="Выбор">
+  <div class="bar-in">
+    <div class="summary" id="summary"></div>
+    <button class="copy" id="copy" type="button">Скопировать для чата</button>
+    <span class="copied" id="copied" hidden>Скопировано</span>
+  </div>
+  <div class="bar-in" id="fallback" hidden><textarea class="copytext" id="copytext" rows="3" readonly></textarea></div>
+</div>
+
+<script>
+const DATA = /*DATA*/null;
+const KEY = 'mv-sfx-picks-2';
+let state = { picks: {}, notes: {} };
+try { state = Object.assign(state, JSON.parse(localStorage.getItem(KEY) || '{}') || {}); } catch { /* без памяти — выбор живёт до перезагрузки */ }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* приватное окно */ } };
+
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'style') e.setAttribute('style', v);
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+};
+const sec = (s) => `${s.toFixed(1).replace('.', ',')} с`;
+const db = (x) => (x > 0 ? `+${x}` : x < 0 ? `−${-x}` : '0');
+
+// ─── Плееры ───
+const players = [];
+let current = null;
+let queue = [];
+
+function drawWave(p) {
+  const c = p.canvas;
+  const w = c.clientWidth;
+  const h = c.clientHeight;
+  if (!w) return;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(w * dpr);
+  c.height = Math.round(h * dpr);
+  const g = c.getContext('2d');
+  g.scale(dpr, dpr);
+  g.clearRect(0, 0, w, h);
+  const css = getComputedStyle(c);
+  const tint = css.getPropertyValue('--tint').trim() || '#ffd166';
+  const wave = css.getPropertyValue('--wave').trim();
+  const accent = css.getPropertyValue('--accent').trim();
+  const n = p.peaks.length;
+  const step = w / n;
+  const bw = Math.max(1, step - 1);
+  const prog = p.audio && p.audio.duration ? p.audio.currentTime / p.audio.duration : 0;
+  for (let i = 0; i < n; i++) {
+    const bh = Math.max(2, Math.round(Math.max(0.04, p.peaks[i]) * (h - 6)));
+    g.fillStyle = (i + 0.5) / n < prog ? tint : wave;
+    g.fillRect(Math.floor(i * step), Math.round((h - bh) / 2), Math.ceil(bw), bh);
+  }
+  // Моменты удара: у звука — один, у сцены — все её звуки.
+  g.fillStyle = accent;
+  for (const t of p.marks) {
+    const x = Math.round((t / p.seconds) * w);
+    g.fillRect(Math.min(w - 2, x), 0, 2, 5);
+    g.fillRect(Math.min(w - 2, x), h - 5, 2, 5);
+  }
+}
+
+function stopAll(except) {
+  for (const q of players) if (q !== except && q.audio && !q.audio.paused) { q.audio.pause(); q.audio.currentTime = 0; }
+}
+
+function makePlayer({ file, seconds, peaks, marks, label, card, onTime }) {
+  const btn = el('button', { class: 'play', type: 'button', 'aria-label': `Играть: ${label}` }, '▶');
+  const canvas = el('canvas', { class: 'wave', tabindex: '0', role: 'button', 'aria-label': `Играть с начала: ${label}` });
+  const p = { file, seconds, peaks, marks, canvas, btn, card, audio: null, onTime };
+  const sync = () => {
+    const on = p.audio && !p.audio.paused;
+    btn.textContent = on ? '❚❚' : '▶';
+    btn.setAttribute('aria-label', `${on ? 'Пауза' : 'Играть'}: ${label}`);
+    card.classList.toggle('playing', !!on);
+  };
+  const ensure = () => {
+    if (p.audio) return p.audio;
+    const a = new Audio(file);
+    a.preload = 'auto';
+    a.addEventListener('play', sync);
+    a.addEventListener('pause', sync);
+    a.addEventListener('timeupdate', () => { drawWave(p); p.onTime?.(a.currentTime); });
+    a.addEventListener('ended', () => { a.currentTime = 0; sync(); drawWave(p); p.onTime?.(-1); next(); });
+    p.audio = a;
+    return a;
+  };
+  p.play = (fromQueue = false) => {
+    if (!fromQueue) queue = [];
+    const a = ensure();
+    stopAll(p);
+    current = p;
+    a.currentTime = 0;
+    a.play().catch(() => {});
+    let raf = 0;
+    const tick = () => { drawWave(p); if (!a.paused) raf = requestAnimationFrame(tick); };
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(tick);
+  };
+  btn.addEventListener('click', () => {
+    if (p.audio && !p.audio.paused) { queue = []; p.audio.pause(); }
+    else p.play();
+  });
+  canvas.addEventListener('click', () => p.play());
+  canvas.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); p.play(); } });
+  p.redraw = () => drawWave(p);
+  players.push(p);
+  return p;
+}
+
+function next() {
+  const p = queue.shift();
+  if (p) setTimeout(() => p.play(true), 350);
+}
+
+// ─── Шапка и навигация ───
+const S = DATA.stats;
+document.getElementById('facts').append(
+  el('li', {}, el('b', {}, String(S.sounds)), ' звуков'),
+  el('li', {}, el('b', {}, String(S.variants)), ' вариантов'),
+  el('li', {}, el('b', {}, String(S.choices)), ' на выбор'),
+  el('li', {}, el('b', {}, '44,1 кГц'), ' float, как музыка'),
+  el('li', {}, el('b', {}, 'ре минор'), ' у звуков с высотой'),
+  el('li', {}, el('b', {}, 'зал'), ' от комнаты до собора'),
+);
+const nav = document.getElementById('nav');
+nav.append(el('a', { href: '#redo', style: '--tint: var(--accent)' }, 'Переделано'));
+nav.append(el('a', { href: '#scenes', style: '--tint: var(--accent)' }, 'Сцены'));
+for (const g of DATA.groups) nav.append(el('a', { href: `#${g.id}`, style: `--tint:${g.tint}` }, g.name));
+
+// ─── Сцены ───
+const sceneList = document.getElementById('sceneList');
+for (const sc of DATA.scenes) {
+  const card = el('article', { class: 'scene', style: '--tint: var(--accent)' });
+  const chips = sc.events.map((e) => el('span', {}, `${e.t.toFixed(1).replace('.', ',')} ${e.name}`));
+  const p = makePlayer({
+    file: sc.file,
+    seconds: sc.seconds,
+    peaks: sc.peaks,
+    marks: sc.events.map((e) => e.t),
+    label: sc.title,
+    card,
+    onTime: (t) => {
+      let k = -1;
+      sc.events.forEach((e, i) => { if (t >= e.t - 0.05) k = i; });
+      chips.forEach((c, i) => c.classList.toggle('now', i === k));
+    },
+  });
+  card.append(
+    el('div', { class: 'shead' }, el('span', { class: 'stitle' }, sc.title), el('span', { class: 'chip' }, `музыка: ${sc.music}`), el('span', { class: 'chip' }, sec(sc.seconds))),
+    el('p', {}, sc.desc),
+    el('div', { class: 'vplay' }, p.btn, p.canvas, el('span', { class: 'secs' }, sec(sc.seconds))),
+    el('div', { class: 'events', 'aria-label': 'Звуки сцены по времени' }, ...chips),
+  );
+  sceneList.append(card);
+}
+
+// ─── Карточка звука ───
+const cardsById = {};
+/** Рекомендованный (или единственный) вариант звука — для «Всё подряд» в его группе. */
+const recPlayer = {};
+
+function soundCard(s, tint) {
+  const card = el('article', { class: 'card', id: s.feedback ? `redo-${s.id}` : null, style: `--tint:${tint}` });
+  const head = el('div', { class: 'chead' }, el('span', { class: 'cname' }, s.name));
+  if (s.picked) head.append(el('span', { class: 'chip' }, `выбран: «${s.picked}»`));
+  if (s.level) head.append(el('span', { class: 'chip', title: '' }, `громкость ${db(s.level)} дБ`));
+  if (s.over) head.append(el('span', { class: 'chip' }, `поверх: ${s.over}`));
+  card.append(head, el('ul', { class: 'uses' }, ...s.uses.map((u) => el('li', {}, u))));
+  if (s.feedback) card.append(el('p', { class: 'said' }, el('b', {}, 'Ваша заметка: '), `«${s.feedback}»`));
+  const rows = [];
+  for (const v of s.variants) {
+    const label = `${s.name} — ${v.title}`;
+    const p = makePlayer({ file: v.file, seconds: v.seconds, peaks: v.peaks, marks: v.hit > 0 ? [v.hit] : [], label, card });
+    if (v.key === (s.rec ?? v.key)) recPlayer[s.id] = p;
+    // Кнопка выбора — только у звуков с вариантами; у одиночных на её месте пусто.
+    const pick = s.variants.length > 1 ? el('button', { class: 'pick', type: 'button' }, 'Выбрать') : el('span');
+    const row = el(
+      'div',
+      { class: 'var' },
+      el('span', { class: 'letter', 'aria-hidden': 'true' }, v.key.toUpperCase()),
+      el('span', { class: 'vtitle' }, v.title, s.rec === v.key ? el('span', { class: 'rec' }, 'рекомендую') : null),
+      pick,
+      el('p', { class: 'vnote' }, v.note),
+      el('div', { class: 'vplay' }, p.btn, p.canvas, el('span', { class: 'secs' }, v.hit > 0 ? `удар ${sec(v.hit)}` : sec(v.seconds))),
+    );
+    if (s.variants.length > 1) {
+      pick.addEventListener('click', () => {
+        state.picks[s.id] = state.picks[s.id] === v.key ? undefined : v.key;
+        if (!state.picks[s.id]) delete state.picks[s.id];
+        save();
+        syncPicks();
+      });
+      rows.push({ row, pick, key: v.key });
+    }
+    card.append(row);
+  }
+  if (s.why) card.append(el('p', { class: 'why' }, el('b', {}, `Рекомендую ${s.rec.toUpperCase()}. `), s.why));
+  const noteBtn = el('button', { class: 'notebtn', type: 'button', 'aria-expanded': 'false' }, 'Заметка');
+  const ta = el('textarea', { id: `note-${s.id}`, rows: '2', placeholder: 'Что поправить: тише, короче, другой голос…', hidden: '' });
+  ta.value = state.notes[s.id] || '';
+  const syncNote = () => {
+    noteBtn.classList.toggle('has', !!ta.value.trim());
+    noteBtn.textContent = ta.value.trim() ? 'Заметка ✎' : 'Заметка';
+  };
+  noteBtn.addEventListener('click', () => {
+    ta.hidden = !ta.hidden;
+    noteBtn.setAttribute('aria-expanded', String(!ta.hidden));
+    if (!ta.hidden) ta.focus();
+  });
+  ta.addEventListener('input', () => {
+    const t = ta.value.trim();
+    if (t) state.notes[s.id] = ta.value; else delete state.notes[s.id];
+    save();
+    syncNote();
+    renderSummary();
+  });
+  if (ta.value.trim()) ta.hidden = false;
+  syncNote();
+  card.append(noteBtn, ta);
+  cardsById[s.id] = { s, rows };
+  return card;
+}
+
+// ─── Переделано по заметкам ───
+const redoList = document.getElementById('redoList');
+for (const g of DATA.groups) for (const s of g.sounds) if (s.feedback) redoList.append(soundCard(s, g.tint));
+document.getElementById('removed').append(
+  ...DATA.removed.flatMap((r, i) => [i ? '; ' : 'Убран: ', el('b', {}, r.name), ` — ${r.note}`]),
+  DATA.removed.length ? '.' : '',
+);
+
+// ─── Группы ───
+const root = document.getElementById('groups');
+for (const g of DATA.groups) {
+  const section = el('section', { class: 'group', id: g.id, style: `--tint:${g.tint}` });
+  const cards = el('div', { class: 'cards' });
+  const groupPlayers = [];
+  for (const s of g.sounds) {
+    if (s.feedback) cards.append(el('a', { class: 'moved', href: `#redo-${s.id}` }, el('b', {}, s.name), ' — переделан, три варианта в разделе «Переделано по заметкам»'));
+    else cards.append(soundCard(s, g.tint));
+    groupPlayers.push(recPlayer[s.id]);
+  }
+  const allBtn = el('button', { class: 'all', type: 'button' }, '▶ Всё подряд');
+  allBtn.addEventListener('click', () => {
+    queue = groupPlayers.slice(1);
+    groupPlayers[0]?.play(true);
+  });
+  section.append(el('div', { class: 'ghead' }, el('h2', {}, g.name), el('p', {}, g.desc), allBtn), cards);
+  root.append(section);
+}
+
+// ─── Выбор ───
+function syncPicks() {
+  for (const { s, rows } of Object.values(cardsById)) {
+    for (const r of rows) {
+      const on = state.picks[s.id] === r.key;
+      r.row.classList.toggle('picked', on);
+      r.pick.textContent = on ? 'Выбран' : 'Выбрать';
+      r.pick.setAttribute('aria-pressed', String(on));
+    }
+  }
+  renderSummary();
+}
+
+function renderSummary() {
+  const choices = Object.values(cardsById).filter((c) => c.rows.length);
+  const picked = choices.filter((c) => state.picks[c.s.id]).length;
+  const notes = Object.keys(state.notes).length;
+  document.getElementById('summary').replaceChildren(
+    'Выбрано ', el('b', {}, `${picked} из ${choices.length}`), ' · заметок ', el('b', {}, String(notes)),
+    picked < choices.length ? ' · без выбора — рекомендованный' : '',
+  );
+}
+
+function chatText() {
+  const choices = Object.values(cardsById).filter((c) => c.rows.length);
+  const parts = choices.map(({ s }) => {
+    const k = state.picks[s.id];
+    const v = s.variants.find((x) => x.key === (k ?? s.rec));
+    return `${s.name} — ${v.key.toUpperCase()} «${v.title}»${k ? '' : ' (рекоменд.)'}`;
+  });
+  const notes = Object.entries(state.notes)
+    .filter(([, t]) => t.trim())
+    .map(([id, t]) => `${cardsById[id]?.s.name ?? id}: ${t.trim().replace(/\s+/g, ' ')}`);
+  return `Звуки, второй круг: ${parts.join('; ')}.${notes.length ? ` Заметки — ${notes.join('; ')}.` : ''}`;
+}
+
+document.getElementById('copy').addEventListener('click', () => {
+  const text = chatText();
+  const done = () => {
+    const c = document.getElementById('copied');
+    c.hidden = false;
+    setTimeout(() => { c.hidden = true; }, 1600);
+  };
+  const fallback = () => {
+    const box = document.getElementById('fallback');
+    const ta = document.getElementById('copytext');
+    ta.value = text;
+    box.hidden = false;
+    ta.focus();
+    ta.select();
+  };
+  try { navigator.clipboard.writeText(text).then(done, fallback); } catch { fallback(); }
+});
+
+syncPicks();
+const redrawAll = () => players.forEach((p) => p.redraw());
+redrawAll();
+window.addEventListener('resize', redrawAll);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(redrawAll);
+</script>

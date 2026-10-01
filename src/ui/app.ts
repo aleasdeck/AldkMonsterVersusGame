@@ -26,6 +26,7 @@ import {
   saveLockSkip,
   saveMusic,
   saveRun,
+  saveSfx,
   savePick,
   saveSignaturePick,
   setAllUnlocked,
@@ -33,10 +34,13 @@ import {
   startUnlocked,
   traitUnlocked,
   musicVolumeOf,
+  sfxVolumeOf,
   type Profile,
   type RunUnlocks,
 } from './save';
 import { music } from './music';
+import { sfx } from './sfx';
+import { cueFlip, enemyCue, eventCue, heroCues } from './sfx/cues';
 import { achievementKey } from '../data/mastery';
 import { artifactDef } from '../data/artifacts';
 import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
@@ -137,6 +141,15 @@ export class App {
   private screenChangedAt = -Infinity;
   /** Музыка локаций — для отладки из консоли: `mv.music.force('crypt')`. */
   readonly music = music;
+  /** Звуки действий — для отладки из консоли: `mv.sfx.play('hit_blade')`, `mv.sfx.log`. */
+  readonly sfx = sfx;
+  /**
+   * Что видели звуки на прошлой перерисовке (`noteSounds`): начало боя, смена хода, победа и гибель, золото — это
+   * переходы состояния, их звук играет тот, кто их заметил. Другой забег (новый, загруженный) — без звука, с чистого листа.
+   */
+  private heard: { run: RunState | null; battle: unknown; phase: string | undefined; runPhase: string | undefined; gold: number } = { run: null, battle: null, phase: undefined, runPhase: undefined, gold: 0 };
+  /** id врага по uid — со всех перерисовок боя: погибший уже снят с поля, а звуку гибели нужен его ранг. */
+  private uidDefs = new Map<number, string>();
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -145,6 +158,18 @@ export class App {
     installHotkeys(this);
     music.install();
     music.setVolume(musicVolumeOf(this.profile), !!this.profile.musicMuted);
+    sfx.install();
+    sfx.setVolume(sfxVolumeOf(this.profile), !!this.profile.sfxMuted);
+    // Кнопка без своего звука щёлкает: в начале клика запоминаем, сколько звуков было, в конце всплытия — звучал ли
+    // сам обработчик (взять предмет, удар, выбор приёма). Нет — щелчок, а у недоступной (класс off) — «нельзя».
+    // Проглоченный после смены экрана клик (SETTLE_MS) до window не всплывает и не щёлкает.
+    let before = 0;
+    window.addEventListener('click', () => (before = sfx.played), true);
+    window.addEventListener('click', (ev) => {
+      if (sfx.played !== before) return;
+      const btn = (ev.target as HTMLElement | null)?.closest?.('button');
+      if (btn) sfx.play(btn.classList.contains('off') ? 'ui_deny' : 'ui_click');
+    });
     root.addEventListener(
       'click',
       (ev) => {
@@ -178,6 +203,7 @@ export class App {
   }
 
   render(): void {
+    this.noteSounds();
     this.noteOutcome();
     this.noteEnemies();
     this.noteFinds();
@@ -263,6 +289,7 @@ export class App {
   }
 
   showToast(text: string): void {
+    sfx.play('achievement');
     this.toast = text;
     if (this.toastTimer !== null) window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => {
@@ -305,6 +332,47 @@ export class App {
     const run = this.run;
     if (this.screen !== 'run' || !run || R.isRunOver(run) || run.battle?.phase === 'lost') return null;
     return R.currentLocation(run).id;
+  }
+
+  /**
+   * Звуки переходов состояния, замеченных перерисовкой: новый бой (босс — свой), ход вернулся к герою, бой выигран или
+   * герой пал, забег выигран, золота прибыло. Траты золота звучат там, где тратят (покупка, кузнец), — иначе вор,
+   * уносящий кошель, звенел бы покупкой. Другой забег — только запомнить, без звука: загрузка не начинает бой заново.
+   */
+  private noteSounds(): void {
+    const r = this.run;
+    const b = r?.battle ?? null;
+    const seen = this.heard;
+    if (b) for (const e of b.enemies) this.uidDefs.set(e.uid, e.defId);
+    if (r && r === seen.run && this.screen === 'run') {
+      if (b && b !== seen.battle && b.phase === 'player') sfx.play(R.currentRoomKind(r) === 'boss' ? 'boss_start' : 'battle_start');
+      else if (b && b === seen.battle && b.phase !== seen.phase) {
+        if (b.phase === 'player' && seen.phase === 'enemy') sfx.play('turn_start');
+        // Победа — чуть позже: сначала падает последний враг (его звук гибели играет розыгрыш событий), потом аккорд.
+        else if (b.phase === 'won') sfx.play('battle_win', { impact: 450 });
+        else if (b.phase === 'lost') sfx.play('hero_death');
+      }
+      if (r.phase === 'victory' && seen.runPhase !== 'victory') sfx.play('run_win');
+      if (r.gold > seen.gold) sfx.play('gold');
+    }
+    this.heard = { run: r, battle: b, phase: b?.phase, runPhase: r?.phase, gold: r?.gold ?? 0 };
+  }
+
+  // ─── Звуки ───────────────────────────────────────────────────────────────
+
+  /** Громкость звуков шагом в 10 % (кнопки «−» и «+» в паузе); с нуля вверх — звуки снова включены. */
+  stepSfx(dir: 1 | -1): void {
+    const vol = Math.max(0, Math.min(1, sfxVolumeOf(this.profile) + dir * 0.1));
+    this.profile = saveSfx(vol, dir > 0 ? false : !!this.profile.sfxMuted);
+    sfx.setVolume(sfxVolumeOf(this.profile), !!this.profile.sfxMuted);
+    this.render();
+  }
+
+  /** Выключить или включить звуки действий (кнопка в паузе); громкость помнится. */
+  toggleSfx(): void {
+    this.profile = saveSfx(sfxVolumeOf(this.profile), !this.profile.sfxMuted);
+    sfx.setVolume(sfxVolumeOf(this.profile), !!this.profile.sfxMuted);
+    this.render();
   }
 
   // ─── Музыка ──────────────────────────────────────────────────────────────
@@ -371,12 +439,14 @@ export class App {
   // ─── Оверлеи ─────────────────────────────────────────────────────────────
 
   toggleSheet(): void {
+    sfx.play('ui_open');
     this.sheetOpen = !this.sheetOpen;
     this.pauseOpen = false;
     this.render();
   }
 
   togglePause(): void {
+    sfx.play('ui_open');
     this.pauseOpen = !this.pauseOpen;
     this.sheetOpen = false;
     this.render();
@@ -480,17 +550,20 @@ export class App {
   }
 
   selectHero(id: string): void {
+    sfx.play('ui_select');
     this.heroPick = id;
     this.render();
   }
 
   setHeroTab(tab: 'hero' | 'start' | 'mastery'): void {
+    sfx.play('ui_select');
     this.heroTab = tab;
     this.render();
   }
 
   /** Клик по карточке персонального артефакта на экране героя: закрытый не выбирается, выбор живёт в профиле. */
   selectSignature(heroId: string, id: string): void {
+    sfx.play('ui_select');
     if (!signatureUnlocked(this.profile, heroDef(heroId), id)) return;
     this.profile = saveSignaturePick(heroId, id);
     this.render();
@@ -498,6 +571,7 @@ export class App {
 
   /** Черта героя на экране выбора (v0.45): закрытая не выбирается. */
   selectTrait(heroId: string, id: string): void {
+    sfx.play('ui_select');
     if (!traitUnlocked(this.profile, heroDef(heroId), id)) return;
     this.profile = savePick('traitPick', heroId, id);
     this.render();
@@ -505,12 +579,14 @@ export class App {
 
   /** Сложность следующего забега на экране выбора героя: общая для всех героев, живёт в профиле. */
   selectDifficulty(d: Difficulty): void {
+    sfx.play('ui_select');
     this.profile = saveDifficulty(d);
     this.render();
   }
 
   /** Стартовое оружие на экране выбора (v0.45): вариант открывается мастерством 5. */
   selectStart(heroId: string, base: string): void {
+    sfx.play('ui_select');
     if (!startUnlocked(this.profile, heroDef(heroId), base)) return;
     this.profile = savePick('startPick', heroId, base);
     this.render();
@@ -603,6 +679,7 @@ export class App {
     this.armed = null;
     this.resultRecorded = false;
     this.screen = 'run';
+    sfx.play('run_start');
     this.commit();
   }
 
@@ -641,6 +718,7 @@ export class App {
   enterRoom(): void {
     if (!this.run) return;
     // Отладка (&events=kind): клетка события всегда разыгрывает заданный вид — живой забег, но нужное событие.
+    if (this.run.phase === 'map') sfx.play('step');
     if (this.forcedEvent && this.run.phase === 'map' && R.currentRoomKind(this.run) === 'event') R.startEvent(this.run, this.forcedEvent);
     else R.enterRoom(this.run);
     this.armed = null;
@@ -672,6 +750,7 @@ export class App {
   /** Выбрать приём (повторно — снять выбор). */
   arm(key: string | null): void {
     this.armed = this.armed === key ? null : key;
+    if (this.armed) sfx.play('ui_select');
     this.render();
   }
 
@@ -681,12 +760,14 @@ export class App {
     if (!b || b.phase !== 'player' || this.busy) return;
     const spec = this.armedSpec();
     if (!spec) {
+      sfx.play('ui_deny');
       showPreview(this, { title: findEnemy(b, uid)?.name ?? '', parts: [], err: 'Сначала выберите приём' });
       return;
     }
     const action = spec.action(uid);
     const err = canUseAction(b, action);
     if (err) {
+      sfx.play('ui_deny');
       showPreview(this, { ...spec.preview(uid), err });
       return;
     }
@@ -708,6 +789,7 @@ export class App {
     if (!spec || spec.targets.length === 0) return;
     const i = this.aim === null ? -1 : spec.targets.indexOf(this.aim);
     this.aim = spec.targets[(i + 1) % spec.targets.length];
+    sfx.play('ui_select', { gain: 0.6 });
     for (const el of this.root.querySelectorAll('.enemy.aim')) el.classList.remove('aim');
     this.root.querySelector(`.enemy[data-uid="${this.aim}"]`)?.classList.add('aim');
     showPreview(this, spec.preview(this.aim));
@@ -733,7 +815,10 @@ export class App {
   battleAction(action: PlayerAction, animate = true): void {
     const run = this.run;
     if (!run?.battle || this.busy || this.fxTimer !== null) return;
-    if (canUseAction(run.battle, action)) return;
+    if (canUseAction(run.battle, action)) {
+      if (animate) sfx.play('ui_deny');
+      return;
+    }
     const plan = animate ? planHeroFx(run, action) : null;
     // Клип героя стартует до применения приёма: он играет на старом поле вместе со снарядом. У героя-лепки удар,
     // снаряд и цифры ждут кадра контакта клипа — как у врагов-лепки (у рисованного контакт 0, план не меняется).
@@ -748,6 +833,13 @@ export class App {
       plan!.selfFx = hold.selfFx;
       lock = hold.lock;
     }
+    // Звук приёма — по плану анимации, уже приуроченному к кадру контакта: удар звука ложится на попадание.
+    const heardIds = new Set<string>();
+    if (plan) {
+      const cues = heroCues(run, action, plan);
+      sfx.cues(cues);
+      for (const c of cues) heardIds.add(c.id);
+    }
     R.battleAction(run, action);
     const events = run.battle.events.splice(0);
     if (!plan) {
@@ -760,7 +852,7 @@ export class App {
     const land = () => {
       this.fxTimer = null;
       this.render();
-      this.playEvents(events, plan);
+      this.playEvents(events, plan, false, heardIds);
       if (lock > impact) this.fxTimer = window.setTimeout(() => (this.fxTimer = null), lock - impact);
     };
     if (impact > 0) this.fxTimer = window.setTimeout(land, impact);
@@ -800,6 +892,8 @@ export class App {
     const events = run.battle.events.splice(0);
     const plan = planEnemyFx(run, events, victim);
     let clipImpact = 0;
+    const strikes: { id: string; flip: boolean }[] = [];
+    const heardIds = new Set<string>();
     for (const ev of events) {
       if (ev.type !== 'enemyAction') continue;
       const at = playEnemyAction(this.root, ev.target, ev.name);
@@ -808,18 +902,26 @@ export class App {
         clipImpact = Math.max(clipImpact, at);
         plan.lunged.add(ev.target);
       }
+      // Звук приёма врага: удар — к попаданию (ниже, когда известен impact), остальное — сразу.
+      const defId = this.uidDefs.get(ev.target) ?? run.battle.enemies.find((e) => e.uid === ev.target)?.defId;
+      const cue = defId ? enemyCue(defId, ev.name) : null;
+      if (!cue) continue;
+      heardIds.add(cue.id);
+      if (cue.strike) strikes.push(cue);
+      else sfx.play(cue.id, { flip: cue.flip });
     }
     const impact = Math.max(playShots(this.root, plan), clipImpact);
+    for (const c of strikes) sfx.play(c.id, { impact, flip: c.flip });
     const land = () => {
       this.stepTimer = null;
       if (run.battle!.phase === 'enemy') {
         this.render();
-        this.scheduleStep(this.playEvents(events, plan));
+        this.scheduleStep(this.playEvents(events, plan, true, heardIds));
       } else {
         this.busy = false;
         saveRun(run);
         this.render();
-        this.playEvents(events, plan);
+        this.playEvents(events, plan, true, heardIds);
       }
     };
     if (impact > 0) this.stepTimer = window.setTimeout(land, impact);
@@ -836,6 +938,7 @@ export class App {
 
   /** Лог боя за весь забег: в бою — панель на поле, вне боя — оверлей. Открывается поверх паузы. */
   toggleLog(): void {
+    sfx.play('ui_open');
     this.logOpen = !this.logOpen;
     if (this.logOpen) this.pauseOpen = false;
     this.render();
@@ -853,7 +956,10 @@ export class App {
 
   takeReward(index: number): void {
     if (!this.run) return;
+    const item = this.run.pending ? undefined : this.run.rewards[0]?.options[index];
     R.takeReward(this.run, index);
+    // Артефакт, которому нужен выбор сокета, звякнет, когда встанет (pendingPlace), — здесь только выбор.
+    if (item) sfx.play(item.kind === 'gear' ? 'gear' : item.kind === 'potion' ? 'potion_take' : this.run.pending ? 'ui_select' : 'artifact');
     this.afterPhaseChange();
   }
 
@@ -865,30 +971,42 @@ export class App {
 
   rerollReward(): void {
     if (!this.run) return;
-    if (R.rerollReward(this.run)) this.commit();
+    if (R.rerollReward(this.run)) {
+      sfx.play('reroll');
+      this.commit();
+    }
   }
 
   /** Испытание локации (v0.48): выбор из двух предложенных перед первой клеткой. */
   chooseTrial(id: string): void {
     if (!this.run) return;
-    if (R.chooseTrial(this.run, id)) this.commit();
+    if (R.chooseTrial(this.run, id)) {
+      sfx.play('ui_select');
+      this.commit();
+    }
   }
 
   /** Благословение локации (лёгкая сложность): выбор из двух предложенных перед первой клеткой. */
   chooseBoon(id: string): void {
     if (!this.run) return;
-    if (R.chooseBoon(this.run, id)) this.commit();
+    if (R.chooseBoon(this.run, id)) {
+      sfx.play('ui_select');
+      this.commit();
+    }
   }
 
   /** Пул награды за бой: «Нападение» или «Защита» (v0.39), после выбора катятся три карточки. */
   chooseRewardFocus(focus: RewardFocus): void {
     if (!this.run) return;
-    if (R.chooseRewardFocus(this.run, focus)) this.commit();
+    if (R.chooseRewardFocus(this.run, focus)) {
+      sfx.play('ui_select');
+      this.commit();
+    }
   }
 
   pendingPlace(kind: GearKind, index: number): void {
     if (!this.run) return;
-    R.pendingPlace(this.run, kind, index);
+    if (R.pendingPlace(this.run, kind, index)) sfx.play('artifact');
     this.afterPhaseChange();
   }
 
@@ -901,6 +1019,7 @@ export class App {
   /** Переплавить ожидающий артефакт в тир артефакту своего архетипа (v0.43). */
   pendingSmelt(kind: GearKind, index: number): void {
     if (!this.run) return;
+    sfx.play('forge');
     R.pendingSmelt(this.run, kind, index);
     this.afterPhaseChange();
   }
@@ -936,12 +1055,14 @@ export class App {
       (grades) => {
         R.openChest(run, grades);
         saveRun(run);
+        if (!ev.jammed) sfx.play('chest_open');
         return { gold: ev.lockGold ?? 0, needle: ev.needle ?? 0 };
       },
       () => {
         this.closeChestLock();
         this.render();
       },
+      (grade) => sfx.play(grade === 'great' ? 'lock_great' : grade === 'good' ? 'lock_pin' : 'lock_jam'),
     );
     this.render();
   }
@@ -960,29 +1081,40 @@ export class App {
   /** Открыть сундук без мини-игры — как «хорошо» на всех штифтах. */
   openChest(): void {
     if (!this.run) return;
+    sfx.play('chest_open');
     R.openChest(this.run);
     this.commit();
   }
 
   takeChestItem(item: R.ChestItem): void {
     if (!this.run) return;
-    if (R.takeChestItem(this.run, item)) this.afterPhaseChange();
+    if (R.takeChestItem(this.run, item)) {
+      sfx.play(item === 'gear' ? 'gear' : item === 'potion' ? 'potion_take' : this.run.pending ? 'ui_select' : 'artifact');
+      this.afterPhaseChange();
+    }
   }
 
   altarPray(): void {
     if (!this.run) return;
+    sfx.play('altar');
     R.altarPray(this.run);
     this.afterPhaseChange();
   }
 
   altarSacrifice(): void {
     if (!this.run) return;
-    if (R.altarSacrifice(this.run)) this.afterPhaseChange();
+    if (R.altarSacrifice(this.run)) {
+      sfx.play('sacrifice');
+      this.afterPhaseChange();
+    }
   }
 
   forgeUpgrade(kind: GearKind): void {
     if (!this.run) return;
-    if (R.forgeUpgrade(this.run, kind)) this.afterPhaseChange();
+    if (R.forgeUpgrade(this.run, kind)) {
+      sfx.play('forge');
+      this.afterPhaseChange();
+    }
   }
 
   gnomeTakeLoot(): void {
@@ -994,27 +1126,43 @@ export class App {
 
   shopHeal(): void {
     if (!this.run) return;
-    if (R.shopHeal(this.run)) this.commit();
+    if (R.shopHeal(this.run)) {
+      sfx.play('buy');
+      this.commit();
+    }
   }
 
   shopBuyGear(): void {
     if (!this.run) return;
-    if (R.shopBuyGear(this.run)) this.afterPhaseChange();
+    if (R.shopBuyGear(this.run)) {
+      sfx.play('buy');
+      this.afterPhaseChange();
+    }
   }
 
   shopBuyArtifact(): void {
     if (!this.run) return;
-    if (R.shopBuyArtifact(this.run)) this.afterPhaseChange();
+    if (R.shopBuyArtifact(this.run)) {
+      sfx.play('buy');
+      this.afterPhaseChange();
+    }
   }
 
   shopBuyPotion(): void {
     if (!this.run) return;
-    if (R.shopBuyPotion(this.run)) this.commit();
+    if (R.shopBuyPotion(this.run)) {
+      sfx.play('buy');
+      this.commit();
+    }
   }
 
   shopReroll(): void {
     if (!this.run) return;
-    if (R.shopReroll(this.run)) this.commit();
+    if (R.shopReroll(this.run)) {
+      sfx.play('buy');
+      sfx.play('reroll');
+      this.commit();
+    }
   }
 
   leaveShop(): void {
@@ -1025,12 +1173,14 @@ export class App {
 
   campRest(): void {
     if (!this.run) return;
+    sfx.play('rest');
     R.campRest(this.run);
     this.afterPhaseChange();
   }
 
   campForge(kind: GearKind, index: number): void {
     if (!this.run) return;
+    sfx.play('forge');
     R.campForge(this.run, kind, index);
     this.afterPhaseChange();
   }
@@ -1098,8 +1248,24 @@ export class App {
    * Всплывающие цифры и эффекты по событиям боя. Удары одного приёма по одной цели идут по очереди с шагом HIT_GAP:
    * каждый — своя цифра, своя тряска, свой наскок бьющего и свой кусок полоски HP. Возвращает, через сколько мс отыграет последний удар.
    */
-  playEvents(events: BattleEvent[], plan?: FxPlan): number {
+  /**
+   * `enemyTurn` — розыгрыш хода врагов (удар по врагу тогда — укус союзника, со своим звуком); `heard` — звуки, уже
+   * сыгранные приёмом этого розыгрыша: статус, тик раны и призыв звучат один раз на розыгрыш.
+   */
+  playEvents(events: BattleEvent[], plan?: FxPlan, enemyTurn = false, heard: Set<string> = new Set()): number {
     const counters = new Map<string, number>();
+    const sound = (ev: BattleEvent): void => {
+      if (ev.type === 'log') return;
+      const defId = ev.type === 'death' ? this.uidDefs.get(ev.target) : undefined;
+      const id = eventCue(ev, enemyTurn, !!defId && enemyDef(defId).rank === 'boss');
+      if (!id) return;
+      // Удар звучит на каждый удар, остальное — раз на розыгрыш: три врага в крови — одни брызги.
+      if (ev.type !== 'damage' || id === 'wound_tick') {
+        if (heard.has(id)) return;
+        heard.add(id);
+      }
+      sfx.play(id, { flip: cueFlip(id, ev.target) });
+    };
     const hitSeq = new Map<string, number>();
     const drains = this.planDrains(events);
     let actor: EventTarget | null = plan?.lunged.has('hero') ? 'hero' : null;
@@ -1126,8 +1292,14 @@ export class App {
     for (const a of plan?.after ?? []) after(a);
     for (const ev of events) {
       if (ev.type === 'log') continue;
+      // Звук события — раньше поиска спрайта: погибшего уже нет на поле, а его гибель должна прозвучать.
+      if (ev.type !== 'damage') sound(ev);
       const wrap = this.spriteWrap(ev.target);
-      if (!wrap) continue;
+      if (!wrap) {
+        // Добивающий крит — по уже снятой с поля цели: цифры не будет, а хруст должен быть.
+        if (ev.type === 'damage') sound(ev);
+        continue;
+      }
       const fx = eventFx(ev);
       // Латы, статусы, лечение и облако видны у всех, свечение — только у героя, элит и боссов.
       if (fx && (fx.kind !== 'glow' || this.glows(ev.target))) after({ ...fx, target: ev.target });
@@ -1152,6 +1324,7 @@ export class App {
           // Цифры ударов разнесены по времени, а не по высоте: каждая стартует с той же строки, что и первая.
           const drain = drains.get(key);
           const land = () => {
+            sound(ev);
             const animatedEnemy = playEnemyClip(this.root, ev.target, hurt ? 'hurt' : 'block');
             if (hurt && !animatedEnemy) shake(wrap);
             // Герою прилетело: своя анимация вместо одной тряски — блок, если удар погас о щит, и ответ мечом, если за
@@ -1229,7 +1402,8 @@ export class App {
     if (!b) return;
     const struck = events ? new Set(events.flatMap((e) => (e.type === 'damage' && e.kind !== 'dot' ? [e.target] : []))) : null;
     const fighters: Array<[EventTarget, number]> = [['hero', b.hero.block], ...b.enemies.map((e): [EventTarget, number] => [e.uid, e.block]), ...b.allies.map((a): [EventTarget, number] => [a.uid, a.block])];
-    syncPlates(this.root, fighters, struck);
+    // Пробитый блок: латы ломаются — и звук слома, со стороны того, у кого сломались.
+    for (const t of syncPlates(this.root, fighters, struck)) sfx.play('block_break', { flip: cueFlip('block_break', t) });
   }
 }
 
