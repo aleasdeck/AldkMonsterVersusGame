@@ -57,6 +57,26 @@ export interface Profile {
   difficulty?: Difficulty;
   /** Сундук без мини-игры (v0.54.2, настройка в паузе): открывается сразу, как «хорошо» на всех штифтах — без бонуса и без иглы. */
   lockSkip?: boolean;
+  /** Громкость музыки локаций 0..1 (настройка в паузе); нет — MUSIC_VOLUME. */
+  musicVolume?: number;
+  /** Музыка выключена (M или кнопка в паузе); громкость при этом помнится. */
+  musicMuted?: boolean;
+}
+
+/** Громкость музыки по умолчанию: половина шкалы. */
+export const MUSIC_VOLUME = 0.5;
+
+export function musicVolumeOf(p: Profile): number {
+  const v = p.musicVolume;
+  return typeof v === 'number' && v >= 0 && v <= 1 ? v : MUSIC_VOLUME;
+}
+
+/** Запомнить громкость и выключатель музыки: настройка общая для всех забегов. */
+export function saveMusic(volume: number, muted: boolean): Profile {
+  const p = loadProfile();
+  p.musicVolume = Math.max(0, Math.min(1, Math.round(volume * 10) / 10));
+  p.musicMuted = muted;
+  return saveProfile(p);
 }
 
 function emptyProfile(): Profile {
