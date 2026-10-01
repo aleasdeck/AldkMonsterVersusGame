@@ -146,10 +146,12 @@ export function platesGain(root: ParentNode, target: EventTarget): void {
 /**
  * Свести латы с состоянием боя после розыгрыша событий (переходы — `plateSync`): `fighters` — блок каждого бойца
  * на поле, `struck` — кого ударили в этом розыгрыше (раны мимо блока не в счёт); null — перерисовка без событий.
+ * Отдаёт бойцов, у которых латы сломались, — App играет им звук пробитого блока.
  */
-export function syncPlates(root: ParentNode, fighters: Array<[EventTarget, number]>, struck: Set<EventTarget> | null): void {
+export function syncPlates(root: ParentNode, fighters: Array<[EventTarget, number]>, struck: Set<EventTarget> | null): EventTarget[] {
   const L = pxLayer(root);
-  if (!L) return;
+  const broken: EventTarget[] = [];
+  if (!L) return broken;
   const now = L.now();
   const alive = new Set(fighters.map(([t]) => String(t)));
   for (const [k, keep] of L.keeps) if (keep instanceof Plates && !alive.has(String(keep.target))) L.keeps.delete(k);
@@ -160,6 +162,10 @@ export function syncPlates(root: ParentNode, fighters: Array<[EventTarget, numbe
     if (!p) L.keep(key(t), new Plates(t, next, now));
     else p.set(next, now);
     if (next === 'hit') chips(L, t, 8, 131);
-    if (next === 'break') chips(L, t, 14, 137);
+    if (next === 'break') {
+      chips(L, t, 14, 137);
+      broken.push(t);
+    }
   }
+  return broken;
 }

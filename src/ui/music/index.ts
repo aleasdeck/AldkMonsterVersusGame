@@ -12,6 +12,7 @@
  * до этого `want` только запоминает, что играть, и заказывает рендер. Вкладка в фоне — звук на паузе.
  */
 import type { LocationId } from '../../engine/types';
+import { sharedAudio } from '../audio';
 import { SONGS } from './songs';
 import { renderSteps, type Rendered } from './synth';
 import type { MusicReply } from './worker';
@@ -116,12 +117,13 @@ export class Music {
     if (this.disabled) return;
     try {
       if (!this.ctx) {
-        const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        if (!Ctx) {
+        // Контекст общий со звуками действий (audio.ts): кто первым попросил на жесте, тот и создал.
+        const ctx = sharedAudio();
+        if (!ctx) {
           this.disabled = true;
           return;
         }
-        this.ctx = new Ctx();
+        this.ctx = ctx;
         this.master = this.ctx.createGain();
         this.master.gain.value = this.level();
         this.master.connect(this.ctx.destination);

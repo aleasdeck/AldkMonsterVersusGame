@@ -81,6 +81,9 @@ export interface SfxRendered {
 const TARGET = Math.pow(10, -15 / 20);
 const KNEE = 0.75;
 const MAX_PEAK = 1.1;
+/** Порог обрезки хвоста в игре, дБ от пика: ниже под музыкой не слышно, а память звуков на треть меньше. */
+export const GAME_FLOOR_DB = -45;
+
 /** Зал короткого звука по умолчанию: небольшое помещение, чтобы звук не стоял в пустоте. */
 export const DEFAULT_ROOM: Room = { size: 0.5, damp: 0.5, wet: 0.16, pre: 10 };
 
@@ -105,9 +108,9 @@ export function takeSeconds(take: Take): number {
 
 /**
  * Звук в отсчёты: слои в шину, зал без петли, ФВЧ, обрезка тишины в конце и сведение к громкости `level` дБ.
- * `seed` — id звука: шум засеян им, звук всегда одинаковый.
+ * `seed` — id звука: шум засеян им, звук всегда одинаковый. `floorDb` — порог обрезки хвоста от пика.
  */
-export function renderTake(seed: string, take: Take, room: Room = DEFAULT_ROOM, level = 0, sr = SAMPLE_RATE): SfxRendered {
+export function renderTake(seed: string, take: Take, room: Room = DEFAULT_ROOM, level = 0, sr = SAMPLE_RATE, floorDb = -60): SfxRendered {
   const tail = 0.25 + room.size * 2.2 * Math.min(1, room.wet * 4);
   const N = Math.max(1, Math.ceil((takeSeconds(take) + tail) * sr));
   const bus = makeBus(N, sr, seed);
@@ -129,10 +132,11 @@ export function renderTake(seed: string, take: Take, room: Room = DEFAULT_ROOM, 
   }
   finishShot(bus, room);
   const { L, R } = bus;
-  // Хвост: последний отсчёт громче −60 дБ от пика, дальше — тишина, её отрезаем с гашением 20 мс.
+  // Хвост: последний отсчёт громче `floorDb` от пика (на странице −60 дБ, в игре −45: под музыкой тише не слышно, а память
+  // звуков от этого на треть меньше), дальше — тишина, её отрезаем с гашением 20 мс.
   let peak = 0;
   for (let i = 0; i < N; i++) peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));
-  const floor = peak * Math.pow(10, -60 / 20);
+  const floor = peak * Math.pow(10, floorDb / 20);
   let end = N;
   while (end > 1 && Math.abs(L[end - 1]) < floor && Math.abs(R[end - 1]) < floor) end--;
   end = Math.min(N, end + Math.round(0.02 * sr));

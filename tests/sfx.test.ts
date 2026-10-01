@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderTake, takeSeconds } from '../src/ui/sfx/render';
-import { SFX, SFX_GROUPS, SFX_LIST, sfxTake } from '../src/ui/sfx/sounds';
+import { renderOrder, SFX, SFX_GROUPS, SFX_LIST, sfxTake } from '../src/ui/sfx/sounds';
+import { cueFlip, enemyActionCue, eventCue, shotCue } from '../src/ui/sfx/cues';
+import { ENEMY_LIST, enemyDef } from '../src/data/enemies';
 
 /** Тест рендерит на 11 кГц ради скорости: он проверяет, что звук собирается, а не как звучит. */
 const SR = 11025;
@@ -60,5 +62,47 @@ describe('звуки действий: рендер', () => {
   it('надстройка звучит вместе с основой: крит длиннее себя самого на замах клинка', () => {
     const crit = SFX.crit;
     expect(takeSeconds(sfxTake(crit).take)).toBeGreaterThan(takeSeconds(sfxTake(crit, undefined, true).take));
+  });
+});
+
+describe('звуки действий: что у какого действия', () => {
+  it('порядок рендера — все звуки каталога, каждый один раз', () => {
+    const order = renderOrder();
+    expect(new Set(order).size).toBe(order.length);
+    expect([...order].sort()).toEqual(SFX_LIST.map((d) => d.id).sort());
+  });
+
+  it('у каждого приёма врага звук из каталога (или звук его статуса)', () => {
+    const bad: string[] = [];
+    for (const e of ENEMY_LIST)
+      for (const a of e.actions) {
+        const cue = enemyActionCue(a);
+        if (cue && !SFX[cue.id]) bad.push(`${e.id}:${a.name} → ${cue.id}`);
+      }
+    expect(bad).toEqual([]);
+    const wolf = enemyDef('wolf').actions.find((a) => a.effects.some((x) => x.type === 'attack'))!;
+    expect(enemyActionCue(wolf)).toEqual({ id: 'enemy_strike', strike: true, flip: false });
+    const arrow = enemyDef('skeleton_archer').actions.find((a) => a.fx?.kind === 'arrow')!;
+    expect(enemyActionCue(arrow)?.flip).toBe(true);
+  });
+
+  it('снаряды и события боя звучат звуками каталога', () => {
+    for (const kind of ['melee', 'arrow', 'orb', 'flask'] as const)
+      for (const sculpt of [undefined, 'fire', 'ice', 'bolt', 'stone'] as const) expect(SFX[shotCue({ kind, sculpt }, 'sword')], `${kind}/${sculpt}`).toBeDefined();
+    expect(shotCue({ kind: 'melee' }, 'mace')).toBe('hit_blunt');
+    expect(shotCue({ kind: 'melee' }, 'bow')).toBe('hit_blade');
+    const statuses = ['bleed', 'burn', 'poison', 'stun', 'cold', 'frozen', 'weak', 'vulnerable', 'exhaust', 'decay', 'strength'] as const;
+    for (const status of statuses) {
+      const id = eventCue({ type: 'status', target: 1, status, value: 1 }, false);
+      if (id) expect(SFX[id], status).toBeDefined();
+    }
+    expect(eventCue({ type: 'damage', target: 'hero', amount: 3, kind: 'blocked' }, true)).toBe('block_hit');
+    expect(eventCue({ type: 'damage', target: 'hero', amount: 3, kind: 'hit' }, true)).toBe('hurt_hero');
+    expect(eventCue({ type: 'damage', target: 2, amount: 3, kind: 'hit' }, false)).toBeNull();
+    expect(eventCue({ type: 'damage', target: 2, amount: 3, kind: 'crit' }, false)).toBe('crit');
+    expect(eventCue({ type: 'death', target: 2 }, false, true)).toBe('boss_death');
+    expect(cueFlip('block_hit', 2)).toBe(true);
+    expect(cueFlip('crit', 'hero')).toBe(true);
+    expect(cueFlip('hurt_hero', 'hero')).toBe(false);
   });
 });

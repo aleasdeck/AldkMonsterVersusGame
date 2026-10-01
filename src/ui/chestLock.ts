@@ -276,11 +276,15 @@ export class ChestLockView {
   private raf = 0;
   private outcome: LockOutcome | null = null;
   private closeTimer: number | null = null;
+  /** Сколько засечек уже отдано в `onGrade`: срыв по времени (отмычка ушла из зоны) случается без тапа, в кадре. */
+  private heard = 0;
 
   constructor(
     pins: number,
     private readonly onDone: (grades: LockGrade[]) => LockOutcome,
     private readonly onClose: () => void,
+    /** Каждая новая засечка — для звука штифта (App, sfx). */
+    private readonly onGrade?: (grade: LockGrade) => void,
   ) {
     this.lr = new LockRun(pins, performance.now());
     const canvas = h('canvas', { class: 'lock-canvas', width: String(S), height: String(S) }) as HTMLCanvasElement;
@@ -306,6 +310,12 @@ export class ChestLockView {
   tap(t: number): void {
     if (this.done) return;
     if (this.lr.tap(t)) this.kick();
+    this.hearHits();
+  }
+
+  /** Новые засечки — в `onGrade` по одной, сразу как появились: от тапа или срывом по времени. */
+  private hearHits(): void {
+    while (this.heard < this.lr.hits.length) this.onGrade?.(this.lr.hits[this.heard++].grade);
   }
 
   /** Снять цикл и таймер: App закрывает взлом, уходя с экрана. */
@@ -329,6 +339,7 @@ export class ChestLockView {
   private tick(now: number): boolean {
     const lr = this.lr;
     lr.update(now);
+    this.hearHits();
     if (this.done && !this.outcome) this.finish();
     if (this.ctx && this.frame) {
       drawLock(this.frame.data, lr, now);

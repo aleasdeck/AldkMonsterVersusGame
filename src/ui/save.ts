@@ -61,6 +61,10 @@ export interface Profile {
   musicVolume?: number;
   /** Музыка выключена (M или кнопка в паузе); громкость при этом помнится. */
   musicMuted?: boolean;
+  /** Громкость звуков действий 0..1 (настройка в паузе); нет — SFX_VOLUME. */
+  sfxVolume?: number;
+  /** Звуки действий выключены (кнопка в паузе); громкость при этом помнится. */
+  sfxMuted?: boolean;
 }
 
 /** Громкость музыки по умолчанию: половина шкалы. */
@@ -76,6 +80,22 @@ export function saveMusic(volume: number, muted: boolean): Profile {
   const p = loadProfile();
   p.musicVolume = Math.max(0, Math.min(1, Math.round(volume * 10) / 10));
   p.musicMuted = muted;
+  return saveProfile(p);
+}
+
+/** Громкость звуков по умолчанию — половина шкалы, как у музыки: на ней они и сведены с музыкой. */
+export const SFX_VOLUME = 0.5;
+
+export function sfxVolumeOf(p: Profile): number {
+  const v = p.sfxVolume;
+  return typeof v === 'number' && v >= 0 && v <= 1 ? v : SFX_VOLUME;
+}
+
+/** Запомнить громкость и выключатель звуков действий: настройка общая для всех забегов. */
+export function saveSfx(volume: number, muted: boolean): Profile {
+  const p = loadProfile();
+  p.sfxVolume = Math.max(0, Math.min(1, Math.round(volume * 10) / 10));
+  p.sfxMuted = muted;
   return saveProfile(p);
 }
 
