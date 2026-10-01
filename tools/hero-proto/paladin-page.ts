@@ -37,7 +37,7 @@ const state: { hero: Hero; loc: Loc } = { hero: 'sculpt', loc: 'forest' };
 let REF_IMG: HTMLImageElement;
 
 /**
- * Прежний рисованный Паладин: один ряд покоя, 8 кадров за 1,6 с (CLIP_MS.idle в heroSprite.ts), масштаб как в игре —
+ * Прежний рисованный Паладин: один ряд покоя, 8 кадров за 1,6 с (CLIP_MS.idle прежнего heroSprite.ts, до v0.54.7), масштаб как в игре —
  * фигура 180 точек листа → рост 132. Опора — середина рамки фигуры (x 12…178) и низ ячейки листа (земля на 184).
  */
 function refSet(img: HTMLImageElement): ActorSet {

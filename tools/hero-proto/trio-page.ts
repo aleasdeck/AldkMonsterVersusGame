@@ -70,7 +70,7 @@ const state: { loc: Loc; hero: HeroId; ref: boolean } = {
 
 const REF_IMG = new Map<HeroId, HTMLImageElement>();
 
-/** Длительность рядов прежнего листа в игре, мс (CLIP_MS в heroSprite.ts). */
+/** Длительность рядов прежнего листа в игре, мс (CLIP_MS прежнего heroSprite.ts, до v0.54.7). */
 const REF_MS: Partial<Record<SculptClip, number>> = { idle: 1300, attack: 520, heavy: 640, power: 560, heal: 800, buff: 560, block: 560, hurt: 400, death: 1000 };
 
 /**
