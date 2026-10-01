@@ -1,8 +1,9 @@
 /**
- * Воркер рендера музыки: получает id трека («forest-b»), рендерит его (1–3 с работы синтезатора) и отдаёт 32-битные
+ * Воркер рендера музыки: получает id трека (он же id локации), рендерит его (1–3 с работы синтезатора) и отдаёт 32-битные
  * каналы переносом, без копии. Главный поток в это время рисует бой: в нём рендер стоил бы заметного подвисания.
  */
-import { SONG_BY_ID } from './songs';
+import type { LocationId } from '../../engine/types';
+import { SONGS } from './songs';
 import { renderSong } from './synth';
 
 export interface MusicReply {
@@ -14,7 +15,7 @@ export interface MusicReply {
 
 self.onmessage = (ev: MessageEvent<{ id: string }>) => {
   const { id } = ev.data;
-  const r = renderSong(SONG_BY_ID[id]);
+  const r = renderSong(SONGS[id as LocationId]);
   const reply: MusicReply = { id, sampleRate: r.sampleRate, left: r.left, right: r.right };
   self.postMessage(reply, { transfer: [r.left.buffer, r.right.buffer] });
 };

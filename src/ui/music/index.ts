@@ -6,14 +6,13 @@
  * на главный поток во время боя. Готовых буферов держится два (текущая локация и следующая — её трек заказывается
  * к концу акта, как фон), каждый — около 20–25 МБ (44,1 кГц, 32-битный float, стерео, минута).
  *
- * Внутри всё по id трека («forest-b»): у локации несколько вариантов, играет выбранный (SONGS), а отладка может
- * завести любой вариант.
+ * Внутри всё по id трека — это id его локации.
  *
  * Браузер не даёт звуку начаться без жеста игрока, поэтому AudioContext создаётся на первом нажатии мыши или клавиши;
  * до этого `want` только запоминает, что играть, и заказывает рендер. Вкладка в фоне — звук на паузе.
  */
 import type { LocationId } from '../../engine/types';
-import { SONGS, SONG_BY_ID } from './songs';
+import { SONGS } from './songs';
 import { renderSteps, type Rendered } from './synth';
 import type { MusicReply } from './worker';
 
@@ -74,9 +73,9 @@ export class Music {
     this.sync();
   }
 
-  /** Отладка: играть на любом экране трек локации («crypt») или вариант («crypt-b»); null — снова по экрану. */
+  /** Отладка: играть на любом экране трек локации («crypt»); null — снова по экрану. */
   force(id: string | null): void {
-    this.forced = id && id in SONGS ? SONGS[id as LocationId].id : id && SONG_BY_ID[id] ? id : null;
+    this.forced = id && id in SONGS ? SONGS[id as LocationId].id : null;
     this.sync();
   }
 
@@ -96,7 +95,7 @@ export class Music {
   /** Название играющего или ожидаемого трека — для паузы. */
   title(): string | null {
     const id = this.target() ?? this.forced ?? this.wanted;
-    return id ? (SONG_BY_ID[id]?.title ?? null) : null;
+    return id ? (SONGS[id as LocationId]?.title ?? null) : null;
   }
 
   private level(): number {
@@ -203,7 +202,7 @@ export class Music {
 
   /** Без воркера: тот же рендер кусками по SLICE_MS между кадрами, чтобы не подвешивать экран. */
   private renderHere(id: string): void {
-    const it = renderSteps(SONG_BY_ID[id]);
+    const it = renderSteps(SONGS[id as LocationId]);
     const step = (): void => {
       const until = performance.now() + SLICE_MS;
       for (;;) {

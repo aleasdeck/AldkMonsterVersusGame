@@ -1,12 +1,10 @@
 // Музыка локаций в звуковые файлы — послушать трек без игры (docs/muzyka.md, «Проверка»).
 //
-//   node tools/music-render.mjs forest-b           → music-preview/forest-b.wav и сводка в консоли
-//   node tools/music-render.mjs forest             → все варианты локации
-//   node tools/music-render.mjs all --mp3          → все варианты всех локаций, ещё и MP3 (нужен ffmpeg в PATH)
-//   node tools/music-render.mjs picked             → только те, что играют в игре (MUSIC_PICK)
-//   node tools/music-render.mjs crypt-c --loops 2  → петля дважды подряд — слышно стык
-//   node tools/music-render.mjs ship-b --solo песня,лира   → только эти партии
-//   node tools/music-render.mjs all --parts --clash        → громкость партий и резкие созвучия
+//   node tools/music-render.mjs forest             → music-preview/forest.wav и сводка в консоли
+//   node tools/music-render.mjs all --mp3          → все шесть, ещё и MP3 (нужен ffmpeg в PATH)
+//   node tools/music-render.mjs crypt --loops 2    → петля дважды подряд — слышно стык
+//   node tools/music-render.mjs swamp --solo гобой,колокол   → только эти партии
+//   node tools/music-render.mjs all --parts --clash          → громкость партий и резкие созвучия
 //
 // Тот же синтезатор и те же треки, что в игре: esbuild собирает src/ui/music в памяти. WAV — 32-битный float, 44,1 кГц,
 // стерео, как в игре. Сводка: длина петли, время рендера, пик и RMS в дБ, скачок на стыке петли против обычного шага
@@ -29,7 +27,7 @@ const opt = (name, def) => {
 const flag = (name) => args.includes(`--${name}`);
 const which = args.find((a, i) => !a.startsWith('--') && !(i > 0 && VALUED.includes(args[i - 1])));
 if (!which) {
-  console.log('node tools/music-render.mjs <трек | локация | all | picked>[,…] [--mp3] [--loops 2] [--solo партия,партия] [--parts] [--clash] [--out music-preview]');
+  console.log('node tools/music-render.mjs <локация | all>[,…] [--mp3] [--loops 2] [--solo партия,партия] [--parts] [--clash] [--out music-preview]');
   process.exit(1);
 }
 const OUT = resolve(opt('out', join(ROOT, 'music-preview')));
@@ -41,7 +39,7 @@ const SOLO = opt('solo', '')
 
 const bundle = await build({
   stdin: {
-    contents: ["export { VARIANTS, SONGS, SONG_BY_ID } from './src/ui/music/songs';", "export { renderSong, songSeconds } from './src/ui/music/synth';"].join('\n'),
+    contents: ["export { SONGS } from './src/ui/music/songs';", "export { renderSong, songSeconds } from './src/ui/music/synth';"].join('\n'),
     resolveDir: ROOT,
     loader: 'ts',
   },
@@ -51,17 +49,12 @@ const bundle = await build({
   write: false,
   logLevel: 'warning',
 });
-const { VARIANTS, SONGS, SONG_BY_ID, renderSong, songSeconds } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { SONGS, renderSong, songSeconds } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 
-const ids = which.split(',').flatMap((w) => {
-  if (w === 'all') return Object.keys(SONG_BY_ID);
-  if (w === 'picked') return Object.values(SONGS).map((s) => s.id);
-  if (VARIANTS[w]) return VARIANTS[w].map((s) => s.id);
-  return [w];
-});
-const missing = ids.filter((id) => !SONG_BY_ID[id]);
+const ids = which.split(',').flatMap((w) => (w === 'all' ? Object.keys(SONGS) : [w]));
+const missing = ids.filter((id) => !SONGS[id]);
 if (missing.length) {
-  console.log(`Нет трека: ${missing.join(', ')}. Есть: ${Object.keys(SONG_BY_ID).join(', ')}`);
+  console.log(`Нет трека: ${missing.join(', ')}. Есть: ${Object.keys(SONGS).join(', ')}`);
   process.exit(1);
 }
 
@@ -137,7 +130,7 @@ function clashes(song) {
 
 mkdirSync(OUT, { recursive: true });
 for (const id of ids) {
-  const song = SONG_BY_ID[id];
+  const song = SONGS[id];
   const t0 = performance.now();
   const r = renderSong(song, SOLO.length ? { only: SOLO } : {});
   const ms = performance.now() - t0;

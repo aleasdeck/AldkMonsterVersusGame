@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LOCATIONS } from '../src/data/locations';
-import { MUSIC_PICK, SONGS, SONG_BY_ID, VARIANTS } from '../src/ui/music/songs';
+import { SONGS } from '../src/ui/music/songs';
 import { DRUMS, renderSong, secAt, songBeats, songSeconds, type Instrument, type Song } from '../src/ui/music/synth';
 import { cat, degree, harmony, midiOf, parseChord, rest, scaleOf, score, under, MINOR } from '../src/ui/music/score';
 
@@ -86,24 +86,18 @@ describe('нотная запись', () => {
 });
 
 describe('треки локаций', () => {
-  const all = Object.values(VARIANTS).flat();
+  const all = Object.values(SONGS);
 
-  it('у каждой локации три варианта, выбранный — из них', () => {
+  it('у каждой локации свой трек', () => {
     for (const loc of LOCATIONS) {
-      const list = VARIANTS[loc.id];
-      expect(list?.length, loc.id).toBe(3);
-      list.forEach((song, i) => {
-        expect(song.location).toBe(loc.id);
-        expect(song.variant).toBe('abc'[i]);
-        expect(song.id).toBe(`${loc.id}-${song.variant}`);
-        expect(song.title.length).toBeGreaterThan(0);
-        expect(song.mood.length).toBeGreaterThan(0);
-      });
-      expect(list.map((s) => s.variant)).toContain(MUSIC_PICK[loc.id]);
-      expect(SONGS[loc.id].location).toBe(loc.id);
+      const song = SONGS[loc.id];
+      expect(song, loc.id).toBeTruthy();
+      expect(song.id).toBe(loc.id);
+      expect(song.location).toBe(loc.id);
+      expect(song.title.length).toBeGreaterThan(0);
+      expect(song.mood.length).toBeGreaterThan(0);
     }
     expect(new Set(all.map((s) => s.title)).size).toBe(all.length);
-    expect(Object.keys(SONG_BY_ID).length).toBe(all.length);
   });
 
   it('все партии одной длины, целое число тактов, петля 40–80 с', () => {
@@ -137,8 +131,8 @@ describe('треки локаций', () => {
     }
   });
 
-  it('рендер выбранных треков: float без перегруза, не тишина, громкость к общей', () => {
-    for (const song of Object.values(SONGS)) {
+  it('рендер: float без перегруза, не тишина, громкость к общей', () => {
+    for (const song of all) {
       // Низкая частота — ради скорости теста: проверяется сведение, а не звук.
       const r = renderSong(song, { sr: 6000 });
       expect(r.left.length).toBe(Math.round(songSeconds(song) * 6000));
@@ -167,7 +161,6 @@ describe('синтезатор', () => {
   const seam: Song = {
     id: 'seam',
     location: 'forest',
-    variant: 'a',
     title: 'шов',
     mood: '',
     key: 'ля',
@@ -193,8 +186,11 @@ describe('синтезатор', () => {
   });
 
   it('один и тот же трек — те же отсчёты', () => {
-    const a = renderSong(SONGS.swamp, { sr: 4000, only: ['сердце', 'топь', 'банджо'] });
-    const b = renderSong(SONGS.swamp, { sr: 4000, only: ['сердце', 'топь', 'банджо'] });
+    const parts = ['гобой', 'барабан', 'колокол'];
+    for (const name of parts) expect(SONGS.swamp.parts.map((p) => p.name)).toContain(name);
+    const a = renderSong(SONGS.swamp, { sr: 4000, only: parts });
+    const b = renderSong(SONGS.swamp, { sr: 4000, only: parts });
+    expect(a.left.some((v) => v !== 0)).toBe(true);
     // Typed-массивы в сотни тысяч отсчётов toEqual сравнивает секундами — сравниваем циклом.
     const same = (x: Float32Array, y: Float32Array): boolean => x.length === y.length && x.every((v, i) => v === y[i]);
     expect(same(a.left, b.left)).toBe(true);
