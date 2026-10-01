@@ -1,16 +1,19 @@
 import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { packMask, type MobMask } from '../mobs';
 import { renderAvatar } from './avatar';
-import { clipMs, contactMs, HERO_CLIPS, HERO_STYLE, renderHeroClip, type SculptClip } from './clips';
+import { clipMs, contactMs, HERO_CLIPS, HERO_STYLE, lockMs, renderHeroClip, type SculptClip } from './clips';
+import { archerModel } from './archer';
+import { assassinModel } from './assassin';
 import { berserkModel } from './berserk';
+import { mageModel } from './mage';
 import { modelClip, modelClips, type HeroModel } from './model';
 import { paladinModel } from './paladin';
 import { warriorModel } from './warrior';
 import { canvasUrl } from '../preload';
 
 /**
- * Герои пиксельной лепкой в игре (Воин с v0.54.3, Паладин с v0.54.5, Берсерк с v0.54.6; остальные пока рисованными
- * листами — heroSprite.ts). Каждый клип — своя картинка в ряд кадров (blob-ссылка, `canvasUrl`): клипов у героя
+ * Герои пиксельной лепкой — все шесть (Воин с v0.54.3, Паладин с v0.54.5, Берсерк с v0.54.6, Маг, Ассасин и Лучник
+ * с v0.54.7). Каждый клип — своя картинка в ряд кадров (blob-ссылка, `canvasUrl`): клипов у героя
  * девять–одиннадцать, и рисовать их все разом — больше секунды, поэтому они запекаются по одному (`warmHero` — очередью из `App.warmArt()`, покой первым),
  * а клип, которого ещё нет, — сразу, когда понадобился. Кадры листает CSS (`.hero-sheet::before` в style.css).
  *
@@ -18,7 +21,9 @@ import { canvasUrl } from '../preload';
  * квадрата, земля — по его низу, а кадр целиком (с полем под выпад, замах и падение) рисуется `::before` поверх.
  * Идущий клип переживает `App.render()`: состояние лежит на герое, новый спрайт продолжает его с той же точки.
  */
-export const HERO_MODELS: Record<string, HeroModel> = { warrior: warriorModel(), paladin: paladinModel(), berserk: berserkModel() };
+export const HERO_MODELS: Record<string, HeroModel> = {
+  warrior: warriorModel(), mage: mageModel(), assassin: assassinModel(), paladin: paladinModel(), berserk: berserkModel(), archer: archerModel(),
+};
 
 /** Рисуется ли герой лепкой. */
 export function hasHeroArt(id: string): boolean {
@@ -244,6 +249,15 @@ export function playHeroSculptClip(root: HTMLElement, id: string, want: SculptCl
  */
 export function heroClipContact(id: string, clip: SculptClip): number {
   return contactMs(modelClip(HERO_MODELS[id], clip));
+}
+
+/**
+ * Что клип героя делает с боем помимо кадров: рисует ли сам эффект приёма (`selfFx` — свечение бафа гасится) и сколько
+ * мс от начала держит ввод (`lock`). Чужой личный клип — по его замене.
+ */
+export function heroClipHold(id: string, clip: SculptClip): { selfFx: boolean; lock: number } {
+  const played = modelClip(HERO_MODELS[id], clip);
+  return { selfFx: !!HERO_CLIPS[played].selfFx, lock: lockMs(played) };
 }
 
 /** Длительность кадра клипа, мс. */

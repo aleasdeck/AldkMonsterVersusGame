@@ -8,9 +8,9 @@ import { FOREST_MODELS } from '../../src/ui/mobs/forest';
 import { CRYPT_MODELS } from '../../src/ui/mobs/crypt';
 import { CAVES_MODELS } from '../../src/ui/mobs/caves';
 import { tintVar } from '../../src/ui/tint';
-import { mageModel, MAGE_CLIP_NOTES, MAGE_HEIGHT, MAGE_REC_AVATAR } from '../../src/ui/heroes/mage';
-import { assassinModel, ASSASSIN_CLIP_NOTES, ASSASSIN_REC_AVATAR } from '../../src/ui/heroes/assassin';
-import { archerModel, ARCHER_AVATARS, ARCHER_CLIP_NOTES, ARCHER_AVATAR_REC } from '../../src/ui/heroes/archer';
+import { mageModel, MAGE_CLIP_NOTES, MAGE_HEIGHT } from '../../src/ui/heroes/mage';
+import { assassinModel, ASSASSIN_CLIP_NOTES } from '../../src/ui/heroes/assassin';
+import { archerModel, ARCHER_CLIP_NOTES } from '../../src/ui/heroes/archer';
 import { warriorModel } from '../../src/ui/heroes/warrior';
 import { paladinModel } from '../../src/ui/heroes/paladin';
 import { berserkModel } from '../../src/ui/heroes/berserk';
@@ -35,14 +35,14 @@ const COMMON: SculptClip[] = ['attack', 'heavy', 'power', 'heal', 'buff', 'block
  */
 const HEROES: Record<HeroId, {
   name: string;
-  model: (height: number) => HeroModel;
+  model: () => HeroModel;
   notes: Partial<Record<SculptClip, string>>;
   cell: number;
   body: number;
   rows: Partial<Record<SculptClip, number>>;
 }> = {
   mage: {
-    name: 'Маг', model: (height) => mageModel({ height }), notes: MAGE_CLIP_NOTES,
+    name: 'Маг', model: () => mageModel(), notes: MAGE_CLIP_NOTES,
     cell: 186, body: 134, rows: { idle: 1, attack: 2, heavy: 2, power: 3, heal: 3, buff: 3, block: 4, hurt: 5, death: 6 },
   },
   assassin: { name: 'Ассасин', model: () => assassinModel(), notes: ASSASSIN_CLIP_NOTES, cell: 182, body: 166, rows: { idle: 0 } },
@@ -59,15 +59,11 @@ const GROUND = 282;
 const HERO_X = 130;
 const FOE_X = [380, 600, 823];
 
-/**
- * Что сейчас на странице: локация, герой сцены, лепка или прежний лист и рост Мага: 106 — выбран (площадь Воина);
- * для сравнения 120 — прежнее число таблицы и 98 — как прежний лист стоял в бою.
- */
-const state: { loc: Loc; hero: HeroId; ref: boolean; mageH: number } = {
+/** Что сейчас на странице: локация, герой сцены, лепка или прежний лист. */
+const state: { loc: Loc; hero: HeroId; ref: boolean } = {
   loc: 'forest',
   hero: 'mage',
   ref: false,
-  mageH: MAGE_HEIGHT,
 };
 
 // ─── Наборы кадров ──────────────────────────────────────────────────────────
@@ -98,7 +94,8 @@ function refSet(id: HeroId): ActorSet {
     if (d[(j * cell + i) * 4 + 3] < 128) continue;
     x0 = Math.min(x0, i); x1 = Math.max(x1, i); y1 = Math.max(y1, j);
   }
-  const k = HERO_BODY_HEIGHT[id] / body;
+  // Мага прежний лист в бою масштабировался по 120 (таблица до v0.54.7), лепка встала в 106.
+  const k = (id === 'mage' ? 120 : HERO_BODY_HEIGHT[id]) / body;
   const cache = new Map<string, Anim>();
   return {
     w: cell * k, h: cell * k, ax: ((x0 + x1 + 1) / 2) * k, ay: (y1 + 1) * k, smooth: true,
@@ -117,8 +114,6 @@ function refSet(id: HeroId): ActorSet {
   };
 }
 
-const heightOf = (id: HeroId): number => (id === 'mage' ? state.mageH : HERO_BODY_HEIGHT[id]);
-
 const sets = new Map<string, ActorSet>();
 function cached(key: string, make: () => ActorSet): ActorSet {
   let set = sets.get(key);
@@ -126,16 +121,15 @@ function cached(key: string, make: () => ActorSet): ActorSet {
   return set;
 }
 const models = new Map<string, HeroModel>();
-/** Модель героя (у Мага — в выбранном росте). */
+/** Модель героя — та же, что в игре. */
 function modelOf(id: HeroId): HeroModel {
-  const key = `${id}|${heightOf(id)}`;
-  let m = models.get(key);
-  if (!m) models.set(key, (m = HEROES[id].model(heightOf(id))));
+  let m = models.get(id);
+  if (!m) models.set(id, (m = HEROES[id].model()));
   return m;
 }
-/** Лепка героя (у Мага — в выбранном росте). */
+/** Лепка героя. */
 function modelSet(id: HeroId): ActorSet {
-  return cached(`${id}|${heightOf(id)}`, () => heroSet(modelOf(id), HERO_STYLE));
+  return cached(id, () => heroSet(modelOf(id), HERO_STYLE));
 }
 /** Личные клипы модели — после общих, в разделе героя и в кнопках сцены. */
 const ownClips = (id: HeroId): SculptClip[] => modelClips(modelOf(id)).filter((c) => HERO_CLIPS[c].own);
@@ -306,7 +300,7 @@ function drawSquad(): void {
   fitWindow(host, field(state.loc, null, false, extra).f, 960, 200);
   document.getElementById('squad-names')!.replaceChildren(...SQUAD.map((s) => {
     const el = h('span', s.key in HEROES ? 'new' : '');
-    el.append(h('b', '', s.name), h('span', '', s.key === 'mage' ? `облик A, рост ${state.mageH}` : s.key in HEROES ? 'облик A' : 'в игре'));
+    el.append(h('b', '', s.name), h('span', '', s.key === 'mage' ? `рост ${MAGE_HEIGHT}` : s.key in HEROES ? 'новый' : 'с прошлых версий'));
     return el;
   }));
 }
@@ -366,31 +360,13 @@ function drawAll(): void {
 
 // ─── Аватарка ───────────────────────────────────────────────────────────────
 
-type AvatarKey = 'a' | 'b' | 'c';
-/** Подписи вариантов аватарки — из отчётов лепщиков. */
-const AVATAR_NAMES: Record<HeroId, Record<AvatarKey, string>> = {
-  mage: { a: 'Покой', b: 'Пламя у лица', c: 'Огонёк в ладони' },
-  assassin: { a: 'Покой', b: 'Клинок у груди', c: 'Накрест' },
-  archer: Object.fromEntries(ARCHER_AVATARS.map((v) => [v.id, v.name])) as Record<AvatarKey, string>,
-};
-/**
- * Варианты аватарки (docs/lepka-geroev.md, шаг 5): A — поза покоя в кадре бюста, B и C — свои позы портрета; подписи —
- * из отчётов лепщиков, рекомендация — из файла модели (`*_REC_AVATAR`, она же вариант по умолчанию).
- */
-const AVATARS: Record<HeroId, { rec: AvatarKey; names: Record<AvatarKey, string>; make: (v: AvatarKey) => HeroModel }> = {
-  mage: { rec: MAGE_REC_AVATAR, names: AVATAR_NAMES.mage, make: (v) => mageModel({ variants: { avatar: v } }) },
-  assassin: { rec: ASSASSIN_REC_AVATAR, names: AVATAR_NAMES.assassin, make: (v) => assassinModel({ variants: { avatar: v } }) },
-  archer: { rec: ARCHER_AVATAR_REC, names: AVATAR_NAMES.archer, make: (v) => archerModel({ variants: { avatar: v } }) },
-};
-const AV_KEYS: AvatarKey[] = ['a', 'b', 'c'];
-/** Вариант каждого героя в строке выбора — по умолчанию рекомендованный. */
-const avPick: Record<HeroId, AvatarKey> = { mage: AVATARS.mage.rec, assassin: AVATARS.assassin.rec, archer: AVATARS.archer.rec };
+/** Выбранные аватарки (решение пользователя: Маг B, Ассасин A, Лучник A; отвергнутые — в истории ветки). */
+const AVATAR_NAMES: Record<HeroId, string> = { mage: 'B «Пламя у лица»', assassin: 'A «Покой»', archer: 'A «Покой»' };
 
 const avModels = new Map<string, HeroModel>();
-function avModel(id: HeroId | 'warrior' | 'paladin' | 'berserk', v: AvatarKey = 'a'): HeroModel {
-  const key = `${id}|${v}`;
-  let m = avModels.get(key);
-  if (!m) avModels.set(key, (m = id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : id === 'berserk' ? berserkModel() : AVATARS[id].make(v)));
+function avModel(id: HeroId | 'warrior' | 'paladin' | 'berserk'): HeroModel {
+  let m = avModels.get(id);
+  if (!m) avModels.set(id, (m = id === 'warrior' ? warriorModel() : id === 'paladin' ? paladinModel() : id === 'berserk' ? berserkModel() : modelOf(id)));
   return m;
 }
 
@@ -407,7 +383,7 @@ function avatarCanvas(model: HeroModel, px: number, k: number, label: string): H
   return c;
 }
 
-/** Раздел героя: прежний портрет и три варианта — 112 ×2, как на FullHD, под ним 80 и 44 в размер кадра 960. */
+/** Раздел героя: прежний портрет и выбранная аватарка — 112 ×2, как на FullHD, под ней 80 и 44 в размер кадра 960. */
 function drawAvatarCards(id: HeroId): void {
   const host = document.querySelector<HTMLElement>(`[data-avatars="${id}"]`);
   if (!host) return;
@@ -421,23 +397,18 @@ function drawAvatarCards(id: HeroId): void {
   cap.append(h('b', '', 'Было'), document.createTextNode(' — рисованный портрет генератора'));
   old.append(img, cap);
   host.appendChild(old);
-  const av = AVATARS[id];
-  for (const v of AV_KEYS) {
-    const card = h('figure', v === av.rec ? 'av-card rec' : 'av-card');
-    const model = avModel(id, v);
-    const name = `${v.toUpperCase()} «${av.names[v]}»`;
-    const small = h('div', 'small');
-    small.append(avatarCanvas(model, 80, 1, `${HEROES[id].name}, ${name}, 80 точек`), avatarCanvas(model, 44, 1, `${HEROES[id].name}, ${name}, 44 точки`));
-    const c = h('figcaption');
-    c.append(h('b', '', name));
-    if (v === av.rec) c.append(h('span', 'tag', 'рекомендую'));
-    c.append(h('br'), document.createTextNode('112 ×2 · ниже 80 и 44 в размер кадра'));
-    card.append(avatarCanvas(model, 112, 2, `${HEROES[id].name}, ${name}, 112 точек`), small, c);
-    host.appendChild(card);
-  }
+  const card = h('figure', 'av-card rec');
+  const model = avModel(id);
+  const name = AVATAR_NAMES[id];
+  const small = h('div', 'small');
+  small.append(avatarCanvas(model, 80, 1, `${HEROES[id].name}, ${name}, 80 точек`), avatarCanvas(model, 44, 1, `${HEROES[id].name}, ${name}, 44 точки`));
+  const c = h('figcaption');
+  c.append(h('b', '', name), h('span', 'tag', 'выбрана'), h('br'), document.createTextNode('112 ×2 · ниже 80 и 44 в размер кадра'));
+  card.append(avatarCanvas(model, 112, 2, `${HEROES[id].name}, ${name}, 112 точек`), small, c);
+  host.appendChild(card);
 }
 
-/** Строка выбора героя: шесть плиток по 112 из лепки и та же строка, как сейчас в игре (рисованные портреты троих). */
+/** Строка выбора героя: шесть аватарок из лепки, как в игре, и та же строка с прежними портретами троих. */
 const SELECT: Array<{ id: HeroId | 'warrior' | 'paladin' | 'berserk'; name: string }> = [
   { id: 'warrior', name: 'Воин' }, { id: 'mage', name: 'Маг' }, { id: 'assassin', name: 'Ассасин' },
   { id: 'paladin', name: 'Паладин' }, { id: 'berserk', name: 'Берсерк' }, { id: 'archer', name: 'Лучник' },
@@ -450,9 +421,8 @@ function drawSelectRow(): void {
   was.replaceChildren();
   for (const s of SELECT) {
     const mine = s.id in HEROES;
-    const v = mine ? avPick[s.id as HeroId] : 'a';
     const f = h('figure', mine ? 'new' : '');
-    f.append(avatarCanvas(avModel(s.id, v), 112, 1, `${s.name}, аватарка из лепки`), h('figcaption', '', mine ? `${s.name} · ${v.toUpperCase()}` : s.name));
+    f.append(avatarCanvas(avModel(s.id), 112, 1, `${s.name}, аватарка из лепки`), h('figcaption', '', s.name));
     row.appendChild(f);
     const g = h('figure');
     if (mine) {
@@ -464,32 +434,6 @@ function drawSelectRow(): void {
     } else g.appendChild(avatarCanvas(avModel(s.id), 112, 1, `${s.name}, аватарка из лепки`));
     g.appendChild(h('figcaption', '', mine ? `${s.name} · было` : s.name));
     was.appendChild(g);
-  }
-}
-
-/** Переключатели вариантов строки выбора: по группе на героя. */
-function avatarPickers(): void {
-  const host = document.getElementById('avatar-pick');
-  if (!host) return;
-  for (const id of HERO_IDS) {
-    const g = h('span', 'tog');
-    g.setAttribute('role', 'group');
-    g.setAttribute('aria-label', `Аватарка: ${HEROES[id].name}`);
-    g.append(h('span', 'tog-label', HEROES[id].name));
-    for (const v of AV_KEYS) {
-      const b = button(v.toUpperCase(), v);
-      b.title = AVATARS[id].names[v];
-      g.appendChild(b);
-    }
-    g.addEventListener('click', (e) => {
-      const v = (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v as AvatarKey | undefined;
-      if (!v) return;
-      avPick[id] = v;
-      toggle(g, v);
-      drawSelectRow();
-    });
-    toggle(g, avPick[id]);
-    host.appendChild(g);
   }
 }
 
@@ -531,26 +475,12 @@ function start(): void {
     state.loc = v as Loc;
     drawAll();
   });
-  // Рост Мага — две группы кнопок (в отряде и в разделе Мага), обе с `data-mageh`.
-  for (const g of document.querySelectorAll<HTMLElement>('[data-mageh]')) {
-    g.addEventListener('click', (e) => {
-      const v = (e.target as HTMLElement).closest<HTMLElement>('[data-v]')?.dataset.v;
-      if (!v) return;
-      state.mageH = Number(v);
-      for (const other of document.querySelectorAll<HTMLElement>('[data-mageh]')) toggle(other, v);
-      const jobs: Array<() => void> = [drawScene, drawSquad];
-      drawHero('mage', jobs);
-      queue(jobs);
-    });
-    toggle(g, String(state.mageH));
-  }
   on('speed', (v) => {
     setSpeed(Number(v));
     toggle(document.getElementById('speed')!, v);
   });
   toggle(document.getElementById('speed')!, '1');
   drawPortraits();
-  avatarPickers();
   // Сначала показать текст, потом рисовать: шесть героев по 24 кадра покоя и десятки клипов — секунды работы потока.
   document.getElementById('scene')!.textContent = 'рисую кадры…';
   document.getElementById('squad')!.textContent = 'рисую кадры…';

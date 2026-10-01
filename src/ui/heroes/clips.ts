@@ -35,6 +35,13 @@ export interface HeroClipSpec {
   own?: boolean;
   /** Что играет герой без этого личного клипа (Щитовой удар у героя без щита — сильный удар). */
   instead?: SculptClip;
+  /** Клип сам рисует эффект приёма (дым Исчезновения): свечение бафа на герое поверх него не играет. */
+  selfFx?: boolean;
+  /**
+   * До какого кадра (с нуля) ввод закрыт: приём на себя без снаряда открывает ввод в кадр контакта, и следующий удар
+   * обрывал бы клип посреди эффекта (дым Исчезновения пропадал за кадр, фигура выскакивала из стены).
+   */
+  lock?: number;
 }
 
 /**
@@ -57,12 +64,14 @@ export const HERO_CLIPS: Record<SculptClip, HeroClipSpec> = {
   bash: { frames: 8, fps: 12, contact: 4, own: true, instead: 'heavy', name: 'Щитовой удар', when: 'сигнатура Воина: удар щитом, цель отлетает' },
   riposte: { frames: 8, fps: 12, contact: 4, own: true, instead: 'block', name: 'Ответный удар', when: 'сигнатура Воина: блок погасил удар — ответ мечом' },
   smite: { frames: 10, fps: 12, contact: 5, own: true, instead: 'heavy', name: 'Молот света', when: 'сигнатура Паладина: удар с сиянием — боёк загорается светом и бьёт, свет лечит' },
-  vanish: { frames: 14, fps: 12, contact: 4, own: true, instead: 'buff', name: 'Исчезновение', when: 'Дымовая шашка у Ассасина: шашка под ноги, дым встаёт стеной, силуэт растворяется в нём и выходит из дыма тенью' },
+  vanish: { frames: 14, fps: 12, contact: 4, own: true, instead: 'buff', selfFx: true, lock: 11, name: 'Исчезновение', when: 'Дымовая шашка у Ассасина: шашка под ноги, дым встаёт стеной, силуэт растворяется в нём и выходит из дыма тенью' },
 };
 
 /** Длительность клипа и момент контакта от его начала, мс. */
 export const clipMs = (clip: SculptClip): number => (HERO_CLIPS[clip].frames / HERO_CLIPS[clip].fps) * 1000;
 export const contactMs = (clip: SculptClip): number => ((HERO_CLIPS[clip].contact ?? 0) / HERO_CLIPS[clip].fps) * 1000;
+/** Сколько мс от начала клипа ввод закрыт (`lock`; 0 — открывается вместе с контактом). */
+export const lockMs = (clip: SculptClip): number => ((HERO_CLIPS[clip].lock ?? 0) / HERO_CLIPS[clip].fps) * 1000;
 
 /** Какой клип и кадр рисует Painter: `null` — покой (фаза `p.t`). */
 export function clipAt(p: Painter): { clip: SculptClip; f: number; n: number } | null {

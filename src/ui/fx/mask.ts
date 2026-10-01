@@ -1,13 +1,12 @@
-import { heroSheetInfo } from '../heroSprite';
 import { heroMaskNow } from '../heroes';
 import { mobMaskNow, type MobMask } from '../mobs';
 import { CELL } from './bake';
 
 /**
  * Силуэт бойца в клетках холста эффектов (v0.52.7): латы блока ложатся по нему, поэтому им не нужен свой рисунок
- * на каждого врага. Враг и герой-лепка отдают силуэт своего листа (mobs/index.ts и heroes/index.ts хранят его битами),
- * рисованный герой — кадр своего листа, уменьшенный до сетки 2 px. Кадр — тот, что спрайт показывает прямо сейчас:
- * латы идут за дыханием и за щитом в клипе блока.
+ * на каждого врага. Враг и герой-лепка отдают силуэт своего листа (mobs/index.ts и heroes/index.ts хранят его битами);
+ * рисованных героев с v0.54.7 нет. Кадр — тот, что спрайт показывает прямо сейчас: латы идут за дыханием и за щитом
+ * в клипе блока.
  */
 export interface Mask {
   /** Левая верхняя клетка силуэта на холсте. */
@@ -70,68 +69,10 @@ function bitsMask(mm: MobMask, r: FieldRect, flip: boolean): Mask {
   return { x0, y0, w, h, m };
 }
 
-// ─── Рисованный герой ───────────────────────────────────────────────────────
-
-const images = new Map<string, HTMLImageElement>();
-const heroCache = new Map<string, Uint8Array>();
-
-/** Лист героя картинкой: тот же файл, что уже рисует спрайт, — браузер отдаёт его из кэша. Пока не загружен — null. */
-function sheetImage(url: string): HTMLImageElement | null {
-  let img = images.get(url);
-  if (!img) {
-    img = new Image();
-    img.src = url;
-    images.set(url, img);
-  }
-  return img.complete && img.naturalWidth > 0 ? img : null;
-}
-
-/**
- * Номер кадра, который показывает спрайт героя: время CSS-анимации его `::before` (steps по кадрам ряда).
- * Одноразовый клип идёт `jump-none` и замирает на последнем кадре, покой крутится.
- */
-function heroFrame(el: HTMLElement, frames: number): number {
-  const a = el.getAnimations({ subtree: true }).find((x) => x instanceof CSSAnimation);
-  if (!a) return 0;
-  const dur = Number(a.effect?.getComputedTiming().duration) || 1;
-  const t = Math.max(0, Number(a.currentTime ?? 0));
-  if (el.classList.contains('once')) return Math.min(frames - 1, Math.floor(t / (dur / frames)));
-  return Math.floor(((t % dur) / dur) * frames) % frames;
-}
-
-function heroMask(el: HTMLElement, r: FieldRect): Mask | null {
-  const info = heroSheetInfo(el.dataset.hero ?? '');
-  const img = info ? sheetImage(info.url) : null;
-  if (!info || !img) return null;
-  const row = Number(el.style.getPropertyValue('--row') || 0);
-  const frame = heroFrame(el, info.frames);
-  // Ячейка листа рисуется по центру квадрата спрайта в масштабе box / body (heroSprite.ts, .hero-sprite::before).
-  const cellPx = (info.cell * r.w) / info.body;
-  const n = Math.max(1, Math.round(cellPx / CELL));
-  const key = `${info.url}:${row}:${frame}:${n}`;
-  let m = heroCache.get(key);
-  if (!m) {
-    const c = document.createElement('canvas');
-    c.width = n;
-    c.height = n;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
-    ctx.drawImage(img, frame * info.cell, row * info.cell, info.cell, info.cell, 0, 0, n, n);
-    const d = ctx.getImageData(0, 0, n, n).data;
-    m = new Uint8Array(n * n);
-    for (let k = 0; k < n * n; k++) m[k] = d[k * 4 + 3] > 120 ? 1 : 0;
-    if (heroCache.size > 200) heroCache.clear();
-    heroCache.set(key, m);
-  }
-  const x0 = Math.round((r.x + r.w / 2 - (n * CELL) / 2) / CELL), y0 = Math.round((r.y + r.h / 2 - (n * CELL) / 2) / CELL);
-  return { x0, y0, w: n, h: n, m };
-}
-
-/** Силуэт спрайта бойца: лепка врага или союзника, рисованный герой; иначе null (процедурный спрайт — без лат). */
+/** Силуэт спрайта бойца: лепка врага, союзника или героя; иначе null (процедурный спрайт — без лат). */
 export function fighterMask(el: HTMLElement, r: FieldRect): Mask | null {
   if (el.classList.contains('mob-sheet')) return mobMask(el, r);
   if (el.classList.contains('hero-sheet')) return sculptHeroMask(el, r);
-  if (el.classList.contains('hero-sprite')) return heroMask(el, r);
   return null;
 }
 

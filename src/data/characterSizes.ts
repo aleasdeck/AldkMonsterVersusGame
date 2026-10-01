@@ -19,5 +19,5 @@ export const ENEMY_BODY_HEIGHT: Readonly<Record<string, number>> = {
 };
 
 export const HERO_BODY_HEIGHT: Readonly<Record<string, number>> = {
-  warrior: 128, mage: 120, assassin: 120, paladin: 132, berserk: 136, archer: 124,
+  warrior: 128, mage: 106, assassin: 120, paladin: 132, berserk: 136, archer: 124,
 };

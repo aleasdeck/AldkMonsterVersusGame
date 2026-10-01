@@ -1296,7 +1296,6 @@ p {
    `--tint` ставит поле боя, вне боя переменной нет и спрайты остаются в своей палитре. */
 .field .sprite-wrap img.sprite,
 .field .sprite-wrap .mob-sheet,
-.field .hero-sprite::before,
 .field .hero-sheet::before {
   filter: var(--tint, none);
 }
@@ -1363,12 +1362,8 @@ p {
     animation: none;
   }
 }
-/* Рисованный герой (heroSprite.ts): ряд листа — клип, --row его номер, --frames кадров в ряду, --dur длительность.
-   В разметке спрайт занимает квадрат --box по фигуре в покое, а сам лист рисуется поверх ячейкой --cell (она шире):
-   так замах мечом и падение вылезают за место героя и не обрезаются. Листы нарисованы без пиксельной сетки,
-   поэтому масштабирование со сглаживанием, а не pixelated. */
-/* Аватарка героя (heroAvatar): портрет в рисованной рамке, режет tools/hero-avatars.py.
-   Рамка своя у каждого героя — вокруг ничего не рисуем; сглаживание, как у листов. */
+/* Аватарка героя (heroAvatar): рисунок из лепки (heroes/avatar.ts) с рамкой внутри — вокруг ничего не рисуем.
+   Крупная увеличивается без сглаживания (класс sculpt), мелкая (подсказка 24) ужимается со сглаживанием. */
 .hero-avatar {
   flex: none;
   width: var(--box);
@@ -1376,40 +1371,7 @@ p {
   background: var(--pic) no-repeat center / cover;
   image-rendering: auto;
 }
-/* Аватарка героя-лепки (heroes/avatar.ts): рисунок в клетках, увеличивается без сглаживания. */
 .hero-avatar.sculpt { image-rendering: pixelated; }
-.hero-sprite {
-  flex: none; /* пустой div во flex-строке сжимается под текст соседа (у img была своя ширина) — правый край кадра срезало */
-  position: relative;
-  width: var(--box);
-  height: var(--box);
-}
-.hero-sprite::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: var(--cell);
-  height: var(--cell);
-  margin: calc(var(--cell) / -2) 0 0 calc(var(--cell) / -2);
-  background: var(--sheet) no-repeat 0 calc(var(--cell) * -1 * var(--row)) / calc(var(--cell) * var(--frames)) auto;
-  image-rendering: auto;
-  animation: hero-frames var(--dur) steps(var(--frames)) var(--delay, 0ms) infinite;
-}
-/* Одноразовый клип: кадры идут до последнего и замирают на нём (jump-none, иначе последний кадр проскакивает). */
-.hero-sprite.once::before {
-  animation: hero-frames-once var(--dur) steps(var(--frames), jump-none) var(--delay, 0ms) forwards;
-}
-@keyframes hero-frames {
-  to {
-    background-position-x: calc(var(--cell) * -1 * var(--frames));
-  }
-}
-@keyframes hero-frames-once {
-  to {
-    background-position-x: calc(var(--cell) * -1 * (var(--frames) - 1));
-  }
-}
 /* Герой пиксельной лепкой (heroes/index.ts): клип — своя картинка в ряд кадров (--n), кадр --fw × --fh рисуется
    ::before поверх квадрата --box со сдвигом --fx/--fy: середина фигуры в покое — по середине квадрата, земля — по низу.
    Покой крутится hero-loop, клип — одноразовый hero-once (смерть замирает на последнем кадре); --delay отрицательный,
@@ -2892,14 +2854,27 @@ p {
 .result-body .stats-grid {
   flex: 1;
 }
-/* Павший герой-лепка лежит на спине головой назад, от середины квадрата влево: отодвигаем от края панели. */
+/* Павший герой-лепка выходит за квадрат 112: Воин и Паладин лежат на спине головой назад (до −33 влево) — отодвигаем
+   от края панели; кто падает вперёд, выходит вправо — отодвигаем таблицу. Края последнего кадра смерти в квадрате:
+   Воин −33…95, Паладин −27…99, Берсерк 3…146, Маг −16…165, Ассасин 1…121, Лучник −30…138. */
 .end.lost .result-body .hero-sheet {
   margin-left: 28px;
 }
-/* Берсерк падает ничком вперёд: лежит от середины квадрата вправо (до 146 из 112) — отодвигаем таблицу, а не край. */
 .end.lost .result-body .hero-sheet[data-hero='berserk'] {
   margin-left: 0;
   margin-right: 34px;
+}
+.end.lost .result-body .hero-sheet[data-hero='mage'] {
+  margin-left: 18px;
+  margin-right: 56px;
+}
+.end.lost .result-body .hero-sheet[data-hero='assassin'] {
+  margin-left: 0;
+  margin-right: 12px;
+}
+.end.lost .result-body .hero-sheet[data-hero='archer'] {
+  margin-left: 32px;
+  margin-right: 28px;
 }
 .end .row {
   justify-content: center;
@@ -4294,7 +4269,7 @@ p {
   gap: 14px;
   flex: none;
 }
-.hs-header .hero-sprite,
+.hs-header .hero-sheet,
 .hs-header .sprite {
   flex: none;
 }
