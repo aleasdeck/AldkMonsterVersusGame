@@ -40,6 +40,22 @@ const TINT = {
 };
 
 /**
+ * Второй круг обсуждения: что пользователь выбрал в первом (у этих звуков остался один вариант) и его заметки к звукам,
+ * которые сделаны заново, — заметка встаёт над их вариантами. Убранные звуки — строкой в разделе «Переделано».
+ */
+const PICKED = { hit_blade: 'Сталь', crit: 'Хруст', cast_orb: 'Тень', fire: 'Шар', block_up: 'Дерево и железо', heal: 'Хор', buff: 'Хор', hurt_hero: 'Без голоса', enemy_strike: 'Дубина', enemy_death: 'Падение', battle_start: 'Рог', turn_start: 'Стук', battle_win: 'Струны', ui_click: 'Кость' };
+const FEEDBACK = {
+  ice: 'На лёд совсем не похоже, там должен быть хруст льда или что-то такое',
+  block_hit: 'Ничего не нравится, сильно звонкий',
+  block_break: 'Что-то не то, не нравится',
+  war_cry: 'Какой-то он не угрожающий, меняй',
+  bleed: 'Не подходит, совсем не похоже на кровь',
+  stun: 'Какой-то загадочный звук, не подходит',
+  thorns: 'Не похоже, нужно что-то вроде укола о шип, а сейчас как будто по посуде ударили',
+};
+const REMOVED = [{ name: 'Волчий свисток', note: 'по заметке теперь звучит Призывом' }];
+
+/**
  * Сцены: короткий бой или забег поверх трека локации — как это прозвучит в игре. Время в секундах; `id` — звук,
  * `key` — вариант (без него — рекомендованный), `hit` — поставить звук так, чтобы его удар пришёлся на это время,
  * `alone` — надстройку (крит) без звука-основы, `flip` — зеркально по панораме (снаряд врага летит в героя).
@@ -229,6 +245,8 @@ for (const def of SFX_LIST) {
     uses: def.uses,
     level: def.level ?? 0,
     over: def.over ? sfxDef(def.over).name : null,
+    picked: PICKED[def.id] ?? null,
+    feedback: FEEDBACK[def.id] ?? null,
     rec: def.variants.length > 1 ? (def.rec ?? def.variants[0].key) : null,
     why: def.why ?? null,
     variants,
@@ -308,7 +326,7 @@ for (const sc of SCENES) {
 }
 
 if (!PAGE_ONLY) writeFileSync(PEAKS_FILE, JSON.stringify(peaksById));
-const data = { groups, scenes, stats: { sounds: SFX_LIST.length, variants: variantCount, choices: SFX_LIST.filter((d) => d.variants.length > 1).length } };
+const data = { groups, scenes, removed: REMOVED, stats: { sounds: SFX_LIST.length, variants: variantCount, choices: SFX_LIST.filter((d) => d.variants.length > 1).length } };
 const page = readFileSync(join(HERE, 'page.html'), 'utf8').replace('/*DATA*/null', JSON.stringify(data));
 const file = join(OUT, 'zvuki.html');
 writeFileSync(file, page);

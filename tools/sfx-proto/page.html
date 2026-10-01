@@ -96,7 +96,7 @@ section.group { margin-top: 34px; scroll-margin-top: 70px; }
 
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; align-items: start; }
 @media (max-width: 860px) { .cards { grid-template-columns: 1fr; } }
-.card { min-width: 0; background: var(--panel); border: 2px solid var(--line); padding: 12px 14px 12px; display: grid; gap: 8px; }
+.card { min-width: 0; scroll-margin-top: 70px; background: var(--panel); border: 2px solid var(--line); padding: 12px 14px 12px; display: grid; gap: 8px; }
 .card.playing { border-color: var(--tint); }
 .chead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .cname { font-family: var(--display); font-size: 21px; line-height: 1.05; color: var(--tint); }
@@ -184,6 +184,14 @@ textarea { width: 100%; font: inherit; font-size: 18px; background: var(--bg); c
 .copy { font: inherit; font-size: 19px; background: var(--accent); color: var(--bg); border: 0; padding: 6px 16px; cursor: pointer; }
 .copied { font-size: 17px; color: var(--accent); }
 .copytext { width: 100%; font: inherit; font-size: 16px; }
+/* Второй круг: заметка пользователя над вариантами переделанного звука и ссылка на неё из группы. */
+.said { margin: 0; font-size: 18px; color: var(--text); background: var(--panel-2); padding: 6px 10px; }
+.said b { color: var(--accent); font-weight: 700; }
+.moved { display: block; min-width: 0; border: 2px dashed var(--line); padding: 10px 14px; font-size: 19px; color: var(--dim); text-decoration: none; }
+.moved b { color: var(--tint); font-weight: 700; }
+.moved:hover { border-color: var(--tint); }
+.removed { margin: 10px 0 0; font-size: 18px; color: var(--dim); }
+.removed b { color: var(--text); }
 button:focus-visible, canvas.wave:focus-visible, a:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
 </style>
@@ -191,11 +199,19 @@ button:focus-visible, canvas.wave:focus-visible, a:focus-visible, textarea:focus
 <div class="wrap">
   <header>
     <h1>Звуки действий</h1>
-    <p class="lede">Звуки для всех действий игры — по одному на каждое по смыслу действие: удар мечом, топором и приёмами клинка звучит одинаково, лечение заклинанием, отваром и зельем — тоже. Сделаны по рецепту музыки локаций тем же синтезатором: хоры, колокола, стекло, медь, тайко и гонг из треков, а удары собраны из физики — свист воздуха, звон стали, глухой удар по телу, треск, стекло и монеты.</p>
-    <p class="lede dim">Сначала послушайте сцены — короткий бой поверх музыки локации, как это прозвучит в игре. Потом по группам: у самых частых звуков по два-три варианта, выберите один (рекомендую тот, что помечен). К любому звуку можно оставить заметку — «тише», «короче», «не то». Строку внизу скопируйте в чат.</p>
+    <p class="lede">Второй круг. Ваш выбор из первого круга зафиксирован: у этих звуков остался один вариант, на карточке написано, какой. Семь звуков, к которым были заметки, сделаны заново, у каждого три варианта — они в первом разделе вместе с вашей заметкой. Волчий свисток убран: теперь он звучит Призывом.</p>
+    <p class="lede dim">Новые варианты слышны и в сценах (там стоят рекомендованные). Выберите по одному варианту у переделанных звуков, к любому звуку можно снова оставить заметку. Строку внизу скопируйте в чат.</p>
     <ul class="facts" id="facts"></ul>
   </header>
   <nav class="groups" id="nav" aria-label="Группы звуков"></nav>
+  <section class="group" id="redo" style="--tint: var(--accent)">
+    <div class="ghead">
+      <h2>Переделано по заметкам</h2>
+      <p>Над вариантами — ваша заметка из первого круга. Рекомендация — с причиной под вариантами.</p>
+    </div>
+    <div class="cards" id="redoList"></div>
+    <p class="removed" id="removed"></p>
+  </section>
   <section class="group" id="scenes" style="--tint: var(--accent)">
     <div class="ghead">
       <h2>Сцены</h2>
@@ -217,7 +233,7 @@ button:focus-visible, canvas.wave:focus-visible, a:focus-visible, textarea:focus
 
 <script>
 const DATA = /*DATA*/null;
-const KEY = 'mv-sfx-picks';
+const KEY = 'mv-sfx-picks-2';
 let state = { picks: {}, notes: {} };
 try { state = Object.assign(state, JSON.parse(localStorage.getItem(KEY) || '{}') || {}); } catch { /* без памяти — выбор живёт до перезагрузки */ }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* приватное окно */ } };
@@ -339,6 +355,7 @@ document.getElementById('facts').append(
   el('li', {}, el('b', {}, 'зал'), ' от комнаты до собора'),
 );
 const nav = document.getElementById('nav');
+nav.append(el('a', { href: '#redo', style: '--tint: var(--accent)' }, 'Переделано'));
 nav.append(el('a', { href: '#scenes', style: '--tint: var(--accent)' }, 'Сцены'));
 for (const g of DATA.groups) nav.append(el('a', { href: `#${g.id}`, style: `--tint:${g.tint}` }, g.name));
 
@@ -369,71 +386,91 @@ for (const sc of DATA.scenes) {
   sceneList.append(card);
 }
 
-// ─── Группы и звуки ───
+// ─── Карточка звука ───
 const cardsById = {};
+/** Рекомендованный (или единственный) вариант звука — для «Всё подряд» в его группе. */
+const recPlayer = {};
+
+function soundCard(s, tint) {
+  const card = el('article', { class: 'card', id: s.feedback ? `redo-${s.id}` : null, style: `--tint:${tint}` });
+  const head = el('div', { class: 'chead' }, el('span', { class: 'cname' }, s.name));
+  if (s.picked) head.append(el('span', { class: 'chip' }, `выбран: «${s.picked}»`));
+  if (s.level) head.append(el('span', { class: 'chip', title: '' }, `громкость ${db(s.level)} дБ`));
+  if (s.over) head.append(el('span', { class: 'chip' }, `поверх: ${s.over}`));
+  card.append(head, el('ul', { class: 'uses' }, ...s.uses.map((u) => el('li', {}, u))));
+  if (s.feedback) card.append(el('p', { class: 'said' }, el('b', {}, 'Ваша заметка: '), `«${s.feedback}»`));
+  const rows = [];
+  for (const v of s.variants) {
+    const label = `${s.name} — ${v.title}`;
+    const p = makePlayer({ file: v.file, seconds: v.seconds, peaks: v.peaks, marks: v.hit > 0 ? [v.hit] : [], label, card });
+    if (v.key === (s.rec ?? v.key)) recPlayer[s.id] = p;
+    // Кнопка выбора — только у звуков с вариантами; у одиночных на её месте пусто.
+    const pick = s.variants.length > 1 ? el('button', { class: 'pick', type: 'button' }, 'Выбрать') : el('span');
+    const row = el(
+      'div',
+      { class: 'var' },
+      el('span', { class: 'letter', 'aria-hidden': 'true' }, v.key.toUpperCase()),
+      el('span', { class: 'vtitle' }, v.title, s.rec === v.key ? el('span', { class: 'rec' }, 'рекомендую') : null),
+      pick,
+      el('p', { class: 'vnote' }, v.note),
+      el('div', { class: 'vplay' }, p.btn, p.canvas, el('span', { class: 'secs' }, v.hit > 0 ? `удар ${sec(v.hit)}` : sec(v.seconds))),
+    );
+    if (s.variants.length > 1) {
+      pick.addEventListener('click', () => {
+        state.picks[s.id] = state.picks[s.id] === v.key ? undefined : v.key;
+        if (!state.picks[s.id]) delete state.picks[s.id];
+        save();
+        syncPicks();
+      });
+      rows.push({ row, pick, key: v.key });
+    }
+    card.append(row);
+  }
+  if (s.why) card.append(el('p', { class: 'why' }, el('b', {}, `Рекомендую ${s.rec.toUpperCase()}. `), s.why));
+  const noteBtn = el('button', { class: 'notebtn', type: 'button', 'aria-expanded': 'false' }, 'Заметка');
+  const ta = el('textarea', { id: `note-${s.id}`, rows: '2', placeholder: 'Что поправить: тише, короче, другой голос…', hidden: '' });
+  ta.value = state.notes[s.id] || '';
+  const syncNote = () => {
+    noteBtn.classList.toggle('has', !!ta.value.trim());
+    noteBtn.textContent = ta.value.trim() ? 'Заметка ✎' : 'Заметка';
+  };
+  noteBtn.addEventListener('click', () => {
+    ta.hidden = !ta.hidden;
+    noteBtn.setAttribute('aria-expanded', String(!ta.hidden));
+    if (!ta.hidden) ta.focus();
+  });
+  ta.addEventListener('input', () => {
+    const t = ta.value.trim();
+    if (t) state.notes[s.id] = ta.value; else delete state.notes[s.id];
+    save();
+    syncNote();
+    renderSummary();
+  });
+  if (ta.value.trim()) ta.hidden = false;
+  syncNote();
+  card.append(noteBtn, ta);
+  cardsById[s.id] = { s, rows };
+  return card;
+}
+
+// ─── Переделано по заметкам ───
+const redoList = document.getElementById('redoList');
+for (const g of DATA.groups) for (const s of g.sounds) if (s.feedback) redoList.append(soundCard(s, g.tint));
+document.getElementById('removed').append(
+  ...DATA.removed.flatMap((r, i) => [i ? '; ' : 'Убран: ', el('b', {}, r.name), ` — ${r.note}`]),
+  DATA.removed.length ? '.' : '',
+);
+
+// ─── Группы ───
 const root = document.getElementById('groups');
 for (const g of DATA.groups) {
   const section = el('section', { class: 'group', id: g.id, style: `--tint:${g.tint}` });
   const cards = el('div', { class: 'cards' });
   const groupPlayers = [];
   for (const s of g.sounds) {
-    const card = el('article', { class: 'card' });
-    const head = el('div', { class: 'chead' }, el('span', { class: 'cname' }, s.name));
-    if (s.level) head.append(el('span', { class: 'chip', title: '' }, `громкость ${db(s.level)} дБ`));
-    if (s.over) head.append(el('span', { class: 'chip' }, `поверх: ${s.over}`));
-    card.append(head, el('ul', { class: 'uses' }, ...s.uses.map((u) => el('li', {}, u))));
-    const rows = [];
-    for (const v of s.variants) {
-      const label = `${s.name} — ${v.title}`;
-      const p = makePlayer({ file: v.file, seconds: v.seconds, peaks: v.peaks, marks: v.hit > 0 ? [v.hit] : [], label, card });
-      if (v.key === (s.rec ?? v.key)) groupPlayers.push(p);
-      // Кнопка выбора — только у звуков с вариантами; у одиночных на её месте пусто.
-      const pick = s.variants.length > 1 ? el('button', { class: 'pick', type: 'button' }, 'Выбрать') : el('span');
-      const row = el(
-        'div',
-        { class: 'var' },
-        el('span', { class: 'letter', 'aria-hidden': 'true' }, v.key.toUpperCase()),
-        el('span', { class: 'vtitle' }, v.title, s.rec === v.key ? el('span', { class: 'rec' }, 'рекомендую') : null),
-        pick,
-        el('p', { class: 'vnote' }, v.note),
-        el('div', { class: 'vplay' }, p.btn, p.canvas, el('span', { class: 'secs' }, v.hit > 0 ? `удар ${sec(v.hit)}` : sec(v.seconds))),
-      );
-      if (s.variants.length > 1) {
-        pick.addEventListener('click', () => {
-          state.picks[s.id] = state.picks[s.id] === v.key ? undefined : v.key;
-          if (!state.picks[s.id]) delete state.picks[s.id];
-          save();
-          syncPicks();
-        });
-        rows.push({ row, pick, key: v.key });
-      }
-      card.append(row);
-    }
-    if (s.why) card.append(el('p', { class: 'why' }, el('b', {}, `Рекомендую ${s.rec.toUpperCase()}. `), s.why));
-    const noteBtn = el('button', { class: 'notebtn', type: 'button', 'aria-expanded': 'false' }, 'Заметка');
-    const ta = el('textarea', { id: `note-${s.id}`, rows: '2', placeholder: 'Что поправить: тише, короче, другой голос…', hidden: '' });
-    ta.value = state.notes[s.id] || '';
-    const syncNote = () => {
-      noteBtn.classList.toggle('has', !!ta.value.trim());
-      noteBtn.textContent = ta.value.trim() ? 'Заметка ✎' : 'Заметка';
-    };
-    noteBtn.addEventListener('click', () => {
-      ta.hidden = !ta.hidden;
-      noteBtn.setAttribute('aria-expanded', String(!ta.hidden));
-      if (!ta.hidden) ta.focus();
-    });
-    ta.addEventListener('input', () => {
-      const t = ta.value.trim();
-      if (t) state.notes[s.id] = ta.value; else delete state.notes[s.id];
-      save();
-      syncNote();
-      renderSummary();
-    });
-    if (ta.value.trim()) ta.hidden = false;
-    syncNote();
-    card.append(noteBtn, ta);
-    cardsById[s.id] = { s, rows };
-    cards.append(card);
+    if (s.feedback) cards.append(el('a', { class: 'moved', href: `#redo-${s.id}` }, el('b', {}, s.name), ' — переделан, три варианта в разделе «Переделано по заметкам»'));
+    else cards.append(soundCard(s, g.tint));
+    groupPlayers.push(recPlayer[s.id]);
   }
   const allBtn = el('button', { class: 'all', type: 'button' }, '▶ Всё подряд');
   allBtn.addEventListener('click', () => {
@@ -477,7 +514,7 @@ function chatText() {
   const notes = Object.entries(state.notes)
     .filter(([, t]) => t.trim())
     .map(([id, t]) => `${cardsById[id]?.s.name ?? id}: ${t.trim().replace(/\s+/g, ' ')}`);
-  return `Звуки: ${parts.join('; ')}.${notes.length ? ` Заметки — ${notes.join('; ')}.` : ''}`;
+  return `Звуки, второй круг: ${parts.join('; ')}.${notes.length ? ` Заметки — ${notes.join('; ')}.` : ''}`;
 }
 
 document.getElementById('copy').addEventListener('click', () => {

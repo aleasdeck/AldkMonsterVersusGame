@@ -287,6 +287,39 @@ export function crackle(o: { dur: number; rate: number; rateEnd?: number; lo: nu
   };
 }
 
+/**
+ * Зёрна: поток коротких щелчков шума, у каждого своя полоса в lo..hi, — хруст льда и наста, брызги капель, ломкое
+ * дерево. В отличие от `crackle` (три постоянных резонанса) у каждого зерна своя высота, поэтому хруст «рассыпается»,
+ * а не звенит. `rate` → `rateEnd` — зёрен в секунду, `tau` — длина зерна, `q` — звонкость.
+ */
+export function grains(o: { dur: number; rate: number; rateEnd?: number; lo: number; hi: number; q?: number; tau?: number; attack?: number; decay?: number }): Gen {
+  return {
+    sec: o.dur + 0.05,
+    make: (rnd, sr) => {
+      const q = o.q ?? 2.5;
+      const tau = o.tau ?? 0.004;
+      const live: { f: (x: number, fc: number, q: number) => { bp: number }; fc: number; t0: number; g: number }[] = [];
+      const r1 = o.rateEnd ?? o.rate;
+      const att = o.attack ?? 0.002;
+      return (t) => {
+        const x = Math.min(1, t / o.dur);
+        if (t < o.dur && rnd() < (o.rate + (r1 - o.rate) * x) / sr) live.push({ f: svf(sr), fc: glide(o.lo, o.hi, rnd()), t0: t, g: 0.3 + 0.7 * rnd() });
+        let v = 0;
+        for (let i = live.length - 1; i >= 0; i--) {
+          const g = live[i];
+          const dt = t - g.t0;
+          if (dt > tau * 6) {
+            live.splice(i, 1);
+            continue;
+          }
+          v += g.f((rnd() * 2 - 1) * Math.exp(-dt / tau) * g.g, g.fc, q).bp;
+        }
+        return v * 1.2 * Math.min(1, t / att) * (o.decay ? Math.exp(-t / o.decay) : 1);
+      };
+    },
+  };
+}
+
 /** Россыпь мелких ударов модами — звон монет, осколки стекла, обломки лат. */
 export function scatter(o: { n: number; spread: number; modes: Mode[]; fVar?: number; decay?: number; strike?: number }): Gen {
   const longest = Math.max(...o.modes.map((m) => m[1]));
@@ -440,7 +473,8 @@ export const VOWELS = {
 /**
  * Голос без слов — рык, хрип, вой: пила голосовых связок и шум дыхания через форманты гласной. Высота — по точкам
  * `pitch` ([доля длины, Гц]), гласная может перетекать `vowel` → `vowelTo`, `size` растягивает форманты (больше 1 —
- * голос меньше и выше, меньше 1 — зверь крупнее), `drive` — надрыв.
+ * голос меньше и выше, меньше 1 — зверь крупнее), `drive` — надрыв. `rough` 0..1 — хрип рыка: связки смыкаются через
+ * раз (субгармоника октавой ниже) и дребезжат рваной громкостью 30–60 Гц — так рычит зверь, а не поёт человек.
  */
 export function voice(o: {
   dur: number;
@@ -453,10 +487,16 @@ export function voice(o: {
   attack?: number;
   release?: number;
   vib?: number;
+  rough?: number;
 }): Gen {
   return {
     sec: o.dur,
     make: (rnd, sr) => {
+      const rough = o.rough ?? 0;
+      let total = 0;
+      let rattle = 1;
+      let rattleTo = 1;
+      const ra = 1 - Math.exp(-1 / (0.004 * sr));
       const v0 = VOWELS[o.vowel];
       const v1 = VOWELS[o.vowelTo ?? o.vowel];
       const size = o.size ?? 1;
@@ -479,9 +519,18 @@ export function voice(o: {
           else if (x > x1) hz = f1;
         }
         if (rnd() < 80 / sr) jit = (rnd() * 2 - 1) * 0.02;
-        ph += (hz * (1 + jit + (o.vib ? 0.012 * Math.sin(TAU * o.vib * t) : 0))) / sr;
+        const dph = (hz * (1 + jit + (o.vib ? 0.012 * Math.sin(TAU * o.vib * t) : 0))) / sr;
+        ph += dph;
+        total += dph;
         const p = ph - Math.floor(ph);
-        const src = (2 * p - 1) * (1 - noise) + (rnd() * 2 - 1) * noise * 1.5;
+        let src = (2 * p - 1) * (1 - noise) + (rnd() * 2 - 1) * noise * 1.5;
+        if (rough) {
+          // Субгармоника: каждый второй период тише — рык садится на октаву ниже записанного тона.
+          src *= 1 - rough * 0.45 * (1 + Math.sin(Math.PI * total));
+          if (rnd() < 45 / sr) rattleTo = 1 - rough * 0.8 * rnd();
+          rattle += ra * (rattleTo - rattle);
+          src *= rattle;
+        }
         let v = 0;
         for (let i = 0; i < v0.length; i++) {
           const f = (v0[i][0] + (v1[i][0] - v0[i][0]) * x) * size;
