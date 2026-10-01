@@ -79,8 +79,8 @@ export function mobSet(model: Model): ActorSet {
 }
 
 /**
- * Нынешний рисованный Воин: ряды листа — battle (покой в бою), attack, power, block, hurt, death; по 8 кадров,
- * длительности — CLIP_MS из heroSprite.ts. Клипов, которых на листе нет, — как в игре, по цепочке замен.
+ * Прежний рисованный Воин: ряды листа — battle (покой в бою), attack, power, block, hurt, death; по 8 кадров,
+ * длительности — CLIP_MS прежнего heroSprite.ts (рисованные листы ушли из игры в v0.54.7). Клипов, которых на листе нет, — по цепочке замен.
  */
 export function refSet(img: HTMLImageElement): ActorSet {
   const cell = 162, k = 128 / 107;

@@ -1,0 +1,494 @@
+<title>Лепка троих героев</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Tiny5&display=swap">
+<style>
+/* Одна тёмная сцена под игру, как у страниц Воина, Паладина и Берсерка: страница нарочно без светлой темы — пиксель-арт
+   сверяется на тёмном. Лента: шапка, сцена во всю ширину с клипами, отряд, по герою — пары вариантов и остальные клипы ×2,
+   ревью риггеров и вопросы. Акцент — цвет раны, как у прежних страниц лепки. */
+:root {
+  color-scheme: dark;
+  --ink: #120f10;
+  --panel: #1b1718;
+  --panel-2: #241f20;
+  --line: #322a2b;
+  --text: #ebe3da;
+  --muted: #a89c9a;
+  --faint: #716665;
+  --accent: #d6704a;
+  --accent-ink: #1e0b06;
+  --plus: #6cc6dc;
+  --minus: #e07a6a;
+  --display: 'Tiny5', 'IBM Plex Mono', ui-monospace, monospace;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+body { background: var(--ink); color: var(--text); font: 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 64px; }
+.wrap { max-width: 1280px; margin: 0 auto; }
+.prose { max-width: 74ch; }
+h1, h2 { font-family: var(--display); font-weight: 400; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(34px, 6vw, 52px); line-height: 1.05; margin: 40px 0 12px; color: var(--accent); }
+h2 { font-size: clamp(24px, 3.4vw, 32px); line-height: 1.15; margin: 0 0 8px; }
+h3 { font-size: 17px; font-weight: 600; margin: 22px 0 6px; text-wrap: balance; }
+p { margin: 0 0 12px; }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.lead { font-size: 18px; max-width: 74ch; }
+.meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 20px; }
+.meta b { color: var(--text); font-weight: 500; }
+.note { color: var(--muted); font-size: 14px; }
+section { margin-top: 64px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
+nav.toc a { color: var(--muted); text-decoration: none; border-bottom: 1px dashed var(--faint); }
+nav.toc a:hover { color: var(--text); }
+
+button { font: inherit; color: inherit; cursor: pointer; }
+.tog { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tog-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-right: 6px; }
+.tog button, .pick { background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; font-size: 14px; line-height: 1.3; }
+.tog button:hover, .pick:hover { border-color: var(--faint); }
+.tog button[aria-pressed="true"], .pick[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-bottom: 10px; }
+
+/* ─── Поле ─── */
+.bench { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px; }
+.stage { position: relative; width: 100%; min-width: 0; }
+.stage:not(:has(.win)) { aspect-ratio: 3 / 1; display: grid; place-items: center; color: var(--faint); font-size: 13px; background: #0b0a0b; border-radius: 4px; }
+#squad.stage:not(:has(.win)) { aspect-ratio: 960 / 200; }
+.win, .tile-win { position: relative; overflow: hidden; border-radius: 4px; background: #0b0a0b; }
+.tile-win { margin: 0 auto; max-width: 100%; }
+.field { position: absolute; left: 0; top: 0; width: 960px; height: 320px; transform-origin: 0 0; overflow: hidden; }
+.field .bg { position: absolute; inset: 0; width: 960px; height: 320px; max-width: none; image-rendering: pixelated; }
+.fig { position: absolute; max-width: none; image-rendering: pixelated; }
+.fig.smooth { image-rendering: auto; }
+.tint-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+#scene-vars { display: flex; flex-wrap: wrap; gap: 8px 22px; transition: opacity 0.2s; }
+#scene-vars:empty { display: none; }
+#scene-vars.muted { opacity: 0.4; pointer-events: none; }
+.tog button.off { opacity: 0.4; }
+/* Отряд на телефоне — не мельче 640 точек, с прокруткой по горизонтали. */
+#squad-bench { overflow-x: auto; }
+#squad, #squad-names { min-width: 640px; }
+.squad-names { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin-top: 8px; font-size: 13px; text-align: center; }
+.squad-names span { display: grid; color: var(--faint); min-width: 0; }
+.squad-names b { color: var(--muted); font-weight: 500; }
+.squad-names .new b { color: var(--text); }
+.squad-names .new span { color: var(--accent); font-family: var(--mono); font-size: 11px; }
+
+/* ─── Герой: шапка, пары вариантов, клипы ─── */
+.hero-head { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.hero-head > div { flex: 1 1 420px; min-width: 0; }
+.portrait { margin: 0; display: grid; gap: 4px; }
+.portrait img { display: block; border-radius: 3px; }
+.portrait figcaption { font-size: 12px; color: var(--faint); }
+/* Плитка клипа ×2 — 480 × 480 (кусок поля 240 × 240): две в ряд, на узком — одна. */
+.pair { margin-top: 22px; }
+.pair h4 { font-size: 16px; margin: 0 0 4px; }
+.pair-grid, .clips { display: grid; gap: 14px; margin-top: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.clip-card { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 10px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.clip-view { min-height: 240px; display: grid; place-items: center; color: var(--faint); font-size: 13px; min-width: 0; width: 100%; }
+.clip-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.clip-head b { font-size: 16px; }
+.clip-head .mono { color: var(--muted); font-size: 12px; margin-left: auto; }
+.badge { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.03em; }
+.clip-card p { margin: 0; font-size: 14px; color: var(--muted); }
+
+/* ─── Ревью, решения, вопросы ─── */
+.scroll { overflow-x: auto; margin: 10px 0 0; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+td.p { white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+td.p1 { color: var(--minus); }
+details.history { margin-top: 18px; }
+details.history summary { cursor: pointer; color: var(--muted); }
+.list { padding-left: 1.2em; margin: 0 0 12px; }
+.list li { margin: 4px 0; }
+.qs { display: grid; gap: 14px; margin-top: 12px; counter-reset: q; }
+.q { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 14px 16px; }
+.q h3 { display: flex; gap: 10px; align-items: baseline; margin-top: 0; }
+.q h3::before { counter-increment: q; content: 'В' counter(q); font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 500; }
+.q > p { font-size: 14px; color: var(--muted); }
+.opts { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.opts li { margin: 0; padding: 6px 10px; border-radius: 4px; background: var(--panel-2); font-size: 14px; }
+.opts li b { font-family: var(--mono); font-weight: 500; margin-right: 6px; }
+.opts li.rec { outline: 1px solid var(--accent); }
+.opts li.rec::after { content: 'рекомендую'; float: right; font-size: 11px; font-family: var(--mono); color: var(--accent); letter-spacing: 0.05em; margin-left: 10px; }
+.steps { padding-left: 1.4em; margin: 0; display: grid; gap: 10px; }
+.steps li::marker { font-family: var(--mono); color: var(--accent); }
+.av-cards { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; }
+.av-card { margin: 0; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; justify-items: start; }
+.av-card.rec { outline: 1px solid var(--accent); }
+.av-card canvas, .av-card img { display: block; max-width: 100%; height: auto; border-radius: 2px; }
+.av-card .small { display: flex; gap: 10px; align-items: flex-end; }
+.av-card figcaption { font-size: 13px; color: var(--muted); max-width: 224px; }
+.av-card figcaption b { color: var(--text); font-weight: 600; }
+.av-card .tag { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.05em; margin-left: 6px; }
+.avatar-row { display: flex; flex-wrap: wrap; gap: 12px; padding: 14px; background: #0b0a0e; border: 1px solid var(--line); border-radius: 6px; margin-top: 10px; }
+.avatar-row figure { margin: 0; display: grid; gap: 4px; justify-items: start; }
+.avatar-row canvas, .avatar-row img { display: block; max-width: 100%; height: auto; border-radius: 2px; }
+.avatar-row figcaption { font-size: 12px; color: var(--muted); }
+.avatar-row figure.new figcaption { color: var(--accent); font-weight: 600; }
+
+@media (max-width: 1060px) {
+  .pair-grid, .clips { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .squad-names { font-size: 11px; }
+  body { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #scene-vars { transition: none; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Лепка Мага, Ассасина и Лучника</h1>
+    <p class="lead">Маг, Ассасин и Лучник — в игре с версии 0.54.7: теперь все шесть героев слеплены, рисованных листов и портретов в игре больше нет. Рецепт <code>docs/lepka-geroev.md</code> пройден целиком: облики, девять клипов и личный клип Ассасина, по два круга ревью риггера на каждого, аватарки с ревью и подключение. Здесь — итог: сцена, отряд, клипы, аватарки и строка выбора героя.</p>
+<div class="meta"><span>Пиксель <b>1,5</b></span><span>Облик <b>A · A · A</b></span><span>Клипов <b>9</b> у каждого, у Ассасина ещё <b>1</b> личный</span><span>Рост Мага <b>106</b></span><span>Аватарки <b>B · A · A</b></span><span>Версия <b>0.54.7</b></span></div>
+    <nav class="toc" aria-label="Разделы"><a href="#battle">Сцена</a><a href="#squad-h">Отряд</a><a href="#mage">Маг</a><a href="#assassin">Ассасин</a><a href="#archer">Лучник</a><a href="#decided">Решено</a><a href="#process">Как делали</a><a href="#next">Что дальше</a></nav>
+  </header>
+
+  <section id="battle" aria-labelledby="battle-h">
+    <h2 id="battle-h">Сцена</h2>
+    <p class="prose">Кадр поля 960 × 320, как в игре: фон и тонировка локации, враги-лепка в пикселе 2. Кнопка клипа играет его так, как покажет игра: на удар и приём первый враг вздрагивает в кадр контакта, на блок, урон и смерть сначала бьёт враг. «Лист» — прежний рисованный герой: у Мага на листе были ряды удара, приёма, блока, урона и смерти, у Ассасина и Лучника только стойка. Скорость ¼ — разобрать кадры.</p>
+    <div class="bench">
+      <div class="controls">
+        <span class="tog" id="scene-hero" role="group" aria-label="Герой"><span class="tog-label">Герой</span>
+          <button type="button" data-v="mage">Маг</button>
+          <button type="button" data-v="assassin">Ассасин</button>
+          <button type="button" data-v="archer">Лучник</button>
+        </span>
+        <span class="tog" id="scene-src" role="group" aria-label="Что в сцене"><span class="tog-label">В сцене</span>
+          <button type="button" data-v="sculpt">Лепка</button>
+          <button type="button" data-v="ref">Лист (было)</button>
+        </span>
+      </div>
+      <div class="stage" id="scene"></div>
+      <div class="controls" style="margin: 10px 0 0">
+        <span class="tog" id="scene-clips" role="group" aria-label="Клип"><span class="tog-label">Клип</span></span>
+      </div>
+      <div class="controls" style="margin: 6px 0 0">
+        <span class="tog" id="scene-loc" role="group" aria-label="Локация"><span class="tog-label">Локация</span>
+          <button type="button" data-v="forest">Лес</button>
+          <button type="button" data-v="crypt">Склеп</button>
+          <button type="button" data-v="caves">Пещеры</button>
+        </span>
+        <span class="tog" id="speed" role="group" aria-label="Скорость"><span class="tog-label">Скорость</span>
+          <button type="button" data-v="1">1×</button>
+          <button type="button" data-v="0.5">½</button>
+          <button type="button" data-v="0.25">¼</button>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="squad-h">
+    <h2 id="squad-h">Отряд</h2>
+    <p class="prose">Шесть героев на одном полу в порядке выбора героя: Воин, Паладин и Берсерк — как в игре, трое новых — в облике A, Маг ростом 106. Проверка стиля: один свет, одна сетка пикселя, рост по таблице игры, никто не ярче сцены и не путается с соседом.</p>
+    <div class="bench" id="squad-bench">
+      <div class="stage" id="squad"></div>
+      <div class="squad-names" id="squad-names"></div>
+    </div>
+  </section>
+
+  <section id="mage" aria-labelledby="mage-h">
+    <div class="hero-head">
+      <figure class="portrait"><div data-portrait="mage"></div><figcaption>прежний портрет</figcaption></figure>
+      <div>
+        <h2 id="mage-h">Маг</h2>
+        <p class="prose">Облик A «С листа», посох в дальней руке, как во всех рядах прежнего листа. Главный клип Мага — приём: заклинание, снаряд вылетает из навершия посоха в кадр контакта. У прежнего листа были ряды удара, приёма, блока, урона и смерти — их можно сыграть в сцене кнопкой «Лист».</p>
+      </div>
+    </div>
+    <h3>Клипы</h3>
+    <div class="clips" data-clips="mage"></div>
+    <h3>Аватарка</h3>
+    <p class="prose">Аватарка из той же лепки, что бой: бюст в своей позе, ночное синее небо, ореол-луна над капюшоном со знаком прежнего портрета — тёмное кольцо, звезда-перекрестие и восемь спиц, готические шпили по краям. Рамка темнее неба. Выбрана <b>B</b>; на странице — она одна, три позы были такими:</p>
+<ul class="list prose">
+  <li><b>A «Покой»</b> — стойка в кадре бюста, пламя посоха у правого края.</li>
+  <li><b>B «Пламя у лица»</b> — посох поднят торчком к капюшону, пламя справа у лица, кулак с посохом внизу справа. Ближе всех к прежнему портрету; на 44 клетках читаются капюшон и пламя.</li>
+  <li><b>C «Огонёк в ладони»</b> — синий огонёк в ближней ладони перед грудью подсвечивает низ маски, посох за кадром.</li>
+</ul><h4>Ревью аватарки</h4>
+<p class="note prose">Ревьюер согласен с B «Пламя у лица»: капюшон, синее пламя и кулак на посохе читаются и на 44 клетках, композиция — как у прежнего портрета. В A пламя прижато к краю, в C огонёк крошечный и посоха нет.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p">2</td><td>В B звезду в кольце закрывал капюшон — видна была только верхняя дуга кольца.</td><td>Ореол выше и левее: звезда над капюшоном, верх кольца уходит под рамку, как у Воина.</td></tr>
+<tr><td class="n">2</td><td class="p">3</td><td>Острие пламени B упиралось в рамку.</td><td>Посох опущен на 3 единицы.</td></tr>
+</tbody></table></div>
+    <div class="av-cards" data-avatars="mage"></div>
+    <h3>Ревью риггера</h3>
+<p class="note prose">Числа рига чистые с первой сборки: запястье −25…−58°, локти не острее 57°, первый и последний кадр каждого клипа совпадают с покоем до пикселя. Вид ломался в трёх местах.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p p1">1</td><td>Поднятое дальнее предплечье не рисовалось: рукав — один раструб, висящий от запястья по отвесу, на поднятой руке уходил за локоть, и кулак с посохом висел отдельно (сильный удар, клич, удар b).</td><td>На крутом подъёме раструб сходится в рукав до запястья, складки висят под локтем. Число фигур прежнее — покой не изменился.</td></tr>
+<tr><td class="n">2</td><td class="p">2</td><td>Сильный удар a: навершие прыгало за кадр на 71 и 85 единиц, на замахе уходило за затылок.</td><td>Замах перестроен: навершие над макушкой, скачки не больше 76, запястье −25…−46°.</td></tr>
+<tr><td class="n">3</td><td class="p">2</td><td>Смерть: ближний кулак торчал на макушке кучи ткани.</td><td>Кулак ложится под грудь у капюшона.</td></tr>
+<tr><td class="n">4</td><td class="p">2</td><td>Удар a: ближний кулак на два кадра вспыхивал перед грудью.</td><td>Кулак остаётся под полой, как на листе — рука отведена.</td></tr>
+<tr><td class="n">5</td><td class="p">2</td><td>Варианты b: у удара «факел» — посох отвесно над прямой рукой; у сильного удара рука висит поверх живота.</td><td>Удар b: рука согнута, посох клонится вперёд; сильный удар b: кулак вынесен, локоть у края торса.</td></tr>
+<tr><td class="n">—</td><td class="p">3</td><td>Стопа едет до отрыва, пыль ездит за навершием, огонёк лечения b закрывает кулак, посох на замахе торчит комлем вперёд, посох в смерти ложится плашмя в воздухе.</td><td>Стопы стоят до шага, пыль на месте удара, огонёк над кулаком, посох в смерти падает комлем вперёд.</td></tr>
+</tbody></table></div>
+<h4>Второй круг</h4>
+<p class="note prose">Новый риггер перемерил всё заново: запястье −25…−58°, локти не острее 75°, стык с покоем до пикселя, щель между кулаком и рукавом на поднятой руке — 1 пиксель вместо 3–4. Все замечания первого круга закрыты, первого приоритета нет.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">2.1</td><td class="p">2</td><td>Хват не скользил: когда посох вскинут, комель под кулаком торчал вперёд на 52 единицы — «копьё, перехваченное посередине».</td><td>Посох на замахе скользит в кулаке к концу древка (поле slide, как хват Берсерка).</td></tr>
+<tr><td class="n">3</td><td class="p">3</td><td>Искра огонька на кулаке в лечении b, ближний кулак прятался под полу в ударе a, передняя стопа отрывалась в выпаде, кошель в смерти уезжал на макушку кучи.</td><td>Поправлено.</td></tr>
+<tr><td class="n">3.1</td><td class="p">3</td><td>Щель в 2 пикселя у запястья, где предплечье лежит полого, — та же, что в утверждённом покое.</td><td>Не трогали: правка меняет покой — вопрос вам.</td></tr>
+</tbody></table></div>
+    
+    <details class="history"><summary>Как лепили модель: облик, мерки, два ревью моделлера</summary>
+<p class="prose">На листе — сутулый маг в огромном плаще с капюшоном: лицо в тени, посох с синим пламенем в дальней руке, пустой кулак у бедра. Мерки сняты с первого кадра боевой стойки (второй ряд листа). Капюшон, пелерина, плащ, ряса, рукав, сапоги и кольцо посоха обведены в точках листа. Посох в дальней руке, как во всех семи рядах листа. В плане документа было наоборот, но ревьюер подтвердил, что верно по листу.</p>
+<div class="meta"><span>Рост <b>120</b> по таблице, переключатель ниже</span><span>Облики <b>A «С листа» · B «Звездочёт» · C «Отшельник»</b></span><span>Лепщик и ревьюер рекомендуют <b>A</b></span></div>
+<h3>Ревью моделлера</h3>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p p1">1</td><td>Дальняя рука: плечевой сустав на уровне пояса, локоть выше плеча, кисть заломлена на −95°. Под пелериной рукав стоял «палаткой», в клипах рука росла бы из талии.</td><td>Плечо под краем капюшона, локоть ниже плеча, сгиб 92–100°, запястье около −41° во всех 24 кадрах.</td></tr>
+<tr><td class="n">2</td><td class="p">2</td><td>Размер. Прежний Маг стоял в бою ростом около 96: мерка листа 134 захватывала искры пламени. Лепка — 120, и она шире всех героев (154).</td><td>Решаете вы: переключатель 120 / 106 / 98 в отряде и над карточками.</td></tr>
+<tr><td class="n">3</td><td class="p">2</td><td>Покой мерцал тоном целых фигур: при сдвиге на пиксель перекрашивалось 13 % клеток.</td><td>У Мага дизеринг ткани выключен, мерцание 0,3–0,9 %. Причина в движке — вопрос в конце.</td></tr>
+<tr><td class="n">4</td><td class="p">2</td><td>B: звезда на капюшоне читалась глазом, полумесяц — лупой, фестоны — рунами «VVVV»; облик тонул на тёмных локациях.</td><td>Звезда осталась только застёжкой, полумесяц рогами вверх, фестоны крупнее с тёмным швом, ряса на ступень светлее.</td></tr>
+<tr><td class="n">5</td><td class="p">2</td><td>C: капюшон с седой бородой — мотив некроманта; мешковина тонула в Лесу и Склепе.</td><td>Борода ушла в тень капюшона, мешковина — цвета пыли и сухой травы.</td></tr>
+<tr><td class="n">6</td><td class="p">3</td><td>A по цвету близко к некроманту и личу.</td><td>Ряса сдвинута к индиго, насыщенность −20 %: единственное цветное пятно — синее пламя.</td></tr>
+<tr><td class="n">7–11</td><td class="p">3</td><td>Кулаки шариками, дальний рукав сливался с грудью, под рясой не угадывались ноги, лицо плоским тёплым пятном, ближняя рука прямая.</td><td>Кулак поперёк предплечья с большим пальцем и обшлагом, рукав светлее, складки натяжения и тень между ногами, лицо в тени со светлыми носом и скулой, локоть согнут.</td></tr>
+</tbody></table></div>
+<h3>Повторное ревью</h3>
+<p class="note prose">Новый агент перемерил прежнее: дальняя рука, мерцание, палитра A исправлены полностью, остальное — в основном. Первого приоритета больше нет. Нашёл новое, лепщик поправил.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p">2</td><td>Посох читался коротким скипетром, кулак — шаром на его конце: древко ниже кулака закрывал раструб рукава.</td><td>Край раструба сдвинут, древко идёт ниже кулака, как на листе; кулак — одна черта поперёк и светлые костяшки.</td></tr>
+<tr><td class="n">2</td><td class="p">2</td><td>B: палантин с серебряной кромкой и острым концом читался мечом в ножнах.</td><td>Конец раздвоен, длинные края тёмным швом, серебро только внизу.</td></tr>
+<tr><td class="n">3</td><td class="p">2</td><td>B: железный посох выглядел белым из-за широких серебряных колец.</td><td>Тёмное железо в узких кольцах.</td></tr>
+<tr><td class="n">4</td><td class="p">2</td><td>C: половина пелерины почти чёрная, ряса читалась камнем или досками.</td><td>Складки светлее, рваный край мягче.</td></tr>
+<tr><td class="n">5–7</td><td class="p">3</td><td>B: звезда-застёжка читалась крестиком; ноги под рясой стояли «шпагатом»; ближний сапог смотрел носком назад.</td><td>Застёжка убрана; складки выпадом, тень между ногами глубже; сапог носком к зрителю.</td></tr>
+<tr><td class="n">8</td><td class="p">3</td><td>Дальнее плечо рисуется поверх туловища — в клипах с поднятой рукой проявится.</td><td>Отложено на клипы (шаг 4).</td></tr>
+</tbody></table></div>
+</details>
+  </section>
+
+  <section id="assassin" aria-labelledby="assassin-h">
+    <div class="hero-head">
+      <figure class="portrait"><div data-portrait="assassin"></div><figcaption>прежний портрет</figcaption></figure>
+      <div>
+        <h2 id="assassin-h">Ассасин</h2>
+        <p class="prose">Облик A «С листа»: низкая стойка, два клинка обратным хватом, шарф цвета запёкшейся крови. У прежнего листа был только покой — клипы придуманы заново. Дымовая шашка — свой клип «Исчезновение»: шашка под ноги, дым встаёт стеной, силуэт растворяется в нём по клеткам и проступает из дыма уже в стойке. У героя без этого клипа шашка играет клич.</p>
+      </div>
+    </div>
+    <h3>Клипы</h3>
+    <div class="clips" data-clips="assassin"></div>
+    <h3>Аватарка</h3>
+    <p class="prose">Лиловое небо, луна с черепом слева над капюшоном и готические шпили — с прежнего портрета; череп на тон светлее луны, иначе глазницы на 44 клетках сливались с небом. Выбрана <b>A</b>; на странице — она одна, три позы были такими:</p>
+<ul class="list prose">
+  <li><b>A «Покой»</b> — стойка в кадре бюста; клинков в кадре нет, узнаётся только по шарфу.</li>
+  <li><b>B «Клинок у груди»</b> — ближний кулак поднят перед грудью, кинжал обратным хватом уходит вниз-вправо поперёк кадра, как на прежнем портрете.</li>
+  <li><b>C «Накрест»</b> — кулаки у пояса, клинки остриями вверх накрест перед грудью; читается прямым хватом, хотя в бою хват обратный.</li>
+</ul><h4>Ревью аватарки</h4>
+<p class="note prose">Ревьюер согласен с B «Клинок у груди» — обратный хват у груди, как на прежнем портрете. В A клинков нет, в C клинки сходятся буквой V и читаются прямым хватом. Ассасин — самый тёмный в ряду, как и его прежний портрет.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p">2</td><td>Кожа с внутренней стороны ближнего плеча — большое оранжевое пятно, с обмоткой выходила каша слева внизу.</td><td>Кожа в тени — только в портрете, клипы не меняются.</td></tr>
+<tr><td class="n">2</td><td class="p">3</td><td>Голова ниже соседей, серп луны почти не виден: кромка ореола почти совпадала с ним.</td><td>Кадр выше на две клетки, кромка серпа светлее.</td></tr>
+</tbody></table></div>
+    <div class="av-cards" data-avatars="assassin"></div>
+    <h3>Ревью риггера</h3>
+<p class="note prose">Руки собраны чисто: цепь суставов нигде не рвётся, запястья в −35…35°, первый и последний кадр совпадают с покоем. Вид ломали ноги в выпадах и клинки в смерти.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p p1">1</td><td>Во всех выпадах задняя стопа висела в воздухе: таз уходил дальше длины ноги, щиколотка поднималась на 8–20 единиц.</td><td>Задняя стопа переставляется за кадр выпада и стоит — щиколотка на земле во всех кадрах.</td></tr>
+<tr><td class="n">2</td><td class="p p1">1</td><td>Смерть: выпавшие клинки ездили по земле вслед за падающей кистью.</td><td>Клинки падают в постоянные точки кадра.</td></tr>
+<tr><td class="n">3</td><td class="p">2</td><td>Блок: клинки не скрещивались, дальний стоял «факелом», ближний — поперёк маски.</td><td>Крест перед лбом, лицо закрыто предплечьями.</td></tr>
+<tr><td class="n">4</td><td class="p">2</td><td>Приём: проводка броска ложилась поперёк маски.</td><td>Рука после броска уходит к бедру под шарф.</td></tr>
+<tr><td class="n">5</td><td class="p">2</td><td>Клич: клинок смотрел в лицо, «кулак у земли» недостижим — рука висела отвесно у пояса.</td><td>Клинок вперёд, рука вперёд-вниз.</td></tr>
+<tr><td class="n">6</td><td class="p">2</td><td>Колено уходило под землю на 2–3 строки (смерть, лечение b).</td><td>Присед подобран по наколеннику.</td></tr>
+<tr><td class="n">7</td><td class="p">2</td><td>Смерть на спину выходила «кучей»: капюшон высоко, петля шарфа кольцом у лица.</td><td>Падение ничком, как у Берсерка.</td></tr>
+</tbody></table></div>
+<h4>Второй круг</h4>
+<p class="note prose">Новый риггер перемерил всё заново: запястья в −35…35°, локти не острее 55°, щиколотка в выпадах на земле, острия в смерти стоят, стык с покоем до пикселя. Смерть ничком принята: гребня, столба и торчащих рук нет, куча ниже, чем у Берсерка, и вправо выходит всего на 6 единиц. Первого приоритета нет.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p">2</td><td>Сильный удар a «Раз-два»: второй укол не доходил до врага на ~36 единиц — укол в воздух.</td><td>Второй выпад глубже, со вторым шагом: остриё достаёт врага.</td></tr>
+<tr><td class="n">2, 5</td><td class="p">3</td><td>Возврат к покою за один кадр — клинок проворачивался на ~70°; в смерти ремень с кошелём торчали столбиком над спиной.</td><td>Кисть к последнему ключу подходит к покою заранее; ремень ложится с телом.</td></tr>
+</tbody></table></div>
+<h4>Исчезновение — первый круг</h4>
+<p class="note prose">Суставы чистые: цепь не рвётся ни в одном видимом кадре, стопы стоят, смена позы на покой спрятана в стене дыма полностью, стык с покоем до пикселя. Ломали вид дым и растворение.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p p1">1</td><td>Дым читался грудой сланцевых камней: клубы почти сеткой и равными, каждый своим куполом со швами, гранитный дизеринг, холодный рамп с голубой каймой.</td><td>Пепельный рамп со сливой, свет по общему полю, неровные клубы, которые поднимаются и растут, дыры и край — пятнами шума.</td></tr>
+<tr><td class="n">2</td><td class="p">2</td><td>Клинки уходили от утверждённого клича — в кадр контакта клинок колол в дым.</td><td>Клинки ведутся от предплечья, как в кличе.</td></tr>
+<tr><td class="n">3</td><td class="p">2</td><td>Край растворения — правильная сетка «кольчугой», уцелевшие клетки — крестиками.</td><td>Порог растворения с шумом: кусков в кадре 9 — 79 → 8.</td></tr>
+<tr><td class="n">4</td><td class="p">2</td><td>В кадре 10 кулаки с клинками висели отдельно от тела.</td><td>Рука проступает вместе с корпусом.</td></tr>
+<tr><td class="n">5</td><td class="p">2</td><td>Шашки не было — пустая рука шла к кошелю, бросок не читался.</td><td>Глиняная шашка с фитилём в кулаке, у земли — вспышка и искры.</td></tr>
+<tr><td class="n">6</td><td class="p">2</td><td>В кадре 6 над стеной торчала макушка капюшона.</td><td>Фигура уходит в дым целиком.</td></tr>
+</tbody></table></div>
+<h4>Исчезновение — второй круг</h4>
+<p class="note prose">Новый риггер перемерил всё заново: локти не острее 70°, запястья −30…5° без скачков больше 35°, стопы стоят, колени над землёй, тело в кадре 6 стёрто целиком, в кадре 10 от локтей вниз — целое, стык с покоем до пикселя. Все замечания первого круга закрыты, первого приоритета нет. Дым на масштабе игры читается тёмной пепельной тучей и виден на всех трёх фонах.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p">2</td><td>Вспышка шашки читалась тёмной «мишенью»: первый клуб закрывал её, в центре лежал целый шарик.</td><td>Дым в контакт реже, вспышка ступенями ярче к центру, шашка разлетается пятью осколками.</td></tr>
+<tr><td class="n">2</td><td class="p">2</td><td>Шашку в кулаке почти не было видно — плоский диск в 5 клеток сливался с обмоткой.</td><td>Шашка крупнее, с тенью и бликом, фитиль с искрой.</td></tr>
+<tr><td class="n">3</td><td class="p">2</td><td>Клочья над тучей висели круглыми шариками — «подброшенная галька».</td><td>Клочья выходят языками из верха тучи и вытянуты вверх.</td></tr>
+<tr><td class="n">4–8</td><td class="p">3</td><td>Светлый «крестик» острия в полосе проявления, лёгкая «кладка» по клубам, стена почти стоит в кадрах 7→8, чёрная полоса тени под дымом, хвост дыма пропадал разом.</td><td>Поправлено.</td></tr>
+</tbody></table></div>
+    
+    <details class="history"><summary>Как лепили модель: облик, мерки, два ревью моделлера</summary>
+<p class="prose">На листе — низкая широкая стойка, два клинка обратным хватом опущены по бокам, капюшон с маской, красный шарф петлёй, красный набедренный клин. Мерки сняты с первого кадра. Капюшон, проём, маска, шарф, торс, пояс, полы, кушак и сапоги обведены в точках листа. Лепщик заметил, что контур листа уже включает его чёрную обводку, поэтому толщины рук и ног надо брать на 1,5–2 точки внутрь силуэта. Иначе просветы между руками и телом закрываются.</p>
+<div class="meta"><span>Рост <b>121,5</b> при таблице 120</span><span>Облики <b>A «С листа» · B «Отравитель» · C «Сумрак»</b></span><span>Лепщик и ревьюер рекомендуют <b>A</b></span></div>
+<h3>Ревью моделлера</h3>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">2.1</td><td class="p">2</td><td>Локоть «качался» в покое на 4 пикселя: рука почти прямая, и ik у предела длины срывался от сдвига кисти на пиксель.</td><td>Кисть ходит вокруг плеча при постоянной длине руки, сгиб 165° и 174° во всех кадрах.</td></tr>
+<tr><td class="n">2.2</td><td class="p">2</td><td>Проём капюшона доходил до края силуэта, и голова читалась вязаной шапкой с балаклавой. Кожа у глаз шла тёмной ступенью.</td><td>Проём обрамлён тканью капюшона, полоса кожи у глаз светлая, как на листе.</td></tr>
+<tr><td class="n">2.3</td><td class="p">2</td><td>Дальняя рука начиналась шаром обмотки из-под шарфа и была светлой, как ближняя.</td><td>Пятно кожи у локтя, как в прорехе рукава на листе; дальняя рука на ступень темнее.</td></tr>
+<tr><td class="n">2.4</td><td class="p">2</td><td>Набедренная полоса A — прямоугольный фартук, самое крупное цветное пятно.</td><td>Узкий клин к острию, как на листе.</td></tr>
+<tr><td class="n">2.5</td><td class="p">2</td><td>Крюки B: ближний висел прямой палкой, дальний читался прямым хватом к врагам.</td><td>Серпы вогнутой кромкой к врагам, яд по теневой кромке.</td></tr>
+<tr><td class="n">2.6</td><td class="p">2</td><td>C: лента шарфа поперёк лица читалась «улыбкой», голова — шлемом с прорезью.</td><td>Лента на шее под повязкой, повязка темнее капюшона, складки ткани на капюшоне.</td></tr>
+<tr><td class="n">2.7</td><td class="p">2</td><td>Стилеты C рвались у острия пунктиром и тонули на теле.</td><td>Клинок без обрыва, светлая сталь; гарды воронёные.</td></tr>
+<tr><td class="n">2.8</td><td class="p">2</td><td>B и C темнее сцены: тонули в Лесу, Пещерах, Склепе, на Корабле.</td><td>Ткань на ступень светлее, акценты прежние.</td></tr>
+<tr><td class="n">3.1–3.6</td><td class="p">3</td><td>Капюшон рябил при сдвиге на пиксель (20 % клеток), кулаки шариками, голова вставала на полпикселя, шарф по светлоте как корпус, дальняя нога светлее ближней.</td><td>Капюшон без дизеринга (1,3 %), ряд костяшек поперёк клинка, взгляд по сетке и лёгкий кивок, шарф на ступень светлее — кирпичный, не алый, дальняя нога темнее. Клюв B оставлен: это суть облика, вопрос ниже.</td></tr>
+</tbody></table></div>
+<h3>Повторное ревью</h3>
+<p class="note prose">Новый агент перемерил прежнее: локоть, крюки, стилеты, рябь капюшона, кулаки и голова исправлены полностью, остальное — частично. Первого приоритета нет. Нашёл новое, лепщик поправил.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">a</td><td class="p">2</td><td>У капюшона не было светлой кромки проёма: её съедала граничная линия частей, и голова на ×2 читалась шапкой или шлемом с забралом.</td><td>Светлая полоса кромки по капюшону до лица, как на листе; у C убрана черта повязки и лишняя складка.</td></tr>
+<tr><td class="n">b</td><td class="p">2</td><td>A: заднее полотнище того же красного сливалось с клином в красный прямоугольник между ног.</td><td>Полотнища цвета ткани, клин узкий, главное красное пятно — шарф.</td></tr>
+<tr><td class="n">c</td><td class="p">2</td><td>Пятно кожи на дальнем локте во всю ширину руки — второе тёплое пятно.</td><td>Только на внешней половине руки, в тени; дальняя рука заметно темнее ближней.</td></tr>
+<tr><td class="n">d</td><td class="p">2</td><td>B и C по-прежнему самые тёмные в отряде, у C дальние сапог и наколенник почти чёрные.</td><td>B и сапоги C на ступень светлее, клюв и полумаска B — светлой кожей, отделены от капюшона.</td></tr>
+<tr><td class="n">e–h</td><td class="p">3</td><td>Накидка C читалась латным наплечником, клин B — ножнами, ближний клинок мерцал бликом, дальняя рука тоньше листа.</td><td>Накидка с рваным краем, клин тканью с кожаной кромкой, маятник клинков ±1,5°, предплечье толще.</td></tr>
+</tbody></table></div>
+</details>
+  </section>
+
+  <section id="archer" aria-labelledby="archer-h">
+    <div class="hero-head">
+      <figure class="portrait"><div data-portrait="archer"></div><figcaption>прежний портрет</figcaption></figure>
+      <div>
+        <h2 id="archer-h">Лучник</h2>
+        <p class="prose">Облик A «Следопыт»: капюшон меньше и треугольнее (мягкость 0,55), сапоги меньше, лук натянут в покое, тянущая кисть у подбородка. Удар — выстрел: стрела вылетает в кадр контакта, игра пускает снаряд в тот же миг. У прежнего листа был только покой.</p>
+      </div>
+    </div>
+    <h3>Клипы</h3>
+    <div class="clips" data-clips="archer"></div>
+    <h3>Аватарка</h3>
+    <p class="prose">Тёмно-зелёная ночь, тусклая луна с оленем и ели по краям — с прежнего портрета. Луна — на чистом небе в правом верхнем углу над луком, капюшона не касается; олень с рогами короной — на меньшем диске прежний сводился к «Y». Голова в портрете крупнее, чем в бою (1 вместо 0,85), лицо — светлая полоса с носом и глазом чертами, ниже маска. Выбрана <b>A</b>; на странице — она одна, три позы были такими:</p>
+<ul class="list prose">
+  <li><b>A «Покой»</b> — стрела на тетиве у груди, тетива наискось к луку у правого края, лук срезан краем кадра, оперение колчана над плечом — композиция прежнего портрета.</li>
+  <li><b>B «Стрела у груди»</b> — тетива спущена, лук отвесно у правого края и виден целиком, стрела в кулаке остриём к подбородку, лицо открыто.</li>
+  <li><b>C «Добор к уху»</b> — третий кадр выстрела «С места»: кисть у подбородка, стрела поперёк кадра, голова склонена к стреле.</li>
+</ul><h4>Ревью аватарки</h4>
+<p class="note prose">Ревьюер не согласен с B и рекомендует A «Покой»: прежний портрет — ровно эта композиция, тетива наискось к луку у правого края, стрела поперёк груди. В B кулак со стрелой уходил под рамку, а кисть с луком — за край: оставался лук палкой и стрела в подбородок. В C кисть не доходила до подбородка — «к уху» не читался.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p p1">1</td><td>B: лук и стрела не читались — кулак под нижней рамкой, кисть с луком за правым краем.</td><td>Кисти подняты в кадр.</td></tr>
+<tr><td class="n">2</td><td class="p">2</td><td>Луну срезала рамка — она читалась гербовым щитом, рога оленя сливались с рамкой.</td><td>Кадр шире, луна целая. После правки луна села за острие капюшона и олень читался гребнем — вынесена в правый верхний угол над луком, радиус 12, рога короной; лук в B и C наклонён наружу, чтобы не заходить на неё.</td></tr>
+<tr><td class="n">3</td><td class="p">2</td><td>Голова ниже и крупнее соседей: самый тесный кадр в ряду (73 против 84–96).</td><td>Кадр 80 — голова по размеру как у соседей; верх капюшона на 16-й клетке из 56 — ради места под луной, у соседей 4–12.</td></tr>
+<tr><td class="n">4</td><td class="p">2</td><td>Лицо светлым пятном-«картошкой» с чертой глаза — мультяшно.</td><td>Лицо в тени капюшона, маска до носа, видна полоса глаз.</td></tr>
+<tr><td class="n">5</td><td class="p">3</td><td>Капюшон — самое светлое место фигуры, руки светлой бурой полосой.</td><td>В портрете материалы на ступень темнее, отрыв фигуры от неба остался.</td></tr>
+</tbody></table></div>
+    <div class="av-cards" data-avatars="archer"></div>
+    <h3>Ревью риггера</h3>
+<p class="note prose">Рука с луком собрана аккуратно: запястье −53…−117° без скачков, стрела пропадает ровно на контакте, стык с покоем — до пикселя. Ломались три системных места.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p p1">1</td><td>Колено перескакивало на другую сторону линии бедро — щиколотка на 40 единиц за кадр (смерть, лечение b).</td><td>Два решения ik смешиваются по положению колена, как у Берсерка.</td></tr>
+<tr><td class="n">2</td><td class="p p1">1</td><td>Тетива рисовалась поверх всего кадра: через лицо в кличе, поверх ног лежащего в смерти.</td><td>Когда лук спущен и повёрнут, тетива ложится только на пустые клетки — за телом.</td></tr>
+<tr><td class="n">3</td><td class="p p1">1</td><td>Пинок: нога проходила сквозь натянутый лук.</td><td>Натянутый лук поднят вместе с тянущей кистью, нижнее плечо над бедром.</td></tr>
+<tr><td class="n">4</td><td class="p">2</td><td>Перезарядка: стрела появлялась сразу на тетиве, кисть прыгала на 63 единицы.</td><td>В кадре у колчана стрела уже в кулаке — движение читается смазом.</td></tr>
+<tr><td class="n">5</td><td class="p">2</td><td>Удар b: после спуска тянущая кисть падала к подбородку, локоть ниже плеча.</td><td>Кисть отлетает к уху, как у варианта a.</td></tr>
+<tr><td class="n">6</td><td class="p">2</td><td>Сильный удар b: «куриное крыло» — локоть выше плеча.</td><td>Локоть назад-вниз.</td></tr>
+<tr><td class="n">7</td><td class="p">2</td><td>Смерть: дальняя рука лежала брусом поверх груди.</td><td>Рука вдоль тела за торсом.</td></tr>
+</tbody></table></div>
+<h4>Второй круг</h4>
+<p class="note prose">Новый риггер перемерил всё заново: колено идёт непрерывно, тетива за телом, стрела исчезает ровно в кадр контакта, стык с покоем до пикселя. Первого приоритета нет.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p">2</td><td>Пинок исправлен частично: конец нижнего плеча лука и тетива всё ещё лежали на бедре у колена.</td><td>Лук вскинут круче, его нижний конец уходит за торс, голень свободна.</td></tr>
+<tr><td class="n">2</td><td class="p">2</td><td>Смерть: колчан и плащ пропадали за один кадр, пока тело ещё наклонено.</td><td>Колчан держится до конца падения и уходит под тело, плащ ложится на землю постепенно.</td></tr>
+<tr><td class="n">3–7</td><td class="p">3</td><td>Колено в лечении b висело над землёй, ближняя нога в смерти сжималась в ком, тетива лежала поверх козырька в уроне, стрела у колчана перевёрнута.</td><td>Поправлено.</td></tr>
+</tbody></table></div>
+    
+    <details class="history"><summary>Как лепили модель: облик, мерки, два ревью моделлера</summary>
+<p class="prose">На листе — лучник в зелёном капюшоне и длинном рваном плаще. Лук натянут, стрела на тетиве, колчан за спиной, стойка широкая. Мерки сняты с первого кадра. Капюшон, проём, пелерина, плащ, торс, пояс, сумка, сапоги, ось лука и узлы тетивы обведены в точках листа. Тетива и стрела — отдельные фигуры, чтобы клип выстрела мог их двигать. Тянущая кисть поднята к подбородку: на листе она на 3 точки ниже, у груди.</p>
+<p class="prose"><b>По вашему отзыву</b> капюшон стал меньше на 15 % (голова масштабируется вокруг шеи и остаётся между плечами) и треугольнее купола: скруглённое острие вверх и чуть назад, выпуклые скаты, проём клином, у «Ворона» козырёк-клюв и хвост от острия, у «Листопада» отворот. Сапоги меньше на 15–18 %: стопа короче, голенище ниже и уже, обмоток две вместо трёх. Колени и шаг стойки прежние.</p>
+<div class="meta"><span>Рост <b>126 / 126 / 123</b> при таблице 124 (у A и B верх — конец лука)</span><span>Облики <b>A «Следопыт» · B «Ворон» · C «Листопад»</b></span><span>Лепщик и ревьюер рекомендуют <b>A</b></span></div>
+<h3>Ревью моделлера</h3>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">1</td><td class="p p1">1</td><td>Ноги читались «ходулями от колена в сабо»: бёдра в тон плаща, голенища на треть тоньше листа, стопа отдельной частью, обмотки «зеброй».</td><td>Штаны темнее плаща, изнанка плаща в тени, голенища по листу, стопа с голенищем одной частью, обмотки в тонах сапога.</td></tr>
+<tr><td class="n">2</td><td class="p">2</td><td>Лица: у A — маска, как у разбойника-лучника Леса; у B — бурые «жалюзи»; у C — «шлем с прорезью».</td><td>A — узкий блик скулы и носа в провале капюшона; B — нос и скула, щетина в тени; C — оливковый платок другой тканью.</td></tr>
+<tr><td class="n">3</td><td class="p">2</td><td>Тетива шла поверх тянущей кисти, и кисть не читалась.</td><td>Тетива обрывается у кулака, кулак крупнее и светлее.</td></tr>
+<tr><td class="n">4</td><td class="p">2</td><td>Торс «бочкой с обручами»: полосы стопкой, грудь освещена целиком.</td><td>Дальний бок в тени, тень клином под предплечьем, пелерина закрывает дальнее плечо до руки с луком.</td></tr>
+<tr><td class="n">5</td><td class="p">2</td><td>Облики тусклее и площе отряда, B тонул на тёмных локациях, у A самое яркое пятно — оперение за плечом.</td><td>Верхние тона подняты (у A верх 5 % тонов — 119 → 141), B и C светлее, оперение приглушено.</td></tr>
+<tr><td class="n">6–8</td><td class="p">3</td><td>Колчан корзиной, складка капюшона швом шлема, у B застёжка под предплечьем и штрих хвоста второй «тетивой».</td><td>Перья длиннее и острее, устье колчана в тени, складка полутоном, застёжка на видимой пелерине.</td></tr>
+<tr><td class="n">9</td><td class="p">3</td><td>Стрела длиннее рукояти на 14–16, ближнее предплечье длиннее дальнего, стойка очень широкая.</td><td>Не менялось — всё с листа.</td></tr>
+</tbody></table></div>
+<h3>Повторное ревью</h3>
+<p class="note prose">Новый агент перемерил прежнее: ноги, тетива и кисть, торс, складка капюшона исправлены полностью, лица, яркость и колчан — частично. Первого приоритета нет. Нашёл новое, лепщик поправил.</p>
+<div class="scroll"><table>
+<thead><tr><th>№</th><th>Пр.</th><th>Что нашёл ревьюер</th><th>Что стало</th></tr></thead><tbody>
+<tr><td class="n">P2-1</td><td class="p">2</td><td>A: лицо освещено не с той стороны и стоит на 6–9 точек впереди листа — горизонтальная полоса в чёрной раме, как у разбойника-лучника Леса.</td><td>Светлый клин щеки у заднего края проёма, нос вертикалью, перед лицом тень, капюшон склонён вдоль стрелы на 6°.</td></tr>
+<tr><td class="n">P2-2</td><td class="p">2</td><td>B: после осветления капюшон по светлоте совпал со сталью Воина и читался шлемом-саладом с козырьком.</td><td>Капюшон темнее и синее, фактура ткани полосами, складки от темени к клюву; цветное пятно — синий отлив вороньих перьев.</td></tr>
+<tr><td class="n">P2-3</td><td class="p">2</td><td>Колчан над плечом читался «кулаком с перьями»: тело колчана выше пелерины, древок почти не видно.</td><td>Тело колчана под кромкой пелерины, видны перья и тонкие древки; у C колчан тёмной кожей.</td></tr>
+<tr><td class="n">P3</td><td class="p">3</td><td>Лицо A мигало в покое, плащ читался листом или опахалом, сапог без щиколотки, застёжка B у кулака, чёрные перья B на чёрном колчане.</td><td>Кивок сдвигом на целый пиксель, лохмотья только у подола и складки веером, щиколотка и пятка, застёжка над локтем, перья светлее.</td></tr>
+</tbody></table></div>
+</details>
+  </section>
+
+  <section id="select" aria-labelledby="select-h">
+    <h2 id="select-h">Строка выбора героя</h2>
+    <p class="prose">Шесть плиток по 112 точек в порядке выбора героя, как в игре на кадре 960 с версии 0.54.7: все шесть — аватарки из лепки, у Мага, Ассасина и Лучника — выбранный вариант. Одно небо, один ореол, рамка темнее фона, никто не ярче и не крупнее соседей. Нижний ряд — как было до 0.54.7, с рисованными портретами троих.</p>
+    <div class="avatar-row" id="avatar-row"></div>
+    <div class="avatar-row" id="avatar-row-old"></div>
+  </section>
+
+  <section id="decided" aria-labelledby="decided-h">
+    <h2 id="decided-h">Решено</h2>
+    <div class="scroll"><table>
+<thead><tr><th>Что</th><th>Выбор</th><th>Отвергнуто — в истории ветки</th></tr></thead>
+<tbody>
+<tr><td>Облик Мага</td><td>A «С листа»: ряса индиго с бронзовой кромкой, синее пламя на посохе</td><td>B «Звездочёт», C «Отшельник»</td></tr>
+<tr><td>Облик Ассасина</td><td>A «С листа»: сливово-угольный покров, шарф и клин цвета запёкшейся крови</td><td>B «Отравитель», C «Сумрак»</td></tr>
+<tr><td>Облик Лучника</td><td>A «Следопыт»: моховой капюшон — меньше, треугольнее (мягкость 0,55), сапоги меньше</td><td>B «Ворон», C «Листопад»; купол и острый треугольник капюшона</td></tr>
+<tr><td>Клипы Мага</td><td>удар A «Выпад», сильный удар B «Снизу», лечение B «Огонёк в ладони»</td><td>удар «Взмах», сильный «Сверху в землю», лечение «Пламя посоха»</td></tr>
+<tr><td>Клипы Ассасина</td><td>удар A «Выпад», сильный удар B «Ножницы», лечение A «Вдох»; смерть ничком</td><td>удар «Снизу», сильный «Раз-два», лечение «На колено»; смерть на спину</td></tr>
+<tr><td>Рост Мага</td><td class="n">106 — площадь фигуры как у Воина</td><td>120 — прежнее число таблицы, 98 — как прежний лист стоял в бою</td></tr>
+<tr><td>Дымовая шашка</td><td>личный клип Ассасина «Исчезновение»</td><td>клич, как у прочих приёмов на себя</td></tr>
+<tr><td>Клипы Лучника</td><td>удар A «С места», сильный удар B «Стрелой», лечение A «Глоток»</td><td>удар «С шагом», сильный «Пинок», лечение «На колено»</td></tr>
+<tr><td>Аватарка Мага</td><td>B «Пламя у лица»: посох торчком у капюшона, звезда в кольце над ним</td><td>A «Покой», C «Огонёк в ладони»</td></tr>
+<tr><td>Аватарка Ассасина</td><td>A «Покой»: стойка в кадре бюста, череп в полумесяце, кожа плеча в тени</td><td>B «Клинок у груди», C «Накрест»</td></tr>
+<tr><td>Аватарка Лучника</td><td>A «Покой»: стрела на тетиве, лук у правого края, луна с оленем над луком</td><td>B «Стрела у груди», C «Добор к уху»</td></tr>
+<tr><td>Пиксель</td><td class="n">1,5</td><td></td></tr>
+</tbody></table></div>
+<p class="note prose">По рекомендации, без отдельного слова: маска на лице Мага, красное Ассасина как на листе, у Лучника кисть у подбородка и лук натянут в покое. Движок дизеринга не трогаем.</p>
+<h3>Оставлено как есть</h3>
+<ul class="list prose">
+  <li>Маг: щель в 2 пикселя у запястья, где предплечье лежит полого, — такая же в утверждённом покое; убрать можно только с правкой покоя.</li>
+  <li>Маг: верх дальнего рукава рисуется поверх туловища — оба риггера посмотрели клипы с поднятой рукой, вид это не ломает.</li>
+  <li>Ассасин: бросок ближней рукой проходит над капюшоном — плечо стоит за головой, иначе никак; бросок передней рукой — если не понравится.</li>
+  <li>Лучник: после выстрела в колчане по-прежнему четыре стрелы; полоса ткани не реагирует на ногу в пинке; кисть от колчана к тетиве проходит за один кадр.</li>
+</ul>
+  </section>
+
+  <section id="process" aria-labelledby="process-h">
+    <h2 id="process-h">Как делали</h2>
+    <ol class="steps prose">
+  <li><b>Модель.</b> Три лепщика параллельно, по три облика на героя, два круга ревью агента-моделлера. Потом ваши правки Лучника: капюшон меньше и треугольнее, сапоги меньше. Облики A выбраны, B и C убраны из кода, покой облика A не изменился ни на пиксель — зерно фактуры идёт по порядку фигур.</li>
+  <li><b>Клипы.</b> Три аниматора параллельно, каждый в своём файле: каркас позы (руки кистью через ik, оружие от предплечья с пределом запястья, зонд с суставами), девять общих клипов, по два варианта удара, сильного удара и лечения. Проверки — листы кадров, путь кисти и острия числами, риг по кадрам, временный тест по образцу тестов игры.</li>
+  <li><b>Ревью риггинга.</b> Отдельный агент-риггер без контекста на каждого героя смотрит все клипы по восьми пунктам рецепта. Замечания первого и второго приоритета аниматор правит сразу, после крупной правки — новый риггер. Два круга на героя.</li>
+  <li><b>Выбор.</b> Вы выбрали варианты — отвергнутые убраны из кода, выбранные клипы остались теми же до пикселя.</li>
+  <li><b>Личный клип и аватарки.</b> Аниматор Ассасина слепил «Исчезновение» — его проверил новый риггер. Потом каждый аниматор слепил по три позы портрета: цвета и знак ореола сняты с прежнего портрета, позы — отдельным рисунком, покой и клипы не изменились ни на пиксель (сверка хэшами). Все девять вариантов и строку выбора смотрел отдельный ревьюер.</li>
+</ol>
+  </section>
+
+  <section id="next" aria-labelledby="next-h">
+    <h2 id="next-h">Что дальше</h2>
+    <ol class="steps prose">
+  <li><b>Аватарка</b> — выбрать вариант каждого героя: рекомендуем B у Мага и Ассасина, A у Лучника.</li>
+  <li><b>Игра</b>: строка в <code>HERO_MODELS</code>, рост Мага 106 в таблице <code>HERO_BODY_HEIGHT</code> (до этого там рост прежнего листа); у «Исчезновения» — без свечения Скрытности поверх дыма и ввод закрыт, пока клип не доиграет (иначе удар из тени обрывает дым посреди стены); рисованные лист и портрет — из сборки, тесты, снимки, документы, пост.</li>
+</ol>
+  </section>
+</div>
+
+<script>window.ASSETS = {{ASSETS}};</script>
+<script>{{BUNDLE}}</script>

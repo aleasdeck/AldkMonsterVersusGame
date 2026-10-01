@@ -445,7 +445,7 @@ const REST: BerserkPose = {
 };
 
 /** Клипы Берсерка — все общие; своих нет (Ярость — клич, Боевой транс — пассивка). */
-type BerserkClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite'>;
+type BerserkClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'smite' | 'vanish'>;
 
 /**
  * Ключи клипов по кадрам (номер кадра с нуля; кадр контакта — `contact` в HERO_CLIPS). Поле без ключа держит свою

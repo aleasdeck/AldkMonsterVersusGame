@@ -25,6 +25,13 @@ const OUT = resolve(opt('out', join(ROOT, 'hero-preview')));
 const ONLY = opt('clips', '');
 const D = Number(opt('d', 1.5)); // пиксель героя — 1,5 (решение пользователя)
 const HERO = opt('hero', 'warrior');
+/**
+ * Варианты клипов на обсуждении: `--var attack=b,heal=b` → `<герой>Model({ variants })` для модели, ещё не записанной в
+ * HERO_MODELS; в имени файла — суффиксом (`mage-attackb-healb.png`).
+ */
+const VAR = opt('var', '');
+const VARIANTS = Object.fromEntries(VAR.split(',').filter(Boolean).map((s) => s.split('=')));
+const NAME = VAR ? `${HERO}-${VAR.replace(/=/g, '').replace(/,/g, '-')}` : HERO;
 const AVATAR = args.includes('--avatar');
 
 const bundle = await build({
@@ -82,7 +89,7 @@ function png(w, h, rgba) {
 mkdirSync(OUT, { recursive: true });
 const BG = [34, 38, 34], GROUND = [110, 84, 56], KEY = [255, 209, 102];
 const GAP = 4;
-const model = HERO_MODELS[HERO] ?? own[`${HERO}Model`]?.();
+const model = (VAR ? undefined : HERO_MODELS[HERO]) ?? own[`${HERO}Model`]?.(VAR ? { variants: VARIANTS } : undefined);
 if (!model) throw new Error(`Нет модели героя «${HERO}»: ни в HERO_MODELS (src/ui/heroes/index.ts), ни ${HERO}Model() в src/ui/heroes/${HERO}.ts`);
 // Клипы, которые рисует модель: общие и её личные (чужие личные она не рисует — в игре играет замена).
 const clips = modelClips(model).filter((c) => !ONLY || ONLY.split(',').includes(c));
@@ -125,12 +132,12 @@ const clips = modelClips(model).filter((c) => !ONLY || ONLY.split(',').includes(
       for (let x = ox; x < ox + bw * Z; x++) for (let y = oy + bh * Z + 1; y < oy + bh * Z + 3; y++) out.set([...KEY, 255], (y * W + x) * 4);
     }
   }));
-  const file = join(OUT, `${HERO}.png`);
+  const file = join(OUT, `${NAME}.png`);
   writeFileSync(file, png(W, H, out));
   const idle = rows.find((r) => r.clip === 'idle')?.sh;
   const body = idle ? (ground - idle.top) * d : 0;
   const want = HERO_BODY_HEIGHT[HERO];
-  console.log(`${HERO}: рост ${idle ? body : '—'} (таблица ${want}), кадр ${w * d}×${h * d}, ${Math.round(ms)} мс${edge.size ? `, ⚠ край листа: ${[...edge].join(', ')}` : ''} → ${file}`);
+  console.log(`${NAME}: рост ${idle ? body : '—'} (таблица ${want}), кадр ${w * d}×${h * d}, ${Math.round(ms)} мс${edge.size ? `, ⚠ край листа: ${[...edge].join(', ')}` : ''} → ${file}`);
 }
 
 // Аватарка: те же размеры, что в игре (плитка выбора 112, лист персонажа 80, консоль 44 — клетки по avatarCells), в ряд ×Z.
@@ -148,7 +155,7 @@ if (AVATAR) {
     }
     ox += n * Z + GAP;
   }
-  const file = join(OUT, `${HERO}-avatar.png`);
+  const file = join(OUT, `${NAME}-avatar.png`);
   writeFileSync(file, png(W, H, out));
-  console.log(`${HERO}: аватарка ${sizes.join(', ')} клеток → ${file}`);
+  console.log(`${NAME}: аватарка ${sizes.join(', ')} клеток → ${file}`);
 }

@@ -340,7 +340,7 @@ const REST: PaladinPose = {
 };
 
 /** Клипы, которые рисует Паладин: общие и свой Молот света; чужие личные (Воина) играют замену. */
-type PaladinClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte'>;
+type PaladinClip = Exclude<SculptClip, 'idle' | 'bash' | 'riposte' | 'vanish'>;
 
 /**
  * Ключи клипов по кадрам (номер кадра с нуля; кадр контакта — `contact` в HERO_CLIPS). Правила те же, что у Воина:

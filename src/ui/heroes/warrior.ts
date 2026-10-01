@@ -236,7 +236,7 @@ const REST: WarriorPose = {
  * Удары заданы путём кисти (`nh: 1`) и углом клинка, который отстаёт на замахе и догоняет кисть в кадр контакта;
  * углы клинка — одной «обмоткой» с покоем (22°), иначе интерполяция прокручивает меч кратчайшей дугой через тело.
  */
-const CLIPS: Record<Exclude<SculptClip, 'idle' | 'smite'>, PoseKeys<WarriorPose>> = {
+const CLIPS: Record<Exclude<SculptClip, 'idle' | 'smite' | 'vanish'>, PoseKeys<WarriorPose>> = {
   // Удар «Укол» (выбор пользователя из двух — рубки с плеча и укола): кисть к бедру, клинок вперёд вдоль предплечья, щит
   // прикрывает; шаг передней ногой — и рука во всю длину, клинок по горизонтали в грудь врага; задняя нога на носке.
   attack: [
@@ -369,7 +369,7 @@ export const warriorProbe: HeroProbe = { grounded: ['heal', 'heavy', 'death'] };
 /** Поза кадра: ключи клипа или покой. Покой прибавляется и в клипах — там фаза 0, первый кадр покоя. */
 function framePose(p: Painter): WarriorPose {
   const c = clipAt(p);
-  const P = c ? poseAt(REST, CLIPS[c.clip as Exclude<SculptClip, 'idle' | 'smite'>], c.f, c.n, HERO_CLIPS[c.clip].hold) : { ...REST };
+  const P = c ? poseAt(REST, CLIPS[c.clip as Exclude<SculptClip, 'idle' | 'smite' | 'vanish'>], c.f, c.n, HERO_CLIPS[c.clip].hold) : { ...REST };
   // Покой: меч и щит чуть качаются, плащ колышется, раз за цикл шлем поворачивается к врагам.
   P.sw += 1.5 * p.wave(1, 0.15);
   P.sh += 1 * p.wave(1, 0.55);

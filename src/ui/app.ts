@@ -5,7 +5,7 @@ import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/co
 import { ENEMY_LIST, enemyDef } from '../data/enemies';
 import { HIT_GAP, alignHeroShots, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
 import { syncPlates } from './fx/plates';
-import { heroArtUrls, heroClipFrameMs, heroContactMs, playHeroClip } from './heroSprite';
+import { heroClipFrameMs, heroClipHolds, heroContactMs, playHeroClip } from './heroSprite';
 import { playEnemyAction, playEnemyClip } from './enemySprite';
 import { replayMobStrike, warmMobs } from './mobs';
 import { HERO_MODELS, warmHero } from './heroes';
@@ -265,7 +265,7 @@ export class App {
   }
 
   /**
-   * Картинки забега — фон текущей локации в обоих кадрах и файлы героя — заказываются браузеру заранее (preload.ts):
+   * Картинки забега — фон текущей локации в обоих кадрах — заказываются браузеру заранее (preload.ts):
    * адреса известны задолго до показа, а весят файлы сотни килобайт. К последним клеткам акта туда же идёт фон
    * следующей локации. Проверка при каждой перерисовке: повторный заказ preload.ts отсекает сам.
    */
@@ -278,7 +278,7 @@ export class App {
     else warmHero(run.hero.defId, true);
     if (!run) return;
     const here = R.currentLocation(run).id;
-    warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'), ...heroArtUrls(run.hero.defId));
+    warmImages(locationBackground(here, 'tall'), locationBackground(here, 'wide'));
     // Листы пиксельной лепки рисуются кодом: прогреваются очередью в фоне, пока игрок на карте.
     warmMobs(ENEMY_LIST.filter((e) => e.location === here || e.id.startsWith('gnome_')).map((e) => e.id));
     const next = run.locations[run.locationIndex + 1];
@@ -699,9 +699,15 @@ export class App {
     // Клип героя стартует до применения приёма: он играет на старом поле вместе со снарядом. У героя-лепки удар,
     // снаряд и цифры ждут кадра контакта клипа — как у врагов-лепки (у рисованного контакт 0, план не меняется).
     const clip = plan && heroClip(plan, action);
+    let lock = 0;
     if (clip && playHeroClip(this.root, run.hero.defId, clip)) {
       plan!.clipped = true;
       alignHeroShots(plan!, heroContactMs(run.hero.defId, clip));
+      // Дым Исчезновения — сам эффект приёма: свечение Скрытности поверх стены не нужно, а ввод закрыт, пока дым не
+      // рассеется, — иначе удар из тени обрывал бы клип посреди стены.
+      const hold = heroClipHolds(run.hero.defId, clip);
+      plan!.selfFx = hold.selfFx;
+      lock = hold.lock;
     }
     R.battleAction(run, action);
     const events = run.battle.events.splice(0);
@@ -716,6 +722,7 @@ export class App {
       this.fxTimer = null;
       this.render();
       this.playEvents(events, plan);
+      if (lock > impact) this.fxTimer = window.setTimeout(() => (this.fxTimer = null), lock - impact);
     };
     if (impact > 0) this.fxTimer = window.setTimeout(land, impact);
     else land();
@@ -1075,6 +1082,8 @@ export class App {
       if (fx.kind === 'sculpt') done.add(`glow::${fx.target}`);
       playAfter(this.root, fx);
     };
+    // Клип героя рисует эффект приёма сам (дым Исчезновения) — свечение героя гасится.
+    if (plan?.selfFx) done.add('glow::hero');
     for (const a of plan?.after ?? []) after(a);
     for (const ev of events) {
       if (ev.type === 'log') continue;
