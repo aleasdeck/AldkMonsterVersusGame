@@ -1,9 +1,10 @@
 import { button, h } from '../dom';
 import { DIFFICULTIES } from '../../data/boons';
 import { paramTip } from '../tips';
+import { musicVolumeOf } from '../save';
 import type { App } from '../app';
 
-/** Пауза: продолжить, персонаж, лог боя, сид с копированием, в меню, бросить забег. Сид живёт здесь, а не в шапке. */
+/** Пауза: продолжить, персонаж, лог боя, сид с копированием, в меню, бросить забег, сундук и музыка. Сид живёт здесь, а не в шапке. */
 export function pauseMenu(app: App): HTMLElement {
   const run = app.run!;
   const seedBtn = button('Копировать', () => {
@@ -42,7 +43,27 @@ export function pauseMenu(app: App): HTMLElement {
           ),
         }),
       ),
-      h('div', { class: 'pause-keys dim' }, '1–9 приём · Enter цель · Tab другая цель · Space конец хода, у сундука — взлом · C персонаж · L лог · Esc снять выбор / пауза'),
+      musicRow(app),
+      h('div', { class: 'pause-keys dim' }, '1–9 приём · Enter цель · Tab другая цель · Space конец хода, у сундука — взлом · C персонаж · L лог · M музыка · Esc снять выбор / пауза'),
     ),
+  );
+}
+
+/** Музыка локации: громкость шагом в 10 % и выключатель; что играет здесь — в подсказке. */
+function musicRow(app: App): HTMLElement {
+  const vol = musicVolumeOf(app.profile);
+  const muted = !!app.profile.musicMuted;
+  const title = app.music.title();
+  const tip = paramTip('note', 'Музыка', 'У каждой локации свой трек в духе 16-битных приставок. Громкость и выключатель помнятся между забегами.', {
+    note: title ? `Здесь играет «${title}»` : undefined,
+  });
+  return h(
+    'div',
+    { class: 'pause-seed' },
+    h('span', { class: 'dim', tip }, 'Музыка: '),
+    h('span', { tip }, muted || vol <= 0 ? 'выключена' : `${Math.round(vol * 100)}\u00a0%`),
+    button('−', () => app.stepMusic(-1), { class: 'small', tip: paramTip('note', 'Тише', 'Громкость музыки −10 %') }),
+    button('+', () => app.stepMusic(1), { class: 'small', tip: paramTip('note', 'Громче', 'Громкость музыки +10 %; с нуля — снова включает') }),
+    button(muted ? 'Включить' : 'Выключить', () => app.toggleMusic(), { class: 'small', tip: paramTip('note', 'Музыка', 'Выключить или включить музыку (M)') }),
   );
 }

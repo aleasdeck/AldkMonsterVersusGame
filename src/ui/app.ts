@@ -24,6 +24,7 @@ import {
   recordResult,
   saveDifficulty,
   saveLockSkip,
+  saveMusic,
   saveRun,
   savePick,
   saveSignaturePick,
@@ -31,9 +32,11 @@ import {
   signatureUnlocked,
   startUnlocked,
   traitUnlocked,
+  musicVolumeOf,
   type Profile,
   type RunUnlocks,
 } from './save';
+import { music } from './music';
 import { achievementKey } from '../data/mastery';
 import { artifactDef } from '../data/artifacts';
 import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
@@ -132,12 +135,16 @@ export class App {
   /** Отпечаток экрана и момент его смены: клики в первые SETTLE_MS после смены глотаются (см. SETTLE_MS). */
   private screenKey = '';
   private screenChangedAt = -Infinity;
+  /** Музыка локаций — для отладки из консоли: `mv.music.force('crypt')`. */
+  readonly music = music;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.profile = loadProfile();
     installTooltips(root);
     installHotkeys(this);
+    music.install();
+    music.setVolume(musicVolumeOf(this.profile), !!this.profile.musicMuted);
     root.addEventListener(
       'click',
       (ev) => {
@@ -176,6 +183,7 @@ export class App {
     this.noteFinds();
     this.noteAchievements();
     this.warmArt();
+    music.want(this.musicTrack());
     // Перерисовки внутри экрана (действия боя, покупки, выбор цели) отпечаток не меняют — только переход на другой экран.
     const r = this.run;
     this.settleArmed();
@@ -282,7 +290,38 @@ export class App {
     // Листы пиксельной лепки рисуются кодом: прогреваются очередью в фоне, пока игрок на карте.
     warmMobs(ENEMY_LIST.filter((e) => e.location === here || e.id.startsWith('gnome_')).map((e) => e.id));
     const next = run.locations[run.locationIndex + 1];
-    if (next && run.roomIndex >= WARM_NEXT_ROOM) warmImages(locationBackground(next, 'tall'), locationBackground(next, 'wide'));
+    if (next && run.roomIndex >= WARM_NEXT_ROOM) {
+      warmImages(locationBackground(next, 'tall'), locationBackground(next, 'wide'));
+      // Трек следующей локации рендерится впрок: после босса карта открывается сразу, и музыка должна быть готова.
+      music.warm(next);
+    }
+  }
+
+  /**
+   * Что играть: трек текущей локации на всех экранах забега. В меню, на выборе героя, в коллекции и на итогах — тишина;
+   * на плашке гибели музыка тоже уходит.
+   */
+  private musicTrack(): LocationId | null {
+    const run = this.run;
+    if (this.screen !== 'run' || !run || R.isRunOver(run) || run.battle?.phase === 'lost') return null;
+    return R.currentLocation(run).id;
+  }
+
+  // ─── Музыка ──────────────────────────────────────────────────────────────
+
+  /** Громкость шагом в 10 % (кнопки «−» и «+» в паузе); с нуля вверх — музыка снова включена. */
+  stepMusic(dir: 1 | -1): void {
+    const vol = Math.max(0, Math.min(1, musicVolumeOf(this.profile) + dir * 0.1));
+    this.profile = saveMusic(vol, dir > 0 ? false : !!this.profile.musicMuted);
+    music.setVolume(musicVolumeOf(this.profile), !!this.profile.musicMuted);
+    this.render();
+  }
+
+  /** Выключить или включить музыку (M или кнопка в паузе); громкость помнится. */
+  toggleMusic(): void {
+    this.profile = saveMusic(musicVolumeOf(this.profile), !this.profile.musicMuted);
+    music.setVolume(musicVolumeOf(this.profile), !!this.profile.musicMuted);
+    this.render();
   }
 
   /**
