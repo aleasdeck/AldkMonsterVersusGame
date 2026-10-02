@@ -1091,14 +1091,15 @@ describe('забег', () => {
     // враг пещер (tier 3) в первом акте — наоборот, тоньше; боссы растут мягче рядовых
     expect(enemyScale(3, 0).hp).toBeCloseTo((1 / 2.7) * H);
     expect(enemyScale(3, 0).dmg).toBeCloseTo((1 / 1.95) * ACT_DMG_BONUS[0] * D);
-    expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4 * H);
+    expect(enemyScale(1, 2, 'boss').hp).toBeCloseTo(2.4 * ACT_TOUGH_HP[2] * H);
     expect(enemyScale(1, 2, 'boss').dmg).toBeCloseTo(1.7 * ACT_DMG_BONUS[2] * D);
     expect(enemyScale(2, 1).dmg).toBeCloseTo(ACT_DMG_BONUS[1] * D);
-    // v0.37.1: элита и босс первого акта толще на ACT_TOUGH_HP[0]; рядовых и поздних актов это не касается.
+    // Элита и босс толще на ACT_TOUGH_HP своего акта (v0.55.5: 0 / +15 / +25 %); рядовых это не касается.
     expect(enemyScale(1, 0, 'elite').hp).toBeCloseTo(ACT_TOUGH_HP[0] * H);
     expect(enemyScale(1, 0, 'boss').hp).toBeCloseTo(ACT_TOUGH_HP[0] * H);
     expect(enemyScale(1, 0).hp).toBeCloseTo(H);
-    expect(enemyScale(1, 1, 'elite').hp).toBeCloseTo(1.5 * H);
+    expect(enemyScale(1, 1, 'elite').hp).toBeCloseTo(1.5 * ACT_TOUGH_HP[1] * H);
+    expect(enemyScale(1, 1).hp).toBeCloseTo(2.05 * H);
     expect(enemyScale(1, 0, 'elite').dmg).toBeCloseTo(ACT_DMG_BONUS[0] * D);
     // v0.51.1: блок растёт с актом (и с надбавкой элит), но без удвоения длины боя — щит меряется ударом героя, а не толщиной врага.
     expect(enemyScale(1, 0).block).toBeCloseTo(1);
