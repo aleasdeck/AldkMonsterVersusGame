@@ -74,16 +74,19 @@ export function allBuilds(): BuildDef[] {
 
 /**
  * Сборки по `SIM_BUILDS`: `base` (по умолчанию) — базовые, `all` — все пары, иначе id через запятую (`shadow+series,fire`).
- * Сборки не из каталога собираются на лету (`fire+shield` — с героями по сродству); порядок меток неважен.
+ * Сборка из базовых берётся с её героями и чертами; не из каталога — собирается на лету с героями по сродству и первой чертой.
+ * Префикс `all:` (`all:shadow+series,fire`) — и базовые в этом общем виде, чтобы таблица всех сборок была однородной.
+ * Порядок меток неважен.
  */
 export function pickBuilds(spec: string | undefined): BuildDef[] {
   if (!spec || spec === 'base') return BASE_BUILDS;
   const all = allBuilds();
   if (spec === 'all') return all;
+  const general = spec.startsWith('all:');
   const key = (tags: string[]) => [...tags].sort().join('+');
-  return spec.split(',').map((id) => {
+  return (general ? spec.slice(4) : spec).split(',').map((id) => {
     const want = key(id.split('+'));
-    const found = BASE_BUILDS.find((x) => key(x.tags) === want) ?? all.find((x) => key(x.tags) === want);
+    const found = (general ? undefined : BASE_BUILDS.find((x) => key(x.tags) === want)) ?? all.find((x) => key(x.tags) === want);
     if (!found) throw new Error(`Unknown build: ${id} (архетипы: ${ARCHETYPE_LIST.map((a) => a.id).join(', ')})`);
     return found;
   });
