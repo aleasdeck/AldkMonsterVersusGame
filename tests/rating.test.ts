@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildRating, cellsPassed, playerKey, PLAYER_KEY_LEN, RATING_CELLS, runPoints } from '../src/engine/rating';
 import type { RunsFeed } from '../src/engine/globalStats';
 
-const KEYS = ['who', 'event', 'difficulty', 'act', 'room', 'hero'];
-const row = (who: string, event: string, difficulty = 'normal', act = 1, room = 1, hero = 'warrior') => [who, event, difficulty, act, room, hero];
+const KEYS = ['who', 'event', 'difficulty', 'act', 'room', 'turns', 'hero'];
+const row = (who: string, event: string, difficulty = 'normal', act = 1, room = 1, hero = 'warrior', turns = 20) => [who, event, difficulty, act, room, turns, hero];
 
 describe('общий рейтинг (rating.ts)', () => {
-  it('очки забега: клетки до гибели, победа — все 30 и 10 сверху, × сложность', () => {
+  it('очки забега: победа — все 30 клеток и 10 сверху, гибель — минус непройденные клетки, × сложность', () => {
     expect(RATING_CELLS).toBe(30);
     expect(cellsPassed(false, 1, 1)).toBe(0);
     expect(cellsPassed(false, 2, 5)).toBe(14);
@@ -14,8 +14,9 @@ describe('общий рейтинг (rating.ts)', () => {
     expect(cellsPassed(true, 3, 10)).toBe(30);
     expect(runPoints(true, 'hard', 3, 10)).toBe(120);
     expect(runPoints(true, 'easy', 3, 10)).toBe(40);
-    expect(runPoints(false, 'normal', 2, 5)).toBe(28);
-    expect(runPoints(false, 'hard', 1, 1)).toBe(0);
+    expect(runPoints(false, 'normal', 2, 5)).toBe(-32);
+    expect(runPoints(false, 'hard', 1, 1)).toBe(-90);
+    expect(runPoints(false, 'hard', 3, 10)).toBe(-3);
   });
 
   it('мусор в ячейках не уводит очки за пределы забега', () => {
@@ -24,26 +25,38 @@ describe('общий рейтинг (rating.ts)', () => {
     expect(cellsPassed(false, NaN, 3)).toBe(0);
   });
 
-  it('сумма по всем забегам игрока, брошенные не считаются, лучшие первыми', () => {
+  it('сумма по всем забегам игрока, гибели в минус, лучшие первыми', () => {
     const feed: RunsFeed = {
       keys: KEYS,
       rows: [
         row('aaa', 'victory', 'hard', 3, 10, 'mage'), // 120
-        row('bbb', 'defeat', 'normal', 2, 5), // 28
-        row('bbb', 'defeat', 'normal', 3, 1), // 40
-        row('bbb', 'abandoned', 'hard', 3, 9),
-        row('ccc', 'defeat', 'easy', 1, 3), // 2
+        row('bbb', 'victory', 'normal', 3, 10), // 80
+        row('bbb', 'defeat', 'normal', 2, 5), // −32
+        row('ccc', 'defeat', 'easy', 1, 3), // −28
       ],
     };
     const r = buildRating(feed, { me: 'bbb' });
     expect(r.entries.map((e) => [e.who, e.points, e.runs, e.wins, e.place])).toEqual([
       ['aaa', 120, 1, 1, 1],
-      ['bbb', 68, 2, 0, 2],
-      ['ccc', 2, 1, 0, 3],
+      ['bbb', 48, 2, 1, 2],
+      ['ccc', -28, 1, 0, 3],
     ]);
     expect(r.me?.who).toBe('bbb');
     expect(r.me?.place).toBe(2);
     expect(r.entries[0].hero).toBe('mage');
+  });
+
+  it('брошенный забег — гибель на клетке, где бросили; брошенный до первого боя не считается', () => {
+    const feed: RunsFeed = {
+      keys: KEYS,
+      rows: [
+        row('aaa', 'abandoned', 'hard', 2, 3), // пройдено 12 — −18 × 3
+        row('aaa', 'abandoned', 'hard', 1, 1, 'mage', 0), // передумал до первого боя
+        row('bbb', 'abandoned', 'easy', 1, 1, 'mage', 0),
+      ],
+    };
+    const r = buildRating(feed);
+    expect(r.entries.map((e) => [e.who, e.points, e.runs, e.hero])).toEqual([['aaa', -54, 1, 'warrior']]);
   });
 
   it('равные очки делят место, следующий идёт через одно; внутри — больше побед выше', () => {
@@ -51,15 +64,16 @@ describe('общий рейтинг (rating.ts)', () => {
       keys: KEYS,
       rows: [
         row('aaa', 'victory', 'easy', 3, 10), // 40, победа
-        row('bbb', 'defeat', 'normal', 3, 1), // 40
-        row('ccc', 'defeat', 'normal', 1, 2), // 2
+        row('bbb', 'victory', 'normal', 3, 10), // 80
+        row('bbb', 'defeat', 'normal', 2, 1), // −40: пройдено 10 из 30
+        row('ccc', 'defeat', 'normal', 1, 2), // −58
       ],
     };
     const r = buildRating(feed);
-    expect(r.entries.map((e) => [e.who, e.place])).toEqual([
-      ['aaa', 1],
-      ['bbb', 1],
-      ['ccc', 3],
+    expect(r.entries.map((e) => [e.who, e.points, e.place])).toEqual([
+      ['aaa', 40, 1],
+      ['bbb', 40, 1],
+      ['ccc', -58, 3],
     ]);
     expect(r.me).toBeNull();
   });

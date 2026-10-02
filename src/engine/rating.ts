@@ -1,13 +1,14 @@
 // ─── Общий рейтинг игроков ──────────────────────────────────────────────────
-// Скрипт таблицы (tools/apps-script/Code.gs) по GET ?data=rating отдаёт короткие строки **всех** законченных забегов
-// (без отладочных и брошенных, без лимита ?data=runs): ключ игрока `who`, исход, сложность, акт, клетка, герой. Здесь из них
-// считается рейтинг — чистая функция, правила счёта фиксируют тесты (tests/rating.test.ts). Формула живёт в игре, а не в
-// скрипте, чтобы её правка не требовала нового развёртывания таблицы.
+// Скрипт таблицы (tools/apps-script/Code.gs) по GET ?data=rating отдаёт короткие строки **всех** забегов листа (без
+// отладочных, без лимита ?data=runs): ключ игрока `who`, исход, сложность, акт, клетка, ходы, герой. Здесь из них считается
+// рейтинг — чистая функция, правила счёта фиксируют тесты (tests/rating.test.ts). Формула живёт в игре, а не в скрипте,
+// чтобы её правка не требовала нового развёртывания таблицы.
 //
-// Формула (решение пользователя — «сумма всех забегов»): каждый законченный забег приносит очки — пройденные клетки
-// (0–30) плюс RATING_WIN_BONUS за победу, умноженные на сложность (Лёгкий ×1, Средний ×2, Сложный ×3); рейтинг — сумма
-// по всем забегам игрока. Очки не бывают отрицательными, поэтому бросать неудачный забег незачем: брошенный просто не
-// приносит ничего.
+// Формула (решения пользователя — «сумма всех забегов», «проигрыши должны давать минус»): рейтинг — сумма очков всех
+// забегов игрока. Победа — все 30 клеток плюс RATING_WIN_BONUS, гибель — минус непройденные клетки: чем дальше прошёл,
+// тем меньше потерял (на первой клетке — −30, у финального босса — −1). Всё умножается на сложность (Лёгкий ×1,
+// Средний ×2, Сложный ×3). Брошенный забег считается гибелью на клетке, где его бросили, — иначе безнадёжный забег
+// бросали бы, чтобы не уйти в минус; брошенный до первого боя (0 ходов — передумал с героем) не считается вовсе.
 
 import type { Difficulty } from './types';
 import type { RunsFeed } from './globalStats';
@@ -16,7 +17,7 @@ import { ACTS_PER_RUN, ROOMS_PER_LOCATION } from '../data/locations';
 
 /** Множитель очков забега по сложности. */
 export const RATING_DIFF_MULT: Record<Difficulty, number> = { easy: 1, normal: 2, hard: 3 };
-/** Очки за победу сверх пройденных клеток. */
+/** Очки за победу сверх 30 пройденных клеток. */
 export const RATING_WIN_BONUS = 10;
 /** Клеток в забеге: три акта по десять. Победа — все пройдены. */
 export const RATING_CELLS = ACTS_PER_RUN * ROOMS_PER_LOCATION;
@@ -30,7 +31,7 @@ export interface RatingEntry {
   /** Ключ игрока — начало хеша его id; сам id наружу не уходит. */
   who: string;
   points: number;
-  /** Законченные забеги (победы и гибели) и победы. */
+  /** Забеги в зачёте (победы, гибели и брошенные после первого боя) и победы. */
   runs: number;
   wins: number;
   /** Самый частый герой игрока; при равенстве — тот, кем он играл раньше. Пусто — колонки нет. */
@@ -68,12 +69,16 @@ export function cellsPassed(won: boolean, act: number, room: number): number {
   return Number.isFinite(cells) ? Math.max(0, Math.min(RATING_CELLS - 1, cells)) : 0;
 }
 
-/** Очки одного законченного забега: победа на «Сложном» — (30 + 10) × 3 = 120, гибель на клетке 5 второго акта на «Среднем» — 14 × 2 = 28. */
+/**
+ * Очки одного забега: победа на «Сложном» — (30 + 10) × 3 = 120; гибель на клетке 5 второго акта на «Среднем» — пройдено 14,
+ * не пройдено 16 — −16 × 2 = −32; гибель на первой клетке «Сложного» — −90.
+ */
 export function runPoints(won: boolean, difficulty: Difficulty, act: number, room: number): number {
-  return (cellsPassed(won, act, room) + (won ? RATING_WIN_BONUS : 0)) * RATING_DIFF_MULT[difficulty];
+  const mult = RATING_DIFF_MULT[difficulty];
+  return won ? (RATING_CELLS + RATING_WIN_BONUS) * mult : -(RATING_CELLS - cellsPassed(false, act, room)) * mult;
 }
 
-/** Рейтинг по строкам ?data=rating: сумма очков законченных забегов на игрока, места с делёжкой при равенстве. */
+/** Рейтинг по строкам ?data=rating: сумма очков забегов на игрока (брошенный — как гибель), места с делёжкой при равенстве. */
 export function buildRating(feed: RunsFeed, opts: RatingOpts = {}): Rating {
   const col = (key: string) => feed.keys.indexOf(key);
   const cWho = col('who');
@@ -82,12 +87,15 @@ export function buildRating(feed: RunsFeed, opts: RatingOpts = {}): Rating {
   const cAct = col('act');
   const cRoom = col('room');
   const cHero = col('hero');
+  const cTurns = col('turns');
   if (cWho < 0 || cEvent < 0) return { entries: [], me: null };
   const players = new Map<string, RatingEntry & { heroes: Map<string, number> }>();
   for (const row of feed.rows) {
     const who = String(row[cWho] ?? '');
     const event = String(row[cEvent] ?? '');
-    if (!who || (event !== 'victory' && event !== 'defeat')) continue;
+    if (!who || (event !== 'victory' && event !== 'defeat' && event !== 'abandoned')) continue;
+    // Брошен до первого боя — передумал с героем или сложностью: ни очков, ни минуса.
+    if (event === 'abandoned' && cTurns >= 0 && num(row[cTurns]) === 0) continue;
     const diff = rowDifficulty(cDiff >= 0 ? row[cDiff] : '');
     if (opts.difficulty && diff !== opts.difficulty) continue;
     const won = event === 'victory';

@@ -67,7 +67,7 @@ export async function fetchRuns(): Promise<RunsFeed> {
 }
 
 /**
- * Строки общего рейтинга (engine/rating.ts): GET ?data=rating — все законченные забеги с ключом игрока вместо id. Скрипт
+ * Строки общего рейтинга (engine/rating.ts): GET ?data=rating — все забеги, и брошенные, с ключом игрока вместо id. Скрипт
  * без этого запроса (развёрнут до рейтинга) отвечает текстом «приёмник на месте» — это `RatingUnsupported`, а не сбой сети.
  */
 export async function fetchRating(): Promise<RunsFeed> {

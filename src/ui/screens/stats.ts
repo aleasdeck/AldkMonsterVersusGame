@@ -94,6 +94,11 @@ function damageBlock(dealt: number, taken: number, runs: number): HTMLElement {
   return h('div', { class: 'gs-block' }, h('div', { class: 'coll-head' }, h('span', null, 'Урон')), h('div', { class: 'gs-spots' }, line('Нанесено', dealt), line('Получено', taken)));
 }
 
+/** Очки со знаком: минус типографский, как у цифр урона. */
+function signed(n: number): string {
+  return n < 0 ? `−${-n}` : `${n}`;
+}
+
 /** Игрок в таблице: «Вы» или «Игрок 3F2A» — по началу ключа; имён у игроков нет, ключ — хеш анонимного id. */
 function playerName(e: RatingEntry, me: RatingEntry | null): string {
   return e === me ? 'Вы' : `Игрок ${e.who.slice(0, 4).toUpperCase()}`;
@@ -107,7 +112,7 @@ function ratingRow(e: RatingEntry, me: RatingEntry | null): HTMLElement {
     h('span', { class: 'gs-num' }, `${e.place}`),
     h('span', { class: 'gs-name' }, playerName(e, me)),
     h('span', { class: 'gs-name dim' }, hero),
-    h('span', { class: 'gs-num' }, `${e.points}`),
+    h('span', { class: `gs-num ${e.points < 0 ? 'neg' : ''}`.trim() }, signed(e.points)),
     h('span', { class: 'gs-num' }, `${e.runs}`),
     h('span', { class: 'gs-num' }, `${e.wins}`),
   );
@@ -128,15 +133,15 @@ function ratingBody(app: App): HTMLElement[] {
         'div',
         { class: 'gs-place' },
         h('span', { class: 'gs-place-main' }, `Вы на ${me.place}-м месте ${scope}`),
-        h('span', { class: 'dim' }, `из ${players} · ${me.points} ${plural(me.points, 'очко', 'очка', 'очков')}`),
+        h('span', { class: 'dim' }, `из ${players} · ${signed(me.points)} ${plural(Math.abs(me.points), 'очко', 'очка', 'очков')}`),
       )
     : h(
         'div',
         { class: 'gs-place' },
         h('span', { class: 'gs-place-main' }, `Вас пока нет ${scope}`),
-        h('span', { class: 'dim' }, diff ? 'На этой сложности у вас нет законченных забегов' : 'В него идут законченные забеги, сыгранные на сайте игры'),
+        h('span', { class: 'dim' }, diff ? 'На этой сложности у вас нет забегов' : 'В него идут забеги, сыгранные на сайте игры'),
       );
-  if (!entries.length) return [headline, h('div', { class: 'dim' }, diff ? 'На этой сложности забегов ещё нет.' : 'Законченных забегов ещё нет.')];
+  if (!entries.length) return [headline, h('div', { class: 'dim' }, diff ? 'На этой сложности забегов ещё нет.' : 'Забегов ещё нет.')];
   const outside = me !== null && entries.indexOf(me) >= RATING_ROWS;
   const top = entries.slice(0, outside ? RATING_ROWS - 2 : RATING_ROWS);
   const mult = DIFFICULTY_LIST.map((d) => `${d.name} ×${RATING_DIFF_MULT[d.id]}`).join(', ');
@@ -162,7 +167,7 @@ function ratingBody(app: App): HTMLElement[] {
     h(
       'div',
       { class: 'gs-note dim' },
-      `Очки за каждый законченный забег: пройденные клетки (до ${RATING_CELLS}) и ${RATING_WIN_BONUS} за победу, умноженные на сложность — ${mult}. Брошенные забеги не считаются.`,
+      `Победа — ${RATING_CELLS + RATING_WIN_BONUS} очков, гибель — минус непройденные клетки из ${RATING_CELLS}: чем дальше прошли, тем меньше потеряли. Всё умножается на сложность — ${mult}. Брошенный забег — гибель там, где бросили; брошенный до первого боя не считается.`,
     ),
   ];
 }

@@ -12,7 +12,8 @@
  * и без колонок PRIVATE_KEYS (id игрока и полный JSON забега наружу не уходят) — {keys, rows}, строка = массив
  * по keys. Ответ кэшируется на CACHE_SEC, чтобы каждое открытие экрана «Статистика» не читало таблицу заново.
  *
- * GET ?data=rating — строки для общего рейтинга игроков: все законченные забеги (без лимита, отладочных и брошенных),
+ * GET ?data=rating — строки для общего рейтинга игроков: все забеги листа (без лимита и отладочных; брошенные — тоже, их
+ * игра считает гибелью),
  * только колонки RATING_KEYS, а вместо id игрока — его ключ `who`, начало SHA-256 от id (playerKey_). Очки и места
  * считает игра (src/engine/rating.ts), чтобы правка формулы не требовала нового развёртывания.
  * Как поставить, обновить и проверить — docs/statistika.md.
@@ -28,7 +29,7 @@ const PRIVATE_KEYS = ['player', 'detail'];
 const CACHE_SEC = 600;
 const CACHE_KEY = 'runs-v1';
 /** Колонки забега, которые нужны рейтингу; `who` — ключ игрока, его ставит скрипт. */
-const RATING_KEYS = ['event', 'difficulty', 'act', 'room', 'hero'];
+const RATING_KEYS = ['event', 'difficulty', 'act', 'room', 'turns', 'hero'];
 const RATING_CACHE_KEY = 'rating-v1';
 /** Сколько первых шестнадцатеричных знаков SHA-256 от id — ключ игрока. Должно совпадать с PLAYER_KEY_LEN в src/engine/rating.ts. */
 const PLAYER_KEY_LEN = 12;
@@ -123,7 +124,7 @@ function ratingJson_() {
 }
 
 /**
- * Все законченные забеги, не отладочные: ключ игрока и RATING_KEYS. Колонки читаются по одной — лист целиком тянул бы
+ * Все забеги — победы, гибели и брошенные, не отладочные: ключ игрока и RATING_KEYS. Колонки читаются по одной — лист целиком тянул бы
  * и detail (килобайты JSON на строку). Записи без id игрока (их не бывает с v0.27) пропускаются.
  */
 function collectRating_() {
@@ -144,7 +145,7 @@ function collectRating_() {
   const ids = {};
   const rows = [];
   for (let i = 0; i < player.length; i++) {
-    if (event[i] !== 'victory' && event[i] !== 'defeat') continue;
+    if (event[i] !== 'victory' && event[i] !== 'defeat' && event[i] !== 'abandoned') continue;
     if (debug && (debug[i] === true || debug[i] === 'TRUE')) continue;
     const id = String(player[i] || '');
     if (!id) continue;
