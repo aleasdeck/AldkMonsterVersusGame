@@ -11,7 +11,7 @@ import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
 import { hubGear } from '../console';
 import { markKeywords } from '../keywords';
-import { paramTip, whyTip } from '../tips';
+import { whyTip } from '../tips';
 import type { ChestItem, EventState, GearKind, GearTier, LockGrade } from '../../engine/types';
 import type { App } from '../app';
 
@@ -79,14 +79,6 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
     const pins = chestPins(ev);
     const stakes = chestLockStakes(run);
     const skip = !!app.profile.lockSkip;
-    const tip = skip
-      ? paramTip('chest', 'Открыть', 'Взлом без мини-игры (настройка в паузе): сундук открывается сразу — без золота за засечки и без иглы.', { action: 'Клик или Space — открыть' })
-      : paramTip(
-          'chest',
-          'Взлом',
-          `Штифтов в замке столько же, сколько вещей в сундуке, — засечка на каждый. По кольцу бежит отмычка: тап в любом месте или пробел, когда она в зоне.\nЗолотая часть зоны — «отлично», +${stakes.gold} золота за засечку. Бронзовая — «хорошо».\nМимо или не успели — срыв: замок заклинивает, сундук остаётся закрытым — ни золота, ни вещей — и укол иглы, ${stakes.needle} урона. Попытка одна.`,
-          { action: 'Клик или Space — начать' },
-        );
     const closed = h(
       'div',
       { class: 'card event-card chest-closed' },
@@ -106,7 +98,7 @@ function chestCards(app: App, ev: EventState & { kind: 'chest' }): HTMLElement[]
             h('b', { class: 'lock-minus' }, `−${stakes.needle}\u00a0HP`),
             '. Попытка одна.',
           ),
-      h('div', { class: 'card-foot' }, button(skip ? 'Открыть' : 'Взломать', () => app.startChestLock(), { class: 'primary', tip })),
+      h('div', { class: 'card-foot' }, button(skip ? 'Открыть' : 'Взломать', () => app.startChestLock(), { class: 'primary' })),
     );
     return [pickable(closed, () => app.startChestLock())];
   }

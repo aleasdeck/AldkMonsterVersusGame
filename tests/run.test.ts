@@ -822,14 +822,15 @@ describe('забег', () => {
         counts[[loot.gear, loot.artifact, loot.potion].filter(Boolean).length]++;
       }
     }
-    // 70 / 25 / 5 (CHEST_ITEM_COUNT) на 1200 сундуках; пустых не бывает.
+    // 60 / 30 / 10 (CHEST_ITEM_COUNT) на 1200 сундуках; пустых не бывает.
     const total = 1200;
     expect(counts[0]).toBe(0);
-    expect(counts[1] / total).toBeGreaterThan(0.64);
-    expect(counts[1] / total).toBeLessThan(0.76);
-    expect(counts[2] / total).toBeGreaterThan(0.19);
-    expect(counts[2] / total).toBeLessThan(0.31);
-    expect(counts[3] / total).toBeLessThan(0.09);
+    expect(counts[1] / total).toBeGreaterThan(0.54);
+    expect(counts[1] / total).toBeLessThan(0.66);
+    expect(counts[2] / total).toBeGreaterThan(0.24);
+    expect(counts[2] / total).toBeLessThan(0.36);
+    expect(counts[3] / total).toBeGreaterThan(0.06);
+    expect(counts[3] / total).toBeLessThan(0.14);
   });
 
   it('взлом сундука: штифтов — сколько вещей, отличная засечка — золото акта, срыв — сундук заклинило и игла', () => {

@@ -110,11 +110,11 @@ export const CHEST_GOLD: [number, number][] = [
   [6, 10],
   [8, 12],
 ];
-/** Сколько вещей: обычно одна, две — в каждом четвёртом сундуке, три — в каждом двадцатом (решение пользователя). */
+/** Сколько вещей: чаще одна, две — почти в каждом третьем сундуке, три — в каждом десятом (решение пользователя; до этого 70 / 25 / 5). */
 export const CHEST_ITEM_COUNT: { item: number; weight: number }[] = [
-  { item: 1, weight: 70 },
-  { item: 2, weight: 25 },
-  { item: 3, weight: 5 },
+  { item: 1, weight: 60 },
+  { item: 2, weight: 30 },
+  { item: 3, weight: 10 },
 ];
 /** Какие вещи: экипировка и артефакт вдвое чаще зелья — одно зелье на весь сундук выглядит бедно. */
 export const CHEST_ITEM_WEIGHT: Record<ChestItem, number> = { gear: 2, artifact: 2, potion: 1 };
