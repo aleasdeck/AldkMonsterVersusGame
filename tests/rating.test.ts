@@ -46,17 +46,22 @@ describe('общий рейтинг (rating.ts)', () => {
     expect(r.entries[0].hero).toBe('mage');
   });
 
-  it('брошенный забег — гибель на клетке, где бросили; брошенный до первого боя не считается', () => {
+  it('брошенный забег — гибель на клетке, где бросили; брошенный в первых трёх комнатах не считается', () => {
     const feed: RunsFeed = {
       keys: KEYS,
       rows: [
         row('aaa', 'abandoned', 'hard', 2, 3), // пройдено 12 — −18 × 3
-        row('aaa', 'abandoned', 'hard', 1, 1, 'mage', 0), // передумал до первого боя
+        row('aaa', 'abandoned', 'hard', 1, 3, 'mage'), // третья комната — не в счёт, хоть и с боями
+        row('aaa', 'abandoned', 'normal', 1, 4), // четвёртая — уже гибель: пройдено 3, −27 × 2
         row('bbb', 'abandoned', 'easy', 1, 1, 'mage', 0),
+        row('bbb', 'defeat', 'easy', 1, 2), // гибель в первых комнатах — по-прежнему минус: −29
       ],
     };
     const r = buildRating(feed);
-    expect(r.entries.map((e) => [e.who, e.points, e.runs, e.hero])).toEqual([['aaa', -54, 1, 'warrior']]);
+    expect(r.entries.map((e) => [e.who, e.points, e.runs, e.hero])).toEqual([
+      ['bbb', -29, 1, 'warrior'],
+      ['aaa', -108, 2, 'warrior'],
+    ]);
   });
 
   it('равные очки делят место, следующий идёт через одно; внутри — больше побед выше', () => {

@@ -1,6 +1,6 @@
 // ─── Общий рейтинг игроков ──────────────────────────────────────────────────
 // Скрипт таблицы (tools/apps-script/Code.gs) по GET ?data=rating отдаёт короткие строки **всех** забегов листа (без
-// отладочных, без лимита ?data=runs): ключ игрока `who`, исход, сложность, акт, клетка, ходы, герой. Здесь из них считается
+// отладочных, без лимита ?data=runs): ключ игрока `who`, исход, сложность, акт, клетка, ходы (сейчас не нужны), герой. Здесь из них считается
 // рейтинг — чистая функция, правила счёта фиксируют тесты (tests/rating.test.ts). Формула живёт в игре, а не в скрипте,
 // чтобы её правка не требовала нового развёртывания таблицы.
 //
@@ -8,7 +8,8 @@
 // забегов игрока. Победа — все 30 клеток плюс RATING_WIN_BONUS, гибель — минус непройденные клетки: чем дальше прошёл,
 // тем меньше потерял (на первой клетке — −30, у финального босса — −1). Всё умножается на сложность (Лёгкий ×1,
 // Средний ×2, Сложный ×3). Брошенный забег считается гибелью на клетке, где его бросили, — иначе безнадёжный забег
-// бросали бы, чтобы не уйти в минус; брошенный до первого боя (0 ходов — передумал с героем) не считается вовсе.
+// бросали бы, чтобы не уйти в минус; брошенный в первых RATING_FREE_ROOMS клетках не считается вовсе (решение пользователя:
+// передумал с героем, сложностью или раскладом — это не поражение).
 
 import type { Difficulty } from './types';
 import type { RunsFeed } from './globalStats';
@@ -21,6 +22,8 @@ export const RATING_DIFF_MULT: Record<Difficulty, number> = { easy: 1, normal: 2
 export const RATING_WIN_BONUS = 10;
 /** Клеток в забеге: три акта по десять. Победа — все пройдены. */
 export const RATING_CELLS = ACTS_PER_RUN * ROOMS_PER_LOCATION;
+/** Брошенный на первых стольких клетках забег (первый акт, клетки 1–3) в рейтинг не идёт: ни очков, ни минуса. */
+export const RATING_FREE_ROOMS = 3;
 /**
  * Сколько первых шестнадцатеричных знаков SHA-256 от id игрока служат его ключом `who`. Должно совпадать с PLAYER_KEY_LEN
  * в Code.gs: игра считает свой ключ сама и по нему находит себя в рейтинге.
@@ -31,7 +34,7 @@ export interface RatingEntry {
   /** Ключ игрока — начало хеша его id; сам id наружу не уходит. */
   who: string;
   points: number;
-  /** Забеги в зачёте (победы, гибели и брошенные после первого боя) и победы. */
+  /** Забеги в зачёте (победы, гибели и брошенные дальше RATING_FREE_ROOMS клеток) и победы. */
   runs: number;
   wins: number;
   /** Самый частый герой игрока; при равенстве — тот, кем он играл раньше. Пусто — колонки нет. */
@@ -87,15 +90,16 @@ export function buildRating(feed: RunsFeed, opts: RatingOpts = {}): Rating {
   const cAct = col('act');
   const cRoom = col('room');
   const cHero = col('hero');
-  const cTurns = col('turns');
   if (cWho < 0 || cEvent < 0) return { entries: [], me: null };
   const players = new Map<string, RatingEntry & { heroes: Map<string, number> }>();
   for (const row of feed.rows) {
     const who = String(row[cWho] ?? '');
     const event = String(row[cEvent] ?? '');
     if (!who || (event !== 'victory' && event !== 'defeat' && event !== 'abandoned')) continue;
-    // Брошен до первого боя — передумал с героем или сложностью: ни очков, ни минуса.
-    if (event === 'abandoned' && cTurns >= 0 && num(row[cTurns]) === 0) continue;
+    const act = num(cAct >= 0 ? row[cAct] : 0);
+    const room = num(cRoom >= 0 ? row[cRoom] : 0);
+    // Брошен в первых трёх клетках — передумал с героем, сложностью или раскладом: ни очков, ни минуса.
+    if (event === 'abandoned' && cellsPassed(false, act, room) < RATING_FREE_ROOMS) continue;
     const diff = rowDifficulty(cDiff >= 0 ? row[cDiff] : '');
     if (opts.difficulty && diff !== opts.difficulty) continue;
     const won = event === 'victory';
@@ -104,7 +108,7 @@ export function buildRating(feed: RunsFeed, opts: RatingOpts = {}): Rating {
       p = { who, points: 0, runs: 0, wins: 0, hero: '', place: 0, heroes: new Map() };
       players.set(who, p);
     }
-    p.points += runPoints(won, diff, num(cAct >= 0 ? row[cAct] : 0), num(cRoom >= 0 ? row[cRoom] : 0));
+    p.points += runPoints(won, diff, act, room);
     p.runs += 1;
     if (won) p.wins += 1;
     const hero = cHero >= 0 ? String(row[cHero] ?? '') : '';
