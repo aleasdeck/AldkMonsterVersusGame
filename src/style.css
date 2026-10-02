@@ -3212,7 +3212,7 @@ p {
   gap: 4px;
   flex: none;
 }
-/* Шесть вкладок на всю ширину кадра: по содержимому, без растяжки и обрезки. */
+/* Семь вкладок на всю ширину кадра: по содержимому, без растяжки и обрезки. */
 .gs-tabs .btn.gs-tab {
   flex: none;
   white-space: nowrap;
@@ -3227,6 +3227,31 @@ p {
   margin-left: auto;
   display: flex;
   gap: 4px;
+}
+/* Рейтинг: своё место крупно над таблицей; строка таблицы — место, игрок, любимый герой, очки, забегов, побед. */
+.gs-place {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex: none;
+}
+.gs-place-main {
+  font-size: 23px;
+  color: var(--accent);
+}
+.gs-row.gs-rt {
+  grid-template-columns: 60px 1fr 1fr 90px 90px 70px;
+}
+.gs-row.gs-rt.me {
+  color: var(--accent);
+  background: #2a2412;
+}
+.gs-row.gs-rt.gap {
+  border-bottom: none;
+}
+/* Минус в рейтинге — гибелей больше, чем побед вытянули. */
+.gs-rt .gs-num.neg {
+  color: var(--bad);
 }
 
 /* ─── Бестиарий: вкладки локаций, сетка врагов слева, запись справа ──── */
