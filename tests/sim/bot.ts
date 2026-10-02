@@ -6,11 +6,11 @@
  *
  * Дайсов бот не видит: варианты оцениваются на своём генераторе, реальный ход бросает свои кубики.
  */
-import type { ArtifactInstance, BattleState, GearInstance, HeroPersistent, LockGrade, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
+import type { ArchetypeId, ArtifactInstance, BattleState, GearInstance, HeroPersistent, LockGrade, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
 import { createRng, next as rngNext, type Rng } from '../../src/engine/rng';
 import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
-import { archetypeCounts, setMods } from '../../src/data/archetypes';
+import { archetypeCounts, artifactTags, setMods } from '../../src/data/archetypes';
 import { innateOf } from '../../src/engine/stats';
 
 /** Что у героя в руках: вставленные артефакты и врождённый навык (v0.44) — для связок и наборов. `except` — без этого id. */
@@ -128,6 +128,13 @@ export const W = {
 
 /** Счётчик применений приёмов и зелий — печатается симулятором. */
 export const USES: Record<string, number> = {};
+
+/**
+ * Сборка, которой держится бот (tests/sim/builds.ts, tests/build-sim.test.ts): артефакт с её меткой стоит ×`on` и ещё `add`,
+ * чужой — ×`off`. Так играет человек, решивший собрать «Тень + Серию»: свою вещь берёт и слабее чужой, чужую держит, пока не
+ * придёт своя. В пустой сокет чужая вещь всё равно встанет — пустой сокет хуже. `tags: null` — обычный бот (balance-sim).
+ */
+export const BUILD: { tags: ArchetypeId[] | null; on: number; add: number; off: number } = { tags: null, on: 2, add: 0, off: 0.5 };
 
 // ─── Клон состояния боя ────────────────────────────────────────────────────
 
@@ -476,7 +483,9 @@ function heroHeld(hero: HeroPersistent, except?: string): ArtifactInstance[] {
 /** Ценность артефакта для этого героя за один бой, в HP. Магия без маны не стоит ничего. Сверху — бонус набора, который он замыкает. */
 export function artifactValue(run: RunState, inst: ArtifactInstance): number {
   const raw = artifactValueRaw(run, inst);
-  return (inst.id === run.hero.signature ? raw * 2 : raw) + setGain(run, inst);
+  const value = (inst.id === run.hero.signature ? raw * 2 : raw) + setGain(run, inst);
+  if (!BUILD.tags) return value;
+  return artifactTags(inst.id).some((t) => BUILD.tags!.includes(t)) ? value * BUILD.on + BUILD.add : value * BUILD.off;
 }
 
 /**
