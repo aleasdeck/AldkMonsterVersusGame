@@ -11,6 +11,10 @@
  * Обратно игра читает общую статистику: GET ?data=runs отдаёт последние RUNS_LIMIT забегов без отладочных
  * и без колонок PRIVATE_KEYS (id игрока и полный JSON забега наружу не уходят) — {keys, rows}, строка = массив
  * по keys. Ответ кэшируется на CACHE_SEC, чтобы каждое открытие экрана «Статистика» не читало таблицу заново.
+ *
+ * GET ?data=rating — строки для общего рейтинга игроков: все законченные забеги (без лимита, отладочных и брошенных),
+ * только колонки RATING_KEYS, а вместо id игрока — его ключ `who`, начало SHA-256 от id (playerKey_). Очки и места
+ * считает игра (src/engine/rating.ts), чтобы правка формулы не требовала нового развёртывания.
  * Как поставить, обновить и проверить — docs/statistika.md.
  */
 const SHEET_NAME = 'runs';
@@ -23,6 +27,11 @@ const PRIVATE_KEYS = ['player', 'detail'];
 /** Секунд держать готовый ответ ?data=runs в кэше. */
 const CACHE_SEC = 600;
 const CACHE_KEY = 'runs-v1';
+/** Колонки забега, которые нужны рейтингу; `who` — ключ игрока, его ставит скрипт. */
+const RATING_KEYS = ['event', 'difficulty', 'act', 'room', 'hero'];
+const RATING_CACHE_KEY = 'rating-v1';
+/** Сколько первых шестнадцатеричных знаков SHA-256 от id — ключ игрока. Должно совпадать с PLAYER_KEY_LEN в src/engine/rating.ts. */
+const PLAYER_KEY_LEN = 12;
 
 function doPost(e) {
   // Записи могут прийти одновременно — шапку и строку правит один за раз.
@@ -32,7 +41,7 @@ function doPost(e) {
     const report = JSON.parse(e.postData.contents);
     if (!report || typeof report !== 'object' || Array.isArray(report)) throw new Error('ожидался объект');
     appendReport_(report);
-    CacheService.getScriptCache().remove(CACHE_KEY);
+    CacheService.getScriptCache().removeAll([CACHE_KEY, RATING_CACHE_KEY]);
     return text_('ok');
   } catch (err) {
     return text_('error: ' + err);
@@ -50,10 +59,11 @@ function setup() {
   Logger.log('Таблица «' + sheet.getParent().getName() + '», лист «' + sheet.getName() + '» на месте');
 }
 
-/** Без параметров — проверка, что развёрнуто; ?data=runs — список забегов для экрана «Статистика» в игре. */
+/** Без параметров — проверка, что развёрнуто; ?data=runs — список забегов для экрана «Статистика» в игре, ?data=rating — строки рейтинга. */
 function doGet(e) {
   const data = e && e.parameter && e.parameter.data;
   if (data === 'runs') return json_(runsJson_());
+  if (data === 'rating') return json_(ratingJson_());
   return text_('Monster Versus: приёмник статистики на месте');
 }
 
@@ -96,6 +106,61 @@ function collectRuns_() {
     .filter((row) => debugAt < 0 || !(row[debugAt] === true || row[debugAt] === 'TRUE'))
     .map((row) => keep.map((c) => out_(row[c.i])));
   return { keys: keep.map((c) => c.key), rows: rows };
+}
+
+/** JSON {keys, rows} для рейтинга; строкой, как runsJson_. */
+function ratingJson_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(RATING_CACHE_KEY);
+  if (hit) return hit;
+  const body = JSON.stringify(collectRating_());
+  try {
+    cache.put(RATING_CACHE_KEY, body, CACHE_SEC);
+  } catch (err) {
+    // Больше 100 КБ — без кэша, как и список забегов.
+  }
+  return body;
+}
+
+/**
+ * Все законченные забеги, не отладочные: ключ игрока и RATING_KEYS. Колонки читаются по одной — лист целиком тянул бы
+ * и detail (килобайты JSON на строку). Записи без id игрока (их не бывает с v0.27) пропускаются.
+ */
+function collectRating_() {
+  const sheet = sheet_();
+  const header = header_(sheet);
+  const last = sheet.getLastRow();
+  const keys = ['who'].concat(RATING_KEYS);
+  if (!header.length || last < 2) return { keys: keys, rows: [] };
+  const column = (key) => {
+    const at = header.indexOf(key);
+    return at < 0 ? null : sheet.getRange(2, at + 1, last - 1, 1).getValues().map((r) => r[0]);
+  };
+  const player = column('player');
+  const event = column('event');
+  if (!player || !event) return { keys: keys, rows: [] };
+  const debug = column('debug');
+  const cols = RATING_KEYS.map((key) => (key === 'event' ? event : column(key)));
+  const ids = {};
+  const rows = [];
+  for (let i = 0; i < player.length; i++) {
+    if (event[i] !== 'victory' && event[i] !== 'defeat') continue;
+    if (debug && (debug[i] === true || debug[i] === 'TRUE')) continue;
+    const id = String(player[i] || '');
+    if (!id) continue;
+    if (!ids[id]) ids[id] = playerKey_(id);
+    rows.push([ids[id]].concat(cols.map((c) => (c ? out_(c[i]) : ''))));
+  }
+  return { keys: keys, rows: rows };
+}
+
+/** Ключ игрока: первые PLAYER_KEY_LEN знаков SHA-256 его id в шестнадцатеричном виде — так же считает игра (playerKey в rating.ts). */
+function playerKey_(id) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, id, Utilities.Charset.UTF_8);
+  return bytes
+    .map((b) => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, PLAYER_KEY_LEN);
 }
 
 function sheet_() {

@@ -63,10 +63,32 @@ export function reportRun(run: RunState, event: RunReportEvent, profile: Profile
  * Apps Script кэширует ответ у себя на `CACHE_SEC`, так что повторный заход стоит ему одного чтения кэша.
  */
 export async function fetchRuns(): Promise<RunsFeed> {
+  return fetchFeed('runs');
+}
+
+/**
+ * Строки общего рейтинга (engine/rating.ts): GET ?data=rating — все законченные забеги с ключом игрока вместо id. Скрипт
+ * без этого запроса (развёрнут до рейтинга) отвечает текстом «приёмник на месте» — это `RatingUnsupported`, а не сбой сети.
+ */
+export async function fetchRating(): Promise<RunsFeed> {
+  return fetchFeed('rating');
+}
+
+/** Скрипт таблицы старше рейтинга: на ?data=rating ответил не JSON. Экран пишет, что таблицу нужно обновить. */
+export class RatingUnsupported extends Error {}
+
+async function fetchFeed(data: 'runs' | 'rating'): Promise<RunsFeed> {
   if (!STATS_URL) throw new Error('Адрес статистики не задан');
-  const res = await fetch(`${STATS_URL}?data=runs`, { method: 'GET' });
+  const res = await fetch(`${STATS_URL}?data=${data}`, { method: 'GET' });
   if (!res.ok) throw new Error(`Ответ ${res.status}`);
-  const feed = (await res.json()) as RunsFeed;
+  const text = await res.text();
+  let feed: RunsFeed;
+  try {
+    feed = JSON.parse(text) as RunsFeed;
+  } catch {
+    if (data === 'rating') throw new RatingUnsupported('Скрипт таблицы ещё не умеет рейтинг');
+    throw new Error('Неожиданный ответ');
+  }
   if (!feed || !Array.isArray(feed.keys) || !Array.isArray(feed.rows)) throw new Error('Неожиданный ответ');
   return feed;
 }

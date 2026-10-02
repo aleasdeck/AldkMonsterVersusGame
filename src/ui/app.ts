@@ -43,7 +43,7 @@ import { sfx } from './sfx';
 import { cueFlip, enemyCue, eventCue, heroCues } from './sfx/cues';
 import { achievementKey } from '../data/mastery';
 import { artifactDef } from '../data/artifacts';
-import { dropRunsCache, fetchRuns, reportRun } from './telemetry';
+import { RatingUnsupported, dropRunsCache, fetchRating, fetchRuns, reportRun } from './telemetry';
 import type { RunReportEvent } from '../engine/report';
 import { loadoutFinds } from '../data/collection';
 import { HERO_LIST, heroDef } from '../data/heroes';
@@ -60,6 +60,7 @@ import { collectionScreen } from './screens/collection';
 import { bestiaryScreen } from './screens/bestiary';
 import { statsScreen, type StatsScope, type StatsTab } from './screens/stats';
 import type { RunsFeed } from '../engine/globalStats';
+import { playerKey } from '../engine/rating';
 import { hideTooltip, installTooltips } from './tooltip';
 import { formatClock } from './topbar';
 import { heroSheet } from './screens/heroSheet';
@@ -120,9 +121,16 @@ export class App {
   statsLoading = false;
   statsError: string | null = null;
   statsMock: RunsFeed | null = null;
-  /** Экран «Статистика»: главная вкладка — все игроки или своя; внутри общей — герои, гибели, убийцы, оружие, броня, артефакты. */
+  /**
+   * Общий рейтинг (engine/rating.ts): строки ?data=rating, ошибка их загрузки и свой ключ игрока (хеш id; null — не посчитан
+   * или нет WebCrypto). Грузится вместе со сводкой, но отдельно: старый скрипт таблицы без рейтинга сводку не ломает.
+   */
+  statsRating: RunsFeed | null = null;
+  statsRatingError: string | null = null;
+  statsMe: string | null = null;
+  /** Экран «Статистика»: главная вкладка — все игроки или своя; внутри общей — рейтинг, герои, гибели, убийцы, оружие, броня, артефакты. */
   statsScope: StatsScope = 'all';
-  statsTab: StatsTab = 'heroes';
+  statsTab: StatsTab = 'rating';
   /** Фильтр общей статистики по сложности забега; null — все забеги. Действует на все вкладки «Общего». */
   statsDiff: Difficulty | null = null;
   private stepTimer: number | null = null;
@@ -627,11 +635,13 @@ export class App {
   showStats(): void {
     this.screen = 'stats';
     dropRunsCache();
-    if (this.statsMock) this.statsFeed = this.statsMock;
-    else if (!this.statsLoading) {
+    if (this.statsMock) {
+      this.statsFeed = this.statsMock;
+      this.statsRating = this.statsMock;
+    } else if (!this.statsLoading) {
       this.statsLoading = true;
       this.statsError = null;
-      fetchRuns()
+      const runs = fetchRuns()
         .then((feed) => {
           this.statsFeed = feed;
           this.statsError = null;
@@ -639,11 +649,23 @@ export class App {
         .catch((err: unknown) => {
           // Сеть подвела — старую таблицу не выбрасываем, а пишем в шапке, что обновиться не вышло.
           this.statsError = `Не удалось загрузить: ${err instanceof Error ? err.message : String(err)}`;
-        })
-        .finally(() => {
-          this.statsLoading = false;
-          if (this.screen === 'stats') this.render();
         });
+      const rating = Promise.all([fetchRating(), this.statsMe ?? playerKey(this.profile.playerId)])
+        .then(([feed, me]) => {
+          this.statsRating = feed;
+          this.statsMe = me;
+          this.statsRatingError = null;
+        })
+        .catch((err: unknown) => {
+          this.statsRatingError =
+            err instanceof RatingUnsupported
+              ? 'Рейтинг появится, когда обновят скрипт таблицы статистики.'
+              : `Не удалось загрузить: ${err instanceof Error ? err.message : String(err)}`;
+        });
+      void Promise.all([runs, rating]).finally(() => {
+        this.statsLoading = false;
+        if (this.screen === 'stats') this.render();
+      });
     }
     this.render();
   }

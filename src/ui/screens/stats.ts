@@ -1,10 +1,11 @@
 import { button, h } from '../dom';
-import { HERO_LIST, heroDef } from '../../data/heroes';
+import { HEROES, HERO_LIST, heroDef } from '../../data/heroes';
 import { LOCATION_BY_ID } from '../../data/locations';
 import { ARTIFACTS } from '../../data/artifacts';
 import { ARMOR_BASES, WEAPON_BASES } from '../../data/gear';
 import { durationText, summarize, type GlobalSummary, type ItemSummary, type SpotSummary } from '../../engine/globalStats';
-import { DIFFICULTY_LIST } from '../../data/boons';
+import { buildRating, RATING_CELLS, RATING_DIFF_MULT, RATING_WIN_BONUS, type RatingEntry } from '../../engine/rating';
+import { DIFFICULTIES, DIFFICULTY_LIST } from '../../data/boons';
 import { paramTip } from '../tips';
 import type { Difficulty, LocationId } from '../../engine/types';
 import type { App } from '../app';
@@ -15,8 +16,9 @@ export const MIN_RUNS_FOR_RATE = 5;
 /** Главные вкладки: сводка по всем игрокам или своя — каждая на весь кадр (решение пользователя). */
 export type StatsScope = 'all' | 'mine';
 /** Вкладки сводки по всем игрокам. Одна вкладка — один экран без прокрутки. */
-export type StatsTab = 'heroes' | 'deaths' | 'killers' | 'weapons' | 'armor' | 'artifacts';
+export type StatsTab = 'rating' | 'heroes' | 'deaths' | 'killers' | 'weapons' | 'armor' | 'artifacts';
 const TABS: { id: StatsTab; name: string }[] = [
+  { id: 'rating', name: 'Рейтинг' },
   { id: 'heroes', name: 'Герои' },
   { id: 'deaths', name: 'Гибели' },
   { id: 'killers', name: 'Убийцы' },
@@ -26,6 +28,17 @@ const TABS: { id: StatsTab; name: string }[] = [
 ];
 /** Сколько строк влезает в кадр под шапкой и вкладками. */
 const ROWS = 16;
+/** Строк рейтинга: под ними ещё строка своего места и формула очков. */
+const RATING_ROWS = 15;
+
+/** Русское число: 1 игрок, 2 игрока, 5 игроков. */
+function plural(n: number, one: string, few: string, many: string): string {
+  const d = n % 10;
+  const dd = n % 100;
+  if (d === 1 && dd !== 11) return one;
+  if (d >= 2 && d <= 4 && (dd < 12 || dd > 14)) return few;
+  return many;
+}
 
 function pct(wins: number, runs: number): string {
   if (runs < MIN_RUNS_FOR_RATE) return '—';
@@ -81,8 +94,83 @@ function damageBlock(dealt: number, taken: number, runs: number): HTMLElement {
   return h('div', { class: 'gs-block' }, h('div', { class: 'coll-head' }, h('span', null, 'Урон')), h('div', { class: 'gs-spots' }, line('Нанесено', dealt), line('Получено', taken)));
 }
 
+/** Игрок в таблице: «Вы» или «Игрок 3F2A» — по началу ключа; имён у игроков нет, ключ — хеш анонимного id. */
+function playerName(e: RatingEntry, me: RatingEntry | null): string {
+  return e === me ? 'Вы' : `Игрок ${e.who.slice(0, 4).toUpperCase()}`;
+}
+
+function ratingRow(e: RatingEntry, me: RatingEntry | null): HTMLElement {
+  const hero = HEROES[e.hero]?.name ?? '—';
+  return h(
+    'div',
+    { class: `gs-row gs-rt ${e === me ? 'me' : ''}`.trim() },
+    h('span', { class: 'gs-num' }, `${e.place}`),
+    h('span', { class: 'gs-name' }, playerName(e, me)),
+    h('span', { class: 'gs-name dim' }, hero),
+    h('span', { class: 'gs-num' }, `${e.points}`),
+    h('span', { class: 'gs-num' }, `${e.runs}`),
+    h('span', { class: 'gs-num' }, `${e.wins}`),
+  );
+}
+
+/**
+ * Вкладка «Рейтинг»: своё место крупно, таблица лучших (своя строка подсвечена; не попал в верх — она внизу после
+ * многоточия), формула очков. Фильтр сложности считает рейтинг только по забегам этой сложности.
+ */
+function ratingBody(app: App): HTMLElement[] {
+  if (!app.statsRating) return [h('div', { class: 'dim' }, app.statsLoading ? 'Загружаем…' : (app.statsRatingError ?? 'Рейтинг недоступен.'))];
+  const diff = app.statsDiff ? DIFFICULTIES[app.statsDiff] : null;
+  const { entries, me } = buildRating(app.statsRating, { me: app.statsMe, difficulty: app.statsDiff ?? undefined });
+  const scope = diff ? `в рейтинге сложности «${diff.name}»` : 'в общем рейтинге';
+  const players = `${entries.length} ${plural(entries.length, 'игрока', 'игроков', 'игроков')}`;
+  const headline = me
+    ? h(
+        'div',
+        { class: 'gs-place' },
+        h('span', { class: 'gs-place-main' }, `Вы на ${me.place}-м месте ${scope}`),
+        h('span', { class: 'dim' }, `из ${players} · ${me.points} ${plural(me.points, 'очко', 'очка', 'очков')}`),
+      )
+    : h(
+        'div',
+        { class: 'gs-place' },
+        h('span', { class: 'gs-place-main' }, `Вас пока нет ${scope}`),
+        h('span', { class: 'dim' }, diff ? 'На этой сложности у вас нет законченных забегов' : 'В него идут законченные забеги, сыгранные на сайте игры'),
+      );
+  if (!entries.length) return [headline, h('div', { class: 'dim' }, diff ? 'На этой сложности забегов ещё нет.' : 'Законченных забегов ещё нет.')];
+  const outside = me !== null && entries.indexOf(me) >= RATING_ROWS;
+  const top = entries.slice(0, outside ? RATING_ROWS - 2 : RATING_ROWS);
+  const mult = DIFFICULTY_LIST.map((d) => `${d.name} ×${RATING_DIFF_MULT[d.id]}`).join(', ');
+  return [
+    headline,
+    h(
+      'div',
+      { class: 'gs-table' },
+      h(
+        'div',
+        { class: 'gs-row gs-rt head dim' },
+        h('span', { class: 'gs-num' }, 'место'),
+        h('span', { class: 'gs-name' }, 'игрок'),
+        h('span', { class: 'gs-name' }, 'любимый герой'),
+        h('span', { class: 'gs-num' }, 'очки'),
+        h('span', { class: 'gs-num' }, 'забегов'),
+        h('span', { class: 'gs-num' }, 'побед'),
+      ),
+      ...top.map((e) => ratingRow(e, me)),
+      outside ? h('div', { class: 'gs-row gs-rt gap dim' }, h('span', { class: 'gs-num' }, '…')) : null,
+      outside && me ? ratingRow(me, me) : null,
+    ),
+    h(
+      'div',
+      { class: 'gs-note dim' },
+      `Очки за каждый законченный забег: пройденные клетки (до ${RATING_CELLS}) и ${RATING_WIN_BONUS} за победу, умноженные на сложность — ${mult}. Брошенные забеги не считаются.`,
+    ),
+  ];
+}
+
 function tabBody(app: App, s: GlobalSummary): HTMLElement[] {
   switch (app.statsTab) {
+    case 'rating':
+      return ratingBody(app);
     case 'heroes': {
       const avg = s.wins ? `Победный забег в среднем: ${durationText(s.winDuration)}, ${s.winTurns} ходов` : 'Побед пока нет.';
       // На всю ширину: таблица слева, урон и средний забег справа.

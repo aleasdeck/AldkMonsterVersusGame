@@ -63,10 +63,15 @@ else if (musicParam && musicParam in SONGS) music.force(musicParam);
 // &sfx=off — без звуков действий на этой странице (профиль не трогается)
 if (params.get('sfx') === 'off') sfx.disable();
 
+/** Ключи двадцати игроков демо-рейтинга `&mock=1` (первые играют чаще) и свой — игрок с немногими забегами, чтобы его строка встала под многоточие. */
+const MOCK_PLAYERS = mockPlayers();
+const MOCK_ME = MOCK_PLAYERS[17];
+
 // &mock=1 — демо-профиль: статистика, часть коллекции (у артефактов — часть тиров) и половина бестиария (для отладки экранов);
-// экрану «Статистика» — демо-ответ таблицы вместо сети (mockRuns)
+// экрану «Статистика» — демо-ответ таблицы вместо сети (mockRuns; он же — строки рейтинга, свой ключ — MOCK_ME)
 if (params.get('mock')) {
   app.statsMock = mockRuns();
+  app.statsMe = MOCK_ME;
   saveProfile({
     ...loadProfile(),
     runs: 12,
@@ -259,8 +264,18 @@ if (app.run && app.screen === 'run') {
 // mv.music.force('ship') — играть трек локации (null — снова по экрану), mv.sfx.play('hit_blade') — звук, mv.sfx.log — последние звуки
 (window as unknown as { mv: App }).mv = app;
 
-/** Демо-ответ ?data=runs для `&mock=1`: 90 забегов шести героев, победы у трети, гибели по разным клеткам — чтобы экран «Статистика» было на чём смотреть. */
+/** Двадцать ключей игроков, как у настоящего рейтинга: 12 шестнадцатеричных знаков. */
+function mockPlayers(): string[] {
+  const rng = createRng(11);
+  return Array.from({ length: 20 }, () => Array.from({ length: 12 }, () => Math.floor(next(rng) * 16).toString(16)).join(''));
+}
+
+/**
+ * Демо-ответ ?data=runs для `&mock=1`: 90 забегов шести героев, победы у трети, гибели по разным клеткам — чтобы экран
+ * «Статистика» было на чём смотреть. Колонка `who` — ключи игроков MOCK_PLAYERS: тот же ответ служит строками рейтинга.
+ */
 function mockRuns(): RunsFeed {
+  const prng = createRng(7);
   const heroes = ['warrior', 'mage', 'assassin', 'paladin', 'berserk', 'archer'];
   const locs = ['forest', 'crypt', 'caves', 'swamp', 'hive', 'ship'];
   const killers = ['Вожак стаи', 'Лич', 'Королева улья', 'Капитан', 'Кладка', 'Гоблин-шаман'];
@@ -294,9 +309,10 @@ function mockRuns(): RunsFeed {
       artList,
       // Первая треть — записи до выбора сложности (пустая ячейка, считаются «Сложным»), дальше — все три вперемешку.
       i < 30 ? '' : pickOne(['easy', 'normal', 'hard']),
+      MOCK_PLAYERS[Math.floor(next(prng) ** 2 * MOCK_PLAYERS.length)],
     ]);
   }
-  return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken', 'weapon', 'armor', 'artifacts', 'difficulty'], rows };
+  return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken', 'weapon', 'armor', 'artifacts', 'difficulty', 'who'], rows };
 }
 
 /**
