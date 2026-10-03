@@ -130,6 +130,18 @@ describe('плеть', () => {
     for (const e of state.enemies) expect(12 - e.hp).toBe(Math.floor((Math.floor(10 * SWEEP_MULT) * 190) / 100));
     expect(getStatus(state.hero, 'stealth')).toBeUndefined();
   });
+
+  it('Ассасин владеет дальним оружием: из тени достаёт второго в ряду полным кубиком и с перком', () => {
+    const { state, rng } = mkBattle('assassin', ['wolf', 'wolf'], weapon('darts', 4));
+    const [a, b] = state.enemies;
+    expect(getStatus(state.hero, 'stealth')).toBeTruthy();
+    expect(canUseAction(state, { type: 'attack', target: b.uid })).toBeNull();
+    performAction(state, { type: 'attack', target: b.uid }, rng);
+    // Свой кубик 4 (у чужого было бы 2), крит из тени 190 % = 7; перк дротиков вешает кровь — работает только у владеющего.
+    expect(12 - b.hp).toBe(Math.floor((4 * 190) / 100));
+    expect(getStatus(b, 'bleed')?.value).toBe(1);
+    expect(a.hp).toBe(12);
+  });
 });
 
 describe('дальность приёмов', () => {
