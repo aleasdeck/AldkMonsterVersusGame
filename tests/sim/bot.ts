@@ -142,12 +142,22 @@ export const BUILD: { tags: ArchetypeId[] | null; on: number; add: number; off: 
  * Дешёвая копия: движок мутирует только эти поля, статы и артефакты героя общие — движок их на месте не правит, а заменяет
  * (кража вещекрада, v0.51: раньше статы правились на месте и пробный ход врагов срезал их у настоящего героя). Лог и события не нужны.
  */
+/**
+ * Копия статуса. Порции Кровотечения (`Status.parts`, v0.54) движок правит на месте — дописывает новую порцию и уменьшает
+ * срок каждой, — поэтому их копируем глубже. До починки копия делила массив с настоящим боем, и каждый пробный ход бота
+ * дописывал порции и сбивал сроки ран в настоящем бою: Кровотечение в SIM жило не по правилам игры, а в долгом бою массив
+ * дорастал до десятков тысяч порций и `Math.max(...)` в `tickDurations` падал с переполнением стека.
+ */
+function cloneStatus(s: Status): Status {
+  return s.parts ? { ...s, parts: s.parts.map((p) => ({ ...p })) } : { ...s };
+}
+
 function cloneBattle(b: BattleState): BattleState {
   return {
     ...b,
-    hero: { ...b.hero, statuses: b.hero.statuses.map((s) => ({ ...s })), cooldowns: { ...b.hero.cooldowns }, uses: { ...b.hero.uses } },
-    enemies: b.enemies.map((e) => ({ ...e, statuses: e.statuses.map((s) => ({ ...s })), uses: { ...e.uses }, lastUsedTurn: { ...e.lastUsedTurn } })),
-    allies: b.allies.map((a) => ({ ...a, statuses: a.statuses.map((s) => ({ ...s })) })),
+    hero: { ...b.hero, statuses: b.hero.statuses.map(cloneStatus), cooldowns: { ...b.hero.cooldowns }, uses: { ...b.hero.uses } },
+    enemies: b.enemies.map((e) => ({ ...e, statuses: e.statuses.map(cloneStatus), uses: { ...e.uses }, lastUsedTurn: { ...e.lastUsedTurn } })),
+    allies: b.allies.map((a) => ({ ...a, statuses: a.statuses.map(cloneStatus) })),
     allyQueue: b.allyQueue.slice(),
     enemyQueue: b.enemyQueue.slice(),
     events: [],
