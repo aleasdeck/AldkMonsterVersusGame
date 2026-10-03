@@ -1,9 +1,8 @@
 import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
-import { slotAccepts, socketRefs } from '../../engine/equipment';
-import { REROLL_COST, focusGearKind } from '../../engine/loot';
+import { REROLL_COST } from '../../engine/loot';
 import { awaitsFocus, canReroll, currentLocation } from '../../engine/run';
-import { coin, pendingModal, pickable, potionReplaceNote } from '../components';
+import { coin, pickable, potionReplaceNote } from '../components';
 import { artifactCard, gearCard, potionCard } from '../cards';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
@@ -25,21 +24,15 @@ function focusTip(focus: RewardFocus): TipFn {
   return paramTip({ glyph: info.glyph }, info.name, info.desc, { color: focus === 'attack' ? '#ff8787' : '#8ecae6', sub: ['пул награды'] });
 }
 
-/** Карточка пула: имя, описание и сколько сокетов под артефакты этого типа у героя свободно — подсказка к слепому выбору. */
+/** Карточка пула: имя и что в него входит. */
 function focusCard(app: App, focus: RewardFocus, key: number): HTMLElement {
-  const run = app.run!;
   const info = FOCUS_INFO[focus];
-  const kind = focusGearKind(focus);
-  const sockets = socketRefs(run.hero).filter((s) => slotAccepts(s.slot, kind));
-  const free = sockets.filter((s) => !s.art).length;
-  const socketsLine = sockets.length === 0 ? 'Подходящих сокетов нет' : `Сокетов под такие артефакты: ${sockets.length}, свободных ${free}`;
   return pickable(
     h(
       'div',
       { class: `card focus-card ${focus}` },
       h('div', { class: 'card-head' }, h('span', { class: 'glyph big' }, info.glyph), h('span', { class: 'card-name' }, info.name), h('span', { class: 'card-sub key' }, `${key}`)),
       h('div', { class: 'card-desc' }, info.desc),
-      h('div', { class: 'note' }, socketsLine),
       h('div', { class: 'card-foot' }, button('Выбрать', () => app.chooseRewardFocus(focus), { class: 'primary' })),
     ),
     () => app.chooseRewardFocus(focus),
@@ -56,11 +49,11 @@ export function rewardScreen(app: App): HTMLElement {
     const center = h(
       'div',
       { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
-      h('div', { class: 'title-row' }, h('h2', null, screen?.title ?? 'Награда'), h('p', { class: 'dim' }, 'Выберите пул: три варианта выпадут из него.')),
+      h('div', { class: 'title-row' }, h('h2', null, screen?.title ?? 'Награда')),
       h('div', { class: 'cards focus-cards' }, focusCard(app, 'attack', 1), focusCard(app, 'defense', 2)),
       h('div', { class: 'row' }, button('Пропустить', () => app.skipReward())),
     );
-    return runFrame(app, { cls: 'reward', center, mid: hubGear(app), overlays: [pendingModal(app)] });
+    return runFrame(app, { cls: 'reward', center, mid: hubGear(app) });
   }
   const cards = (screen?.options ?? []).map((item, i) => {
     if (item.kind === 'artifact') {
@@ -82,7 +75,7 @@ export function rewardScreen(app: App): HTMLElement {
       { class: 'title-row' },
       h('h2', null, screen?.title ?? 'Награда'),
       screen?.focus ? h('span', { class: `focus-chip ${screen.focus}`, tip: focusTip(screen.focus) }, `${FOCUS_INFO[screen.focus].glyph} ${FOCUS_INFO[screen.focus].name}`) : null,
-      h('p', { class: 'dim' }, screen?.note ?? (screen?.source === 'potion' ? 'Слот зелья один: новое вытеснит старое.' : 'Можно взять только одно.')),
+      screen?.note ? h('p', { class: 'dim' }, screen.note) : null,
     ),
     h('div', { class: 'cards' }, ...cards),
     h(
@@ -95,5 +88,5 @@ export function rewardScreen(app: App): HTMLElement {
       }),
     ),
   );
-  return runFrame(app, { cls: 'reward', center, mid: hubGear(app), overlays: [pendingModal(app)] });
+  return runFrame(app, { cls: 'reward', center, mid: hubGear(app) });
 }

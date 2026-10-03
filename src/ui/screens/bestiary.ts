@@ -131,7 +131,7 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
         { class: 'beast-title' },
         h('div', { class: 'beast-name' }, def.name),
         h('div', { class: `beast-rank rank-${def.rank}` }, `${RANK_NAMES[def.rank]} · ${loc.name}`),
-        h('div', { class: 'beast-hp' }, h('span', { class: 'dim' }, 'HP '), `${Math.round(def.hp * firstActScale(def).hpMult)}`),
+        h('div', { class: 'beast-hp', tip: paramTip('hp', 'HP', 'Числа записи — для первого акта; во втором и третьем враг толще и бьёт сильнее') }, h('span', { class: 'dim' }, 'HP '), `${Math.round(def.hp * firstActScale(def).hpMult)}`),
       ),
     ),
     roleLine(def),
@@ -144,7 +144,6 @@ function detail(def: EnemyDef, open: boolean): HTMLElement {
     def.phase2 ? h('div', { class: 'beast-actions' }, actionRow(def, def.phase2, 'сразу, меняет набор приёмов'), actionRow(def, { name: 'Ход перехода', effects: def.phase2.guard }, 'вместо атаки')) : null,
     def.onDeath ? h('h3', null, 'При смерти') : null,
     def.onDeath ? h('div', { class: 'beast-actions' }, actionRow(def, def.onDeath)) : null,
-    h('div', { class: 'beast-note dim' }, 'Числа — для первого акта; во втором и третьем враг толще и бьёт сильнее.'),
   );
 }
 

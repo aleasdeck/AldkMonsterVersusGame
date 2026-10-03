@@ -64,8 +64,6 @@ import {
   leaveShop,
   pendingDiscard,
   pendingPlace,
-  pendingSmelt,
-  smeltTargets,
   rerollReward,
   shopBuyArtifact,
   shopBuyGear,
@@ -943,20 +941,9 @@ export function artifactGain(run: RunState, art: ArtifactInstance): number {
   }
   const value = artifactValue(run, art);
   if (freeSocketFor(run.hero, art.id)) return value;
-  // Подходящих сокетов нет вовсе — артефакт некуда ставить; остаётся переплавка в тир другому (v0.43).
+  // Подходящих сокетов нет вовсе — артефакт ставится только вместо другого (переплавку убрали).
   const weakest = weakestSocket(run, art.id);
-  return Math.max(weakest ? value - weakest.value - 1 : 0, bestSmelt(run, art.id)?.gain ?? 0);
-}
-
-/** Лучшая цель переплавки: какому вставленному артефакту +1 тир даст больше всего. */
-function bestSmelt(run: RunState, id: string): { ref: SocketRef; gain: number } | null {
-  let best: { ref: SocketRef; gain: number } | null = null;
-  for (const ref of smeltTargets(run, id)) {
-    const cur = ref.art!;
-    const gain = artifactValue(run, { id: cur.id, tier: (cur.tier + 1) as ArtifactInstance['tier'] }) - artifactValue(run, cur);
-    if (!best || gain > best.gain) best = { ref, gain };
-  }
-  return best;
+  return weakest ? Math.max(0, value - weakest.value - 1) : 0;
 }
 
 // ─── Решения вне боя ───────────────────────────────────────────────────────
@@ -983,10 +970,7 @@ export function resolvePending(run: RunState): void {
   }
   const weakest = weakestSocket(run, art.id, displaced ? p.displaced : []);
   const replaceGain = weakest ? artifactValue(run, art) - weakest.value - 1 : 0;
-  const smelt = bestSmelt(run, art.id);
-  // Переплавка (v0.43): лишняя находка поднимает тир своему архетипу, если это выгоднее замены.
-  if (smelt && smelt.gain > 0.5 && smelt.gain >= replaceGain) pendingSmelt(run, smelt.ref.kind, smelt.ref.index);
-  else if (weakest && replaceGain > 0) pendingPlace(run, weakest.ref.kind, weakest.ref.index);
+  if (weakest && replaceGain > 0) pendingPlace(run, weakest.ref.kind, weakest.ref.index);
   else pendingDiscard(run);
 }
 

@@ -858,10 +858,6 @@ p {
   letter-spacing: 4px;
   text-shadow: 4px 4px 0 #000, 0 0 24px #ffd16655;
 }
-.subtitle {
-  color: var(--dim);
-  font-size: 22px;
-}
 .menu-buttons {
   display: flex;
   flex-direction: column;
@@ -870,11 +866,6 @@ p {
 }
 .best {
   color: var(--dim);
-}
-.hint {
-  max-width: 560px;
-  color: #6f6f8a;
-  font-size: 17px;
 }
 /* Версия игры: правый нижний угол главного экрана, .screen уже absolute и служит опорой. */
 .menu .version {
@@ -976,9 +967,6 @@ p {
 
 /* ─── Карта ─────────────────────────────────────────────────────────── */
 
-.room-desc {
-  max-width: 560px;
-}
 
 /* ─── Бой ───────────────────────────────────────────────────────────── */
 
@@ -2524,61 +2512,161 @@ p {
 .panel.fled h2 {
   color: var(--dim, #9aa6c8);
 }
-.modal {
-  text-align: left;
-  width: 820px;
-  max-height: 500px;
-  overflow: auto;
-  border-color: var(--border);
-}
-/* Модалка слота: карточка артефакта слева, справа оружие и броня с сокетами-кнопками в сетке 2×2. */
-.pm-body {
+/* ─── Размещение артефакта без окна ──────────────────────────────────── */
+/* Пока артефакт ждёт сокета: в центре карточка «в руке» и предпросмотр наведённого сокета, в консоли — сокеты крупными целями. */
+.placing .pl-body {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 250px 1fr;
-  gap: 14px;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
+  padding-top: 4px;
 }
-.pm-body .art-card {
-  max-width: none;
+.pl-hand {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
 }
-.pm-gears {
+.pl-label {
+  font-size: 17px;
+  color: var(--accent);
+}
+.pl-hand .art-card {
+  max-width: none;
+}
+.pl-side {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  padding-top: 23px;
 }
-.pm-gear {
+.pl-prev {
   border: 3px solid var(--border);
-  background: var(--panel-2);
-  padding: 6px 10px;
+  background: #11111ccc;
+  padding: 7px 12px 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  font-size: 17px;
 }
-.pm-sock {
-  font: inherit;
-  color: var(--text);
-  cursor: pointer;
-  text-align: left;
+.pl-prev[hidden] {
+  display: none;
 }
-.pm-sock:hover:not(.off) {
-  border-color: var(--accent);
+.pl-prev h3 {
+  font-size: 20px;
+  margin: 0;
+  color: var(--accent);
 }
-.pm-sock.off {
-  opacity: 0.45;
-  cursor: default;
+.pl-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
-.pm-sock.off .pm-act {
+.pl-line.good {
+  color: var(--good);
+}
+.pl-line.bad {
+  color: var(--bad);
+}
+.pl-line.dim {
   color: var(--dim);
 }
-.pm-act {
-  margin-left: auto;
-  color: var(--accent);
+.pl-glyph {
+  width: 14px;
   flex: none;
+  text-align: center;
 }
-.pm-sock.empty .pm-act {
+.pl-old {
+  font-size: 16px;
+  color: var(--dim);
+  padding-left: 22px;
+}
+.pl-sockets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px 8px;
+  margin-top: 4px;
+}
+.pl-sockets.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+/* Сокет-цель: левая кромка — тип сокета, как у сокетов плитки; подходящий подсвечивается наведением. */
+.pl-sock {
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  height: 40px;
+  padding: 2px 8px 2px 2px;
+  border: 2px solid var(--border);
+  background: #0e0e18;
+  text-align: left;
+  cursor: pointer;
+}
+.pl-sock.k-weapon {
+  border-left: 4px solid var(--slot-weapon);
+}
+.pl-sock.k-armor {
+  border-left: 4px solid var(--slot-armor);
+}
+.pl-sock.k-any {
+  border-left: 4px solid var(--slot-any);
+}
+.pl-sock .chip {
+  width: 28px;
+  height: 28px;
+  border: none;
+  font-size: 15px;
+}
+.pl-sock .chip-empty {
+  border: 2px dashed;
+}
+.pl-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-act {
+  color: var(--accent);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.pl-sock.ok {
+  border-top-color: #6a5a2a;
+  border-right-color: #6a5a2a;
+  border-bottom-color: #6a5a2a;
+}
+.pl-sock.ok:hover,
+.pl-sock.ok:focus-visible {
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  border-bottom-color: var(--accent);
+  box-shadow: 0 0 8px #ffd16688;
+  outline: none;
+}
+.pl-sock.empty .pl-name {
+  color: var(--dim);
+}
+.pl-sock.empty .pl-act {
   color: var(--good);
+}
+/* Четыре сокета — две колонки: имя важнее подписи, занятый подходящий сокет и так обведён золотом. */
+.pl-sockets.two .pl-sock.ok:not(.empty) .pl-act,
+.pl-sockets.two .pl-sock.off .pl-act {
+  display: none;
+}
+.pl-sock.off {
+  opacity: 0.4;
+  cursor: default;
+}
+.pl-sock.off .pl-act {
+  color: var(--dim);
 }
 
 /* ─── Плитка экипировки: шапка, перк, сокеты 2×2 ───────────────────── */
@@ -2648,8 +2736,8 @@ p {
 .sock.k-any {
   border-left: 4px solid var(--slot-any);
 }
-/* Пустой сокет в плитке — только квадратный чип со значком типа, без рамки ячейки (решение пользователя). В модалке выбора слота ячейка остаётся кнопкой. */
-.sock.empty:not(.pm-sock) {
+/* Пустой сокет в плитке — только квадратный чип со значком типа, без рамки ячейки (решение пользователя). */
+.sock.empty {
   border: none;
   background: none;
   padding: 0;
@@ -2993,6 +3081,10 @@ p {
   margin: 0;
   min-width: 240px;
 }
+/* Без забегов панели статистики нет — кнопки по центру. */
+.menu-body.solo {
+  justify-content: center;
+}
 .menu-stats {
   min-width: 320px;
   max-width: 380px;
@@ -3006,13 +3098,6 @@ p {
 }
 .menu-stats .stats-grid + .stats-grid {
   margin-top: 6px;
-}
-.menu-stats.empty {
-  display: flex;
-  align-items: center;
-  text-align: center;
-  white-space: pre-line;
-  font-size: 18px;
 }
 .btn.accent {
   border-color: var(--accent);
@@ -3093,17 +3178,6 @@ p {
 }
 .coll-grid .coll-tile {
   width: auto;
-}
-.coll-foot {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
-  border-top: 3px solid var(--border);
-}
-.coll-foot .hint {
-  margin: 0;
-  max-width: none;
 }
 
 /* ─── Статистика: сводка всех игроков слева, своя справа ─────────────── */
@@ -3405,10 +3479,6 @@ p {
   font-size: 16px;
 }
 .beast-pattern,
-.beast-note {
-  font-size: 16px;
-  margin-top: 4px;
-}
 .beast-empty {
   margin-top: 12px;
   font-size: 18px;
@@ -3664,17 +3734,6 @@ p {
   opacity: 1;
   text-shadow: 0 0 4px currentColor;
 }
-/* Строка переплавки в модалке выбора сокета: подпись и кнопки целей. */
-.smelt-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 6px;
-  font-size: 16px;
-}
-
 /* ─── Черты и врождённый навык (v0.44) ──────────────────────────────── */
 
 .trait-name {
@@ -4248,7 +4307,7 @@ p {
   font-size: 17px;
 }
 /* Пустой сокет — прямоугольник на полстроки, как занятый: пунктир и подпись цветом типа сокета (просьба пользователя). */
-.hub-tile .sock.empty:not(.pm-sock) {
+.hub-tile .sock.empty {
   border: 2px dashed var(--border);
   background: transparent;
   padding: 2px 8px;
@@ -4270,22 +4329,6 @@ p {
 .hub-tile .sock.empty .sock-name {
   color: inherit;
 }
-/* Шапка предмета в окне выбора сокета: иконка типа и имя цветом тира одной строкой. */
-.item-mini-head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  white-space: nowrap;
-}
-.item-mini-name {
-  font-size: 20px;
-  line-height: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* ─── Выбор героя: превью с вкладками (v0.50) ──────────────────────────── */
 
 .hs-header {
@@ -4487,11 +4530,6 @@ p {
   font-size: 18px;
   color: var(--accent);
 }
-.hs-choice-label small {
-  font-size: 14px;
-  line-height: 1.05;
-  color: var(--dim);
-}
 .hs-option {
   display: flex;
   flex-direction: column;
@@ -4600,10 +4638,6 @@ p {
   align-items: center;
   gap: 4px;
   color: var(--accent);
-}
-.hs-mastery-how {
-  font-size: 15px;
-  color: var(--dim);
 }
 .hs-ladder {
   display: flex;

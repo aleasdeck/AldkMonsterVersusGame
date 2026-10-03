@@ -1,6 +1,7 @@
 import { h } from './dom';
 import { topbar } from './topbar';
 import { consoleBar, type ConsoleParts } from './console';
+import { placementParts } from './placement';
 import type { App } from './app';
 
 export interface FrameParts extends ConsoleParts {
@@ -14,10 +15,14 @@ export interface FrameParts extends ConsoleParts {
 
 /**
  * Обёртка экрана забега: топбар 40 + центр 320 + консоль 180. Все шесть экранов забега
- * зовут её вместо своей разметки, поэтому топбар и блок героя везде одинаковы.
+ * зовут её вместо своей разметки, поэтому топбар и блок героя везде одинаковы. Пока артефакт ждёт сокета, центр и консоль
+ * любого хаба отдаются размещению (placement.ts) — окна поверх экрана нет.
  */
 export function runFrame(app: App, parts: FrameParts): HTMLElement {
-  const el = h('div', { class: `screen run ${parts.cls}` }, topbar(app), h('div', { class: 'run-center' }, parts.center), consoleBar(app, parts));
+  const placing = placementParts(app);
+  const center = placing?.center ?? parts.center;
+  const bar = consoleBar(app, placing ? { ...parts, mid: placing.mid } : parts);
+  const el = h('div', { class: `screen run ${parts.cls} ${placing ? 'placing' : ''}`.trim() }, topbar(app), h('div', { class: 'run-center' }, center), bar);
   for (const o of parts.overlays ?? []) if (o) el.appendChild(o);
   return el;
 }

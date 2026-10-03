@@ -2,7 +2,7 @@ import { button, h } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { REROLL_COST, SHOP_HEAL_COST, SHOP_HEAL_PCT, SHOP_POTION_PRICE, artifactPrice, gearPrice } from '../../engine/loot';
 import { canShopBuyArtifact, canShopBuyGear, canShopBuyPotion, canShopHeal, canShopReroll, currentLocation, heroStats, shopHealAmount } from '../../engine/run';
-import { coin, pendingModal, potionReplaceNote } from '../components';
+import { coin, potionReplaceNote } from '../components';
 import { artifactCard, gearCard, potionCard } from '../cards';
 import { backgroundStyle } from '../backgrounds';
 import { runFrame } from '../frame';
@@ -58,7 +58,7 @@ export function shopScreen(app: App): HTMLElement {
   const center = h(
     'div',
     { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
-    h('div', { class: 'title-row' }, h('h2', null, 'Торговец'), h('p', { class: 'dim' }, 'Купить можно всё, на что хватит золота.')),
+    h('div', { class: 'title-row' }, h('h2', null, 'Торговец')),
     h('div', { class: 'cards' }, healCard, gearEl, artEl, potionEl),
     h(
       'div',
@@ -72,5 +72,5 @@ export function shopScreen(app: App): HTMLElement {
       }),
     ),
   );
-  return runFrame(app, { cls: 'shop', center, mid: hubGear(app), overlays: [pendingModal(app)] });
+  return runFrame(app, { cls: 'shop', center, mid: hubGear(app) });
 }

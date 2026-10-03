@@ -58,7 +58,7 @@ export function campScreen(app: App): HTMLElement {
   const center = h(
     'div',
     { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
-    h('div', { class: 'title-row' }, h('h2', null, 'Привал'), h('p', { class: 'dim' }, 'Тихое место: можно перевести дух или разжечь горн. Выберите одно.')),
+    h('div', { class: 'title-row' }, h('h2', null, 'Привал')),
     h('div', { class: 'cards' }, restCard, forgeCard),
   );
   return runFrame(app, { cls: 'camp', center, mid: hubGear(app) });
