@@ -72,7 +72,9 @@ const list: HeroDef[] = [
     mp: 3,
     mpRegen: 1,
     sta: 3,
-    weaponSkill: { melee: true, ranged: false, magic: false },
+    // Владеет и дальним оружием (v0.55.8, запрос пользователя): удар из тени — удар оружием, ему всё равно, клинок это или
+    // дротик, а дальнее достаёт из тени любого в ряду — шамана и стрелка за спинами, а не только первого.
+    weaponSkill: { melee: true, ranged: true, magic: false },
     armorSkill: { heavy: false, medium: false, light: true },
     // Стилет — лёгкое оружие: кубик ниже меча Воина (4–6), удар в спину добирает своё.
     weapon: { base: 'stiletto', name: 'Стилет', dmgMin: 3, dmgMax: 5 },

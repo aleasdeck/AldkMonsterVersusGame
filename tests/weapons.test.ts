@@ -64,12 +64,16 @@ describe('типы оружия и владение', () => {
     expect(weaponDice(archer, weapon('bow', 8))).toEqual({ min: 8, max: 8 });
     expect(weaponDice(archer, weapon('sword', 8))).toEqual({ min: 4, max: 4 });
     expect(weaponDice(archer, weapon('wand', 1))).toEqual({ min: 1, max: 1 });
-    // Каждый герой владеет ровно одним типом: остальные два — чужие.
+    // Каждый герой владеет хотя бы одним типом и выходит со своим оружием. Два типа — только у Ассасина: клинки и дальнее.
     for (const def of HERO_LIST) {
       const own = (Object.keys(def.weaponSkill) as WeaponType[]).filter((t) => def.weaponSkill[t]);
-      expect(own.length, def.id).toBe(1);
-      expect(weaponType(makeStartingGear(def).weapon), def.id).toBe(own[0]);
+      expect(own.length, def.id).toBe(def.id === 'assassin' ? 2 : 1);
+      expect(own, def.id).toContain(weaponType(makeStartingGear(def).weapon));
     }
+    const assassin = heroDef('assassin');
+    expect(weaponDice(assassin, weapon('bow', 8))).toEqual({ min: 8, max: 8 });
+    expect(weaponDice(assassin, weapon('stiletto', 8))).toEqual({ min: 8, max: 8 });
+    expect(weaponDice(assassin, weapon('wand', 8)).max).toBeLessThan(8);
   });
 
   it('перк базы работает только у владеющего: свойство типа, аффикс и артефакты остаются', () => {
