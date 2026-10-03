@@ -140,7 +140,7 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     healSmite: 0,
     momentum: 0,
     noDefend: 0,
-    thirdFree: 0,
+    firstFree: 0,
     critOnlySure: 0,
     critSta: 0,
     onHitCold: 0,

@@ -382,17 +382,21 @@ describe('архетипы фазы 6 (v0.47)', () => {
     expect(state.hero.block).toBe(8);
   });
 
-  it('Серия: Разгон растит каждый следующий удар, набор 3 — третий удар без стамины', () => {
+  it('Серия: Разгон растит каждый следующий удар, набор 3 — первый удар хода без стамины', () => {
     const { state, rng } = mkBattle('berserk', ['bear'], [a('momentum'), a('war_cry'), a('adrenaline')]);
     const bear = state.enemies[0];
     bear.hp = 999;
+    // Приём до удара бонус не съедает: счётчик свой, по ударам оружием, а не по атакующим действиям (v0.55.6).
+    performAction(state, { type: 'artifact', artifactId: 'war_cry' }, rng);
     const sta = state.hero.sta;
     performAction(state, { type: 'attack', target: bear.uid }, rng);
+    expect(state.log).toContain('Серия: первый удар хода без стамины');
+    expect(state.hero.sta).toBe(sta);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(state.log.some((l) => l.includes('разгон 1'))).toBe(true);
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(state.log.some((l) => l.includes('разгон 2'))).toBe(true);
-    expect(state.log).toContain('Серия: третий удар без стамины');
+    expect(state.log.filter((l) => l.startsWith('Серия:')).length).toBe(1);
     expect(state.hero.sta).toBe(sta - 2);
   });
 

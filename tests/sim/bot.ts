@@ -689,7 +689,10 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     // «Разгон»: за ход ударов sta прибавка m × (0 + 1 + … + sta−1).
     v += (m.momentum ?? 0) * ((s.sta * (s.sta - 1)) / 2) * 3 * W.enemyHp;
     v -= (m.noDefend ?? 0) * defendBlock(s) * 1.5;
-    v += (m.thirdFree ?? 0) * (s.sta >= 3 ? avg * s.fatigue ** 2 * W.enemyHp * 3 : 0);
+    // Серия 3 (v0.55.6): лишний удар за ход — последний, самый усталый.
+    v += (m.firstFree ?? 0) * avg * s.fatigue ** Math.max(0, s.sta - 1) * W.enemyHp * 3;
+    // Серия 2: мягче усталость — прибавка ко всем ударам после первого за ход. Без этой строки бот бонус не видел вовсе.
+    if (m.fatigue) for (let i = 1; i < s.sta; i++) v += (Math.min(1, s.fatigue + m.fatigue) ** i - s.fatigue ** i) * avg * W.enemyHp * 3;
     v -= (m.critOnlySure ?? 0) * s.crit * avg * (s.critDmg / 100 - 1) * 12;
     v += (m.critSta ?? 0) * Math.min(1, s.crit * s.sta + 0.2) * avg * W.enemyHp * 3;
     // Холод: три — ход врага пропущен (около шести HP героя); удары приносят его по лимиту за ход.
