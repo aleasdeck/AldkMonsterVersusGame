@@ -101,7 +101,7 @@ describe('сходимость дропа артефактов (loot.ts, v0.40)'
       expect(after / before).toBeLessThan(4);
     }
     // Несвязанное оружейное не дорожает: тяга адресная, а не «всё чаще».
-    const neutral = rate(bleeder, 'whirlwind', 'weapon') / rate(plain, 'whirlwind', 'weapon');
+    const neutral = rate(bleeder, 'war_cry', 'weapon') / rate(plain, 'war_cry', 'weapon');
     expect(neutral).toBeLessThan(1.3);
   });
 
