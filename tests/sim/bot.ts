@@ -142,12 +142,22 @@ export const BUILD: { tags: ArchetypeId[] | null; on: number; add: number; off: 
  * Дешёвая копия: движок мутирует только эти поля, статы и артефакты героя общие — движок их на месте не правит, а заменяет
  * (кража вещекрада, v0.51: раньше статы правились на месте и пробный ход врагов срезал их у настоящего героя). Лог и события не нужны.
  */
+/**
+ * Копия статуса. Порции Кровотечения (`Status.parts`, v0.54) движок правит на месте — дописывает новую порцию и уменьшает
+ * срок каждой, — поэтому их копируем глубже. До починки копия делила массив с настоящим боем, и каждый пробный ход бота
+ * дописывал порции и сбивал сроки ран в настоящем бою: Кровотечение в SIM жило не по правилам игры, а в долгом бою массив
+ * дорастал до десятков тысяч порций и `Math.max(...)` в `tickDurations` падал с переполнением стека.
+ */
+function cloneStatus(s: Status): Status {
+  return s.parts ? { ...s, parts: s.parts.map((p) => ({ ...p })) } : { ...s };
+}
+
 function cloneBattle(b: BattleState): BattleState {
   return {
     ...b,
-    hero: { ...b.hero, statuses: b.hero.statuses.map((s) => ({ ...s })), cooldowns: { ...b.hero.cooldowns }, uses: { ...b.hero.uses } },
-    enemies: b.enemies.map((e) => ({ ...e, statuses: e.statuses.map((s) => ({ ...s })), uses: { ...e.uses }, lastUsedTurn: { ...e.lastUsedTurn } })),
-    allies: b.allies.map((a) => ({ ...a, statuses: a.statuses.map((s) => ({ ...s })) })),
+    hero: { ...b.hero, statuses: b.hero.statuses.map(cloneStatus), cooldowns: { ...b.hero.cooldowns }, uses: { ...b.hero.uses } },
+    enemies: b.enemies.map((e) => ({ ...e, statuses: e.statuses.map(cloneStatus), uses: { ...e.uses }, lastUsedTurn: { ...e.lastUsedTurn } })),
+    allies: b.allies.map((a) => ({ ...a, statuses: a.statuses.map(cloneStatus) })),
     allyQueue: b.allyQueue.slice(),
     enemyQueue: b.enemyQueue.slice(),
     events: [],
@@ -679,7 +689,10 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     // «Разгон»: за ход ударов sta прибавка m × (0 + 1 + … + sta−1).
     v += (m.momentum ?? 0) * ((s.sta * (s.sta - 1)) / 2) * 3 * W.enemyHp;
     v -= (m.noDefend ?? 0) * defendBlock(s) * 1.5;
-    v += (m.thirdFree ?? 0) * (s.sta >= 3 ? avg * s.fatigue ** 2 * W.enemyHp * 3 : 0);
+    // Серия 3 (v0.55.6): лишний удар за ход — последний, самый усталый.
+    v += (m.firstFree ?? 0) * avg * s.fatigue ** Math.max(0, s.sta - 1) * W.enemyHp * 3;
+    // Серия 2: мягче усталость — прибавка ко всем ударам после первого за ход. Без этой строки бот бонус не видел вовсе.
+    if (m.fatigue) for (let i = 1; i < s.sta; i++) v += (Math.min(1, s.fatigue + m.fatigue) ** i - s.fatigue ** i) * avg * W.enemyHp * 3;
     v -= (m.critOnlySure ?? 0) * s.crit * avg * (s.critDmg / 100 - 1) * 12;
     v += (m.critSta ?? 0) * Math.min(1, s.crit * s.sta + 0.2) * avg * W.enemyHp * 3;
     // Холод: три — ход врага пропущен (около шести HP героя); удары приносят его по лимиту за ход.

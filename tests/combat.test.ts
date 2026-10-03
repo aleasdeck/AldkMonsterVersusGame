@@ -1398,8 +1398,8 @@ describe('v0.33: вторые персональные артефакты', () =
     state.hero.hp = 22; // ровно половина — ещё не транс
     performAction(state, { type: 'attack', target: bear.uid }, rng);
     expect(bear.hp).toBe(35 - 5);
-    // Усталость 0.85 + набор «Серия» 2 (Клич из пары и Транс, v0.47) 0.05.
-    expect(previewAttack(state)).toEqual({ min: Math.floor(5 * 0.9), max: Math.floor(5 * 0.9) });
+    // Усталость 0.85 + набор «Серия» 2 (Клич из пары и Транс, v0.47) 0.15 с v0.55.6 — усталости нет.
+    expect(previewAttack(state)).toEqual({ min: 5, max: 5 });
     // Удар медведя по не раненому герою — без гашения: тот же первый удар в отдельном бою.
     const calm = mkBattle('berserk', ['bear'], { extra: [{ id: 'battle_trance', tier: 1 }] });
     calm.state.hero.hp = 22;
@@ -1407,7 +1407,7 @@ describe('v0.33: вторые персональные артефакты', () =
     const fullHit = 22 - calm.state.hero.hp;
     expect(fullHit).toBeGreaterThan(1);
     state.hero.hp = 21;
-    expect(previewAttack(state)).toEqual({ min: Math.floor(8 * 0.9), max: Math.floor(8 * 0.9) });
+    expect(previewAttack(state)).toEqual({ min: 8, max: 8 });
     pass(state, rng);
     // Раненому транс гасит единицу с удара; в начале хода 3 STA + 1 от транса.
     expect(state.hero.hp).toBe(21 - (fullHit - 1));
