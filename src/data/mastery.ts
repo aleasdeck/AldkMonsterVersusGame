@@ -86,6 +86,9 @@ const LOCKED_LIST: { id: string; how: UnlockHow }[] = [
   { id: 'steady_aim', how: { kind: 'set', arch: 'shadow' } },
   { id: 'shatter', how: { kind: 'set', arch: 'cold' } },
   { id: 'permafrost', how: { kind: 'boss', arch: 'cold' } },
+  // v0.56: Призыв — без героя по сродству, как Кровь и Холод: выплата за набор, ключевая — за босса с набором.
+  { id: 'corpse_blast', how: { kind: 'set', arch: 'summon' } },
+  { id: 'overlord', how: { kind: 'boss', arch: 'summon' } },
   // Ключевые вещи героев — мастерством 3 (HERO_MASTERY), пока артефакта нет в данных, строки не появляется.
   ...Object.entries(HERO_MASTERY).map(([hero, m]) => ({ id: m.keystone, how: { kind: 'mastery', hero } as UnlockHow })),
 ];

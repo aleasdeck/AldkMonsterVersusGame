@@ -270,6 +270,17 @@ export interface DerivedStats {
   frozenLong: number;
   /** >0 — оцепеневший враг получает Уязвимость на 2 хода (набор «Холод» 3). */
   freezeVuln: number;
+  // ── Призыв v0.56 ──
+  /** Блок каждому существу героя перед его ходом («Стайный оберег»). */
+  allyBlock: number;
+  /** +N к HP существа при призыве (набор «Призыв» 2). */
+  allyHp: number;
+  /** +N к каждому удару существа (набор «Призыв» 2). */
+  allyDmg: number;
+  /** >0 — каждый удар существа повторяется (набор «Призыв» 3). */
+  allyTwice: number;
+  /** Доля сверх к урону существ: 1 — вдвое («Повелитель»). */
+  allyMult: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -360,8 +371,17 @@ export type Effect =
   | { type: 'heal'; amount: number }
   | { type: 'status'; target: TargetKind; status: StatusId; value: number; turns: number }
   | { type: 'gainSta'; amount: number }
-  /** Призыв союзника по описанию врага; hpBonus — прибавка к его HP. */
-  | { type: 'summon'; enemyId: string; hpBonus: number }
+  /**
+   * Призыв существа из таблицы `ALLIES` (data/allies.ts) с числами тира призывающего артефакта. При полном ряде (MAX_ALLIES)
+   * не пропадает, а подкармливает первое существо: половина HP призыва к HP и максимуму и Сила +1 (v0.56, правило Ости из StS2).
+   */
+  | { type: 'summon'; allyId: string; tier: ArtTier }
+  /** Боевой рог (v0.56): все существа героя получают Силу amount до конца боя. Без существ недоступен. */
+  | { type: 'allyBuff'; amount: number }
+  /** Натравить (v0.56): все существа сразу бьют цель своим ударом (первым бьющим приёмом круга) +bonus; круг не сдвигается, свой ход они не теряют. */
+  | { type: 'command'; target: 'enemy'; bonus: number }
+  /** Трупный взрыв (v0.56): первое существо гибнет, каждый враг получает pct его HP — как рана, мимо блока. */
+  | { type: 'sacrifice'; pct: number }
   /** Герой ранит себя: мимо блока и защиты. Нельзя применить, если HP не больше amount. */
   | { type: 'selfDamage'; amount: number }
   | { type: 'gainMp'; amount: number }
@@ -390,7 +410,7 @@ export type ArtifactSlot = 'weapon' | 'armor';
  * Архетип сборки (v0.43, docs/plan-reworka.md §2): метка на артефакте. Две и три вещи одного архетипа в сокетах
  * (и врождённый навык героя) включают бонус набора — `ARCHETYPES` в data/archetypes.ts.
  */
-export type ArchetypeId = 'blood' | 'fire' | 'poison' | 'shield' | 'retribution' | 'light' | 'series' | 'shadow' | 'cold';
+export type ArchetypeId = 'blood' | 'fire' | 'poison' | 'shield' | 'retribution' | 'light' | 'series' | 'shadow' | 'cold' | 'summon';
 
 export interface ArtifactDef {
   id: string;
@@ -715,9 +735,12 @@ export interface EnemyState extends Combatant {
 /** Союзник героя: ходит по правилам своего врага-прототипа, бьёт сам, враги атакуют его первым. */
 export interface AllyState extends Combatant {
   uid: number;
+  /** Id существа в таблице `ALLIES` (data/allies.ts). */
   defId: string;
   name: string;
   cycleIdx: number;
+  /** Тир призыва (v0.56): по нему берутся HP и числа приёмов существа. */
+  tier: ArtTier;
 }
 
 export type EventTarget = 'hero' | number;
@@ -975,7 +998,7 @@ export interface BattleLog {
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
 export const GAME_VERSION = '0.55.8';
 
-export const SAVE_VERSION = 42;
+export const SAVE_VERSION = 43;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

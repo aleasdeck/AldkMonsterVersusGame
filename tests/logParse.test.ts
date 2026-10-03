@@ -66,6 +66,13 @@ describe('разбор лога боя (v0.51)', () => {
     expect(lineInfo('Герой теряет 2 HP от ран (4 − мазь 2)').toHero).toBe(2);
     const burst = lineInfo('Взрыв ран по Кабан: 9 (Кровотечение 3 × 3) → 9 по HP');
     expect([burst.kind, burst.status, burst.toFoe]).toEqual(['dot', 'bleed', 9]);
+    // v0.56: Трупный взрыв — гибель существа и раны осколками по врагам, а не самоподрыв по герою.
+    expect(lineInfo('Трупный взрыв: Волк пал').kind).toBe('death');
+    const bones = lineInfo('Осколки костей по Медведь: 8 (50 % от 16 HP: Волк) → 8 по HP');
+    expect([bones.kind, bones.target, bones.toFoe, bones.toHero]).toEqual(['dot', 'foe', 8, 0]);
+    expect(lineInfo('Волк подкормлен: +15 HP').kind).toBe('heal');
+    const over = lineInfo('Остаток удара — герою: 3 → 1 по HP (блок 2)');
+    expect([over.kind, over.target, over.toHero]).toEqual(['hit', 'hero', 1]);
     const miss = lineInfo('Герой бьёт Призрак капитана: 8 (кубик 8) → 0 по HP (уворот 30 %)');
     expect([miss.kind, miss.toFoe]).toEqual(['miss', 0]);
   });

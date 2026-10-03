@@ -3,7 +3,7 @@ import { createRng } from '../src/engine/rng';
 import { heroDef } from '../src/data/heroes';
 import { makeStartingGear } from '../src/data/gear';
 import { LOCATIONS } from '../src/data/locations';
-import { enemyDef } from '../src/data/enemies';
+import { allyDef } from '../src/data/allies';
 import { BOONS, BOON_LIST, DIFFICULTY_LIST, FORGE_HEAT_BURN, MIASMA_POISON, boonsOf, wolfFriendHp } from '../src/data/boons';
 import { trialValue } from '../src/data/trials';
 import { createBattle, endTurn, getStatus, heroDefendGain, performAction, resolveEnemyTurn } from '../src/engine/combat';
@@ -108,12 +108,12 @@ describe('сложность и благословения: данные и по
 });
 
 describe('благословения: правила в бою', () => {
-  it('Волчий друг — волк-союзник с HP по акту', () => {
+  it('Волчий друг — волк-союзник тиром по акту (v0.56: тот же волк, что у Волчьего свистка)', () => {
     const { state } = mkBattle(['rat'], 'wolf_friend', 'warrior', 2);
     expect(state.allies.length).toBe(1);
-    expect(state.allies[0].defId).toBe('wolf');
+    expect(state.allies[0]).toMatchObject({ defId: 'wolf', tier: 3 });
     expect(state.allies[0].maxHp).toBe(wolfFriendHp(2));
-    expect(wolfFriendHp(0)).toBe(enemyDef('wolf').hp);
+    expect([0, 1, 2].map(wolfFriendHp)).toEqual([1, 2, 3].map((t) => allyDef('wolf').hp(t as 1 | 2 | 3)));
   });
 
   it('Следопыт, Болотный смрад, Жар горна и Саван — на врагах с начала боя', () => {

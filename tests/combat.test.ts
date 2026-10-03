@@ -953,26 +953,28 @@ describe('призыв волка', () => {
     const { state, rng } = mkBattle('mage', ['wolf', 'rat'], { extra: [{ id: 'wolf_whistle', tier: 1 }] });
     performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
     expect(state.allies.map((a) => a.name)).toEqual(['Волк']);
-    expect(state.allies[0].hp).toBe(12);
+    // v0.56: волк из таблицы существ — 10 HP на тире 1.
+    expect(state.allies[0].hp).toBe(10);
     const heroHp = state.hero.hp;
     pass(state, rng);
     // укус 5 по крысе (7 HP) — самому раненому, хотя она стоит второй
     expect(state.enemies.find((e) => e.defId === 'rat')!.hp).toBe(2);
     // волк 5 + крыса 3 пришлись на союзника
     expect(state.hero.hp).toBe(heroHp);
-    expect(state.allies[0].hp).toBe(12 - 5 - 3);
+    expect(state.allies[0].hp).toBe(10 - 5 - 3);
   });
 
-  it('павший волк исчезает, удары снова идут в героя', () => {
+  it('павший волк исчезает, перебор и следующие удары идут в героя', () => {
     const { state, rng } = mkBattle('mage', ['wolf'], { extra: [{ id: 'wolf_whistle', tier: 1 }] });
     performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
     state.allies[0].hp = 1;
     const heroHp = state.hero.hp;
     pass(state, rng);
     expect(state.allies).toEqual([]);
-    expect(state.hero.hp).toBe(heroHp);
+    // v0.56: перебор сверх HP павшего волка — герою: укус 5, волку 1, герою 4.
+    expect(state.hero.hp).toBe(heroHp - 4);
     pass(state, rng);
-    expect(state.hero.hp).toBeLessThan(heroHp);
+    expect(state.hero.hp).toBeLessThan(heroHp - 4);
   });
 
   it('намерение волка: укус по самому раненому, после двух укусов — вой', () => {
@@ -985,18 +987,142 @@ describe('призыв волка', () => {
     expect(computeAllyIntent(state, ally)).toMatchObject({ kind: 'buff', label: '', name: 'Вой', target: null });
   });
 
-  it('рядом помещаются два волка, третьему нет места', () => {
+  it('рядом помещаются два волка, третий призыв подкармливает первого: половина HP и Сила +1 (v0.56)', () => {
     const { state, rng } = mkBattle('mage', ['bear'], { extra: [{ id: 'wolf_whistle', tier: 3 }] });
-    for (let i = 0; i < 2; i++) {
+    const whistle = () => {
       state.hero.cooldowns = {};
       state.hero.mp = 10;
       performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
-    }
+    };
+    whistle();
+    whistle();
+    expect(state.allies.length).toBe(2);
+    // v0.56: тир растит и HP — 10/16/24, и укус — 5/7/9.
+    expect(state.allies[0].maxHp).toBe(24);
+    expect(computeAllyIntent(state, state.allies[0])).toMatchObject({ label: '9' });
     state.hero.cooldowns = {};
     state.hero.mp = 10;
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'wolf_whistle' })).toBeNull();
+    whistle();
     expect(state.allies.length).toBe(2);
-    expect(state.allies[0].maxHp).toBe(20);
-    expect(canUseAction(state, { type: 'artifact', artifactId: 'wolf_whistle' })).toMatch(/места/);
+    expect(state.allies[0]).toMatchObject({ hp: 36, maxHp: 36 });
+    expect(getStatus(state.allies[0], 'strength')?.value).toBe(1);
+    expect(state.allies[1].maxHp).toBe(24);
+  });
+});
+
+describe('Призыв (v0.56)', () => {
+  it('Поднять мертвеца: скелет ставит щит, потом бьёт; держит удары за героя', () => {
+    const { state, rng } = mkBattle('warrior', ['rat'], { extra: [{ id: 'raise_dead', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'raise_dead' }, rng);
+    const sk = state.allies[0];
+    expect(sk).toMatchObject({ name: 'Скелет', hp: 6, maxHp: 6 });
+    expect(computeAllyIntent(state, sk)).toMatchObject({ kind: 'defend', label: '4', name: 'Щит' });
+    const heroHp = state.hero.hp;
+    state.enemies[0].intent = 'bite';
+    pass(state, rng);
+    // Щит 4 съел укус крысы 3: ни скелет, ни герой не ранены.
+    expect(sk.hp).toBe(6);
+    expect(state.hero.hp).toBe(heroHp);
+    expect(computeAllyIntent(state, sk)).toMatchObject({ kind: 'attack', label: '3', name: 'Удар', target: 'Крыса' });
+  });
+
+  it('Осиное гнездо: оса жалит дважды и травит; её Яд — Яд героя, набор Яда его растит', () => {
+    const { state, rng } = mkBattle('mage', ['bear'], { extra: [{ id: 'wasp_nest', tier: 1 }, { id: 'poison_vial', tier: 1 }, { id: 'venom_blade', tier: 1 }] });
+    expect(state.hero.stats.poisonAdd).toBe(1);
+    performAction(state, { type: 'artifact', artifactId: 'wasp_nest' }, rng);
+    const wasp = state.allies[0];
+    expect(wasp).toMatchObject({ name: 'Оса', hp: 4 });
+    expect(computeAllyIntent(state, wasp).text).toBe('Жало: Атака 2×2 по Медведь, Яд 2');
+    const bear = state.enemies[0];
+    const hp = bear.hp;
+    // Медведь встаёт на дыбы — ход без удара и без лечения.
+    bear.intent = 'rear';
+    pass(state, rng);
+    // Жало 2 × 2 и тик Яда 2 (1 осы + 1 набора) в ход медведя; потом Яд слабеет до 1.
+    expect(hp - bear.hp).toBe(2 + 2 + 2);
+    expect(getStatus(bear, 'poison')).toEqual({ id: 'poison', value: 1, turns: -1 });
+  });
+
+  it('перебор удара сверх HP павшего существа уходит герою', () => {
+    const { state, rng } = mkBattle('mage', ['bear'], { extra: [{ id: 'wasp_nest', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'wasp_nest' }, rng);
+    const bear = state.enemies[0];
+    bear.intent = 'paw';
+    const heroHp = state.hero.hp;
+    pass(state, rng);
+    // Лапа 9 + Сила громилы 2: оса 4 HP падает, остаток 7 — герою.
+    expect(state.allies).toEqual([]);
+    expect(heroHp - state.hero.hp).toBe(9 + 2 - 4);
+  });
+
+  it('Боевой рог: Сила всем существам до конца боя; без существ недоступен', () => {
+    const { state, rng } = mkBattle('mage', ['bear'], { extra: [{ id: 'war_horn', tier: 2 }, { id: 'wolf_whistle', tier: 1 }] });
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'war_horn' })).toBe('Нет существ');
+    performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    performAction(state, { type: 'artifact', artifactId: 'war_horn' }, rng);
+    expect(getStatus(state.allies[0], 'strength')).toEqual({ id: 'strength', value: 3, turns: -1 });
+    // Укус 5 + Сила 3 + набор 2/3 (рог и свисток) +1.
+    expect(computeAllyIntent(state, state.allies[0])).toMatchObject({ label: '9' });
+  });
+
+  it('Натравить: существа бьют выбранную цель сейчас +bonus, круг не сдвигается и свой ход остаётся', () => {
+    const { state, rng } = mkBattle('mage', ['bear', 'rat'], { extra: [{ id: 'sic_em', tier: 1 }, { id: 'wolf_whistle', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    const bear = state.enemies.find((e) => e.defId === 'bear')!;
+    const hp = bear.hp;
+    // Медведь не самый раненый — сам волк укусил бы крысу, по приказу кусает медведя.
+    performAction(state, { type: 'artifact', artifactId: 'sic_em', target: bear.uid }, rng);
+    // Укус 5, набор 2/3 +1, приказ +1.
+    expect(hp - bear.hp).toBe(5 + 1 + 1);
+    expect(computeAllyIntent(state, state.allies[0])).toMatchObject({ name: 'Укус', target: 'Крыса' });
+  });
+
+  it('Трупный взрыв: первое существо гибнет, каждый враг получает долю его HP мимо блока', () => {
+    const { state, rng } = mkBattle('mage', ['bear', 'rat'], { extra: [{ id: 'corpse_blast', tier: 1 }, { id: 'wolf_whistle', tier: 1 }] });
+    expect(canUseAction(state, { type: 'artifact', artifactId: 'corpse_blast' })).toBe('Нет существ');
+    performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    const bear = state.enemies.find((e) => e.defId === 'bear')!;
+    bear.block = 10;
+    const hp = bear.hp;
+    performAction(state, { type: 'artifact', artifactId: 'corpse_blast' }, rng);
+    expect(state.allies).toEqual([]);
+    // Волк 16 HP (10 + набор 2/3), 50 % — 8 каждому, блок не помогает; крыса (7 HP) погибла.
+    expect(hp - bear.hp).toBe(8);
+    expect(bear.block).toBe(10);
+    expect(state.enemies.map((e) => e.defId)).toEqual(['bear']);
+  });
+
+  it('Стайный оберег: блок существу перед его ходом держит удар врага', () => {
+    const { state, rng } = mkBattle('mage', ['rat'], { extra: [{ id: 'pack_ward', tier: 1 }, { id: 'wolf_whistle', tier: 1 }] });
+    performAction(state, { type: 'artifact', artifactId: 'wolf_whistle' }, rng);
+    state.enemies[0].hp = 99;
+    state.enemies[0].intent = 'bite';
+    pass(state, rng);
+    // Укус крысы 3 съеден Блоком 3; волк 16 HP — набор 2/3 (оберег и свисток).
+    expect(state.allies[0].hp).toBe(16);
+  });
+
+  it('набор Призыв: 2 — +6 HP и удар +1, 3 — удар повторяется; Повелитель — существа вдвое, удар героя −40 %', () => {
+    const two = mkBattle('mage', ['bear'], { extra: [{ id: 'wolf_whistle', tier: 1 }, { id: 'pack_ward', tier: 1 }] });
+    performAction(two.state, { type: 'artifact', artifactId: 'wolf_whistle' }, two.rng);
+    expect(two.state.allies[0].maxHp).toBe(16);
+    expect(computeAllyIntent(two.state, two.state.allies[0])).toMatchObject({ label: '6' });
+    const three = mkBattle('mage', ['bear'], { extra: [{ id: 'wolf_whistle', tier: 1 }, { id: 'pack_ward', tier: 1 }, { id: 'war_horn', tier: 1 }] });
+    performAction(three.state, { type: 'artifact', artifactId: 'wolf_whistle' }, three.rng);
+    expect(computeAllyIntent(three.state, three.state.allies[0])).toMatchObject({ label: '6×2' });
+    const lord = mkBattle('warrior', ['bear'], { extra: [{ id: 'raise_dead', tier: 1 }, { id: 'overlord', tier: 1 }] });
+    expect(lord.state.hero.stats.strikeMult).toBeCloseTo(-0.4);
+    performAction(lord.state, { type: 'artifact', artifactId: 'raise_dead' }, lord.rng);
+    lord.state.allies[0].cycleIdx = 1;
+    // Набор 2/3 (скелет и Повелитель): (3 + 1) × 2.
+    expect(computeAllyIntent(lord.state, lord.state.allies[0])).toMatchObject({ label: '8' });
+  });
+
+  it('союзник в бою — существо из таблицы по тиру, лепка — у врага того же вида', () => {
+    const { state, rng } = mkBattle('warrior', ['bear'], { extra: [{ id: 'raise_dead', tier: 3 }] });
+    performAction(state, { type: 'artifact', artifactId: 'raise_dead' }, rng);
+    expect(state.allies[0]).toMatchObject({ defId: 'skeleton', tier: 3, hp: 16 });
   });
 });
 
