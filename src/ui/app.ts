@@ -224,7 +224,8 @@ export class App {
     this.aim = null;
     // Выбор пула награды (v0.39) — тоже смена экрана: «Выбрать» стоит там же, где потом «Надеть», второй клик двойного не должен брать предмет.
     // Так же и закрытый сундук: «Открыть» стоит там же, где потом «Надеть».
-    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, !!r?.pending, R.awaitsFocus(r?.rewards[0]), r ? R.awaitsThreshold(r) : false, r ? R.chestClosed(r) : false].join('|');
+    // И шаг размещения: после «Заменить» в руке вытесненный — второй клик двойного по тому же сокету вернул бы его на место.
+    const key = [this.screen, r?.phase, r?.locationIndex, r?.roomIndex, r?.rewards.length, r?.pending ? `${r.pending.artifacts.length}:${r.pending.artifacts[0]?.id}` : '', R.awaitsFocus(r?.rewards[0]), r ? R.awaitsThreshold(r) : false, r ? R.chestClosed(r) : false].join('|');
     if (key !== this.screenKey) {
       this.screenKey = key;
       this.screenChangedAt = performance.now();
@@ -1035,14 +1036,6 @@ export class App {
   pendingDiscard(): void {
     if (!this.run) return;
     R.pendingDiscard(this.run);
-    this.afterPhaseChange();
-  }
-
-  /** Переплавить ожидающий артефакт в тир артефакту своего архетипа (v0.43). */
-  pendingSmelt(kind: GearKind, index: number): void {
-    if (!this.run) return;
-    sfx.play('forge');
-    R.pendingSmelt(this.run, kind, index);
     this.afterPhaseChange();
   }
 

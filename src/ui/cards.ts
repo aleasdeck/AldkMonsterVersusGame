@@ -322,7 +322,7 @@ function artRows(inst: ArtifactInstance, run?: RunState): ArtRow[] {
     const next = Math.min(3, Math.max(same.art.tier + 1, inst.tier)) as ArtTier;
     rows.push(
       same.art.tier >= 3
-        ? { icon: 'star', name: 'дубликат', value: 'максимум', cls: 'bad', tip: paramTip('star', 'Дубликат', 'Такой артефакт уже стоит на максимальном тире — дубликат ничего не даст', { note: 'Лишний можно переплавить в другой артефакт', noteTone: 'dim' }) }
+        ? { icon: 'star', name: 'дубликат', value: 'максимум', cls: 'bad', tip: paramTip('star', 'Дубликат', 'Такой артефакт уже стоит на максимальном тире — дубликат ничего не даст') }
         : { icon: 'star', name: 'дубликат', value: `${same.art.tier} → ${next}`, cls: 'good', tip: artifactTip({ id: inst.id, tier: same.art.tier }, { upgrade: true, to: next, action: `Сольётся со стоящим в сокете: тир ${same.art.tier} → ${next}` }) },
     );
     const live = rows.find((r) => r.name === 'сейчас');
@@ -374,7 +374,7 @@ function artTypeLine(inst: ArtifactInstance): Child[] {
 
 /** Подсказка к имени и глифу артефакта: тир на шкале из трёх и чем его поднять. */
 function artTierTip(tier: ArtTier): TipFn {
-  return paramTip({ glyph: '●'.repeat(tier), color: ART_TIER_COLORS[tier] }, `Тир ${tier} из 3`, 'Тир растёт дубликатом, переплавкой лишнего артефакта того же архетипа и в кузнице привала', {
+  return paramTip({ glyph: '●'.repeat(tier), color: ART_TIER_COLORS[tier] }, `Тир ${tier} из 3`, 'Тир растёт дубликатом и в кузнице привала', {
     color: ART_TIER_COLORS[tier],
   });
 }
@@ -614,14 +614,16 @@ function gearHead(gear: GearInstance, def?: HeroDef): HTMLElement {
   return itemHead(uiIcon(gearIconId(gear), 24, color), color, gear.name, `color:${nameColor(gear.tier, color)}`, tierTip(gear.tier), dotted([h('span', { class: skill.cls || null, tip: typeTip }, gearTypeShort(gear)), reachDots(gear, def)]), typeTip);
 }
 
-/** Шапка предмета для окна выбора сокета: иконка типа и имя цветом тира. */
-export function gearMiniHead(gear: GearInstance): HTMLElement {
-  const color = GEAR_TIERS[gear.tier].color;
+/**
+ * Плитка экипировки в консоли, пока артефакт ждёт сокета (размещение без окна): шапка как у плитки хаба, вместо статов и перка —
+ * сокеты крупными кнопками-целями (их собирает placement.ts).
+ */
+export function placeGearTile(gear: GearInstance, def: HeroDef, sockets: HTMLElement[]): HTMLElement {
   return h(
     'div',
-    { class: 'item-mini-head' },
-    h('span', { class: 'item-icon', style: `border-color:${color}`, tip: gearTypeTip(gear) }, uiIcon(gearIconId(gear), 18, color)),
-    h('span', { class: 'item-mini-name', style: `color:${nameColor(gear.tier, color)}`, tip: tierTip(gear.tier) }, gear.name),
+    { class: `gear-tile hub-tile pl-tile ${gear.kind}`, style: `border-color:${GEAR_TIERS[gear.tier].color}` },
+    gearHead(gear, def),
+    h('div', { class: `pl-sockets ${sockets.length > 2 ? 'two' : ''}`.trim() }, ...sockets),
   );
 }
 

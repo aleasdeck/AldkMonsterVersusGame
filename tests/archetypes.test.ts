@@ -7,7 +7,7 @@ import { ARCHETYPE_LIST, activeSets, archetypeCounts, setMods } from '../src/dat
 import { canUseAction, createBattle, defendBlock, endTurn, getStatus, performAction, resolveEnemyTurn } from '../src/engine/combat';
 import { computeStats } from '../src/engine/stats';
 import { rollArtifact } from '../src/engine/loot';
-import { canPendingSmelt, newRun, pendingSmelt, smeltTargets } from '../src/engine/run';
+import { newRun } from '../src/engine/run';
 import type { ArtifactInstance, BattleState, HeroPersistent } from '../src/engine/types';
 
 /** Герой со средним уроном оружия и артефактами только из списка — без стартовой сигнатуры, чтобы наборы считались чисто. */
@@ -182,7 +182,7 @@ describe('архетипы и наборы (v0.43)', () => {
   });
 });
 
-describe('дроп и переплавка (v0.43)', () => {
+describe('дроп под архетип (v0.43)', () => {
   it('ключевая вещь выпадает только тиром 1', () => {
     const run = newRun('warrior', 5);
     const rng = createRng(9);
@@ -206,30 +206,6 @@ describe('дроп и переплавка (v0.43)', () => {
       return blood;
     };
     expect(count(true)).toBeGreaterThan(count(false) * 1.5);
-  });
-
-  it('переплавка: цель — тот же архетип не на максимуме, +1 тир, артефакт пропадает', () => {
-    const run = newRun('warrior', 5);
-    run.hero.weapon.slots = [a('bleed_burst', 1)];
-    run.hero.weapon.slotKinds = ['weapon'];
-    run.hero.armor.slots = [a('troll_heart', 1)];
-    run.hero.armor.slotKinds = ['armor'];
-    run.phase = 'reward';
-    run.pending = { artifacts: [a('jagged_edge', 2)], cancellable: true, consumeReward: false };
-    expect(smeltTargets(run, 'jagged_edge').map((s) => s.art!.id)).toEqual(['bleed_burst']);
-    expect(canPendingSmelt(run, 'armor', 0)).toBe('Нет общего архетипа');
-    expect(pendingSmelt(run, 'weapon', 0)).toBe(true);
-    expect(run.hero.weapon.slots[0]).toEqual({ id: 'bleed_burst', tier: 2 });
-    expect(run.pending).toBeNull();
-  });
-
-  it('переплавка общей вещи — в любой артефакт', () => {
-    const run = newRun('warrior', 5);
-    run.hero.weapon.slots = [a('bleed_burst', 3)];
-    run.hero.armor.slots = [a('troll_heart', 1)];
-    run.pending = { artifacts: [a('stamina_ring')], cancellable: false, consumeReward: false };
-    // Вскрытие на максимуме — не цель.
-    expect(smeltTargets(run, 'stamina_ring').map((s) => s.art!.id)).toEqual(['troll_heart']);
   });
 });
 

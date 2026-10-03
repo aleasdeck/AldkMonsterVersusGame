@@ -1,5 +1,5 @@
-import { button, h, type Child, type Tip, type TipFn } from './dom';
-import type { ArtTier, ArtifactInstance, ArtifactSlot, Combatant, DerivedStats, EnemyState, GearInstance, GearKind, GearTier, RunState, SlotKind, Status, StatusId } from '../engine/types';
+import { h, type Child, type Tip, type TipFn } from './dom';
+import type { ArtTier, ArtifactInstance, ArtifactSlot, Combatant, DerivedStats, EnemyState, GearInstance, GearTier, RunState, SlotKind, Status, StatusId } from '../engine/types';
 import { STATUS_COLORS, statusIcon, uiIcon, uiIconColor, type UiIconId } from './icons';
 import { artifactCostText, artifactDef, artifactFullText } from '../data/artifacts';
 import { potionDef } from '../data/potions';
@@ -7,16 +7,14 @@ import { SIGNATURE_OWNER, heroDef } from '../data/heroes';
 import { ART_TIER_COLORS, GEAR_TIERS, REACH_NAMES, weaponReach } from '../data/gear';
 import { type Collectible, type FoundState } from '../data/collection';
 import type { HeroDef } from '../engine/types';
-import { ARTIFACT_SLOT_NAME, SLOT_KIND_NAME, canPlaceArtifact, findSameArtifact, gearOf, slotAccepts, slotKindAt, socketRefs } from '../engine/equipment';
+import { SLOT_KIND_NAME } from '../engine/equipment';
 import { STATUS_NAMES, freezeAt, onDeathInfo, statusRemaining, type ActionPart, type IntentKind } from '../engine/combat';
-import type { App } from './app';
-import { ARCHETYPES, archetypeCounts, artifactTags, type ArchetypeDef } from '../data/archetypes';
+import { ARCHETYPES, archetypeCounts, type ArchetypeDef } from '../data/archetypes';
 import type { ArchetypeId } from '../engine/types';
-import { canPendingSmelt, smeltTargets } from '../engine/run';
-import { LIVE_ICON, artTypeItems, artifactCard, gearMiniHead, restValue } from './cards';
+import { LIVE_ICON, artTypeItems, restValue } from './cards';
 import { paramChip, useParams } from './cardParts';
 import { statusHint } from './keywords';
-import { paramTip, tierDiff, tipAction, tipChip, tipChips, tipHead, tipLines, tipNote, tipPips, tipSection, tipText, turnsWord, whyTip, type TipIcon, type TipLine, type Tone } from './tips';
+import { paramTip, tierDiff, tipAction, tipChip, tipChips, tipHead, tipLines, tipNote, tipPips, tipSection, tipText, turnsWord, type TipIcon, type TipLine, type Tone } from './tips';
 
 /** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
 /**
@@ -200,7 +198,7 @@ export interface ArtifactTipOpts {
   noteTone?: Tone;
   /** Что сделает клик: «вставить сюда». */
   action?: string;
-  /** Кузница и переплавка: следующий тир — главное, подписан «Станет». */
+  /** Кузница: следующий тир — главное, подписан «Станет». */
   upgrade?: boolean;
   /** До какого тира растёт при слиянии: дубликат тира 3 поднимает тир 1 сразу до 3. По умолчанию — на один. */
   to?: ArtTier;
@@ -434,113 +432,5 @@ export function statusIcons(c: Combatant, enemy?: EnemyState): HTMLElement {
         s.turns > 0 ? h('span', { class: 'status-turns' }, `${s.turns}`) : null,
       );
     }),
-  );
-}
-
-/**
- * Модалка выбора слота для артефакта: карточка артефакта слева, справа оружие и броня со своими сокетами
- * в той же сетке 2×2, что и в консоли. Пустой сокет — «Вставить», занятый — «Заменить», старый артефакт пропадёт.
- */
-export function pendingModal(app: App): HTMLElement | null {
-  const run = app.run;
-  const p = run?.pending;
-  const art = p?.artifacts[0];
-  if (!run || !p || !art) return null;
-  const same = findSameArtifact(run.hero, art.id);
-  const slot = artifactDef(art.id).slot;
-  const fitting = socketRefs(run.hero).filter((s) => slotAccepts(s.slot, slot));
-  const hasFree = fitting.some((s) => !s.art);
-  const displaced = !!p.displaced?.includes(art.id);
-  const hint =
-    fitting.length === 0
-      ? `Подходящих сокетов нет: ${ARTIFACT_SLOT_NAME[slot]} артефакт встаёт только в ${ARTIFACT_SLOT_NAME[slot]} или универсальный сокет.`
-      : hasFree
-        ? 'Клик по сокету. Занятый сокет — замена, вытесненный артефакт спросит, куда его деть.'
-        : 'Свободных подходящих сокетов нет: выберите, какой артефакт заменить, — вытесненный спросит, куда его деть.';
-  const group = (kind: GearKind) => {
-    const gear = gearOf(run.hero, kind);
-    const info = GEAR_TIERS[gear.tier];
-    return h(
-      'div',
-      { class: 'pm-gear', style: `border-color:${info.color}` },
-      gearMiniHead(gear),
-      h(
-        'div',
-        { class: 'gt-sockets' },
-        ...gear.slots.map((a, index) => {
-          const isSame = !!same && same.kind === kind && same.index === index;
-          const sk = slotKindAt(gear, index);
-          // Сокет чужого типа — без disabled, а классом off: подсказка с причиной должна показываться (см. CLAUDE.md).
-          const why = canPlaceArtifact(run.hero, kind, index, art.id);
-          const off = isSame || !!why;
-          return h(
-            'button',
-            {
-              class: `sock pm-sock k-${sk} ${a ? '' : 'empty'} ${off ? 'off' : ''}`,
-              tip: why ? whyTip(why, 'Сюда нельзя') : a ? artifactTip(a, { action: 'Заменить: вытесненный встанет в очередь' }) : slotKindTip(sk, { state: 'свободен', action: 'Вставить сюда' }),
-              onclick: () => {
-                if (!off) app.pendingPlace(kind, index);
-              },
-            },
-            a ? artifactChip(a) : socketChip(sk),
-            a ? h('span', { class: 'sock-name' }, `${artifactDef(a.id).name} · ${a.tier}`) : null,
-            h('span', { class: 'pm-act' }, why ? 'Нельзя' : a ? 'Заменить' : 'Вставить'),
-          );
-        }),
-      ),
-    );
-  };
-  return h(
-    'div',
-    { class: 'overlay' },
-    h(
-      'div',
-      { class: 'panel modal' },
-      h('h2', null, displaced ? 'Вытесненный артефакт: куда переставить?' : 'Куда вставить артефакт?'),
-      h('p', { class: 'dim' }, hint),
-      h('div', { class: 'pm-body' }, artifactCard(art, undefined, undefined, run), h('div', { class: 'pm-gears' }, group('weapon'), group('armor'))),
-      smeltRow(app, art),
-      h(
-        'div',
-        { class: 'row' },
-        p.cancellable ? button('Отмена', () => app.pendingCancel()) : button('Выбросить', () => app.pendingDiscard(), { class: 'danger', tip: paramTip('cross', 'Выбросить', 'Артефакт пропадёт насовсем', { color: '#ff6b6b' }) }),
-      ),
-    ),
-  );
-}
-
-/**
- * Переплавка (v0.43): кнопка на каждую цель — артефакт того же архетипа в сокете (у общей вещи — любой) не на максимуме.
- * Лишняя находка не пропадает, а поднимает тир своему архетипу; нечего переплавлять — строки нет.
- */
-function smeltRow(app: App, art: ArtifactInstance): HTMLElement | null {
-  const run = app.run!;
-  const targets = smeltTargets(run, art.id);
-  if (targets.length === 0) return null;
-  const tags = artifactTags(art.id);
-  return h(
-    'div',
-    { class: 'smelt-row' },
-    h(
-      'span',
-      {
-        class: 'dim',
-        tip: paramTip(
-          'star',
-          'Переплавка',
-          tags.length ? 'Этот артефакт пропадёт, а артефакт того же архетипа в сокете получит +1 тир' : 'Общая вещь: переплавляется в тир любому артефакту в сокете',
-        ),
-      },
-      'Переплавить в:',
-    ),
-    ...targets.map((t) =>
-      button(
-        `${artifactDef(t.art!.id).name} ${t.art!.tier}→${t.art!.tier + 1}`,
-        () => {
-          if (!canPendingSmelt(run, t.kind, t.index)) app.pendingSmelt(t.kind, t.index);
-        },
-        { class: 'small', tip: artifactTip(t.art!, { upgrade: true, action: `Переплавить: «${artifactDef(art.id).name}» пропадёт` }) },
-      ),
-    ),
   );
 }

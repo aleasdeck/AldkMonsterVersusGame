@@ -42,7 +42,7 @@ export function defaultReadout(app: App): Child[] {
   if (b.phase === 'enemy' || app.busy) return ['Ход врагов…'];
   const armed = app.armedInfo();
   if (armed) return [h('b', null, armed.name), h('span', { class: 'readout-target' }, ' · выберите цель'), ` · ${armed.reach}`, h('span', { class: 'dim' }, ' · Enter — первая цель, Esc — отмена')];
-  return [h('span', { class: 'dim' }, 'Выберите приём: плитка или 1–9, потом цель')];
+  return [];
 }
 
 function joinParts(parts: Child[]): Child[] {

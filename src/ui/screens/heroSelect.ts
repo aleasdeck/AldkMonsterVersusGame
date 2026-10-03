@@ -235,9 +235,9 @@ function optionCard(o: Option): HTMLElement {
 }
 
 const GROUPS: { key: 'skill' | 'trait' | 'weapon'; icon: UiIconId; name: string; hint: string }[] = [
-  { key: 'skill', icon: 'crown', name: 'Навык', hint: 'врождённый, растёт с локацией' },
-  { key: 'trait', icon: 'star', name: 'Черта', hint: 'своя механика героя' },
-  { key: 'weapon', icon: 'dmg', name: 'Оружие', hint: 'с чем выйти в забег' },
+  { key: 'skill', icon: 'crown', name: 'Навык', hint: 'Врождённый, не занимает сокет; уровень растёт с каждой локацией' },
+  { key: 'trait', icon: 'star', name: 'Черта', hint: 'Своя механика героя' },
+  { key: 'weapon', icon: 'dmg', name: 'Оружие', hint: 'С чем выйти в забег' },
 ];
 
 function groupOptions(app: App, def: HeroDef, key: 'skill' | 'trait' | 'weapon'): Option[] {
@@ -253,7 +253,7 @@ function choiceRows(app: App, def: HeroDef): HTMLElement {
       h(
         'div',
         { class: `hs-choice-row g-${g.key}` },
-        h('div', { class: 'hs-choice-label' }, h('div', null, uiIcon(g.icon, 16), ` ${g.name}`), h('small', null, g.hint)),
+        h('div', { class: 'hs-choice-label', tip: paramTip(g.icon, g.name, g.hint) }, h('div', null, uiIcon(g.icon, 16), ` ${g.name}`)),
         ...groupOptions(app, def, g.key).map(optionCard),
       ),
     ),
@@ -296,10 +296,9 @@ function masteryTab(app: App, def: HeroDef): HTMLElement {
       'div',
       { class: 'hs-mastery-top' },
       h('span', { class: 'hs-mastery-level' }, uiIcon('star', 18), ` Мастерство ${level}`),
-      h('div', { class: 'mastery-bar' }, h('div', { class: 'mastery-fill', style: `width:${Math.round(pct * 100)}%` })),
+      h('div', { class: 'mastery-bar', tip: paramTip('star', 'Опыт мастерства', 'За забег: клетка +1, босс +10, победа +20. Мастерство открывает разнообразие, а не силу') }, h('div', { class: 'mastery-fill', style: `width:${Math.round(pct * 100)}%` })),
       h('span', { class: 'dim' }, next ? `${xp} / ${next} опыта` : 'максимум'),
     ),
-    h('div', { class: 'hs-mastery-how' }, 'Опыт за забег: клетка +1, босс +10, победа +20. Открывает разнообразие, а не силу.'),
     h(
       'div',
       { class: 'hs-ladder' },

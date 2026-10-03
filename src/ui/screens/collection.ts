@@ -3,6 +3,7 @@ import { ART_TIERS, COLLECTIBLES, foundState, type CollectibleKind } from '../..
 import { collectibleTile } from '../components';
 import { lockedForRun } from '../save';
 import { unlockText } from '../../data/mastery';
+import { paramTip } from '../tips';
 import type { App } from '../app';
 
 const SECTIONS: { kind: CollectibleKind; title: string }[] = [
@@ -40,13 +41,8 @@ export function collectionScreen(app: App): HTMLElement {
       { class: 'topbar' },
       button('← Меню', () => app.showMenu(), { class: 'small' }),
       h('span', { class: 'title-sm' }, 'Коллекция'),
-      h('span', { class: 'dim' }, `${found}/${COLLECTIBLES.length} найдено`),
+      h('span', { class: 'dim', tip: paramTip(null, 'Коллекция', 'Запись открывается, когда предмет достался герою в забеге. У артефакта открывается тот тир, каким он был у героя, — метки в углу плитки. На сам забег коллекция не влияет') }, `${found}/${COLLECTIBLES.length} найдено`),
     ),
     h('div', { class: 'coll-body' }, ...sections),
-    h(
-      'div',
-      { class: 'coll-foot' },
-      h('span', { class: 'hint' }, 'Запись открывается, когда предмет достался герою в забеге. У артефакта открывается тот тир, каким он был у героя, — метки в углу плитки. На сам забег коллекция не влияет.'),
-    ),
   );
 }

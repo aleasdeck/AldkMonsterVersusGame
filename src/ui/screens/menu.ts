@@ -55,10 +55,9 @@ export function menuScreen(app: App): HTMLElement {
     'div',
     { class: 'screen menu' },
     h('h1', { class: 'title' }, 'MONSTER VERSUS'),
-    h('p', { class: 'subtitle' }, 'пиксельный рогалик · три локации · один герой · один шанс'),
     h(
       'div',
-      { class: 'menu-body' },
+      { class: `menu-body ${p.runs ? '' : 'solo'}`.trim() },
       h(
         'div',
         { class: 'menu-buttons' },
@@ -68,13 +67,7 @@ export function menuScreen(app: App): HTMLElement {
         button('Бестиарий', () => app.showBestiary(), { class: 'big' }),
         button('Статистика', () => app.showStats(), { class: 'big' }),
       ),
-      p.runs ? statsPanel(p) : h('div', { class: 'menu-stats empty dim' }, 'Ещё ни одного забега.\nВсё, что достанется герою в забеге, открывается в коллекции.'),
-    ),
-    h(
-      'div',
-      { class: 'hint' },
-      'Ударить и Защититься стоят стамину, артефакты — стамину или ману. ',
-      'Над каждым врагом видно, что он сделает на следующем ходу.',
+      p.runs ? statsPanel(p) : null,
     ),
     h('div', { class: 'version' }, `v${GAME_VERSION}`),
   );

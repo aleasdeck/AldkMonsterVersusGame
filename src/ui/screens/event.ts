@@ -4,7 +4,7 @@ import { GEAR_TIERS, upgradePreview } from '../../data/gear';
 import { heroDef } from '../../data/heroes';
 import { forgePrice } from '../../engine/loot';
 import { altarHealAmount, altarSacrificeCost, canAltarSacrifice, canForge, chestLockStakes, chestPins, currentLocation, heroStats } from '../../engine/run';
-import { artifactChip, coin, pendingModal, pickable, potionReplaceNote, tierTip } from '../components';
+import { artifactChip, coin, pickable, potionReplaceNote, tierTip } from '../components';
 import { artifactCard, gearCard, potionCard } from '../cards';
 import { uiIcon } from '../icons';
 import { backgroundStyle } from '../backgrounds';
@@ -17,11 +17,11 @@ import type { App } from '../app';
 
 /** Заголовок и подпись экрана по виду события; у сундука — закрытого и открытого. */
 const HEADS: Record<'chestClosed' | 'chestJammed' | 'chest' | 'altar' | 'forge', [string, string]> = {
-  chestClosed: ['Сундук', 'Внутри золото и вещи. Взломайте или пройдите мимо.'],
+  chestClosed: ['Сундук', ''],
   chestJammed: ['Сундук', 'Отмычка сорвалась, замок заклинило. Сундук остаётся закрытым.'],
   chest: ['Сундук', 'Золото уже в кошельке. Вещи — по одной, лишнее можно оставить.'],
-  altar: ['Алтарь', 'Помолиться о здоровье или отдать кровь за артефакт. Одно из двух.'],
-  forge: ['Кузнец', 'Тир оружия или брони +1 за золото; аффикс, сокеты и артефакты остаются. Один предмет.'],
+  altar: ['Алтарь', ''],
+  forge: ['Кузнец', ''],
 };
 
 function narrow(el: HTMLElement): HTMLElement {
@@ -212,7 +212,6 @@ function gnomeCards(app: App, ev: EventState & { kind: 'gnome' }): HTMLElement[]
           { class: 'card-desc' },
           ev.gold > 0 ? h('span', null, `Гном унёс ${ev.gold} `, coin(), `, осталось ${run.gold}.`) : 'Красть было нечего: кошель и так пуст.',
         ),
-        h('div', { class: 'note' }, ...markKeywords('Бей раньше: каждый срезанный кошель тянет вора вниз и сбивает ему уворот, а раны бьют мимо уворота.')),
       ),
     ];
   }
@@ -294,9 +293,6 @@ function snatcherCards(app: App, ev: EventState & { kind: 'gnome_art' }): HTMLEl
               : 'Ни вещей, ни монет.',
       ),
       loot,
-      lost
-        ? h('div', { class: 'note' }, ...markKeywords('Вещекрад тянет вещь первым же ходом и удирает на пятом: раны бьют мимо уворота, а после кражи он и сам становится медленнее.'))
-        : null,
     ),
     lootCard,
   ].filter((el): el is HTMLElement => el !== null);
@@ -339,7 +335,7 @@ export function eventScreen(app: App): HTMLElement {
   const center = h(
     'div',
     { class: 'main hub-main', style: backgroundStyle(loc.id, 0.78) },
-    h('div', { class: 'title-row' }, h('h2', null, head[0]), h('p', { class: 'dim' }, head[1])),
+    h('div', { class: 'title-row' }, h('h2', null, head[0]), head[1] ? h('p', { class: 'dim' }, head[1]) : null),
     h('div', { class: `cards ${cards.length === 1 ? 'single' : ''}` }, ...cards),
     h(
       'div',
@@ -347,5 +343,5 @@ export function eventScreen(app: App): HTMLElement {
       button(leaveLabel(ev), () => app.leaveEvent(), { disabled: !!run.pending }),
     ),
   );
-  return runFrame(app, { cls: `event event-${ev?.kind ?? 'none'}${ev?.kind === 'chest' && ev.opened ? ' chest-open' : ''}`, center, mid: hubGear(app), overlays: [pendingModal(app)] });
+  return runFrame(app, { cls: `event event-${ev?.kind ?? 'none'}${ev?.kind === 'chest' && ev.opened ? ' chest-open' : ''}`, center, mid: hubGear(app) });
 }

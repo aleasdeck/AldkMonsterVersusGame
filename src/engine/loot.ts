@@ -320,7 +320,7 @@ export function rollArtifact(rng: Rng, hero: HeroPersistent, tiers: ArtTier[], e
   // Весь пул обнулился (у безманового героя остались одни заклинания) — берём равновероятно, иначе weighted бросит.
   const total = items.reduce((sum, it) => sum + it.weight, 0);
   const id = total > 0 ? weighted(rng, items) : pick(rng, ids);
-  // Ключевая вещь приходит тиром 1: её сила — в правиле, а не в числах, выше тир поднимают дубликат, привал и переплавка.
+  // Ключевая вещь приходит тиром 1: её сила — в правиле, а не в числах, выше тир поднимают дубликат и привал.
   const tier = pick(rng, tiers);
   return { id, tier: artifactDef(id).keystone ? 1 : tier };
 }
