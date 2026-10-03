@@ -213,7 +213,7 @@ describe('архетипы фазы 6 (v0.47)', () => {
   it('чистка пула: каждая вещь либо в архетипе, либо в коротком списке общих', () => {
     const general = [
       'troll_heart', 'mana_crystal', 'stamina_ring', 'second_wind', 'herbal_brew', 'healer_salve', 'evasion_amulet', 'dodge',
-      'blood_token', 'cross_current', 'wolf_whistle', 'shield_break', 'chain_lightning', 'resonance', 'elemental_edge', 'magic_missile',
+      'blood_token', 'cross_current', 'shield_break', 'chain_lightning', 'resonance', 'elemental_edge', 'magic_missile',
       // v0.54: Распад для любой сборки.
       'corpse_poison',
     ];

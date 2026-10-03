@@ -1,4 +1,5 @@
-import type { Difficulty, LocationId } from '../engine/types';
+import type { ArtTier, Difficulty, LocationId } from '../engine/types';
+import { allyDef } from './allies';
 import { byAct, trialValue } from './trials';
 
 /** Раны благословений по акту (v0.54): Яд и Горение без срока, первые два тика — как прежние «N на T ходов» (ADR 0005). */
@@ -48,9 +49,13 @@ export interface BoonDef {
   hint: string;
 }
 
-/** «Волчий друг»: HP волка-союзника по акту — растёт, как свисток на тирах 1–3, иначе в третьем акте он падает с первого удара. */
+/** «Волчий друг»: волк-союзник тиром по акту (v0.56) — тот же волк, что у Волчьего свистка на тирах 1–3, иначе в третьем акте он падает с первого удара. */
+export function wolfFriendTier(act: number): ArtTier {
+  return (Math.max(0, Math.min(2, act)) + 1) as ArtTier;
+}
+/** HP волка «Волчьего друга» в этом акте. */
 export function wolfFriendHp(act: number): number {
-  return 12 + [0, 6, 12][Math.max(0, Math.min(2, act))];
+  return allyDef('wolf').hp(wolfFriendTier(act));
 }
 /** «Бортовой залп»: доля максимума HP, которую каждый третий ход теряют враги (зеркало «Канонады» — только по врагам). */
 export const BROADSIDE_PCT = 0.1;

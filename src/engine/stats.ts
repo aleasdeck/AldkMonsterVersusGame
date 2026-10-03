@@ -147,6 +147,11 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     coldAdd: 0,
     frozenLong: 0,
     freezeVuln: 0,
+    allyBlock: 0,
+    allyHp: 0,
+    allyDmg: 0,
+    allyTwice: 0,
+    allyMult: 0,
   };
   applyMods(s, weaponPerkMods(weapon, def));
   applyMods(s, armorPerkMods(armor, def));

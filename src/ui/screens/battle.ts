@@ -1,11 +1,12 @@
 import { button, h, type Child, type TipFn } from '../dom';
 import { heroDef } from '../../data/heroes';
 import { ROLE_INFO, enemyDef } from '../../data/enemies';
+import { allyDef } from '../../data/allies';
 import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ART_TIER_COLORS, SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, effectiveCost, fatigueMult, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, effectiveCost, fatigueMult, feedHp, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, HeroBattle, PlayerAction, WeaponReach } from '../../engine/types';
@@ -221,7 +222,8 @@ export function enemyPreview(app: App, uid: number): PreviewSpec {
  * у того, кого враги бьют первым, спрайт меньше вражеского.
  */
 function allyView(b: BattleState, a: AllyState, underFire: boolean): HTMLElement {
-  const def = enemyDef(a.defId);
+  // Существо рисуется лепкой врага того же вида (v0.56): волк — волком, скелет — скелетом-воином Склепа, оса — осой Улья.
+  const def = enemyDef(allyDef(a.defId).look);
   const size = enemySize(def);
   const intent = computeAllyIntent(b, a);
   const tail = intent.target ? ` → ${intent.target[0]}` : '';
@@ -244,7 +246,12 @@ function allyView(b: BattleState, a: AllyState, underFire: boolean): HTMLElement
 
 /** Пунктирный силуэт свободного места рядом с героем — пока есть призывающий артефакт и союзников меньше двух. */
 function summonGhost(): HTMLElement {
-  return h('div', { class: 'ally ghost', tip: paramTip({ glyph: '☍' }, 'Место для союзника', 'Призыв поставит его сюда', { color: '#80ed99' }) }, h('div', { class: 'ghost-box' }, '☍'), h('div', { class: 'name dim' }, 'место'));
+  return h(
+    'div',
+    { class: 'ally ghost', tip: paramTip({ glyph: '☍' }, 'Место для существа', 'Призыв поставит его сюда. Когда оба места заняты, призыв подкармливает первое существо', { color: '#80ed99' }) },
+    h('div', { class: 'ghost-box' }, '☍'),
+    h('div', { class: 'name dim' }, 'место'),
+  );
 }
 
 // ─── Плитки приёмов ─────────────────────────────────────────────────────────
@@ -358,6 +365,12 @@ function effectValue(effects: Effect[], range: DamageRange | null, s: DerivedSta
         return [statusIcon(e.status, 18), e.value > 1 || e.status === 'strength' ? ` ${e.value}` : e.turns > 0 ? ` ${e.turns}х` : ''];
       case 'summon':
         return ['☍'];
+      case 'allyBuff':
+        return [statusIcon('strength', 18), ` ${e.amount}`, h('small', null, 'своим')];
+      case 'command':
+        return ['➚', h('small', null, `+${e.bonus}`)];
+      case 'sacrifice':
+        return [`${Math.round(e.pct * 100)}%`, h('small', null, 'HP всем')];
       case 'cleanse':
         return ['✚'];
       case 'pull':
@@ -574,14 +587,16 @@ export function actionSpecs(app: App): TileSpec[] {
     const total = ad.cooldown?.(inst.tier) ?? 0;
     const limit = ad.usesPerTurn?.(inst.tier) ?? 0;
     const err = tileErr(action, targeted);
+    const summon = effects.find((e) => e.type === 'summon');
+    const feed = summon && summon.type === 'summon' && b.allies.length >= MAX_ALLIES ? feedHp(b, summon.allyId, summon.tier) : 0;
     // Приём по всем подсвечивает всех, по одному — досягаемых, на себя — никого.
     const targets = targeted ? uids(action(first)) : ad.target === 'allEnemies' ? b.enemies.map((e) => e.uid) : [];
     specs.push({
       key: ad.id,
       glyph: ad.glyph,
       name: ad.name,
-      // При двух союзниках плитка призыва пишет причину прямо на себе, а не просто темнеет.
-      value: err === 'Рядом нет места' ? [h('small', null, 'нет места')] : effectValue(effects, range, b.hero.stats),
+      // При двух существах призыв не пропадает, а подкармливает первое (v0.56) — плитка пишет это прямо на себе.
+      value: feed ? ['☍', h('small', null, `+${feed}`)] : effectValue(effects, range, b.hero.stats),
       dir: dirOf(range, base),
       tier: inst.tier,
       cost: costBadge(b.hero, ad, inst.tier),
@@ -592,7 +607,15 @@ export function actionSpecs(app: App): TileSpec[] {
       targets,
       preview: (t) => ({
         title: `${ad.name} · тир ${inst.tier}`,
-        parts: [artifactCostText(ad, inst.tier), range && base ? `${hits > 1 ? `${hits}×` : ''}${rangeText(range)} урона${usual(range, base)}` : '', ad.describe(inst.tier), targeted ? reachWord(actionReach(b, action(first))) : '', total ? `перезарядка ${total} х.` : '', limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : ''],
+        parts: [
+          artifactCostText(ad, inst.tier),
+          range && base ? `${hits > 1 ? `${hits}×` : ''}${rangeText(range)} урона${usual(range, base)}` : '',
+          ad.describe(inst.tier),
+          feed ? `Ряд полон: ${b.allies[0].name} получит +${feed} HP и Силу +1` : '',
+          targeted ? reachWord(actionReach(b, action(first))) : '',
+          total ? `перезарядка ${total} х.` : '',
+          limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : '',
+        ],
         targets,
         ...(targeted ? onTarget(action, t, rangeOn(t) ?? undefined, kindOn(t)) : {}),
       }),

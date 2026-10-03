@@ -127,6 +127,18 @@ const list: ArchetypeDef[] = [
       3: { mods: { freezeVuln: 1 }, text: 'оцепеневший враг получает Уязвимость на 2 хода' },
     },
   },
+  {
+    // v0.56 (вариант Б «Свора», tools/summon-proto): существа из data/allies.ts. Значок — тот же, что у пустого места союзника в бою.
+    id: 'summon',
+    name: 'Призыв',
+    glyph: '☍',
+    color: '#5ee6c8',
+    desc: 'Существа рядом с героем: призвать, усилить всех разом и пустить в ход — приказом или жертвой. Держат удары врагов.',
+    sets: {
+      2: { mods: { allyHp: 6, allyDmg: 1 }, text: 'существа появляются с +6 HP и бьют на +1' },
+      3: { mods: { allyTwice: 1 }, text: 'каждый удар существа повторяется' },
+    },
+  },
 ];
 
 export const ARCHETYPE_LIST: ArchetypeDef[] = list;

@@ -1,7 +1,13 @@
 import type { ArtTier, ArtifactCost, ArtifactDef } from '../engine/types';
-import { enemyDef } from './enemies';
+import { allyDef } from './allies';
 
 const t = (a: number, b: number, c: number) => (tier: ArtTier) => [a, b, c][tier - 1];
+
+/** Описание призыва (v0.56): существо с HP и кругом из таблицы существ — числа не расходятся с боем. */
+function summonText(id: string, whom: string, tier: ArtTier): string {
+  const def = allyDef(id);
+  return `Призывает ${whom} (${def.hp(tier)} HP): ${def.circle(tier)}`;
+}
 
 /** Срок словами: «1 ход», «2 хода», «5 ходов». */
 const turns = (n: number) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'ход' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'хода' : 'ходов'}`;
@@ -901,12 +907,14 @@ const list: ArtifactDef[] = [
     glyph: 'ᛟ',
     kind: 'active',
     slot: 'armor',
+    // v0.56: в архетипе «Призыв»; волк — из таблицы существ, тир растит и HP, и укус (было 12/16/20 HP при укусе 5 на всех тирах).
+    tags: ['summon'],
     school: 'magic',
     cost: { mp: 3 },
     cooldown: () => 3,
     target: 'self',
-    effects: (tier) => [{ type: 'summon', enemyId: 'wolf', hpBonus: t(0, 4, 8)(tier) }],
-    describe: (tier) => `Призывает волка (${enemyDef('wolf').hp + t(0, 4, 8)(tier)} HP): кусает после вашего хода, враги бьют его первым`,
+    effects: (tier) => [{ type: 'summon', allyId: 'wolf', tier }],
+    describe: (tier) => summonText('wolf', 'волка', tier),
   },
   {
     id: 'magic_missile',
@@ -1375,6 +1383,110 @@ const list: ArtifactDef[] = [
     keystone: true,
     mods: () => ({ frozenLong: 1 }),
     describe: () => 'Оцепенение держит 2 хода; удары по оцепеневшему слабее на 30 %',
+  },
+
+  // ─── Призыв (v0.56) ───────────────────────────────────────────────────────
+  // Существа рядом с героем (data/allies.ts): призвать, усилить всех разом и пустить в ход — приказом или жертвой.
+  // Заводки — призывы в обоих сокетах (Волчий свисток и Поднять мертвеца — бронные: существо держит удары; Осиное гнездо —
+  // оружейное: оса бьёт и травит), бафы — Стайный оберег и Боевой рог, выплаты — Натравить и Трупный взрыв. Страница
+  // обсуждения — tools/summon-proto (вариант Б «Свора», выбран пользователем).
+  {
+    id: 'raise_dead',
+    name: 'Поднять мертвеца',
+    glyph: '†',
+    kind: 'active',
+    slot: 'armor',
+    tags: ['summon'],
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 3,
+    target: 'self',
+    // Призыв за стамину: героям без маны (Берсерк) Волчий свисток не выпадает вовсе (manaWeight), а набор им нужен тоже.
+    effects: (tier) => [{ type: 'summon', allyId: 'skeleton', tier }],
+    describe: (tier) => summonText('skeleton', 'скелета', tier),
+  },
+  {
+    id: 'wasp_nest',
+    fx: { color: '#ffd166' },
+    name: 'Осиное гнездо',
+    glyph: '⬡',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['summon'],
+    school: 'magic',
+    cost: { mp: 2 },
+    cooldown: () => 3,
+    target: 'self',
+    effects: (tier) => [{ type: 'summon', allyId: 'wasp', tier }],
+    describe: (tier) => summonText('wasp', 'осу', tier),
+  },
+  {
+    id: 'pack_ward',
+    name: 'Стайный оберег',
+    glyph: '◍',
+    kind: 'passive',
+    slot: 'armor',
+    tags: ['summon'],
+    mods: (tier) => ({ allyBlock: t(3, 4, 5)(tier) }),
+    describe: (tier) => `Перед своим ходом каждое ваше существо получает Блок ${t(3, 4, 5)(tier)}`,
+  },
+  {
+    id: 'war_horn',
+    name: 'Боевой рог',
+    glyph: '⌒',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['summon'],
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 2,
+    target: 'self',
+    // «Жажда крови» из Hearthstone, но до конца боя: бафф на всех существ сразу растёт вместе с их числом.
+    effects: (tier) => [{ type: 'allyBuff', amount: t(2, 3, 4)(tier) }],
+    describe: (tier) => `Все ваши существа: +${t(2, 3, 4)(tier)} к Силе до конца боя`,
+  },
+  {
+    id: 'sic_em',
+    name: 'Натравить',
+    glyph: '➚',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['summon'],
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 2,
+    target: 'enemy',
+    // Существа дальности не знают: приказ достаёт любого врага.
+    reach: 'any',
+    effects: (tier) => [{ type: 'command', target: 'enemy', bonus: t(1, 2, 3)(tier) }],
+    describe: (tier) => `Все ваши существа сразу бьют цель своим ударом +${t(1, 2, 3)(tier)}; свой ход после вашего они не теряют`,
+  },
+  {
+    id: 'corpse_blast',
+    name: 'Трупный взрыв',
+    glyph: '✸',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['summon'],
+    school: 'physical',
+    cost: { sta: 1 },
+    cooldown: () => 3,
+    target: 'allEnemies',
+    // Взрыв трупа из Diablo II: тело существа — заряд по всем, место освобождается под новый призыв.
+    effects: (tier) => [{ type: 'sacrifice', pct: t(0.5, 0.75, 1)(tier) }],
+    describe: (tier) => `Первое ваше существо гибнет: каждый враг получает ${t(50, 75, 100)(tier)} % его HP, мимо блока`,
+  },
+  {
+    id: 'overlord',
+    name: 'Повелитель',
+    glyph: '♛',
+    kind: 'passive',
+    slot: 'armor',
+    tags: ['summon'],
+    keystone: true,
+    // Жертва из Книги мёртвых Diablo IV наоборот: герой отдаёт свой удар существам.
+    mods: () => ({ allyMult: 1, strikeMult: -0.4 }),
+    describe: () => 'Ваши существа бьют вдвое сильнее; удары оружием героя слабее на 40 %',
   },
 ];
 

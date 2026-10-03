@@ -1,0 +1,636 @@
+<title>Архетип «Призыв»</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Handjet:wght@400;500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Tiny5&display=swap">
+<style>
+/* Страница обсуждения в одной тёмной сцене под игру, как прежние (лепка героев, приёмов): карточки — грамматикой игры,
+   поле — кадр 960 × 320 с лепкой. Колонка текста, варианты друг под другом, чтобы их можно было листать и сравнивать. */
+:root {
+  color-scheme: dark;
+  --ink: #121016;
+  --panel: #1b181f;
+  --panel-2: #231f28;
+  --line: #2f2a35;
+  --text: #e8e2d6;
+  --muted: #a59dab;
+  --faint: #6f6877;
+  --brass: #d6a050;
+  --brass-ink: #1e1408;
+  --summon: #5ee6c8;
+  --summon-ink: #0b2a24;
+  --card: #171726;
+  --card-line: #3a3a5a;
+  --card-dim: #9a9ab0;
+  --weapon: #c48cff;
+  --armor: #7fb8ff;
+  --skill: #f6dd7a;
+  --spell: #c9a8ff;
+  --passive: #aab4d8;
+  --t1: #b4b4b4;
+  --t2: #5cc663;
+  --t3: #5aaef7;
+  --good: #80ed99;
+  --bad: #ff7b7b;
+  --hp: #e63946;
+  --display: 'Tiny5', 'IBM Plex Mono', ui-monospace, monospace;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --game: 'Handjet', 'VT323', 'IBM Plex Mono', monospace;
+}
+body { background: var(--ink); color: var(--text); font: 16px/1.6 var(--body); padding-inline: 16px; padding-block: 0 72px; }
+.wrap { max-width: 1060px; margin: 0 auto; }
+.prose { max-width: 70ch; }
+h1, h2 { font-family: var(--display); font-weight: 400; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: clamp(34px, 6vw, 54px); line-height: 1.05; margin: 40px 0 14px; color: var(--brass); }
+h1 .glyph { color: var(--summon); }
+h2 { font-size: clamp(24px, 3.4vw, 32px); line-height: 1.15; margin: 64px 0 12px; }
+h2 .tag { color: var(--summon); }
+h3 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+p { margin: 0 0 12px; }
+a { color: var(--summon); }
+code, .mono { font-family: var(--mono); font-size: 0.88em; }
+code { background: var(--panel-2); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+.lead { font-size: 18px; max-width: 68ch; }
+.meta { color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 8px; }
+.meta b { color: var(--text); font-weight: 500; }
+.note { color: var(--muted); font-size: 14px; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin: 18px 0 0; padding: 0; list-style: none; }
+.toc a { display: inline-block; text-decoration: none; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 3px 10px; font-size: 14px; }
+.toc a:hover { border-color: var(--faint); }
+.toc a.rec { border-color: var(--summon); color: var(--summon); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--summon); outline-offset: 2px; }
+.list { padding-left: 1.2em; margin: 0 0 12px; }
+.list li { margin: 5px 0; }
+
+/* ─── Таблицы ─── */
+.scroll { overflow-x: auto; margin: 10px 0 18px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; border-bottom-color: var(--faint); }
+td.n { font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+td.bad { color: var(--bad); }
+th.rec, td.rec { background: color-mix(in srgb, var(--summon) 7%, transparent); }
+th.rec { color: var(--summon); }
+
+/* ─── Референсы ─── */
+.refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
+.ref { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
+.ref .game { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.ref h3 { margin: 0; }
+.ref p { margin: 0; font-size: 14.5px; line-height: 1.5; }
+.ref .take { font-size: 14px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+.ref .take b { color: var(--summon); font-weight: 500; }
+
+/* ─── Правила ─── */
+.rules { counter-reset: r; display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; max-width: 78ch; }
+.rules li { counter-increment: r; display: grid; grid-template-columns: 30px 1fr; gap: 10px; }
+.rules li::before { content: counter(r); font-family: var(--display); color: var(--summon); font-size: 20px; line-height: 1.3; }
+.rules b { font-weight: 600; }
+
+/* ─── Вариант ─── */
+.variant { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 4px; }
+.variant > h2 { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.variant .letter { font-family: var(--display); color: var(--summon); }
+.badge { font-family: var(--body); font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 3px; padding: 1px 7px; color: var(--summon); position: relative; top: -4px; }
+.badge.plain { color: var(--muted); }
+.gist { font-size: 17px; max-width: 72ch; }
+.rule-box { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; margin: 14px 0; max-width: 78ch; }
+.rule-box h3 { color: var(--summon); font-weight: 500; font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; }
+.rule-box ul { margin: 0; padding-left: 1.2em; }
+.rule-box li { margin: 4px 0; }
+
+/* ─── Поле боя ─── */
+.bench { margin: 18px 0 6px; }
+.stage { position: relative; width: 100%; max-width: 960px; aspect-ratio: 3 / 1; overflow: hidden; border-radius: 4px; background: #0b0a0e; border: 1px solid var(--line); }
+.field { position: absolute; left: 0; top: 0; width: 960px; height: 320px; transform-origin: 0 0; overflow: hidden; font-family: var(--game); }
+.field .bg { position: absolute; inset: 0; width: 960px; height: 320px; max-width: none; image-rendering: pixelated; }
+.field .shade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(8, 6, 12, 0.55), rgba(8, 6, 12, 0) 34%); }
+.fig { position: absolute; image-rendering: pixelated; max-width: none; }
+.fig.mirror { transform: scaleX(-1); }
+.under { position: absolute; width: 96px; display: grid; justify-items: center; gap: 1px; }
+.bar { width: 82px; height: 9px; background: #2a0f14; border: 1px solid #000; position: relative; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--hp); }
+.bar.ally i { background: #3fbf6f; }
+.bar.spirit i { background: #8c7bd6; }
+.under span { font-size: 17px; line-height: 1; color: #e8e6df; text-shadow: 0 1px 0 #000; white-space: nowrap; }
+.pill { position: absolute; transform: translateX(-50%); font-size: 18px; line-height: 1; padding: 2px 7px 3px; background: #1a0e12; border: 2px solid #ff6b6b; color: #ffd0d0; white-space: nowrap; }
+.pill.ally { background: #0e1a12; border-color: #80ed99; color: #c9f7d5; }
+.pill.spirit { background: #15122a; border-color: #b9a6ff; color: #e3dbff; }
+.ghostbox { position: absolute; width: 74px; height: 104px; border: 2px dashed #80ed99; color: #80ed99; display: grid; place-items: center; text-align: center; font-size: 17px; line-height: 1.05; background: rgba(14, 26, 18, 0.45); }
+.ghostbox b { display: block; font-size: 30px; font-weight: 400; }
+.caption { font-size: 14px; color: var(--muted); margin: 8px 0 0; max-width: 78ch; }
+
+/* ─── Карточки артефактов: грамматика игры (шапка, ячейки, описание) ─── */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 12px; margin: 16px 0 6px; }
+.acard { min-width: 0; background: var(--card); border: 3px solid var(--card-line); padding: 8px 10px 9px; display: flex; flex-direction: column; gap: 5px; font-family: var(--game); color: #e8e6df; }
+.acard.key { box-shadow: inset 0 0 0 1px #ffd16688; border-color: #6b5a2c; }
+.acard.old { border-style: dashed; }
+.ahead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.aicon { width: 34px; height: 34px; flex: none; display: grid; place-items: center; background: #0e0e18; border: 2px solid var(--card-line); font-size: 22px; line-height: 1; color: var(--t3); }
+.atitle { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.aname { margin: 0; font-size: 21px; line-height: 1.05; font-weight: 400; color: var(--t3); }
+.atype { font-size: 16px; line-height: 1.1; color: var(--card-dim); display: flex; flex-wrap: wrap; gap: 0 6px; }
+.k-skill { color: var(--skill); } .k-spell { color: var(--spell); } .k-passive { color: var(--passive); }
+.arch { color: var(--summon); }
+.s-weapon { color: var(--weapon); } .s-armor { color: var(--armor); }
+.cells { display: flex; flex-wrap: wrap; gap: 0 16px; font-size: 17px; line-height: 1.15; padding: 2px 0 3px; border-top: 1px dotted #33334d; border-bottom: 1px dotted #33334d; color: var(--card-dim); }
+.cells b { color: #fff; font-weight: 400; }
+.adesc { margin: 0; font-size: 17.5px; line-height: 1.12; }
+.adesc .kw { color: #ffd166; }
+.tt { white-space: nowrap; }
+.tt i { font-style: normal; }
+.tt .t1 { color: var(--t1); } .tt .t2 { color: var(--t2); } .tt .t3 { color: var(--t3); } .tt .sl { color: #6a6a88; }
+.afoot { margin-top: auto; padding-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 15px; line-height: 1.1; }
+.role { color: var(--brass); }
+.state { color: var(--faint); }
+.state.new { color: var(--good); }
+
+/* ─── Набор, плюсы и минусы, работа ─── */
+.set { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 10px 0 0; max-width: 820px; }
+.set > div { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; }
+.set .n { font-family: var(--display); color: var(--summon); font-size: 20px; margin-right: 8px; }
+.pc { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 24px; margin: 18px 0 0; }
+.pc > div { min-width: 0; }
+.pc h3 { font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
+.pc .plus h3 { color: var(--good); }
+.pc .minus h3 { color: var(--bad); }
+.pc .work h3 { color: var(--muted); }
+.pc ul { margin: 0; padding-left: 1.1em; font-size: 15px; }
+.pc li { margin: 5px 0; }
+
+/* ─── Рекомендация и вопросы ─── */
+.verdict { border: 1px solid var(--summon); background: color-mix(in srgb, var(--summon) 6%, var(--panel)); border-radius: 6px; padding: 16px 20px; max-width: 80ch; margin-top: 14px; }
+.verdict h3 { color: var(--summon); font-family: var(--display); font-weight: 400; font-size: 22px; margin-bottom: 8px; }
+.verdict p:last-child { margin-bottom: 0; }
+.questions { counter-reset: q; display: grid; gap: 14px; margin: 14px 0 0; padding: 0; list-style: none; max-width: 84ch; }
+.questions > li { counter-increment: q; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px 12px 52px; position: relative; }
+.questions > li::before { content: counter(q); position: absolute; left: 16px; top: 9px; font-family: var(--display); font-size: 24px; color: var(--brass); }
+.questions h3 { margin-bottom: 8px; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.opts li { font-size: 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 3px 10px; }
+.opts li.rec { border-color: var(--summon); color: var(--summon); }
+.opts li .k { font-family: var(--mono); color: var(--faint); margin-right: 4px; }
+.opts li.rec .k { color: var(--summon); }
+.sources { font-size: 13px; color: var(--muted); }
+.sources a { color: var(--muted); }
+
+@media (max-width: 640px) {
+  body { font-size: 15px; }
+  .cards { grid-template-columns: 1fr; }
+  .questions > li { padding-left: 44px; }
+  .questions > li::before { left: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><span class="glyph">☍</span> Архетип «Призыв»</h1>
+    <p class="lead">Десятый архетип сборки: существа рядом с героем. Сейчас призыв в игре один — Волчий свисток, и он общая вещь. Здесь три варианта набора по мотивам Некробиндера из Slay the Spire 2 и других игр, с числами первого прохода, сравнение и рекомендация.</p>
+    <div class="meta"><span>Сейчас <b>1 вещь</b> — Волчий свисток</span><span>Варианты <b>А «Длань» · Б «Свора» · В «Духи»</b></span><span>Решено <b>Б «Свора», с подкормкой из А</b> — в игре на ветке, числа второго прохода</span></div>
+    <ul class="toc" aria-label="Разделы">
+      <li><a href="#done" class="rec">Решено</a></li>
+      <li><a href="#now">Что есть</a></li>
+      <li><a href="#refs">Референсы</a></li>
+      <li><a href="#rules">Общие правила</a></li>
+      <li><a href="#var-a">А · Длань</a></li>
+      <li><a href="#var-b" class="rec">Б · Свора</a></li>
+      <li><a href="#var-c">В · Духи</a></li>
+      <li><a href="#compare">Сравнение</a></li>
+      <li><a href="#decide">Решить</a></li>
+    </ul>
+  </header>
+
+  <section id="done" aria-labelledby="done-h">
+    <h2 id="done-h">Решено</h2>
+    <div class="verdict">
+      <h3>Б «Свора» — сделано</h3>
+      <p>Ответы: <b>1</b> — Б; <b>2</b> — существа растут только тиром артефакта (он и так идёт за актом: 1 / 1–2 / 2–3), шаг тира крутой и растит и HP, и удар; <b>3</b> — два места; <b>4</b> — родного героя нет; <b>5</b> — жертва забирает первое существо. Из А взята подкормка. По замеру добавлено правило: перебор удара сверх HP павшего существа уходит герою.</p>
+      <p>Первый проход чисел поднимал бота в среднем на 10 пунктов: дешёвые существа работали щитом в любой сборке. Поэтому HP существ стали меньше, а набор 2 даёт +6 HP. Карточки Б ниже — уже итоговые числа. SIM на 300, «Сложный», среднее по героям: первый навык 24,8 → 28,2 %, второй 26,4 → 29,6 %, все двенадцать в коридоре 20–40. Маг поднялся с 18 до 29–32 %, Паладин с 20 до 29 %. Сборка «Призыв» обгоняет обычного бота у всех шести героев.</p>
+    </div>
+  </section>
+
+  <section id="now" aria-labelledby="now-h">
+    <h2 id="now-h">Что есть сейчас</h2>
+    <div class="cards" style="max-width: 520px; grid-template-columns: minmax(0, 1fr);" id="cards-now"></div>
+    <ul class="list prose">
+      <li>Волк — копия лесного Волка: Укус 5, Укус 5, Вой (Сила +2 волкам). Ходит сам после хода героя и кусает самого раненого врага. Игрок им не управляет.</li>
+      <li>Обычные удары врагов идут в первого союзника; заклинания, раны и взрывы — в героя. Насмешка возвращает удары на героя.</li>
+      <li>Рядом помещаются двое. При двух союзниках плитка свистка пишет «Рядом нет места».</li>
+      <li>Числа союзника с актом не растут. Числа врагов растут, и к третьему акту волк — это два удара врага.</li>
+    </ul>
+    <div class="scroll" style="max-width: 640px;">
+      <table>
+        <thead><tr><th>Акт</th><th>Волк-враг: HP</th><th>Волк-враг: укус</th><th>Волк-союзник: HP</th><th>Волк-союзник: укус</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td class="n">24</td><td class="n">4</td><td class="n">12–20</td><td class="n">5</td></tr>
+          <tr><td>2</td><td class="n">49</td><td class="n">8</td><td class="n">12–20</td><td class="n">5</td></tr>
+          <tr><td>3</td><td class="n">65</td><td class="n">11</td><td class="n bad">12–20</td><td class="n bad">5</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note prose">Враг: HP 12 × масштаб акта × 2 (длина боя), укус 5 × масштаб акта × надбавка урона акта × 0,7 — <code>enemyScale</code> в locations.ts. Союзник: 12 HP и 4 / 8 за тир свистка, укус 5 во всех актах (<code>computeAllyIntent</code>: «числа без масштаба акта»).</p>
+  </section>
+
+  <section id="refs" aria-labelledby="refs-h">
+    <h2 id="refs-h">Референсы</h2>
+    <p class="prose">Что делают другие игры с существами и что из этого годится для пошагового боя с сокетами.</p>
+    <div class="refs">
+      <article class="ref">
+        <span class="game">Slay the Spire 2 · Некробиндер</span>
+        <h3>Ости — рука-спутник</h3>
+        <p>«Призыв N» прибавляет Ости N к HP и максимуму, погибшего поднимает снова. Ости принимает на себя атаки по герою. Карты «Ости бьёт» считают от него: Unleash — урон плюс его текущее HP, Protector — плюс максимум HP, Rattle — ещё удар за каждую атаку Ости в этом ходу, Sic 'Em — каждый удар Ости по цели даёт Призыв 2. Bone Shards — Ости гибнет: 9 урона всем и 9 Блока; Sacrifice — Блок вдвое от его максимума HP.</p>
+        <p class="take">Берём: HP существа — и щит, и заряд; повторный призыв усиливает, а не пропадает; жертва ради выплаты. <b>→ вариант А, подкормка в Б</b></p>
+      </article>
+      <article class="ref">
+        <span class="game">Slay the Spire · Дефект</span>
+        <h3>Сферы</h3>
+        <p>Сферы встают в слоты и срабатывают в конце каждого хода. Новая сфера при полных слотах выталкивает старшую, и та срабатывает сильнее — «вызов». Фокус усиливает все сферы разом.</p>
+        <p class="take">Берём: короткоживущие существа, вытеснение как выплата, бафф на всех сразу. <b>→ вариант В</b></p>
+      </article>
+      <article class="ref">
+        <span class="game">Diablo II · Некромант</span>
+        <h3>Скелеты и Взрыв трупа</h3>
+        <p>Скелеты поднимаются из трупов. Взрыв трупа бьёт по площади долей HP мёртвого. Пассивное Мастерство скелетов растит всех поднятых.</p>
+        <p class="take">Берём: тело существа как заряд для удара по всем. <b>→ Трупный взрыв в Б</b></p>
+      </article>
+      <article class="ref">
+        <span class="game">Diablo IV · Некромант</span>
+        <h3>Книга мёртвых</h3>
+        <p>У каждого вида существ два улучшения на выбор или «жертва»: отказаться от этого вида ради постоянного бонуса герою.</p>
+        <p class="take">Берём: ключевая вещь как отказ — сила в обмен на часть игры. <b>→ ключевые вещи всех трёх</b></p>
+      </article>
+      <article class="ref">
+        <span class="game">Path of Exile · миньоны</span>
+        <h3>Подношения</h3>
+        <p>Подношение съедает труп и даёт бафф всем миньонам рядом. «Нестабильность миньонов» взрывает миньона на низком HP.</p>
+        <p class="take">Берём: бафф бьёт по всем существам сразу, поэтому сила растёт вместе с их числом. <b>→ Боевой рог, Стайный оберег</b></p>
+      </article>
+      <article class="ref">
+        <span class="game">Hearthstone</span>
+        <h3>«Жажда крови» и Насмешка</h3>
+        <p>Жажда крови даёт всем своим существам +3 к атаке на ход. Насмешка заставляет бить того, кто её носит.</p>
+        <p class="take">Берём: короткий массовый бафф под приказ «бить сейчас». Насмешка у нас уже есть и уже возвращает удары с союзника на героя. <b>→ Боевой рог + Натравить</b></p>
+      </article>
+    </div>
+  </section>
+
+  <section id="rules" aria-labelledby="rules-h">
+    <h2 id="rules-h">Общие правила призыва</h2>
+    <p class="prose">Нужны при любом варианте: без них существо к третьему акту — пустое место, а плитка призыва при полном ряде — мёртвая.</p>
+    <ol class="rules">
+      <li><span><b>Существа растут с актом:</b> HP и удар ×1 / ×1,5 / ×2. Так уже растёт волк благословения «Волчий друг» — 12 / 18 / 24 HP. <i>Решено иначе: только тиром артефакта, с крутым шагом.</i></span></li>
+      <li><span><b>Свои числа, а не копия врага.</b> Скелет-воин записан под третий акт (30 HP), союзнику-скелету нужна своя строка. Лепку берём у врага того же вида — союзник уже зеркалится, как волк.</span></li>
+      <li><span><b>Подкормка вместо «нет места».</b> Призыв при полном ряде усиливает первое существо: половина HP призыва и Сила +1. Это правило Ости.</span></li>
+      <li><span><b>Метка ☍ «Призыв», бирюзовая.</b> Значок места союзника уже есть в игре, цвет свободен среди девяти архетипов.</span></li>
+      <li><span><b>Бот.</b> Сейчас при живом союзнике бот считает, что весь ход врагов уйдёт в союзника (<code>projectIncoming</code> отдаёт 0). Без починки SIM призыв не измерит.</span></li>
+    </ol>
+  </section>
+
+  <!-- ═══ Вариант А ═══ -->
+  <section class="variant" id="var-a" aria-labelledby="a-h">
+    <h2 id="a-h"><span><span class="letter">А</span> · Длань</span><span class="badge plain">один спутник, как Ости</span></h2>
+    <p class="gist">Одна Костяная длань на бой. Её HP — и щит, и сила. Сама она не ходит, бьёт только по приказу героя и принимает обычные удары врагов. Все призывы набора растят одну и ту же Длань: «Призыв N» поднимает её с N HP или прибавляет N к HP и максимуму.</p>
+    <div class="bench"><div class="stage" data-field="a"></div></div>
+    <p class="caption">Склеп, второй акт. Маг, Длань и двое врагов. Модели Длани ещё нет — на её месте пунктир, как у пустого места союзника в игре.</p>
+    <div class="cards" id="cards-a"></div>
+    <div class="set" aria-label="Набор А">
+      <div><span class="n">2</span>каждый Призыв сильнее на 2</div>
+      <div><span class="n">3</span>после вашего хода Длань сама бьёт самого раненого врага на 20 % своего HP</div>
+    </div>
+    <div class="pc">
+      <div class="plus"><h3>Плюсы</h3><ul>
+        <li>Читается сразу: одно существо, его полоска HP растёт на глазах.</li>
+        <li>Выбор каждый ход: HP Длани держит удары и заряжает выплаты, а Осколки тратят его целиком.</li>
+        <li>Место на поле одно, второе свободно под волка.</li>
+        <li>Пара со Светом сама собой: с ключевой вещью лечение героя становится Призывом.</li>
+      </ul></div>
+      <div class="minus"><h3>Минусы</h3><ul>
+        <li>«Ещё чем-то призывать» — только Длань, другого существа нет.</li>
+        <li>Без выплат в руке Длань — мешок HP: сама она не бьёт до набора 3.</li>
+        <li>Волчий свисток в набор не встаёт естественно и остаётся общей вещью.</li>
+      </ul></div>
+      <div class="work"><h3>Работа</h3><ul>
+        <li>Движок: союзник без своего хода, эффект «Призыв», урон от HP союзника, перенос всего урона на Длань.</li>
+        <li>Лепка: одна новая модель — Длань с покоем, ударом и уроном.</li>
+        <li>Бот: цена HP Длани и выплат от него.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ═══ Вариант Б ═══ -->
+  <section class="variant" id="var-b" aria-labelledby="b-h">
+    <h2 id="b-h"><span><span class="letter">Б</span> · Свора</span><span class="badge">рекомендую</span></h2>
+    <p class="gist">Несколько разных существ: приручённые звери и поднятые мертвецы, у каждого свой круг приёмов. Ходят сами после героя и принимают удары, как волк сейчас. Растут бафами, которые бьют по всем существам сразу. Выплата — приказ «бить сейчас» по выбранной цели и жертва: тело существа взрывается по всем врагам.</p>
+    <div class="bench"><div class="stage" data-field="b"></div></div>
+    <p class="caption">Лес, первый акт. Лучник, волк и скелет против гоблина, головореза и лучника. Волк, скелет-воин и оса уже слеплены для врагов — союзник берёт ту же модель зеркалом.</p>
+    <div class="rule-box">
+      <h3>Существа</h3>
+      <ul>
+        <li><b>Волк</b> — урон: 10 / 16 / 24 HP, Укус 5 / 7 / 9, Укус, Вой (Сила +2 / 2 / 3 волкам). Лепка есть.</li>
+        <li><b>Скелет</b> — страж: 6 / 10 / 16 HP, Щит (Блок 4 / 6 / 8 себе), Удар 3 / 5 / 7, Удар. Держит удары. Лепка скелета-воина из Склепа.</li>
+        <li><b>Оса</b> — раны: 4 / 6 / 9 HP, каждый ход Жало 2 / 3 / 4 × 2 и Яд 1 / 1 / 2. Хрупкая. Лепка осы-стража из Улья.</li>
+        <li>Перебор удара сверх HP павшего существа — герою.</li>
+        <li>Подкормка: призыв при двух существах даёт первому половину HP призыва и Силу +1.</li>
+      </ul>
+    </div>
+    <div class="cards" id="cards-b"></div>
+    <div class="set" aria-label="Набор Б">
+      <div><span class="n">2</span>существа появляются с +6 HP и бьют на +1</div>
+      <div><span class="n">3</span>каждый удар существа повторяется</div>
+    </div>
+    <div class="pc">
+      <div class="plus"><h3>Плюсы</h3><ul>
+        <li>Прямо то, что просили: три способа призвать и два бафа на своих, плюс бафф набора.</li>
+        <li>Ни одной новой модели: волк, скелет и оса уже слеплены.</li>
+        <li>Движок уже водит союзников по кругу и подставляет их под удары — добавить бафы, приказ, жертву и рост.</li>
+        <li>Рост быстрее линейного: бафф умножается на число существ.</li>
+        <li>Волчий свисток получает метку и встаёт в набор.</li>
+      </ul></div>
+      <div class="minus"><h3>Минусы</h3><ul>
+        <li>Мест два: при трёх врагах поле и так тесное. Армия не растёт числом — только силой.</li>
+        <li>Без «Натравить» существа бьют самого раненого, и цель игрок не выбирает.</li>
+        <li>Существ бьют только обычные удары врагов; от заклинаний и ран они героя не закрывают.</li>
+      </ul></div>
+      <div class="work"><h3>Работа</h3><ul>
+        <li>Данные: архетип, семь новых вещей, таблица существ (свои числа, модель лепки по id врага).</li>
+        <li>Движок: рост по акту, подкормка, бафф существам, приказ, жертва, статы набора и ключевой.</li>
+        <li>Бот: союзник гасит не весь ход врагов; ценность бафов и приказа.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <!-- ═══ Вариант В ═══ -->
+  <section class="variant" id="var-c" aria-labelledby="c-h">
+    <h2 id="c-h"><span><span class="letter">В</span> · Духи</span><span class="badge plain">сферы Дефекта</span></h2>
+    <p class="gist">Духи-стихии на короткий срок. Каждый ход врагов дух срабатывает сам, на исходе срока «развеивается» с выплатой. Мест два: новый дух при полных местах вытесняет старшего, и тот развеивается раньше. Духи бесплотны — удары врагов проходят мимо них в героя. Их раны считаются ранами героя, поэтому наборы Огня и Холода их усиливают.</p>
+    <div class="bench"><div class="stage" data-field="c"></div></div>
+    <p class="caption">Болота. Маг с огоньком и призраком. Лепка огонька, призрака и тени есть; для развеяния им нужен новый клип.</p>
+    <div class="cards" id="cards-c"></div>
+    <div class="set" aria-label="Набор В">
+      <div><span class="n">2</span>дух живёт на ход дольше</div>
+      <div><span class="n">3</span>развеяние срабатывает дважды</div>
+    </div>
+    <div class="pc">
+      <div class="plus"><h3>Плюсы</h3><ul>
+        <li>Мост к стихиям: огонёк кормит набор Огня, призрак — Холода. Пары «Призыв + Огонь» и «Призыв + Холод» складываются сами.</li>
+        <li>Свой ритм: призвать, дождаться, развеять. Выплата видна заранее.</li>
+        <li>Лепка духов есть.</li>
+      </ul></div>
+      <div class="minus"><h3>Минусы</h3><ul>
+        <li>Духи не прикрывают героя. Это не тот призыв, где кто-то стоит рядом и держит удар.</li>
+        <li>Отбирает лицо у Огня и Холода: та же рана, другим путём.</li>
+        <li>Волчий свисток сюда не встаёт.</li>
+      </ul></div>
+      <div class="work"><h3>Работа</h3><ul>
+        <li>Движок: новый вид существ — срок, вытеснение, развеяние, бесплотность. Самый дорогой из трёх.</li>
+        <li>Лепка: клип развеяния у трёх духов.</li>
+        <li>Бот: когда развеивать.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section id="compare" aria-labelledby="cmp-h">
+    <h2 id="cmp-h">Сравнение</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th></th><th>А · Длань</th><th class="rec">Б · Свора</th><th>В · Духи</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Ещё призывы и бафы своим</th><td>частично: все призывы растят одну Длань</td><td class="rec">да: три существа, два бафа и набор</td><td>частично: духи не стоят рядом</td></tr>
+          <tr><th scope="row">Новая лепка</th><td class="n">1 модель</td><td class="n rec">0</td><td class="n">0 + клип развеяния</td></tr>
+          <tr><th scope="row">Работа в движке</th><td>средняя</td><td class="rec">меньше всех</td><td>больше всех</td></tr>
+          <tr><th scope="row">Мест на поле</th><td class="n">1</td><td class="n rec">2</td><td class="n">2</td></tr>
+          <tr><th scope="row">Защищает героя</th><td>сильно</td><td class="rec">средне</td><td>слабо</td></tr>
+          <tr><th scope="row">Пары с архетипами</th><td>Свет, Щит</td><td class="rec">Яд (оса), Щит (оберег), любые удары через приказ</td><td>Огонь, Холод</td></tr>
+          <tr><th scope="row">Волчий свисток</th><td>общая вещь</td><td class="rec">в наборе</td><td>общая вещь</td></tr>
+          <tr><th scope="row">Главный риск</th><td>Длань сама не бьёт</td><td class="rec">рост только силой: мест два</td><td>дублирует Огонь и Холод</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="verdict">
+      <h3>Рекомендация: Б «Свора»</h3>
+      <p>Она прямо отвечает на запрос: три способа призвать и бафы на своих существ. Новых моделей не нужно — волк, скелет и оса уже слеплены. Движок уже водит союзников по кругу и подставляет их под удары.</p>
+      <p>Из А взять подкормку: повторный призыв при полном ряде усиливает существо, а не пропадает. Саму Длань — следующим шагом, если Свора приживётся: четвёртым существом с новой лепкой или ключевой вещью. В оставить отдельной идеей: он больше про Огонь и Холод, чем про призыв.</p>
+    </div>
+  </section>
+
+  <section id="decide" aria-labelledby="decide-h">
+    <h2 id="decide-h">Решить</h2>
+    <ol class="questions">
+      <li><h3>Какой вариант делаем?</h3><ul class="opts"><li><span class="k">А</span>Длань</li><li class="rec"><span class="k">Б</span>Свора</li><li><span class="k">В</span>Духи</li><li><span class="k">Г</span>смесь — какая</li></ul></li>
+      <li><h3>Как существа растут с актом?</h3><ul class="opts"><li class="rec"><span class="k">А</span>×1 / ×1,5 / ×2 по акту</li><li><span class="k">Б</span>от урона оружия героя</li><li><span class="k">В</span>от максимума HP героя</li></ul></li>
+      <li><h3>Сколько мест для существ?</h3><ul class="opts"><li class="rec"><span class="k">А</span>2, как сейчас</li><li><span class="k">Б</span>3 только с ключевой вещью</li><li><span class="k">В</span>3 всегда — поле теснее</li></ul></li>
+      <li><h3>Чей архетип родной?</h3><p class="note">Ни один врождённый навык не носит метку призыва, поэтому набор 3/3 собирается тремя вещами в сокетах.</p><ul class="opts"><li class="rec"><span class="k">А</span>ничей на первый проход</li><li><span class="k">Б</span>Лучнику второй навык-призыв — Следопыт с волком</li><li><span class="k">В</span>седьмой герой-Некромант — отдельная задача</li></ul></li>
+      <li><h3>Кого забирает жертва?</h3><ul class="opts"><li class="rec"><span class="k">А</span>первое существо — без нового выбора цели</li><li><span class="k">Б</span>игрок выбирает существо кликом</li></ul></li>
+    </ol>
+    <p class="note prose" style="margin-top: 18px;">Числа на карточках — первый проход: тир 1 / 2 / 3 цветом тира. Перед заливкой — SIM на 300 забегах и стенд сборок (docs/sim-sborki.md) с починенным ботом.</p>
+  </section>
+
+  <footer>
+    <h2 style="font-size: 18px; margin-top: 56px;">Источники</h2>
+    <p class="sources">
+      <a href="https://slaythespire2.gg/guides/necrobinder-guide">Necrobinder Guide (slaythespire2.gg)</a> ·
+      <a href="https://sts2.untapped.gg/en/characters/necrobinder">Necrobinder (sts2.untapped.gg)</a> ·
+      <a href="https://slaythespire-2.com/builds/necrobinder-osty-build">Necrobinder Osty Build (slaythespire-2.com)</a> ·
+      <a href="https://slaythespire2.wiki.fextralife.com/The_Necrobinder">The Necrobinder (fextralife)</a> ·
+      <a href="https://maxroll.gg/d4/resources/necromancer-book-of-the-dead">Book of the Dead (maxroll.gg)</a> ·
+      <a href="https://www.warcrafttavern.com/d4/classes/necromancer/book-of-the-dead/">Book of the Dead (warcrafttavern)</a>
+    </p>
+  </footer>
+</div>
+
+<script type="application/json" id="sprites">__SPRITES__</script>
+<script type="application/json" id="backgrounds">__BACKGROUNDS__</script>
+<script>
+(() => {
+  // ─── Карточки ───
+  const T = (a, b, c) => `<span class="tt"><i class="t1">${a}</i><i class="sl">/</i><i class="t2">${b}</i><i class="sl">/</i><i class="t3">${c}</i></span>`;
+  const kw = (s) => `<span class="kw">${s}</span>`;
+  const KIND = { skill: ['Приём', 'k-skill'], spell: ['Заклинание', 'k-spell'], passive: ['Пассивка', 'k-passive'] };
+  const SLOT = { weapon: ['оружейный', 's-weapon'], armor: ['бронный', 's-armor'] };
+
+  const NOW = [
+    { g: 'ᛟ', name: 'Волчий свисток', kind: 'spell', slot: 'armor', arch: false, cells: [['цена', '3 MP'], ['КД', '3']], text: `Призывает волка (${T(12, 16, 20)} HP): кусает после вашего хода, враги бьют его первым`, role: 'общая вещь', state: 'есть', old: true },
+  ];
+
+  const A = [
+    { g: '⇡', name: 'Зов из могилы', kind: 'skill', slot: 'armor', cells: [['цена', '1 STA'], ['КД', '1']], text: `${kw('Призыв')} ${T(6, 8, 10)}: нет Длани — поднимает её с этим HP, есть — прибавляет к HP и максимуму`, role: 'заводка' },
+    { g: '◈', name: 'Филактерия', kind: 'passive', slot: 'armor', text: `Длань встаёт в начале боя с ${T(6, 8, 10)} HP. В начале вашего хода — ${kw('Призыв')} ${T(2, 2, 3)}`, role: 'заводка' },
+    { g: '⋔', name: 'Хватка мертвеца', kind: 'passive', slot: 'weapon', text: `Каждый удар оружием — ${kw('Призыв')} ${T(1, 1, 2)}`, role: 'заводка на ударе' },
+    { g: '▼', name: 'Раздавить', kind: 'skill', slot: 'weapon', cells: [['цена', '1 STA'], ['в ход', `${T(1, 1, 2)}`]], text: `Длань бьёт цель: 4 урона плюс ${T('30', '40', '50 %')} её HP. Длань HP не теряет`, role: 'выплата' },
+    { g: '⁂', name: 'Костяные осколки', kind: 'skill', slot: 'weapon', cells: [['цена', '1 STA'], ['КД', '3']], text: `Длань рассыпается: урон всем врагам ${T('50', '65', '80 %')} её HP, герою — ${kw('Блок')} на столько же. Следующий Призыв поднимет её снова`, role: 'выплата, площадь' },
+    { g: '▥', name: 'Окостенение', kind: 'passive', slot: 'armor', text: `В начале хода врагов Длань получает ${kw('Блок')} ${T(3, 4, 5)}. Каждый удар по ней слабее на ${T(1, 1, 2)}`, role: 'бафф' },
+    { g: '♁', name: 'Сосуд души', kind: 'passive', slot: 'armor', key: true, text: `Пока Длань жива, весь урон по герою принимает она: и удары, и заклинания, и раны. Лечение героя не лечит его, а становится ${kw('Призывом')}`, role: 'ключевая, минус — нет лечения' },
+  ];
+
+  const B = [
+    { g: 'ᛟ', name: 'Волчий свисток', kind: 'spell', slot: 'armor', cells: [['цена', '3 MP'], ['КД', '3']], text: `Призывает волка (${T(10, 16, 24)} HP): Укус ${T(5, 7, 9)}, Укус, Вой — ${kw('Сила')} +${T(2, 2, 3)} волкам`, role: 'заводка', state: 'есть, + метка' },
+    { g: '†', name: 'Поднять мертвеца', kind: 'skill', slot: 'armor', cells: [['цена', '1 STA'], ['КД', '3']], text: `Призывает скелета (${T(6, 10, 16)} HP): Щит — ${kw('Блок')} ${T(4, 6, 8)} себе, Удар ${T(3, 5, 7)}, Удар`, role: 'заводка' },
+    { g: '⬡', name: 'Осиное гнездо', kind: 'spell', slot: 'weapon', cells: [['цена', '2 MP'], ['КД', '3']], text: `Призывает осу (${T(4, 6, 9)} HP): каждый ход Жало ${T(2, 3, 4)} × 2 и ${kw('Яд')} ${T(1, 1, 2)} цели`, role: 'заводка' },
+    { g: '◍', name: 'Стайный оберег', kind: 'passive', slot: 'armor', text: `Перед своим ходом каждое ваше существо получает ${kw('Блок')} ${T(3, 4, 5)}`, role: 'бафф' },
+    { g: '⌒', name: 'Боевой рог', kind: 'skill', slot: 'weapon', cells: [['цена', '1 STA'], ['КД', '2']], text: `Все ваши существа: ${kw('Сила')} +${T(2, 3, 4)} до конца боя`, role: 'бафф' },
+    { g: '➚', name: 'Натравить', kind: 'skill', slot: 'weapon', cells: [['цена', '1 STA'], ['КД', '2']], text: `Все ваши существа сразу бьют выбранную цель своим ударом +${T(1, 2, 3)}. Свой ход после вашего они не теряют`, role: 'выплата' },
+    { g: '✸', name: 'Трупный взрыв', kind: 'skill', slot: 'weapon', cells: [['цена', '1 STA'], ['КД', '3']], text: `Первое ваше существо гибнет: урон всем врагам ${T('50', '75', '100 %')} его HP, мимо блока`, role: 'выплата, площадь' },
+    { g: '♛', name: 'Повелитель', kind: 'passive', slot: 'armor', key: true, text: `Ваши существа бьют вдвое сильнее. Удары оружием героя слабее на 40 %`, role: 'ключевая, минус — слабый удар' },
+  ];
+
+  const C = [
+    { g: '✧', name: 'Блуждающий огонёк', kind: 'spell', slot: 'weapon', cells: [['цена', '1 MP']], text: `Дух на 3 хода: в каждый ход врагов ${kw('Горение')} 2 первому врагу. Развеяние — ${kw('Горение')} ${T(2, 3, 4)} всем`, role: 'заводка' },
+    { g: '❅', name: 'Стылый призрак', kind: 'spell', slot: 'weapon', cells: [['цена', '1 MP']], text: `Дух на 3 хода: в каждый ход врагов ${kw('Холод')} 1 первому врагу. Развеяние — ${kw('Холод')} ${T(1, 1, 2)} всем`, role: 'заводка' },
+    { g: '◑', name: 'Страж-тень', kind: 'skill', slot: 'armor', cells: [['цена', '1 STA']], text: `Дух на 3 хода: в каждый ход врагов ${kw('Блок')} ${T(3, 4, 5)} герою. Развеяние — ${kw('Блок')} ${T(6, 8, 10)}`, role: 'заводка' },
+    { g: '✺', name: 'Развеять', kind: 'skill', slot: 'weapon', cells: [['цена', '0'], ['КД', '2']], text: `Все ваши духи развеиваются сейчас; развеяние сильнее в ${T('1', '1,25', '1,5')} раза`, role: 'выплата' },
+    { g: '⊙', name: 'Фокус духов', kind: 'passive', slot: 'armor', text: `Духи каждый ход действуют сильнее на ${T(1, 1, 2)}: Горение, Холод и Блок`, role: 'бафф' },
+    { g: '⊛', name: 'Одержимость', kind: 'passive', slot: 'armor', key: true, text: `Духи живут до конца боя и действуют вдвое сильнее, но не развеиваются: ни сроком, ни вытеснением, ни приёмом`, role: 'ключевая, минус — нет выплат' },
+  ];
+
+  function card(c) {
+    const [kName, kCls] = KIND[c.kind];
+    const [sName, sCls] = SLOT[c.slot];
+    const arch = c.arch === false ? '' : '<span class="arch">☍ Призыв</span>';
+    const cells = c.cells ? `<div class="cells">${c.cells.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join('')}</div>` : '';
+    const state = c.state ?? 'нов.';
+    return `<article class="acard${c.key ? ' key' : ''}${c.old ? ' old' : ''}">
+      <div class="ahead"><span class="aicon" aria-hidden="true">${c.g}</span><div class="atitle"><h3 class="aname">${c.name}</h3>
+      <span class="atype"><span class="${kCls}">${kName}</span>${arch ? '·' + arch : ''}·<span class="${sCls}">${sName}</span>${c.key ? '·<span style="color:#ffd166">ключевая</span>' : ''}</span></div></div>
+      ${cells}<p class="adesc">${c.text}</p>
+      <div class="afoot"><span class="role">${c.role}</span><span class="state${state === 'нов.' ? ' new' : ''}">${state}</span></div></article>`;
+  }
+  const fill = (id, list) => { document.getElementById(id).innerHTML = list.map(card).join(''); };
+  fill('cards-now', NOW);
+  fill('cards-a', A);
+  fill('cards-b', B);
+  fill('cards-c', C);
+
+  // ─── Поле боя: кадр 960 × 320, фигуры — лепка из игры ───
+  const SPR = JSON.parse(document.getElementById('sprites').textContent);
+  const BG = JSON.parse(document.getElementById('backgrounds').textContent);
+  const FEET = 268; // линия стоп на кадре 320: под ней полоска HP и имя, как в бою
+
+  const FIELDS = {
+    a: { bg: 'crypt', figs: [
+      { id: 'hero_mage', x: 112, hp: [24, 29], name: 'Маг', side: 'hero' },
+      { ghost: 'Длань', x: 262, hp: [26, 26], name: 'Длань', side: 'ally', pill: '☍ 26 HP' },
+      { id: 'skeleton_archer', x: 600, hp: [30, 30], name: 'Скелет-лучник', pill: 'выстрел 7' },
+      { id: 'ghoul', x: 790, hp: [55, 55], name: 'Гуль', pill: 'удар 10' },
+    ] },
+    b: { bg: 'forest', figs: [
+      { id: 'hero_archer', x: 100, hp: [33, 33], name: 'Лучник', side: 'hero' },
+      { id: 'wolf', x: 236, hp: [16, 16], name: 'Волк', side: 'ally', pill: 'укус 6 → Г' },
+      { id: 'skeleton_warrior', x: 338, hp: [12, 12], name: 'Скелет', side: 'ally', pill: 'блок 4' },
+      { id: 'goblin', x: 520, hp: [24, 24], name: 'Гоблин', pill: 'удар 4' },
+      { id: 'cutthroat', x: 680, hp: [32, 32], name: 'Головорез', pill: 'удар 7' },
+      { id: 'bandit_archer', x: 850, hp: [20, 20], name: 'Бандит-лучник', pill: 'выстрел 4' },
+    ] },
+    c: { bg: 'swamp', figs: [
+      { id: 'hero_mage', x: 112, hp: [29, 29], name: 'Маг', side: 'hero' },
+      { id: 'will_o_wisp', x: 252, hp: [2, 3], name: 'Огонёк', side: 'spirit', pill: 'Горение 2' },
+      { id: 'ghost', x: 352, hp: [3, 3], name: 'Призрак', side: 'spirit', pill: 'Холод 1', mirror: true },
+      { id: 'drowned', x: 610, hp: [40, 40], name: 'Утопленник', pill: 'удар 5' },
+      { id: 'kikimora', x: 800, hp: [28, 28], name: 'Кикимора', pill: 'лечит 6' },
+    ] },
+  };
+
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const anims = [];
+
+  function figure(field, f) {
+    const allyLike = f.side === 'ally' || f.side === 'spirit';
+    let top;
+    if (f.ghost) {
+      const box = document.createElement('div');
+      box.className = 'ghostbox';
+      box.style.left = `${f.x - 37}px`;
+      box.style.top = `${FEET - 104}px`;
+      box.innerHTML = `<span><b>☍</b>${f.ghost}<br>новая лепка</span>`;
+      field.appendChild(box);
+      top = FEET - 104;
+    } else {
+      const s = SPR[f.id];
+      const cv = document.createElement('canvas');
+      cv.width = s.w;
+      cv.height = s.h;
+      cv.className = 'fig';
+      const mirror = f.mirror ?? (f.side === 'ally');
+      if (mirror) cv.classList.add('mirror');
+      const mid = (s.body[0] + s.body[1]) / 2;
+      const center = mirror ? s.w - 1 - mid : mid;
+      cv.style.width = `${s.w * s.d}px`;
+      cv.style.height = `${s.h * s.d}px`;
+      cv.style.left = `${Math.round(f.x - center * s.d)}px`;
+      cv.style.top = `${FEET - s.h * s.d}px`;
+      field.appendChild(cv);
+      const ctx = cv.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      const clips = s.clips.map((c) => { const img = new Image(); img.src = c.src; return { ...c, img }; });
+      anims.push({ ctx, s, clips, ally: allyLike && f.side === 'ally', start: 0, clip: 0 });
+      // Верх фигуры в покое — по первому кадру не узнать без пикселей, берём рамку: над ней пилюля.
+      top = FEET - s.h * s.d + (f.id.startsWith('hero') ? 18 : 6);
+    }
+    const under = document.createElement('div');
+    under.className = 'under';
+    under.style.left = `${f.x - 48}px`;
+    under.style.top = `${FEET + 6}px`;
+    const pct = Math.round((f.hp[0] / f.hp[1]) * 100);
+    under.innerHTML = `<div class="bar ${f.side === 'ally' ? 'ally' : f.side === 'spirit' ? 'spirit' : ''}"><i style="width:${pct}%"></i></div><span>${f.side === 'spirit' ? `${f.name} · ход ${f.hp[0]}/${f.hp[1]}` : `${f.name} ${f.hp[0]}/${f.hp[1]}`}</span>`;
+    field.appendChild(under);
+    if (f.pill) {
+      const pill = document.createElement('div');
+      pill.className = `pill ${f.side === 'ally' ? 'ally' : f.side === 'spirit' ? 'spirit' : ''}`;
+      pill.textContent = f.pill;
+      pill.style.left = `${f.x}px`;
+      pill.style.top = `${Math.max(6, top - 30)}px`;
+      field.appendChild(pill);
+    }
+  }
+
+  document.querySelectorAll('.stage[data-field]').forEach((stage) => {
+    const spec = FIELDS[stage.dataset.field];
+    const field = document.createElement('div');
+    field.className = 'field';
+    const bg = document.createElement('img');
+    bg.className = 'bg';
+    bg.alt = '';
+    bg.src = BG[spec.bg];
+    field.appendChild(bg);
+    const shade = document.createElement('div');
+    shade.className = 'shade';
+    field.appendChild(shade);
+    spec.figs.forEach((f) => figure(field, f));
+    stage.appendChild(field);
+    const fit = () => { field.style.transform = `scale(${stage.clientWidth / 960})`; };
+    new ResizeObserver(fit).observe(stage);
+    fit();
+  });
+
+  // Покой — по общим часам, как в игре; союзники по очереди играют удар, будто ходят после героя.
+  const t0 = performance.now();
+  let nextAlly = 0, lastTurn = -1;
+  const allies = anims.filter((a) => a.ally);
+  function frame(now) {
+    const t = now - t0;
+    const turn = Math.floor(t / 2600);
+    if (!reduce && allies.length && turn !== lastTurn) {
+      lastTurn = turn;
+      const a = allies[nextAlly++ % allies.length];
+      a.clip = 1;
+      a.start = t;
+    }
+    for (const a of anims) {
+      let c = a.clips[a.clip];
+      let k;
+      if (a.clip === 1) {
+        k = Math.floor(((t - a.start) / 1000) * c.fps);
+        if (k >= c.n) { a.clip = 0; c = a.clips[0]; k = Math.floor((t / 1000) * c.fps) % c.n; }
+      } else {
+        k = reduce ? 0 : Math.floor((t / 1000) * c.fps) % c.n;
+      }
+      if (!c.img.complete) continue;
+      a.ctx.clearRect(0, 0, a.s.w, a.s.h);
+      a.ctx.drawImage(c.img, k * a.s.w, 0, a.s.w, a.s.h, 0, 0, a.s.w, a.s.h);
+    }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  if (reduce) Promise.all(anims.flatMap((a) => a.clips.map((c) => c.img.decode().catch(() => {})))).then(() => frame(performance.now()));
+})();
+</script>

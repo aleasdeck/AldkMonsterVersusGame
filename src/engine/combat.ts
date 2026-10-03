@@ -1,6 +1,7 @@
 import type {
   AiCtx,
   AllyState,
+  ArtTier,
   ArtifactDef,
   ArtifactInstance,
   BattleState,
@@ -25,6 +26,7 @@ import type {
 import { MAX_ALLIES, MAX_ENEMIES } from './types';
 import { chance, int, pick, weighted, type Rng } from './rng';
 import { enemyAction, enemyDef, PHASE_SHIFT } from '../data/enemies';
+import { allyAction, allyDef, allyStrikeAction } from '../data/allies';
 import { enemyScale, locationDef, type EnemyMults } from '../data/locations';
 import { artifactCost, artifactDef } from '../data/artifacts';
 import { SWEEP_MULT, VAMP_PCT } from '../data/gear';
@@ -32,7 +34,7 @@ export { VAMP_PCT };
 import { potionDef } from '../data/potions';
 import { computeStats, innateOf, socketedArtifacts, statCtxOf } from './stats';
 import { ACID_BLOCK_MULT, CANNONADE_PCT, CRYPT_CURSE_MULT, FIRE_BLOOD_BURN, HEAT_BURN, HOT_ARMOR_MULT, MIRE_POISON, byAct, trialValue } from '../data/trials';
-import { BROADSIDE_PCT, FORGE_HEAT_BURN, HOLY_WATER_MULT, MIASMA_POISON, TEMPERED_MULT, wolfFriendHp } from '../data/boons';
+import { BROADSIDE_PCT, FORGE_HEAT_BURN, HOLY_WATER_MULT, MIASMA_POISON, TEMPERED_MULT, wolfFriendTier } from '../data/boons';
 
 export const STATUS_NAMES: Record<StatusId, string> = {
   strength: 'Сила',
@@ -824,14 +826,35 @@ function healHero(state: BattleState, amount: number, why?: string): void {
 }
 
 // ─── Союзники ──────────────────────────────────────────────────────────────
+// Существа героя (v0.56, архетип «Призыв»): числа — из таблицы ALLIES по тиру призыва, бьют сами после хода героя
+// по самому раненому врагу и принимают на себя обычные удары врагов. Бонусы набора и «Повелитель» — в статах героя.
 
-function spawnAlly(state: BattleState, defId: string, hpBonus: number): AllyState {
-  const def = enemyDef(defId);
-  const a: AllyState = { uid: state.nextUid++, defId, name: def.name, hp: def.hp + hpBonus, maxHp: def.hp + hpBonus, block: 0, statuses: [], cycleIdx: 0 };
+/** Призвать существо: HP по тиру плюс прибавка набора «Призыв» 2. */
+export function spawnAlly(state: BattleState, id: string, tier: ArtTier): AllyState {
+  const def = allyDef(id);
+  const hp = def.hp(tier) + state.hero.stats.allyHp;
+  const a: AllyState = { uid: state.nextUid++, defId: id, name: def.name, hp, maxHp: hp, block: 0, statuses: [], cycleIdx: 0, tier };
   state.allies.push(a);
   state.events.push({ type: 'summon', target: a.uid });
   log(state, `Рядом с героем появляется ${a.name}`);
   return a;
+}
+
+/**
+ * Призыв при полном ряде (v0.56, правило Ости из StS2): не пропадает, а подкармливает первое существо — половина HP призыва
+ * к HP и максимуму и Сила +1. Иначе плитка призыва при двух существах была бы мёртвой.
+ */
+function feedAlly(state: BattleState, a: AllyState, hp: number): void {
+  a.maxHp += hp;
+  a.hp += hp;
+  state.events.push({ type: 'heal', target: a.uid, amount: hp });
+  log(state, `${a.name} подкормлен: +${hp} HP`);
+  addStatus(state, a, a.uid, 'strength', 1, -1);
+}
+
+/** HP, которые даст подкормка призывом с этого эффекта. */
+export function feedHp(state: BattleState, id: string, tier: ArtTier): number {
+  return Math.ceil((allyDef(id).hp(tier) + state.hero.stats.allyHp) / 2);
 }
 
 function damageAlly(state: BattleState, a: AllyState, amount: number, pierce = false): number {
@@ -843,39 +866,77 @@ function damageAlly(state: BattleState, a: AllyState, amount: number, pierce = f
   }
   a.hp -= rest;
   state.events.push({ type: 'damage', target: a.uid, amount: rest, kind: rest === 0 ? 'blocked' : 'hit' });
-  if (a.hp <= 0) {
-    state.events.push({ type: 'death', target: a.uid });
-    log(state, `${a.name} пал`);
-    state.allies = state.allies.filter((x) => x !== a);
-    state.allyQueue = state.allyQueue.filter((uid) => uid !== a.uid);
-  }
+  if (a.hp <= 0) removeAlly(state, a, `${a.name} пал`);
   return rest;
 }
 
-/** Ход союзника: действия по циклу его прототипа. Атаки — по самому раненому врагу, баффы — по своим. */
+function removeAlly(state: BattleState, a: AllyState, line: string): void {
+  state.events.push({ type: 'death', target: a.uid });
+  log(state, line);
+  state.allies = state.allies.filter((x) => x !== a);
+  state.allyQueue = state.allyQueue.filter((uid) => uid !== a.uid);
+}
+
+/**
+ * Урон одного удара существа: число приёма, Сила существа и набор «Призыв» 2, Слабость, «Повелитель». Тем же числом
+ * пишется пилюля намерения и считает бот.
+ */
+export function allyHitDamage(state: BattleState, a: AllyState, amount: number): number {
+  let dmg = amount + statusValue(a, 'strength') + state.hero.stats.allyDmg;
+  if (getStatus(a, 'weak')) dmg = Math.floor(dmg * 0.75);
+  return Math.max(0, Math.round(dmg * (1 + state.hero.stats.allyMult)));
+}
+
+/** Сколько раз бьёт приём существа: набор «Призыв» 3 повторяет каждый удар. */
+export function allyHitCount(state: BattleState, hits: number | undefined): number {
+  return (hits ?? 1) * (state.hero.stats.allyTwice > 0 ? 2 : 1);
+}
+
+/** Куда прыгнет существо: самый раненый живой враг. Союзник дальности не знает — ограничение «как ближний бой» стоило Магу и Лучнику по 2 пункта (v0.26). */
+function allyTarget(state: BattleState): EnemyState | null {
+  return state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
+}
+
+/**
+ * Бьющие эффекты приёма существа: удары (по `fixed`, пока она жива, — приказ «Натравить» с прибавкой `bonus`, — иначе
+ * по самому раненому) и рана на того, кого ударили последним (Яд осы — Яд героя: наборы и «Токсиколог» его растят).
+ */
+function allyStrike(state: BattleState, a: AllyState, effects: EnemyEffect[], rng: Rng, fixed?: EnemyState, bonus = 0): void {
+  let last: EnemyState | null = null;
+  for (const eff of effects) {
+    if (eff.type === 'attack') {
+      const dmg = allyHitDamage(state, a, eff.amount + bonus);
+      for (let i = 0; i < allyHitCount(state, eff.hits); i++) {
+        const target = fixed && fixed.hp > 0 && state.enemies.includes(fixed) ? fixed : allyTarget(state);
+        if (!target || !state.allies.includes(a)) break;
+        log(state, `${a.name} атакует ${target.name}: ${dmg}`);
+        damageEnemy(state, target, dmg, 'hit', { attacker: a, rng });
+        last = target;
+      }
+    } else if (eff.type === 'debuff') {
+      const target = last && last.hp > 0 ? last : allyTarget(state);
+      if (target) heroInflict(state, target, eff.status, eff.value, eff.turns);
+    }
+  }
+}
+
+/** Ход союзника: приём по кругу его существа. Удары — по самому раненому врагу, баффы — своим. */
 function actAlly(state: BattleState, a: AllyState, rng: Rng): void {
-  const def = enemyDef(a.defId);
+  const def = allyDef(a.defId);
   a.block = 0;
-  const order = def.ai.type === 'boss' ? def.actions.map((x) => x.id) : def.ai.order;
-  const action = enemyAction(def, order[a.cycleIdx % order.length]);
-  a.cycleIdx = (a.cycleIdx + 1) % order.length;
+  const action = allyAction(def, a.tier, def.order[a.cycleIdx % def.order.length]);
+  a.cycleIdx = (a.cycleIdx + 1) % def.order.length;
   state.events.push({ type: 'enemyAction', target: a.uid, name: action.name });
   beginStep(state, 'A');
   log(state, `${a.name}: ${action.name}`);
+  // «Стайный оберег»: щит перед своим ходом, чтобы он стоял весь ход врагов.
+  if (state.hero.stats.allyBlock > 0) gainBlock(state, a, a.uid, state.hero.stats.allyBlock, 'Стайный оберег');
+  allyStrike(state, a, action.effects, rng);
   for (const eff of action.effects) {
     switch (eff.type) {
-      case 'attack': {
-        let dmg = eff.amount + statusValue(a, 'strength');
-        if (getStatus(a, 'weak')) dmg = Math.floor(dmg * 0.75);
-        for (let i = 0; i < (eff.hits ?? 1); i++) {
-          // Союзник дальности не знает: зверь прыгает на самого раненого. Ограничение «как ближний бой» стоило Магу и Лучнику по 2 пункта (v0.26).
-          const target = state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
-          if (!target) break;
-          log(state, `${a.name} атакует ${target.name}: ${dmg}`);
-          damageEnemy(state, target, dmg, 'hit', { attacker: a, rng });
-        }
+      case 'attack':
+      case 'debuff':
         break;
-      }
       case 'buffStr': {
         const targets = eff.target === 'self' ? [a] : eff.target === 'allies' ? state.allies : state.allies.filter((x) => x.defId === a.defId);
         for (const t of targets) addStatus(state, t, t.uid, 'strength', eff.amount, -1);
@@ -1386,7 +1447,6 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
       if ((cost.mp ?? 0) > h.mp) return 'Нет маны';
       if (def.target === 'enemy' && !findEnemy(state, action.target ?? -1)) return 'Нет цели';
       if (def.target === 'enemy' && !canReach(state, action, action.target ?? -1)) return REACH_ERR;
-      if (state.allies.length >= MAX_ALLIES && def.effects?.(inst.tier).some((e) => e.type === 'summon')) return 'Рядом нет места';
       for (const eff of def.effects?.(inst.tier) ?? []) {
         if (eff.type === 'selfDamage' && h.hp <= eff.amount) return 'Слишком мало HP';
         if (eff.type === 'blockStrike' && h.block <= 0) return 'Нет блока';
@@ -1396,6 +1456,7 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
           if (!t || statusValue(t, 'burn') <= 0) return 'Цель не горит';
         }
         if (eff.type === 'finisher' && h.strikes <= 0) return 'Сначала атакуйте';
+        if ((eff.type === 'allyBuff' || eff.type === 'command' || eff.type === 'sacrifice') && state.allies.length === 0) return 'Нет существ';
         if (eff.type === 'blockBurst' && h.block <= 0) return 'Нет блока';
         if (eff.type === 'amplify' && statusValue(findEnemy(state, action.target ?? -1) ?? h, eff.status) <= 0) return `На цели нет: ${STATUS_NAMES[eff.status]}`;
         if (eff.type === 'chain' && chainCharges(h) <= 0) return 'Сначала примените приём';
@@ -1564,8 +1625,39 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
       break;
     }
     case 'summon':
-      if (state.allies.length < MAX_ALLIES) spawnAlly(state, eff.enemyId, eff.hpBonus);
+      if (state.allies.length < MAX_ALLIES) spawnAlly(state, eff.allyId, eff.tier);
+      else feedAlly(state, state.allies[0], feedHp(state, eff.allyId, eff.tier));
       break;
+    case 'allyBuff':
+      for (const a of state.allies) addStatus(state, a, a.uid, 'strength', eff.amount, -1);
+      break;
+    case 'command': {
+      // Натравить: каждое существо бьёт цель своим ударом сейчас — вне круга, свой ход после героя остаётся.
+      const target = targetsFor(state, 'enemy', targetUid)[0];
+      for (const a of [...state.allies]) {
+        const strike = allyStrikeAction(allyDef(a.defId), a.tier);
+        if (!strike || !target) continue;
+        state.events.push({ type: 'enemyAction', target: a.uid, name: strike.name });
+        log(state, `${a.name} по приказу: ${strike.name}`);
+        allyStrike(state, a, strike.effects, rng, target, eff.bonus);
+      }
+      break;
+    }
+    case 'sacrifice': {
+      // Трупный взрыв: первое существо гибнет, его HP разлетается по всем врагам — как рана, мимо блока и уворота.
+      const a = state.allies[0];
+      if (!a) break;
+      const dmg = Math.round(a.hp * eff.pct);
+      const why = `${Math.round(eff.pct * 100)} % от ${a.hp} HP: ${a.name}`;
+      // «пал» в конце — лог рисует строку гибелью; «взрывается:» не годится — так пишется самоподрыв врага по герою.
+      removeAlly(state, a, `Трупный взрыв: ${a.name} пал`);
+      for (const e of [...state.enemies]) {
+        if (e.hp <= 0 || dmg <= 0) continue;
+        const dealt = damageEnemy(state, e, dmg, 'dot');
+        log(state, `Осколки костей по ${e.name}: ${dmg} (${why}) → ${dealt} по HP`);
+      }
+      break;
+    }
     case 'pull':
       // Крюк-кошка: цель встаёт первой, остальные сдвигаются назад в прежнем порядке. По первому в ряду приём тоже
       // применим (v0.40.3, ради крови на боссе один на один) — тянуть там просто некуда, строй не двигается.
@@ -2161,6 +2253,7 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
         if (state.phase === 'lost') break;
         // «Насмешка» (v0.47): враги лезут на героя, союзника не трогают.
         const ally = getStatus(h, 'taunt') ? undefined : state.allies[0];
+        let toHero = dmg;
         if (ally) {
           // Гибель союзника пишется внутри damageAlly — строка удара встаёт перед ней.
           const at = state.log.length;
@@ -2169,13 +2262,16 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
           if (eff.drain && dealt > 0) healEnemy(state, e, dealt);
           // Удар принял союзник: герой цел, но замах состоялся — довесок ложится как прежде.
           if (ctx) ctx.landed = true;
-          continue;
+          // Перебор сверх HP павшего существа — герою (v0.56): иначе оса в 6 HP за 2 MP гасила удар босса целиком,
+          // и хрупкие существа работали как щит на любой удар.
+          toHero = Math.max(0, -ally.hp);
+          if (toHero <= 0) continue;
         }
         const detail = newDetail();
         // Ответный удар, шипы героя и его гибель пишутся внутри damageHero — строка удара встаёт перед ними.
         const at = state.log.length;
-        const dealt = damageHero(state, dmg, 'hit', e, eff.pierce, detail);
-        log(state, `${e.name} атакует: ${dmg}${hitTail(dmg, dealt, detail, !!eff.pierce && h.block > 0)}`, at);
+        const dealt = damageHero(state, toHero, 'hit', e, eff.pierce, detail);
+        log(state, toHero < dmg ? `Остаток удара — герою: ${toHero}${hitTail(toHero, dealt, detail, !!eff.pierce && h.block > 0)}` : `${e.name} атакует: ${dmg}${hitTail(dmg, dealt, detail, !!eff.pierce && h.block > 0)}`, at);
         if (eff.drain && dealt > 0) healEnemy(state, e, dealt, 'вампиризм');
         // Блок — не промах: удар дошёл, просто его съел щит.
         if (ctx && !detail.miss) ctx.landed = true;
@@ -2577,7 +2673,7 @@ export function createBattle(
     if (boon === 'shroud') addStatus(state, e, e.uid, 'weak', 1, 2);
   }
   // «Волчий друг»: волк встаёт рядом с героем до выбора намерений — враги сразу видят, кого бить первым.
-  if (boon === 'wolf_friend') spawnAlly(state, 'wolf', wolfFriendHp(tAct) - enemyDef('wolf').hp);
+  if (boon === 'wolf_friend') spawnAlly(state, 'wolf', wolfFriendTier(tAct));
   for (const e of state.enemies) chooseIntent(state, e, rng);
   // Скрытность плаща: первые атаки врага в этом бою промахиваются.
   if (stats.dodgeStart > 0) addStatus(state, state.hero, 'hero', 'dodge', stats.dodgeStart, -1);
@@ -2909,9 +3005,8 @@ export interface AllyIntentInfo extends IntentInfo {
  * уже в состоянии. Числа без масштаба акта — союзник бьёт «родными» числами прототипа плюс Сила.
  */
 export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentInfo {
-  const def = enemyDef(a.defId);
-  const order = def.ai.type === 'boss' ? def.actions.map((x) => x.id) : def.ai.order;
-  const action = enemyAction(def, order[a.cycleIdx % order.length]);
+  const def = allyDef(a.defId);
+  const action = allyAction(def, a.tier, def.order[a.cycleIdx % def.order.length]);
   const rich: ActionPart[] = [];
   const parts = {
     push(text: string, kind: IntentKind, status?: StatusId) {
@@ -2924,14 +3019,19 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
   for (const eff of action.effects) {
     switch (eff.type) {
       case 'attack': {
-        let dmg = eff.amount + statusValue(a, 'strength');
-        if (getStatus(a, 'weak')) dmg = Math.floor(dmg * 0.75);
-        const hits = eff.hits ?? 1;
+        const dmg = allyHitDamage(state, a, eff.amount);
+        const hits = allyHitCount(state, eff.hits);
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
-        const victim = state.enemies.reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
+        const victim = allyTarget(state);
         target = victim?.name ?? null;
         parts.push(`Атака ${label}${victim ? ` по ${victim.name}` : ''}`, 'attack');
         kinds.push('attack');
+        break;
+      }
+      case 'debuff': {
+        // Рана существа — рана героя: наборы её растят (inflictValue), в пилюле то же число, что ляжет на цель.
+        parts.push(`${STATUS_NAMES[eff.status]} ${inflictValue(state.hero, eff.status, eff.value)}`, 'debuff', eff.status);
+        kinds.push('debuff');
         break;
       }
       case 'block':
@@ -2953,6 +3053,7 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
   }
   const kind = INTENT_PRIORITY.find((k) => kinds.includes(k)) ?? 'special';
   const texts = rich.map((p) => p.text);
+  const notes = state.hero.stats.allyBlock > 0 ? [`Стайный оберег: Блок ${state.hero.stats.allyBlock} перед ходом`] : [];
   return {
     kind,
     icon: INTENT_ICON[kind],
@@ -2961,7 +3062,7 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     text: texts.length ? `${action.name}: ${texts.join(', ')}` : action.name,
     detail: texts.join(', '),
     parts: rich,
-    notes: [],
+    notes,
     kinds: INTENT_PRIORITY.filter((k) => kinds.includes(k)),
     statuses: [],
     selfStatuses: [],

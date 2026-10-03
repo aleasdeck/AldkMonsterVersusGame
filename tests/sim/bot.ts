@@ -8,7 +8,8 @@
  */
 import type { ArchetypeId, ArtifactInstance, BattleState, GearInstance, HeroPersistent, LockGrade, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
 import { createRng, next as rngNext, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
+import { VULNERABLE_MULT, allyHitCount, allyHitDamage, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
+import { allyAction, allyDef, allyStrikeAction } from '../../src/data/allies';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { archetypeCounts, artifactTags, setMods } from '../../src/data/archetypes';
 import { innateOf } from '../../src/engine/stats';
@@ -213,8 +214,10 @@ let pushBase = 0;
 /** Урон, который враги нанесут герою на ближайшем ходу при нынешних намерениях, с учётом блока, уклонений и скрытности. */
 function projectIncoming(b: BattleState): { hit: number; dot: number } {
   const h = b.hero;
-  // Враги бьют союзника первым, пока он жив.
-  if (b.allies.length > 0) return { hit: 0, dot: 0 };
+  // Враги бьют союзника первым, пока он жив (v0.56): обычные удары уходят в существ по очереди, пока у них есть HP и блок;
+  // перебор на добитом существе пропадает, остальное — в героя. Насмешка возвращает удары на героя. До v0.56 бот считал,
+  // что живой союзник гасит весь ход врагов, — и с существом в ряду переставал защищаться.
+  const shields = getStatus(h, 'taunt') ? [] : b.allies.map((a) => a.hp + a.block + allyGuard(b, a));
   // «Прислушаться» (v0.46) снимает тень до удара — с этого врага и для всех, кто ходит после него.
   let hidden = holdsThroughEnemyTurn(getStatus(h, 'stealth'));
   const invuln = holdsThroughEnemyTurn(getStatus(h, 'invuln'));
@@ -240,12 +243,21 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
         const hits = eff.type === 'attack' ? (eff.hits ?? 1) : 1;
         const pierce = eff.type === 'attack' && !!eff.pierce;
         for (let i = 0; i < hits; i++) {
+          // Существо принимает удар; перебор сверх его HP — герою (v0.56).
+          let rawHit = dmg;
+          if (eff.type === 'attack' && shields.length > 0) {
+            const took = Math.min(shields[0], dmg);
+            shields[0] -= took;
+            rawHit = dmg - took;
+            if (shields[0] <= 0) shields.shift();
+            if (rawHit <= 0) continue;
+          }
           if (hidden || invuln) continue;
           if (dodge > 0) {
             dodge--;
             continue;
           }
-          let rest = Math.max(0, Math.round(dmg * vulMult) - h.stats.hitReduce - tranceReduce(h));
+          let rest = Math.max(0, Math.round(rawHit * vulMult) - h.stats.hitReduce - tranceReduce(h));
           if (!pierce) {
             const used = Math.min(block, rest);
             block -= used;
@@ -271,6 +283,27 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
     }
   }
   return { hit, dot };
+}
+
+/** Блок, который существо поставит себе своим ходом до ударов врагов: щит скелета и «Стайный оберег». */
+function allyGuard(b: BattleState, a: BattleState['allies'][number]): number {
+  const def = allyDef(a.defId);
+  const action = allyAction(def, a.tier, def.order[a.cycleIdx % def.order.length]);
+  return b.hero.stats.allyBlock + action.effects.reduce((sum, e) => sum + (e.type === 'block' ? e.amount : 0), 0);
+}
+
+/** Средний урон существа за ход по его кругу — им существа сокращают бой, как удар героя. */
+function allyDpt(b: BattleState, a: BattleState['allies'][number]): number {
+  const def = allyDef(a.defId);
+  let total = 0;
+  for (const id of def.order) {
+    for (const e of allyAction(def, a.tier, id).effects) {
+      if (e.type === 'attack') total += allyHitDamage(b, a, e.amount) * allyHitCount(b, e.hits);
+      else if (e.type === 'debuff') total += dotWorth(e.status, e.value, e.turns) * 0.7;
+      else if (e.type === 'buffStr') total += e.amount;
+    }
+  }
+  return total / def.order.length;
 }
 
 function dotTotal(c: { statuses: Status[] }): number {
@@ -301,7 +334,8 @@ export function evaluate(b: BattleState): number {
   let s = hpAfter - inc.dot * 0.7;
   // Остаток HP врагов переводим в ходы до конца боя: каждый ход стоит цены хода плюс половины угрозы врагов.
   // Сила «Боевого транса» действует только раненому — в ходах до конца боя её видно, в статике (artifactValue) нет.
-  const dpt = Math.max(1, ((h.stats.dmgMin + h.stats.dmgMax) / 2 + h.stats.str + tranceStr(h)) * h.maxSta * 0.85);
+  // Существа бьют сами (v0.56): их урон за ход сокращает бой так же, как удар героя.
+  const dpt = Math.max(1, ((h.stats.dmgMin + h.stats.dmgMax) / 2 + h.stats.str + tranceStr(h)) * h.maxSta * 0.85 + b.allies.reduce((sum, a) => sum + allyDpt(b, a), 0));
   let threat = 0;
   let effTotal = 0;
   for (const e of b.enemies) {
@@ -478,6 +512,11 @@ export function playBattle(run: RunState): boolean {
 
 function hasMagicActive(hero: HeroPersistent, except?: string): boolean {
   return heroHeld(hero, except).some((a) => artifactDef(a.id).kind === 'active' && artifactDef(a.id).school === 'magic');
+}
+
+/** Сколько у героя призывов, кроме `except` (v0.56): без них бафы и приказы существам пусты. */
+function summonSources(hero: HeroPersistent, except?: string): number {
+  return heroHeld(hero, except).filter((a) => artifactDef(a.id).effects?.(a.tier).some((e) => e.type === 'summon')).length;
 }
 
 /** То же, что heldArts, но по герою (навык — из его уровня). */
@@ -698,6 +737,14 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.coldAdd ?? 0) * 3 * src('cold');
     v += (m.frozenLong ?? 0) * 6 * src('cold');
     v += (m.freezeVuln ?? 0) * avg * (VULNERABLE_MULT - 1) * s.sta * 2 * W.enemyHp * src('cold');
+    // ── Призыв v0.56: всё про существ стоит только при призывах в руках; полтора существа в среднем, три хода боя ──
+    const pack = Math.min(1.5, summonSources(run.hero, inst.id) * 0.75);
+    v += (m.allyBlock ?? 0) * pack * 3 * 0.8;
+    v += (m.allyHp ?? 0) * pack * 0.65;
+    v += (m.allyDmg ?? 0) * pack * 1.5 * 3 * W.enemyHp;
+    // Повтор удара и «Повелитель» — ещё столько же урона существ: около шести за ход у каждого.
+    v += ((m.allyTwice ?? 0) > 0 ? 1 : 0) * pack * 6 * 3 * W.enemyHp;
+    v += (m.allyMult ?? 0) * pack * 6 * 3 * W.enemyHp;
     return v;
   }
 }
@@ -797,8 +844,25 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
       case 'selfDamage':
         per -= e.amount;
         break;
-      case 'summon':
-        per += 8;
+      case 'summon': {
+        // Существо (v0.56): HP, которые оно примет на себя вместо героя (около двух третей), и его удары за три хода боя.
+        const ally = allyDef(e.allyId);
+        const strike = allyStrikeAction(ally, e.tier);
+        const hit = (strike?.effects ?? []).reduce((sum, x) => sum + (x.type === 'attack' ? (x.amount + s.allyDmg) * (x.hits ?? 1) * (s.allyTwice > 0 ? 2 : 1) * (1 + s.allyMult) : 0), 0);
+        per += (ally.hp(e.tier) + s.allyHp) * 0.65 + hit * 0.7 * 3 * W.enemyHp;
+        break;
+      }
+      case 'allyBuff':
+        // Боевой рог: Сила на каждый удар каждого существа до конца боя — около полутора ударов за ход у полутора существ.
+        per += e.amount * 1.5 * 1.5 * 3 * W.enemyHp * (summonSources(run.hero, inst.id) > 0 ? 1 : 0.1);
+        break;
+      case 'command':
+        // Натравить: лишний удар каждого существа по нужной цели.
+        per += (6 + s.allyDmg + e.bonus) * (1 + s.allyMult) * 1.5 * far * W.enemyHp * (summonSources(run.hero, inst.id) > 0 ? 1 : 0.1);
+        break;
+      case 'sacrifice':
+        // Трупный взрыв: тело существа (около двух третей его HP к моменту взрыва) — по всем, минус само существо.
+        per += (summonSources(run.hero, inst.id) > 0 ? 14 * e.pct * 1.8 * W.enemyHp * 3 - 4 : 0);
         break;
       case 'cleanse':
         per += 2;

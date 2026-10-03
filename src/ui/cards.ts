@@ -163,6 +163,12 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return `блок ×${e.mult}`;
       case 'summon':
         return 'призыв';
+      case 'allyBuff':
+        return `Сила +${e.amount} своим`;
+      case 'command':
+        return `приказ +${e.bonus}`;
+      case 'sacrifice':
+        return `взрыв ${Math.round(e.pct * 100)} % HP`;
       case 'cleanse':
         return 'снимает раны';
       case 'status':
