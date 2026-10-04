@@ -16,7 +16,7 @@ const OUT = join(ROOT, 'curse-preview');
 
 /** Кто стоит на полях вариантов: враги — модели лепки, герои — лепка героев. */
 const MOBS = ['skeleton_warrior', 'ghoul', 'skeleton_archer', 'bear', 'wolf', 'bog_horror', 'leech'];
-const HEROES = ['mage', 'berserk', 'archer'];
+const HEROES = ['mage', 'paladin', 'archer'];
 const BACKGROUNDS = ['crypt', 'forest', 'swamp'];
 
 const bundle = await build({
