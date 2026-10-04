@@ -14,6 +14,7 @@ import {
   endTurn,
   enemyStep,
   getStatus,
+  isDoomed,
   onDeathInfo,
   performAction,
   previewAttack,
@@ -2266,5 +2267,175 @@ describe('v0.54: реворк статусов', () => {
     lee.state.hero.hp = 10;
     pass(lee.state, lee.rng);
     expect(lee.state.log.filter((l) => l.includes('(пиявка')).length).toBe(1);
+  });
+});
+
+describe('архетип «Проклятье» (Doom Некробиндера)', () => {
+  /** Проклятье прямо на враге — как будто его уже наложили. */
+  const curse = (e: BattleState['enemies'][number], value: number) => e.statuses.push({ id: 'curse', value, turns: -1 });
+  /** Враг по виду: ряд строит роль, а не порядок в списке встречи. */
+  const foe = (state: BattleState, defId: string) => state.enemies.find((e) => e.defId === defId)!;
+
+  it('Шёпот могилы вешает Проклятье; оно складывается и не убывает', () => {
+    const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'grave_whisper', tier: 1 }] });
+    const boar = first(state);
+    performAction(state, { type: 'artifact', artifactId: 'grave_whisper', target: boar.uid }, rng);
+    expect(getStatus(boar, 'curse')).toEqual({ id: 'curse', value: 12, turns: -1 });
+    expect(state.hero.mp).toBe(state.hero.maxMp - 2);
+    pass(state, rng);
+    performAction(state, { type: 'artifact', artifactId: 'grave_whisper', target: boar.uid }, rng);
+    expect(getStatus(boar, 'curse')?.value).toBe(24);
+  });
+
+  it('исполняется после хода врага: приговорённый успевает ударить и гибнет; выше черты — живёт', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf', 'wolf']);
+    const [a, b] = state.enemies;
+    curse(a, 7);
+    curse(b, 7);
+    a.hp = 7;
+    b.hp = 8;
+    a.intent = 'bite';
+    b.intent = 'howl';
+    expect(isDoomed(a)).toBe(true);
+    expect(isDoomed(b)).toBe(false);
+    expect(computeIntent(a, state).notes).toContain('Приговорён: ударит и погибнет после своего хода');
+    const hp = state.hero.hp;
+    pass(state, rng);
+    expect(state.hero.hp).toBeLessThan(hp);
+    expect(state.enemies).toEqual([b]);
+    expect(state.log).toContain('Проклятье исполнено по Волк: 7 HP (черта 7)');
+    expect(state.dealtBy.curse).toBe(7);
+  });
+
+  it('пропущенный ход — тоже ход: оглушённый приговорённый гибнет, не ударив', () => {
+    const { state, rng } = mkBattle('warrior', ['wolf', 'boar']);
+    const wolf = foe(state, 'wolf');
+    curse(wolf, 10);
+    wolf.hp = 6;
+    wolf.statuses.push({ id: 'stun', value: 1, turns: -1 });
+    foe(state, 'boar').intent = 'bristle';
+    const hp = state.hero.hp;
+    pass(state, rng);
+    expect(state.enemies.includes(wolf)).toBe(false);
+    expect(state.hero.hp).toBe(hp);
+  });
+
+  it('неуязвимость откладывает исполнение до следующего хода', () => {
+    const { state, rng } = mkBattle('warrior', ['boar', 'wolf']);
+    const boar = first(state);
+    curse(boar, 10);
+    boar.hp = 5;
+    // Неуязвимость на два хода: первый снимется в начале его хода, к концу хода она ещё держит.
+    boar.statuses.push({ id: 'invuln', value: 1, turns: 2 });
+    boar.intent = 'bristle';
+    pass(state, rng);
+    expect(state.enemies.includes(boar)).toBe(true);
+    expect(state.log).toContain('Кабан неуязвим: Проклятье ждёт');
+    boar.intent = 'bristle';
+    pass(state, rng);
+    expect(state.enemies.includes(boar)).toBe(false);
+  });
+
+  it('Чёрная месса: любое заклинание проклинает свои цели, заклинание на себя — никого', () => {
+    const { state, rng } = mkBattle('mage', ['boar', 'wolf'], { extra: [{ id: 'black_mass', tier: 1 }] });
+    const [boar, wolf] = state.enemies;
+    performAction(state, { type: 'artifact', artifactId: 'mana_shield' }, rng);
+    expect(getStatus(boar, 'curse')).toBeUndefined();
+    performAction(state, { type: 'artifact', artifactId: 'fireball', target: wolf.uid }, rng);
+    expect(getStatus(wolf, 'curse')?.value).toBe(3);
+    expect(getStatus(boar, 'curse')).toBeUndefined();
+  });
+
+  it('Без спасения: своё число и половина накопленного', () => {
+    const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'no_escape', tier: 1 }] });
+    const boar = first(state);
+    curse(boar, 10);
+    performAction(state, { type: 'artifact', artifactId: 'no_escape', target: boar.uid }, rng);
+    expect(getStatus(boar, 'curse')?.value).toBe(10 + 5 + 5);
+  });
+
+  it('Знак обречённого: доля потерянного HP; по нетронутой цели недоступен', () => {
+    const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'doomed_sign', tier: 3 }] });
+    const boar = first(state);
+    const act = { type: 'artifact' as const, artifactId: 'doomed_sign', target: boar.uid };
+    expect(canUseAction(state, act)).toBe('Цель не ранена');
+    boar.hp = boar.maxHp - 10;
+    performAction(state, act, rng);
+    expect(getStatus(boar, 'curse')?.value).toBe(Math.floor(10 * 0.55));
+  });
+
+  it('Расплата: Проклятье в урон мимо блока и снимается; без Проклятья недоступна', () => {
+    const { state, rng } = mkBattle('mage', ['boar'], { extra: [{ id: 'reckoning', tier: 2 }] });
+    const boar = first(state);
+    const act = { type: 'artifact' as const, artifactId: 'reckoning', target: boar.uid };
+    expect(canUseAction(state, act)).toBe('Цель не проклята');
+    curse(boar, 6);
+    boar.block = 5;
+    performAction(state, act, rng);
+    expect(boar.hp).toBe(boar.maxHp - Math.floor(6 * 1.25));
+    expect(boar.block).toBe(5);
+    expect(getStatus(boar, 'curse')).toBeUndefined();
+  });
+
+  it('Конец дней: Проклятье всем и казнь у черты сразу, без хода врага', () => {
+    const { state, rng } = mkBattle('mage', ['wolf', 'wolf'], { extra: [{ id: 'doomsday', tier: 1 }] });
+    const [a, b] = state.enemies;
+    a.hp = 10;
+    b.hp = 4;
+    performAction(state, { type: 'artifact', artifactId: 'doomsday', target: a.uid }, rng);
+    expect(state.enemies).toEqual([a]);
+    expect(getStatus(a, 'curse')?.value).toBe(6);
+  });
+
+  it('Саван: блок в начале хода за каждого проклятого врага', () => {
+    const { state, rng } = mkBattle('mage', ['wolf', 'wolf'], { extra: [{ id: 'shroud', tier: 2 }] });
+    for (const e of state.enemies) {
+      curse(e, 3);
+      e.intent = 'howl';
+    }
+    pass(state, rng);
+    expect(state.hero.block).toBe(2 * 3);
+  });
+
+  it('Неотвратимость: приговорённый гибнет в начале своего хода, не ударив; удар оружием вдвое слабее', () => {
+    const { state, rng } = mkBattle('mage', ['wolf', 'boar'], { extra: [{ id: 'inevitability', tier: 1 }] });
+    const wolf = foe(state, 'wolf');
+    curse(wolf, 8);
+    wolf.hp = 8;
+    wolf.intent = 'bite';
+    foe(state, 'boar').intent = 'bristle';
+    expect(computeIntent(wolf, state).notes).toContain('Приговорён: погибнет в начале своего хода, не ударив');
+    expect(state.hero.stats.strikeMult).toBe(-0.5);
+    const hp = state.hero.hp;
+    pass(state, rng);
+    expect(state.enemies.includes(wolf)).toBe(false);
+    expect(state.hero.hp).toBe(hp);
+  });
+
+  it('набор: 2 — Проклятье героя сильнее на 2, 3 — павший передаёт половину живым и возвращает 1 MP', () => {
+    const extra: ArtifactInstance[] = [
+      { id: 'grave_whisper', tier: 1 },
+      { id: 'black_mass', tier: 1 },
+      { id: 'shroud', tier: 1 },
+    ];
+    const { state, rng } = mkBattle('mage', ['wolf', 'boar'], { extra });
+    expect(state.hero.stats.curseAdd).toBe(2);
+    expect(state.hero.stats.curseSpread).toBe(1);
+    const wolf = foe(state, 'wolf');
+    const boar = foe(state, 'boar');
+    // Шёпот 12 + набор 2, Чёрная месса 3 + набор 2.
+    performAction(state, { type: 'artifact', artifactId: 'grave_whisper', target: wolf.uid }, rng);
+    expect(getStatus(wolf, 'curse')?.value).toBe(14 + 5);
+    wolf.hp = 5;
+    wolf.intent = 'howl';
+    boar.intent = 'bristle';
+    state.hero.mp = 0;
+    endTurn(state);
+    resolveEnemyTurn(state, rng);
+    expect(state.enemies).toEqual([boar]);
+    expect(getStatus(boar, 'curse')?.value).toBe(9);
+    expect(state.log).toContain('Набор «Проклятье»: +1 MP');
+    // +1 за павшего и реген Мага в начале хода.
+    expect(state.hero.mp).toBe(Math.min(state.hero.maxMp, 1 + state.hero.stats.mpRegen));
   });
 });

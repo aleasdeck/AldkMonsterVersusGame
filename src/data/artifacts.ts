@@ -264,7 +264,7 @@ const list: ArtifactDef[] = [
     kind: 'passive',
     slot: 'weapon',
     mods: (tier) => ({ perDebuff: t(1, 2, 3)(tier) }),
-    describe: (tier) => `Удар +${t(1, 2, 3)(tier)} за каждое проклятие на цели`,
+    describe: (tier) => `Удар +${t(1, 2, 3)(tier)} за каждый вредный статус на цели`,
   },
   {
     id: 'cross_current',
@@ -1487,6 +1487,144 @@ const list: ArtifactDef[] = [
     // Жертва из Книги мёртвых Diablo IV наоборот: герой отдаёт свой удар существам.
     mods: () => ({ allyMult: 1, strikeMult: -0.4 }),
     describe: () => 'Ваши существа бьют вдвое сильнее; удары оружием героя слабее на 40 %',
+  },  // ─── Проклятье ────────────────────────────────────────────────────────────
+  // Doom Некробиндера из Slay the Spire 2: Проклятье складывается и не убывает, а враг, у которого после его хода HP не
+  // выше Проклятья, гибнет (`executeCurse` в combat.ts). Архетип магический (решение пользователя): все приёмы — заклинания
+  // за ману, пассивки срабатывают от заклинаний и от Проклятья, а не от ударов оружием; весь набор и выпадает по мане
+  // (`manaWeight` в loot.ts). Вариант А+ со страницы обсуждения tools/curse-proto: «Приговор» — числом, проклясть всех и
+  // закрыться, — и Знак обречённого из варианта Б, который читает потерянное HP и растёт вместе с врагами третьего акта.
+  // Числа Проклятья крупнее урона похожих вещей: приговорённый ещё бьёт, и черта меньше урона героя за ход не отнимает
+  // у врага ни одного действия. Цена — на 1 MP выше первого прохода (решение пользователя «чуть дороже»), кроме Конца дней:
+  // 4 MP не поднял бы никто, кроме Мага и Паладина.
+  {
+    id: 'black_mass',
+    name: 'Чёрная месса',
+    glyph: '✠',
+    kind: 'passive',
+    slot: 'weapon',
+    tags: ['curse'],
+    // Заводка на заклинании, как удар у Крови: Волшебная стрела, Огненный шар и Ледяной осколок тоже проклинают — мост к Огню и Холоду.
+    mods: (tier) => ({ spellCurse: t(3, 4, 5)(tier) }),
+    describe: (tier) => `Каждое ваше заклинание вешает Проклятье ${t(3, 4, 5)(tier)} на каждую свою цель`,
+  },
+  {
+    id: 'grave_whisper',
+    fx: { kind: 'orb', color: '#b04cd6' },
+    name: 'Шёпот могилы',
+    glyph: '☽',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['curse'],
+    school: 'magic',
+    cost: { mp: 2 },
+    cooldown: () => 1,
+    target: 'enemy',
+    // Scourge: крупное число сразу — то, с чего начинается бой, пока Знаку обречённого ещё нечего читать.
+    effects: (tier) => [{ type: 'status', target: 'enemy', status: 'curse', value: t(12, 16, 20)(tier), turns: -1 }],
+    describe: (tier) => `Проклятье ${t(12, 16, 20)(tier)}`,
+  },
+  {
+    id: 'doomed_sign',
+    fx: { kind: 'orb', color: '#8a3fb0' },
+    name: 'Знак обречённого',
+    glyph: '◌',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['curse'],
+    school: 'magic',
+    cost: { mp: 2 },
+    cooldown: () => 1,
+    target: 'enemy',
+    // Из варианта Б «Счёт»: сначала ранить чем угодно, потом запечатать — число растёт вместе с HP врагов, и третий акт не проседает.
+    effects: (tier) => [{ type: 'curseLost', pct: t(0.35, 0.45, 0.55)(tier), target: 'enemy' }],
+    describe: (tier) => `Проклятье: ${t(35, 45, 55)(tier)} % HP, которые цель уже потеряла`,
+  },
+  {
+    id: 'no_escape',
+    fx: { kind: 'orb', color: '#c86be0' },
+    name: 'Без спасения',
+    glyph: '⇈',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['curse'],
+    school: 'magic',
+    cost: { mp: 2 },
+    cooldown: () => 2,
+    target: 'enemy',
+    // No Escape: рост от накопленного — им копят черту против боссов, у которых HP втрое больше, чем у рядовых.
+    effects: (tier) => [{ type: 'curseGrow', amount: t(5, 7, 9)(tier), pct: 0.5, target: 'enemy' }],
+    describe: (tier) => `Проклятье цели +${t(5, 7, 9)(tier)} и ещё половина накопленного`,
+  },
+  {
+    id: 'reckoning',
+    fx: { kind: 'orb', color: '#e05ad6' },
+    name: 'Расплата',
+    glyph: '⚖',
+    kind: 'active',
+    slot: 'weapon',
+    tags: ['curse'],
+    school: 'magic',
+    cost: { mp: 3 },
+    cooldown: () => 3,
+    target: 'enemy',
+    // Time's Up, но с выбором: черта уходит в урон и снимается — копить дальше или обрушить сейчас.
+    effects: (tier) => [{ type: 'reckoning', mult: t(1, 1.25, 1.5)(tier), target: 'enemy' }],
+    describe: (tier) => `Урон = Проклятье цели × ${t(1, 1.25, 1.5)(tier)} мимо блока; Проклятье снимается. Только по проклятой цели`,
+  },
+  {
+    id: 'pestilence',
+    fx: { kind: 'orb', color: '#9b4dca' },
+    name: 'Поветрие',
+    glyph: '⁂',
+    kind: 'active',
+    slot: 'armor',
+    tags: ['curse'],
+    school: 'magic',
+    cost: { mp: 3 },
+    cooldown: () => 3,
+    target: 'allEnemies',
+    // Negative Pulse: мор по всем — бронный, как Сглаз и Ловчая сеть (дебафы всем врагам, решение пользователя v0.31.1).
+    effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'curse', value: t(8, 11, 14)(tier), turns: -1 }],
+    describe: (tier) => `Проклятье ${t(8, 11, 14)(tier)} всем врагам`,
+  },
+  {
+    id: 'shroud',
+    name: 'Саван',
+    glyph: '▤',
+    kind: 'passive',
+    slot: 'armor',
+    tags: ['curse'],
+    // Shroud: пока приговор зреет, проклятые ещё бьют — герой закрывается за счёт их же числа, как у Жаропрочности.
+    mods: (tier) => ({ blockPerCursed: t(2, 3, 4)(tier) }),
+    describe: (tier) => `+${t(2, 3, 4)(tier)} Блока в начале хода за каждого проклятого врага`,
+  },
+  {
+    id: 'doomsday',
+    fx: { kind: 'orb', color: '#e05ad6' },
+    name: 'Конец дней',
+    glyph: '☄',
+    kind: 'active',
+    slot: 'armor',
+    tags: ['curse'],
+    school: 'magic',
+    cost: { mp: 3 },
+    cooldown: () => 4,
+    target: 'allEnemies',
+    // End of Days: казнь всех у черты сразу — без опоздания на ход врага. Закрыт набором 3/3 (mastery.ts).
+    effects: (tier) => [{ type: 'status', target: 'allEnemies', status: 'curse', value: t(6, 9, 12)(tier), turns: -1 }, { type: 'execute' }],
+    describe: (tier) => `Проклятье ${t(6, 9, 12)(tier)} всем; затем каждый враг с HP не выше Проклятья гибнет сразу`,
+  },
+  {
+    id: 'inevitability',
+    name: 'Неотвратимость',
+    glyph: '♱',
+    kind: 'passive',
+    slot: 'armor',
+    tags: ['curse'],
+    keystone: true,
+    // Ломает главное правило — приговорённый больше не бьёт напоследок — за удар оружием, как Пироман за заклинания огня.
+    mods: () => ({ curseFirst: 1, strikeMult: -0.5 }),
+    describe: () => 'Проклятье исполняется ещё и в начале хода врага: приговорённый не успевает ударить. Удары оружием слабее вдвое',
   },
 ];
 

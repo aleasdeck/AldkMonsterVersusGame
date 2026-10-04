@@ -158,6 +158,15 @@ describe('дроп заклинаний по мане (loot.ts, v0.40.1)', () =>
     expect(warrior).toBeGreaterThan(0);
   });
 
+  it('архетип «Проклятье» магический целиком: безмановому не выпадают и его пассивки', () => {
+    const berserk = newRun('berserk', 1).hero;
+    const rng = createRng(21);
+    for (let i = 0; i < 3000; i++) {
+      const a = rollArtifact(rng, berserk, [1], [], i % 2 ? 'weapon' : 'armor');
+      if (a) expect(artifactDef(a.id).tags ?? []).not.toContain('curse');
+    }
+  });
+
   it('мана со снаряжения открывает заклинания: ступень считается по computeStats, а не по базе героя', () => {
     const rich = newRun('berserk', 1).hero;
     rich.armor.affix = { stat: 'maxMp', value: 3 };

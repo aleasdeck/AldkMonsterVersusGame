@@ -62,6 +62,7 @@ export const STATUS_NAMES: Record<StatusId, string> = {
   focus: 'Верный глаз',
   taunt: 'Насмешка',
   decay: 'Распад',
+  curse: 'Проклятье',
 };
 
 export const STATUS_HINTS: Record<StatusId, string> = {
@@ -78,7 +79,7 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   regen: '+N HP в начале хода',
   invuln: 'Не получает урона',
   poison: 'N урона в начале хода, игнорирует блок, потом Яд слабеет на 1. Наложения складываются: Яд 5 — это 5 + 4 + 3 + 2 + 1',
-  stealth: 'Враги не видят героя: атаки и проклятия мимо. Любая атака героя — удар в спину: крит мимо блока врага, снимает скрытность',
+  stealth: 'Враги не видят героя: атаки и вредные статусы мимо. Любая атака героя — удар в спину: крит мимо блока врага, снимает скрытность',
   vulnerable: 'Получает на 25 % больше урона от ударов и заклинаний; раны не усиливает',
   doom: 'Погибнув, враг напоследок сделает ещё кое-что: наведи на метку, чтобы увидеть, что именно',
   evade: 'Удар или заклинание по цели с шансом N % проходит мимо. Раны (кровотечение, горение, яд) и шипы бьют всегда',
@@ -92,13 +93,14 @@ export const STATUS_HINTS: Record<StatusId, string> = {
   focus: 'Следующий удар оружием — крит наверняка',
   taunt: 'В ход врагов Шипы и Ответный удар в полтора раза сильнее, враги бьют героя, а не союзника',
   decay: 'Любое лечение вдвое слабее — приёмы, вампиризм, регенерация. Повтор обновляет срок',
+  curse: 'Если после своего хода у врага не больше N HP, он гибнет. Это не урон: блок и уворот не спасают, лечение — спасает. Складывается и не убывает',
 };
 
 /** Стихии заточки: какую рану может получить оружие. */
 export const ENCHANT_ELEMENTS: StatusId[] = ['burn', 'poison', 'bleed'];
 
 /** Проклятия на враге, которые считает «Резонанс»: всё, что герой навесил ему во вред. */
-export const DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen', 'decay'];
+export const DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen', 'decay', 'curse'];
 
 /** «Насмешка» (v0.47): во столько раз сильнее Шипы и Ответный удар героя в ход врагов (2 → 1.5 в v0.49). */
 export const TAUNT_MULT = 1.5;
@@ -378,7 +380,7 @@ function removeStatus(c: Combatant, id: StatusId): void {
   c.statuses = c.statuses.filter((s) => s.id !== id);
 }
 
-const STACKING: StatusId[] = ['strength', 'thorns', 'regen', 'bleed', 'burn', 'poison', 'dodge', 'cold'];
+const STACKING: StatusId[] = ['strength', 'thorns', 'regen', 'bleed', 'burn', 'poison', 'dodge', 'cold', 'curse'];
 
 /**
  * Статусы, у которых складывается срок, а не сила: у скрытности силы нет, и шашка поверх Тени покрова
@@ -429,7 +431,10 @@ function addStatus(state: BattleState, c: Combatant, ref: EventTarget, id: Statu
   // Холод на враге (v0.51.1) пишет, сколько накоплено до Оцепенения, — тот же счётчик, что на значке.
   const cold = id === 'cold' && ref !== 'hero' ? getStatus(c, 'cold') : undefined;
   const fade = id === 'poison' ? '— слабеет на 1 за ход' : id === 'burn' ? '— гаснет вдвое за ход' : '';
-  const until = id === 'stun' && turns === -1 ? '— пропустит ход' : cold ? `— ${cold.value}/${freezeAt(c as EnemyState)} до Оцепенения` : fade || turnsText(turns);
+  // Проклятье на враге пишет, сколько всего и сколько HP до черты: иначе по строке «Проклятье 4» не понять, приговорён ли он.
+  const curse = id === 'curse' && ref !== 'hero' ? getStatus(c, 'curse') : undefined;
+  const doomLine = curse ? `— всего ${curse.value}, HP ${c.hp}${c.hp <= curse.value ? ': приговорён' : ''}` : '';
+  const until = id === 'stun' && turns === -1 ? '— пропустит ход' : cold ? `— ${cold.value}/${freezeAt(c as EnemyState)} до Оцепенения` : doomLine || fade || turnsText(turns);
   log(state, `${nameOf(state, ref)}: ${STATUS_NAMES[id]}${amount}${flavor} ${until}`);
   if (id === 'cold' && ref !== 'hero') checkFreeze(state, c, ref);
 }
@@ -463,6 +468,7 @@ export function inflictValue(h: HeroBattle, id: StatusId, value: number): number
   if (id === 'burn') return value + h.stats.burnAdd;
   if (id === 'poison') return value + h.stats.poisonAdd;
   if (id === 'cold') return value + h.stats.coldAdd;
+  if (id === 'curse') return value + h.stats.curseAdd;
   return value;
 }
 
@@ -470,6 +476,50 @@ function heroInflict(state: BattleState, e: EnemyState, id: StatusId, value: num
   // «Токсиколог» (v0.47): яд героя не спадает по сроку — копится до конца боя.
   const t = id === 'poison' && state.hero.stats.poisonNoDecay > 0 ? -1 : turns;
   addStatus(state, e, e.uid, id, inflictValue(state.hero, id, value), t, element);
+}
+
+// ─── Проклятье ─────────────────────────────────────────────────────────────
+
+/** Враг приговорён: HP уже не выше Проклятья — он погибнет, когда Проклятье исполнится. */
+export function isDoomed(e: EnemyState): boolean {
+  const c = statusValue(e, 'curse');
+  return c > 0 && e.hp > 0 && e.hp <= c;
+}
+
+/**
+ * Исполнить Проклятье (Doom Некробиндера из StS2): враг с HP не выше Проклятья гибнет. Зовут конец хода врага — его
+ * собственного, в том числе пропущенного оглушением или льдом, — начало хода с «Неотвратимостью» и «Конец дней».
+ * Это не урон: блок и уворот не спасают. Неуязвимость откладывает исполнение до следующей проверки — иначе «Взлёт»
+ * Дракона и стража перехода фазы ничего бы не значили. Гибель обычная: разбор мёртвых (`cleanupDead`) делает остальное.
+ */
+function executeCurse(state: BattleState, e: EnemyState): boolean {
+  if (state.phase === 'lost' || !isDoomed(e) || !state.enemies.includes(e)) return false;
+  const curse = statusValue(e, 'curse');
+  if (getStatus(e, 'invuln')) {
+    log(state, `${e.name} неуязвим: Проклятье ждёт`);
+    return false;
+  }
+  log(state, `Проклятье исполнено по ${e.name}: ${e.hp} HP (черта ${curse})`);
+  // Не урон, но HP уходит: в раскладку урона боя — своим источником, чтобы профиль видел долю Проклятья.
+  state.dealtBy.curse = (state.dealtBy.curse ?? 0) + e.hp;
+  state.events.push({ type: 'damage', target: e.uid, amount: e.hp, kind: 'dot' });
+  e.hp = 0;
+  // Набор «Проклятье» 3: павший передаёт половину приговора живым — как Пожар Огня, мимо прибавок героя, — и возвращает ману.
+  const h = state.hero;
+  if (h.stats.curseSpread > 0) {
+    const half = Math.floor(curse / 2);
+    const living = state.enemies.filter((x) => x !== e && x.hp > 0);
+    if (half > 0 && living.length > 0) {
+      log(state, `Проклятье переходит: ${e.name} передаёт живым ${half}`);
+      for (const x of living) addStatus(state, x, x.uid, 'curse', half, -1);
+    }
+    const mp = Math.min(h.maxMp, h.mp + 1) - h.mp;
+    if (mp > 0) {
+      h.mp += mp;
+      log(state, 'Набор «Проклятье»: +1 MP');
+    }
+  }
+  return true;
 }
 
 /**
@@ -1460,6 +1510,11 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
         if (eff.type === 'blockBurst' && h.block <= 0) return 'Нет блока';
         if (eff.type === 'amplify' && statusValue(findEnemy(state, action.target ?? -1) ?? h, eff.status) <= 0) return `На цели нет: ${STATUS_NAMES[eff.status]}`;
         if (eff.type === 'chain' && chainCharges(h) <= 0) return 'Сначала примените приём';
+        if (eff.type === 'reckoning' && statusValue(findEnemy(state, action.target ?? -1) ?? h, 'curse') <= 0) return 'Цель не проклята';
+        if (eff.type === 'curseLost') {
+          const t = findEnemy(state, action.target ?? -1);
+          if (!t || t.hp >= t.maxHp) return 'Цель не ранена';
+        }
       }
       return null;
     }
@@ -1656,6 +1711,45 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
         const dealt = damageEnemy(state, e, dmg, 'dot');
         log(state, `Осколки костей по ${e.name}: ${dmg} (${why}) → ${dealt} по HP`);
       }
+      break;
+    }
+    case 'curseGrow':
+      // Без спасения (No Escape): чем больше уже наложено, тем больше ляжет — рост от накопленного, а не плоское число.
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        const had = statusValue(e, 'curse');
+        const more = Math.floor(had * eff.pct);
+        if (more > 0) log(state, `Без спасения: +${eff.amount} и ${Math.round(eff.pct * 100)} % от ${had}`);
+        heroInflict(state, e, 'curse', eff.amount + more, -1);
+      }
+      break;
+    case 'curseLost':
+      // Знак обречённого: Проклятье — доля того, что цель уже потеряла; к третьему акту растёт вместе с HP врагов.
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        const lost = Math.max(0, e.maxHp - e.hp);
+        const add = Math.floor(lost * eff.pct);
+        log(state, `Знак обречённого: ${Math.round(eff.pct * 100)} % от потерянных ${lost} HP`);
+        heroInflict(state, e, 'curse', add, -1);
+      }
+      break;
+    case 'reckoning':
+      // Расплата: копить черту или обрушить её — Проклятье уходит в урон разом, как рана: мимо блока и уворота.
+      for (const e of targetsFor(state, eff.target, targetUid)) {
+        const curse = statusValue(e, 'curse');
+        if (curse <= 0) {
+          log(state, `${e.name} не проклят — расплачиваться нечем`);
+          continue;
+        }
+        removeStatus(e, 'curse');
+        const dmg = Math.floor(curse * eff.mult);
+        const dealt = damageEnemy(state, e, dmg, 'dot');
+        log(state, `Расплата по ${e.name}: ${dmg} (Проклятье ${curse} × ${eff.mult}) → ${dealt} по HP`);
+      }
+      break;
+    case 'execute': {
+      // Конец дней (End of Days): приговор исполняется сразу у всех, кто уже у черты.
+      let any = false;
+      for (const e of state.enemies.slice()) if (executeCurse(state, e)) any = true;
+      if (!any) log(state, 'Конец дней: никто не у черты');
       break;
     }
     case 'pull':
@@ -1895,7 +1989,7 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
     // Скрытность спадает после каждого бьющего эффекта, а не после всего приёма: у Двойного выпада в спину бьёт только первый
     // удар. Один эффект по всем (Вихрь) по-прежнему целиком из тени. Счётчик атак растёт один раз — приём и есть одна атака.
     const hits = (eff: Effect) =>
-      eff.type === 'attack' || eff.type === 'spell' || eff.type === 'blockStrike' || eff.type === 'detonate' || eff.type === 'breakBlock' || eff.type === 'finisher' || eff.type === 'chain' || eff.type === 'scorch';
+      eff.type === 'attack' || eff.type === 'spell' || eff.type === 'blockStrike' || eff.type === 'detonate' || eff.type === 'breakBlock' || eff.type === 'finisher' || eff.type === 'chain' || eff.type === 'scorch' || eff.type === 'reckoning';
     for (const eff of effects) {
       applyEffect(state, eff, action.target, rng);
       if (hits(eff)) breakStealth(state);
@@ -1903,6 +1997,12 @@ function heroAct(state: BattleState, action: PlayerAction, rng: Rng): void {
     // «Пироман» (v0.43): каждое заклинание поджигает всех врагов.
     if (def.school === 'magic' && h.stats.spellIgniteAll > 0) {
       for (const e of state.enemies) if (e.hp > 0) heroInflict(state, e, 'burn', h.stats.spellIgniteAll, 2);
+    }
+    // «Чёрная месса»: любое заклинание проклинает свои цели — Волшебная стрела, Огненный шар и сами заклинания Проклятья.
+    // Заклинание на себя (лечение, щит) никого не проклинает.
+    if (def.school === 'magic' && h.stats.spellCurse > 0 && def.target !== 'self' && def.target !== undefined) {
+      const victims = def.target === 'allEnemies' ? state.enemies : targetsFor(state, 'enemy', action.target);
+      for (const e of victims.slice()) if (e.hp > 0) heroInflict(state, e, 'curse', h.stats.spellCurse, -1);
     }
     // «Перегрев» Мага (v0.45): каждое второе заклинание хода обжигает самого Мага.
     if (def.school === 'magic') {
@@ -2085,6 +2185,9 @@ function startPlayerTurn(state: BattleState): void {
   // «Жаропрочность»: чем больше вокруг огня, тем толще жаропрочная корка.
   const burning = state.enemies.filter((e) => getStatus(e, 'burn')).length;
   if (h.stats.blockPerBurning > 0 && burning > 0) gainBlock(state, h, 'hero', h.stats.blockPerBurning * burning, `жаропрочность, горят ${burning}`);
+  // «Саван» (Shroud): пока приговор зреет, герой закрывается — блок за каждого проклятого.
+  const cursed = state.enemies.filter((e) => statusValue(e, 'curse') > 0).length;
+  if (h.stats.blockPerCursed > 0 && cursed > 0) gainBlock(state, h, 'hero', h.stats.blockPerCursed * cursed, `саван, прокляты ${cursed}`);
   const regen = h.stats.regen + statusValue(h, 'regen');
   if (regen > 0) healHero(state, regen, 'регенерация');
   // «Зной» (v0.48): Горение на герое тикает сильнее.
@@ -2496,6 +2599,8 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     }
   }
   fadeDots(state, e, e.uid, state.hero.stats.poisonNoDecay > 0);
+  // «Неотвратимость»: приговор исполняется ещё до приёма — после ран, но раньше, чем враг подлечится.
+  if (state.hero.stats.curseFirst > 0 && executeCurse(state, e)) return;
   // Стартовая регенерация врага (v0.54): после ран — раны успевают добить раньше, чем он подлечится.
   const regen = statusValue(e, 'regen');
   if (regen > 0) healEnemy(state, e, regen, 'регенерация');
@@ -2507,6 +2612,8 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     state.events.push({ type: 'stunned', target: e.uid });
     log(state, `${e.name} оглушён и пропускает ход`);
     tickDurations(e, 'end');
+    // Пропущенный ход — тоже его ход: приговорённый гибнет, не ударив.
+    executeCurse(state, e);
     return;
   }
   // Оцепенение (v0.47): как оглушение, но может держать и два хода («Вечная мерзлота»).
@@ -2517,6 +2624,7 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     state.events.push({ type: 'stunned', target: e.uid });
     log(state, `${e.name} скован льдом и пропускает ход`);
     tickDurations(e, 'end');
+    executeCurse(state, e);
     return;
   }
   const action = enemyAction(def, e.intent);
@@ -2542,6 +2650,10 @@ function actEnemy(state: BattleState, e: EnemyState, rng: Rng): void {
     log(state, `${e.name} отходит назад`);
   }
   tickDurations(e, 'end');
+  // Проклятье исполняется после хода врага: приговорённый успевает ударить. Ход перехода фазы босса стоит ему действия —
+  // приговор ждёт до следующего, как ждёт за неуязвимостью.
+  if (action.id === PHASE_SHIFT && isDoomed(e)) log(state, `${e.name} собирается с силами: Проклятье ждёт`);
+  else if (executeCurse(state, e)) return;
   // Ушёл с поля своим же приёмом (вылупился, удрал) — намерение ему больше не нужно.
   if (state.phase === 'lost' || e.hp <= 0 || !state.enemies.includes(e)) return;
   chooseIntent(state, e, rng);
@@ -2990,6 +3102,7 @@ export function computeIntent(e: EnemyState, state?: BattleState): IntentInfo {
     e.reason ? `Реакция: ${e.reason}` : '',
     state && pointBlank(state, e) && info.kinds.includes('attack') ? `В упор: удар ×${POINT_BLANK_MULT}, потом отойдёт назад` : '',
     enrage > 1 ? `Ярость боя: урон ×${enrage.toFixed(1)}` : '',
+    isDoomed(e) ? (state?.hero.stats.curseFirst ? 'Приговорён: погибнет в начале своего хода, не ударив' : 'Приговорён: ударит и погибнет после своего хода') : '',
   ].filter(Boolean);
   const hidden = state?.trial === 'thicket' && state.turn <= 1;
   return { ...info, text: notes.length ? `${info.text}\n${notes.join('\n')}` : info.text, notes, stunned: isStunned(e), hidden };

@@ -73,6 +73,13 @@ describe('разбор лога боя (v0.51)', () => {
     expect(lineInfo('Волк подкормлен: +15 HP').kind).toBe('heal');
     const over = lineInfo('Остаток удара — герою: 3 → 1 по HP (блок 2)');
     expect([over.kind, over.target, over.toHero]).toEqual(['hit', 'hero', 1]);
+    // Проклятье: исполнение снимает остаток HP, Расплата — урон раной; ожидание за неуязвимостью — промах.
+    const doom = lineInfo('Проклятье исполнено по Волк: 7 HP (черта 9)');
+    expect([doom.kind, doom.status, doom.target, doom.toFoe]).toEqual(['dot', 'curse', 'foe', 7]);
+    const reck = lineInfo('Расплата по Кабан: 7 (Проклятье 6 × 1.25) → 7 по HP');
+    expect([reck.kind, reck.toFoe]).toEqual(['dot', 7]);
+    expect(lineInfo('Кабан неуязвим: Проклятье ждёт').kind).toBe('miss');
+    expect(lineInfo('Волк: Проклятье 9 — всего 9, HP 12').status).toBe('curse');
     const miss = lineInfo('Герой бьёт Призрак капитана: 8 (кубик 8) → 0 по HP (уворот 30 %)');
     expect([miss.kind, miss.toFoe]).toEqual(['miss', 0]);
   });

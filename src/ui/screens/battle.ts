@@ -6,7 +6,7 @@ import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ART_TIER_COLORS, SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, effectiveCost, fatigueMult, feedHp, findEnemy, finisherPer, isHidden, previewAttack, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, effectiveCost, fatigueMult, feedHp, findEnemy, finisherPer, isDoomed, isHidden, previewAttack, statusValue, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, HeroBattle, PlayerAction, WeaponReach } from '../../engine/types';
@@ -113,13 +113,25 @@ function intentExtras(intent: IntentInfo): Child[] {
   return out;
 }
 
+/**
+ * Приговорён: HP уже не выше Проклятья — значок песочных часов хвостом пилюли. Без «Неотвратимости» враг ещё ударит
+ * и погибнет после своего хода, с ней — погибнет в начале хода, не ударив.
+ */
+function doomMark(b: BattleState, e: EnemyState): Child {
+  if (!isDoomed(e)) return null;
+  const first = b.hero.stats.curseFirst > 0;
+  const when = first ? 'Погибнет в начале своего хода, не ударив' : 'Ударит последний раз и погибнет после своего хода';
+  const tip = paramTip({ status: 'curse' }, 'Приговорён', `${when}: HP ${e.hp} не выше Проклятья ${statusValue(e, 'curse')}. Лечение может увести его за черту`, { color: STATUS_COLORS.curse });
+  return h('span', { class: 'pill-extra intent-doom', tip }, statusIcon('curse', 16));
+}
+
 /** Пилюля намерения: иконка и число, цвет по главному эффекту, остальные эффекты хвостом; название, расшифровка и цель — в подсказке. */
 function intentPill(b: BattleState, e: EnemyState, heroName: string): HTMLElement {
   const intent = computeIntent(e, b);
   if (intent.stunned) {
     const frozen = e.statuses.some((st) => st.id === 'frozen');
     const tip = paramTip({ status: frozen ? 'frozen' : 'stun' }, frozen ? 'Скован льдом' : 'Оглушён', 'Пропустит свой ход. Ваши удары по нему — всегда крит', { color: STATUS_COLORS[frozen ? 'frozen' : 'stun'] });
-    return h('div', { class: 'pill intent-stunned', tip }, statusIcon('stun', 18), 'оглушён');
+    return h('div', { class: 'pill intent-stunned', tip }, statusIcon('stun', 18), 'оглушён', doomMark(b, e));
   }
   // «Чаща» (v0.48): в первый ход намерения не видно.
   if (intent.hidden) return h('div', { class: 'pill intent-special', tip: paramTip({ glyph: '?' }, 'Не разглядеть', 'Испытание «Чаща»: в первый ход боя намерения врагов скрыты', { color: 'var(--accent)' }) }, h('span', { class: 'pill-icon' }, '?'));
@@ -131,6 +143,7 @@ function intentPill(b: BattleState, e: EnemyState, heroName: string): HTMLElemen
     h('span', { class: 'pill-icon' }, intent.icon),
     intent.label ? h('span', { class: 'pill-label' }, intent.label) : null,
     ...intentExtras(intent),
+    doomMark(b, e),
   );
 }
 
@@ -159,7 +172,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
   const el = h(
     'div',
     {
-      class: `enemy rank-${def.rank} ${cls} ${e.aura ? 'aura' : ''}`,
+      class: `enemy rank-${def.rank} ${cls} ${e.aura ? 'aura' : ''} ${isDoomed(e) ? 'doomed' : ''}`,
       // Лист лепки сохраняет запас под движение, прозрачные поля исключены из высоты карточки.
       style: `${e.aura ? `--aura:${e.aura};` : ''}${enemySizeStyle(size)}`,
       'data-uid': e.uid,
@@ -168,7 +181,7 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     intentPill(app.run!.battle!, e, heroDef(app.run!.hero.defId).name),
     fleeTimer(e),
     e.statuses.length ? badges(e, false, e) : null,
-    bar('hp', e.hp, e.maxHp, '', hpTip(e.hp, e.maxHp, e.block, false), e.block),
+    bar('hp', e.hp, e.maxHp, '', hpTip(e.hp, e.maxHp, e.block, false, statusValue(e, 'curse')), e.block, statusValue(e, 'curse')),
     h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, px, '', e)),
     h('div', { class: 'name' }, roleMark(app.run!.battle!, e), e.name),
   );
@@ -362,6 +375,8 @@ function effectValue(effects: Effect[], range: DamageRange | null, s: DerivedSta
       case 'status':
         // Заражение: свой Яд на цель, потом разнос — число яда и «на всех» рядом.
         if (effects.some((x) => x.type === 'spread')) return [statusIcon(e.status, 18), ` ${e.value}`, h('small', null, 'на всех')];
+        // Проклятье — с прибавкой набора: на плитке то число, что ляжет.
+        if (e.status === 'curse') return [statusIcon('curse', 18), ` ${e.value + s.curseAdd}`, e.target === 'allEnemies' ? h('small', null, 'всем') : null];
         return [statusIcon(e.status, 18), e.value > 1 || e.status === 'strength' ? ` ${e.value}` : e.turns > 0 ? ` ${e.turns}х` : ''];
       case 'summon':
         return ['☍'];
@@ -395,6 +410,12 @@ function effectValue(effects: Effect[], range: DamageRange | null, s: DerivedSta
         return [statusIcon(e.status, 18), ` ×${e.mult}`];
       case 'blockBurst':
         return [range ? rangeText(range) : '0', h('small', null, 'всем')];
+      case 'curseGrow':
+        return [statusIcon('curse', 18), ` +${e.amount + s.curseAdd}`, h('small', null, `+${Math.round(e.pct * 100)}%`)];
+      case 'curseLost':
+        return [statusIcon('curse', 18), ` ${Math.round(e.pct * 100)}%`, h('small', null, '−HP')];
+      case 'reckoning':
+        return [range ? rangeText(range) : '—', h('small', null, `☠×${e.mult}`)];
       default:
         continue;
     }
@@ -515,6 +536,7 @@ export function actionSpecs(app: App): TileSpec[] {
     const finEff = effects.find((e) => e.type === 'finisher');
     const chainEff = effects.find((e) => e.type === 'chain');
     const scorchEff = effects.find((e) => e.type === 'scorch');
+    const reckonEff = effects.find((e) => e.type === 'reckoning');
     // Приём-удар бьёт оружием: из тени — мимо блока, как атака (v0.51.1); Таран, Финишер и прочие удары без кубика — нет.
     let kind: NonNullable<PreviewSpec['kind']> = atkEff ? 'strike' : 'hit';
     /** Разброс приёма: без цели — общий (плитка), с целью — по ней (ридаут): взрыв ран, пролом и прибавки по цели зависят от врага. */
@@ -564,6 +586,13 @@ export function actionSpecs(app: App): TileSpec[] {
         const dmg = Math.floor((tgt?.statuses.find((st) => st.id === 'burn')?.value ?? 0) * scorchEff.mult);
         return { min: dmg, max: dmg };
       }
+      if (reckonEff && reckonEff.type === 'reckoning') {
+        // Расплата: Проклятье цели × mult, мимо блока; на плитке — по самому проклятому.
+        const curseOf = (x: EnemyState) => statusValue(x, 'curse');
+        const tgt = e ?? b.enemies.reduce<EnemyState | undefined>((best, x) => (!best || curseOf(x) > curseOf(best) ? x : best), undefined);
+        const dmg = Math.floor((tgt ? curseOf(tgt) : 0) * reckonEff.mult);
+        return { min: dmg, max: dmg };
+      }
       if (spellEff && spellEff.type === 'spell') {
         let dmg = spellEff.amount + b.hero.stats.spellPower;
         // «Раздуть» и удвоение по Слабому — только когда цель известна.
@@ -579,7 +608,7 @@ export function actionSpecs(app: App): TileSpec[] {
     // Число карточки (restValue в cards.ts): удар оружием и заклинание; у формул от состояния боя базы нет.
     const base = atkEff && atkEff.type === 'attack' ? restAttackRange(b.hero.stats, atkEff.bonus, atkEff.mult ?? 1) : spellEff && spellEff.type === 'spell' ? { min: spellEff.amount + b.hero.stats.spellPower, max: spellEff.amount + b.hero.stats.spellPower } : null;
     // Взрыв ран бьёт мимо блока, как рана; пролом — по уже снятому блоку: штриховка без вычета блока.
-    if ((detEff && !atkEff) || breakEff || scorchEff) kind = 'dot';
+    if ((detEff && !atkEff) || breakEff || scorchEff || reckonEff) kind = 'dot';
     const kindOn = (t?: number): NonNullable<PreviewSpec['kind']> => {
       rangeOn(t);
       return kind;

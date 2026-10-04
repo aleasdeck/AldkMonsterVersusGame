@@ -193,7 +193,7 @@ const DUPLICATE_WEIGHT = 3;
 const SYNERGY_WEIGHT = 3;
 
 /** Проклятия, которые читает «Резонанс»: он платит за любое из них, поэтому дружит с любой заводкой. */
-const ALL_DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen'];
+const ALL_DEBUFFS: StatusId[] = ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold', 'frozen', 'curse'];
 
 /** Какие статусы артефакт вешает на врага и на каких у него выплата. */
 interface ArtifactStatuses {
@@ -230,6 +230,9 @@ function artifactStatuses(id: string): ArtifactStatuses {
   if (m.onHitCold) applies.add('cold');
   if (m.poisonAdd || m.poisonNoDecay || m.poisonWeaken) pays.add('poison');
   if (m.coldAdd || m.frozenLong || m.freezeVuln) pays.add('cold');
+  // Проклятье: Чёрная месса вешает его каждым заклинанием, Саван, набор и ключевая вещь — платят за него.
+  if (m.spellCurse) applies.add('curse');
+  if (m.curseAdd || m.curseSpread || m.blockPerCursed || m.curseFirst) pays.add('curse');
   for (const e of def.effects?.(3) ?? []) {
     if (e.type === 'status' && e.target !== 'self') applies.add(e.status);
     // Стихийная заточка вешает случайную из трёх ран — заводит любую выплату по ранам.
@@ -239,6 +242,8 @@ function artifactStatuses(id: string): ArtifactStatuses {
     if (e.type === 'amplify') pays.add(e.status);
     if (e.type === 'attack' && e.vsFrozen) pays.add('cold');
     if (e.type === 'spell' && e.vsWeak) pays.add('weak');
+    if (e.type === 'curseGrow' || e.type === 'curseLost') applies.add('curse');
+    if (e.type === 'curseGrow' || e.type === 'reckoning' || e.type === 'execute') pays.add('curse');
   }
   const out: ArtifactStatuses = { applies: [...applies], pays: [...pays] };
   artifactStatusCache.set(id, out);
@@ -286,7 +291,9 @@ function costsMana(id: string): boolean {
   const hit = manaCostCache.get(id);
   if (hit !== undefined) return hit;
   const def = artifactDef(id);
-  const out = ([1, 2, 3] as ArtTier[]).some((tier) => (artifactCost(def, tier).mp ?? 0) > 0);
+  // Архетип «Проклятье» магический целиком: его пассивки (Чёрная месса, Саван, Неотвратимость) без заклинаний мертвы,
+  // поэтому весь набор падает по мане — безмановому Берсерку ни одной вещи (вопрос 7 страницы обсуждения, принят по рекомендации вместе с А+).
+  const out = !!def.tags?.includes('curse') || ([1, 2, 3] as ArtTier[]).some((tier) => (artifactCost(def, tier).mp ?? 0) > 0);
   manaCostCache.set(id, out);
   return out;
 }

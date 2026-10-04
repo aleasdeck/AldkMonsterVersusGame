@@ -31,7 +31,7 @@ export const ROLE_INFO: Record<EnemyRole, { name: string; icon: string; rule: st
   brute: { name: 'Громила', icon: '⚒', rule: 'Стоит впереди. Оказавшись первым в ряду, раз за бой получает Силу' },
   swarm: { name: 'Рой', icon: '⁂', rule: 'Стоит впереди, берёт числом: удары по всем против него ценнее' },
   shooter: { name: 'Стрелок', icon: '➶', rule: `Стоит сзади. Первым в ряду бьёт в упор вполсилы и после хода отходит назад` },
-  caster: { name: 'Заклинатель', icon: '✧', rule: 'Стоит сзади: проклятия и чары. Крюк вытащит его вперёд, под ближний удар' },
+  caster: { name: 'Заклинатель', icon: '✧', rule: 'Стоит сзади: колдует и ослабляет. Крюк вытащит его вперёд, под ближний удар' },
   support: { name: 'Поддержка', icon: '✚', rule: 'Стоит сзади. Лечит и усиливает только соседей по ряду' },
 };
 
@@ -511,7 +511,8 @@ const list: EnemyDef[] = [
       act('soul', 'Поглотить душу', [{ type: 'heal', amount: 9, target: 'self' }]),
       withFx({ kind: 'orb', color: '#7a3fb0' }, act('bolt', 'Тёмная стрела', [{ type: 'attack', amount: 10 }])),
       act('raise', 'Поднять скелета', [{ type: 'summon', enemyId: 'skeleton_warrior', count: 1 }], (ctx) => hasRoom(ctx) && countKind(ctx, 'skeleton_warrior') < 2),
-      act('curse', 'Проклятие', [
+      // Был «Проклятием» — одна буква от статуса героя «Проклятье»; вешает Слабость, имя по ней.
+      act('curse', 'Немощь', [
         { type: 'debuff', status: 'weak', value: 1, turns: 2 },
         { type: 'block', amount: 8 },
       ]),
@@ -1485,7 +1486,8 @@ const list: EnemyDef[] = [
       act('aim', 'Наводит пушки', [{ type: 'block', amount: 12 }]),
       // v0.49: 28 → 22 — Капитан был главным убийцей бота в первом акте (28 гибелей из 678 на 1200 забегах).
       withFx({ kind: 'orb', color: '#ff7b00' }, act('broadside', 'Бортовой залп', [{ type: 'attack', amount: 22 }])),
-      act('curse', 'Проклятие', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 3 }]),
+      // Был «Проклятием» — одна буква от статуса героя «Проклятье»; пиратская метка вешает Уязвимость.
+      act('curse', 'Чёрная метка', [{ type: 'debuff', status: 'vulnerable', value: 1, turns: 3 }]),
     ],
     ai: {
       type: 'boss',
