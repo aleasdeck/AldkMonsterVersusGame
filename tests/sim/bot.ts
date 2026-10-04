@@ -230,7 +230,10 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
   for (const e of b.enemies) {
     if (getStatus(e, 'stun')) continue;
     // Умрёт от своих ран до действия (неуязвимого раны не берут).
-    if (!getStatus(e, 'invuln') && e.hp <= statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison')) continue;
+    const wounds = statusValue(e, 'bleed') + statusValue(e, 'burn') + statusValue(e, 'poison');
+    if (!getStatus(e, 'invuln') && e.hp <= wounds) continue;
+    // «Неотвратимость»: приговорённый после ран гибнет в начале хода, не ударив.
+    if (h.stats.curseFirst > 0 && !getStatus(e, 'invuln') && statusValue(e, 'curse') > 0 && e.hp - wounds <= statusValue(e, 'curse')) continue;
     const a = enemyAction(enemyDef(e.defId), e.intent);
     for (const eff of a.effects) {
       if (eff.type === 'reveal') hidden = false;
@@ -342,7 +345,15 @@ export function evaluate(b: BattleState): number {
     const spawn = deathSpawn(e.defId);
     // Процентный уворот (вор): чтобы снять HP, ударов нужно больше — в той же пропорции растёт «эффективный» запас.
     const evade = Math.min(90, statusValue(e, 'evade'));
-    const effHp = Math.max(0, e.hp - dotTotal(e)) / (1 - evade / 100) + spawn.hp * e.hpMult;
+    // Проклятье: приговорённый гибнет сам после своего хода (его последний удар считает projectIncoming). Неприговорённому черта
+    // отнимает от нужного урона только то, что сверх доли урона героя по нему за ход: опоздание стоит ход, и Проклятье меньше
+    // удара за ход не экономит ни одного (страница tools/curse-proto, «Правило и его цена»). Без этого бот считал Проклятье
+    // обычным уроном и тратил ману на черту, которую добил бы и так.
+    const left = Math.max(0, e.hp - dotTotal(e));
+    const curse = statusValue(e, 'curse');
+    const share = dpt / Math.max(1, b.enemies.length);
+    const need = curse > 0 && left <= curse ? 0 : Math.max(0, left - Math.max(0, curse - share));
+    const effHp = need / (1 - evade / 100) + spawn.hp * e.hpMult;
     effTotal += effHp;
     if (effHp > 0) threat += baseThreat(e.defId) * e.dmgMult + spawn.threat * e.dmgMult * 0.7;
     s -= statusValue(e, 'strength') * 2;
@@ -564,10 +575,12 @@ function heroApplies(run: RunState, except?: string): Set<StatusId> {
   if (s.spellIgniteAll > 0) out.add('burn');
   if (s.backstabPoison > 0) out.add('poison');
   if (s.onHitCold > 0) out.add('cold');
+  if (s.spellCurse > 0) out.add('curse');
   for (const art of heldArts(run, except)) {
     const def = artifactDef(art.id);
     for (const e of def.effects?.(art.tier) ?? []) {
       if (e.type === 'status' && e.target !== 'self') out.add(e.status);
+      if (e.type === 'curseGrow' || e.type === 'curseLost') out.add('curse');
       if (e.type === 'enchant') for (const id of ['burn', 'poison', 'bleed'] as StatusId[]) out.add(id);
     }
   }
@@ -588,8 +601,10 @@ function heroPaysFor(run: RunState, except?: string): Set<StatusId> {
     if (m.perDebuff) for (const id of ['weak', 'bleed', 'burn', 'poison', 'stun', 'vulnerable', 'cold'] as StatusId[]) out.add(id);
     if (m.poisonAdd || m.poisonNoDecay || m.poisonWeaken) out.add('poison');
     if (m.coldAdd || m.frozenLong || m.freezeVuln) out.add('cold');
+    if (m.curseAdd || m.curseSpread || m.blockPerCursed || m.curseFirst) out.add('curse');
     for (const e of def.effects?.(art.tier) ?? []) {
       if (e.type === 'detonate' || e.type === 'spread') for (const id of e.statuses) out.add(id);
+      if (e.type === 'curseGrow' || e.type === 'reckoning' || e.type === 'execute') out.add('curse');
       if (e.type === 'spell' && e.vsWeak) out.add('weak');
       if (e.type === 'scorch') out.add('burn');
       if (e.type === 'amplify') out.add(e.status);
@@ -745,6 +760,18 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     // Повтор удара и «Повелитель» — ещё столько же урона существ: около шести за ход у каждого.
     v += ((m.allyTwice ?? 0) > 0 ? 1 : 0) * pack * 6 * 3 * W.enemyHp;
     v += (m.allyMult ?? 0) * pack * 6 * 3 * W.enemyHp;
+    // ── Проклятье: единица Проклятья — единица HP врага с опозданием на его ход (×0.8); всё — только при заклинаниях ──
+    const curseApps = applies.has('curse') ? 1.5 : 0.2;
+    // Единица Проклятья: при второй заводке в руках черта растёт быстрее урона за ход (0.8), одна — тонет в опоздании (0.4).
+    // Чёрная месса срабатывает на каждом заклинании: у Мага с регеном 2 их два за ход, у Паладина и Лучника полтора.
+    const spellsPerTurn = Math.min(2, 0.5 + s.mpRegen * 0.6 + s.maxMp * 0.1);
+    v += (m.spellCurse ?? 0) * (magic ? spellsPerTurn * 4 * W.enemyHp * 0.8 * (pays.has('curse') ? 1.5 : 1) : 0);
+    v += (m.curseAdd ?? 0) * curseApps * 3 * W.enemyHp * 0.8;
+    v += (m.blockPerCursed ?? 0) * (applies.has('curse') ? 1.5 : 0.2) * 3 * 0.8;
+    // «Неотвратимость»: приговорённый не бьёт напоследок — около одного удара врага за бой (минус удару — в strikeMult выше).
+    v += (m.curseFirst ?? 0) * 7 * src('curse');
+    // Набор 3: Проклятье переходит на живых и мана за павшего.
+    v += (m.curseSpread ?? 0) * (4 + W.mp * 2) * src('curse');
     return v;
   }
 }
@@ -864,6 +891,24 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         // Трупный взрыв: тело существа (около двух третей его HP к моменту взрыва) — по всем, минус само существо.
         per += (summonSources(run.hero, inst.id) > 0 ? 14 * e.pct * 1.8 * W.enemyHp * 3 - 4 : 0);
         break;
+      case 'curseGrow':
+        // Без спасения: своё число и половина накопленного — при заводке в руках на цели к моменту роста около двадцати пяти.
+        per += (e.amount + s.curseAdd + e.pct * (applies.has('curse') ? 25 : 2)) * W.enemyHp * (applies.has('curse') ? 0.8 : 0.4) * far;
+        break;
+      case 'curseLost': {
+        // Знак обречённого: к середине боя цель потеряла около половины HP — рядовой акта около 25 × номер акта.
+        const lost = 12 * (1 + (run.locationIndex ?? 0));
+        per += (lost * e.pct + s.curseAdd) * W.enemyHp * (applies.has('curse') ? 0.8 : 0.4) * far;
+        break;
+      }
+      case 'reckoning':
+        // Расплата: Проклятье на цели к моменту выплаты — около пятнадцати при заводке.
+        per += (applies.has('curse') ? 15 : 2) * e.mult * W.enemyHp;
+        break;
+      case 'execute':
+        // Конец дней: приговорённые гибнут на ход раньше — около одного удара врага.
+        per += applies.has('curse') ? 6 : 0;
+        break;
       case 'cleanse':
         per += 2;
         break;
@@ -896,6 +941,8 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
           else if (e.status === 'weak') per += turns * 2 * many;
           // Холод: каждые три — пропущенный ход врага (около шести HP героя).
           else if (e.status === 'cold') per += (e.value / 3) * 6 * many;
+          // Проклятье — не рана: не тикает, а снимает с врага столько HP, сколько бить уже не нужно, с опозданием на его ход.
+          else if (e.status === 'curse') per += (e.value + s.curseAdd) * W.enemyHp * (applies.has('curse') ? 0.8 : 0.4) * many;
           else per += dotWorth(e.status, e.value, turns) * W.enemyHp * many;
         }
         break;

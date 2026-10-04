@@ -1789,6 +1789,32 @@ p {
 .bar-block-text {
   color: var(--shield);
 }
+/* Проклятье: штриховка от нуля до черты поверх HP и сама черта; HP целиком в штриховке — враг приговорён. */
+.bar-curse {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: repeating-linear-gradient(135deg, #8f39ad 0 3px, #4a1660 3px 6px);
+  transition: width 200ms;
+}
+.bar-curse-line {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  margin-left: -1px;
+  background: #f6c8ff;
+}
+.bar.doomed {
+  border-color: #d96ce6;
+}
+.enemy.doomed .sprite-wrap {
+  filter: drop-shadow(0 0 2px #c255e0) drop-shadow(0 0 4px #8f39ad);
+}
+.enemy.doomed.far .sprite-wrap {
+  filter: brightness(0.7) drop-shadow(0 0 2px #c255e0);
+}
 /* Лог — выдвижная панель поверх поля у правого края, плитки остаются на месте. */
 .log-drawer {
   position: absolute;

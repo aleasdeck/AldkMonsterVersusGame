@@ -152,7 +152,7 @@ function planEffects(
   echo = false,
 ): void {
   const hostile = effects.find(
-    (e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status' || e.type === 'pull' || e.type === 'push' || e.type === 'detonate' || e.type === 'spread' || e.type === 'breakBlock' || e.type === 'finisher' || e.type === 'chain' || e.type === 'scorch') && e.target !== 'self',
+    (e) => (e.type === 'attack' || e.type === 'blockStrike' || e.type === 'spell' || e.type === 'status' || e.type === 'pull' || e.type === 'push' || e.type === 'detonate' || e.type === 'spread' || e.type === 'breakBlock' || e.type === 'finisher' || e.type === 'chain' || e.type === 'scorch' || e.type === 'curseGrow' || e.type === 'curseLost' || e.type === 'reckoning') && e.target !== 'self',
   );
   if (!hostile || !('target' in hostile)) {
     // Приём на себя с лепкой (Боевой клич — рёв) рисует её вместо свечения.

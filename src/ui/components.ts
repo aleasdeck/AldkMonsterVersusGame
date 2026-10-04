@@ -19,15 +19,21 @@ import { paramTip, tierDiff, tipAction, tipChip, tipChips, tipHead, tipLines, ti
 /** Полоска: заливка и подпись «HP 12/20»; suffix — хвост подписи, у врага так показан блок: «12/20 · ⛨ 3». */
 /**
  * Полоска HP. Блок — наложением поверх заливки слева, шириной в долю максимума (первые N HP прикрыты),
- * и «(+N)» цветом щита в подписи; у героя и врагов одинаково.
+ * и «(+N)» цветом щита в подписи; у героя и врагов одинаково. Проклятье врага — штриховка от нуля до черты поверх
+ * заливки и сама черта: враг, чьё HP целиком в штриховке, приговорён (класс `doomed`).
  */
-export function bar(cls: string, cur: number, max: number, label = '', tip: Tip = '', block = 0): HTMLElement {
+export function bar(cls: string, cur: number, max: number, label = '', tip: Tip = '', block = 0, curse = 0): HTMLElement {
   const pct = max > 0 ? Math.max(0, Math.min(100, (cur / max) * 100)) : 0;
   const blockPct = max > 0 ? Math.min(100, (block / max) * 100) : 0;
+  const cursePct = (v: number) => (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0);
+  const doomed = curse > 0 && cur > 0 && cur <= curse;
+  const attrs = { class: `bar bar-${cls}${doomed ? ' doomed' : ''}` };
   return h(
     'div',
-    tip ? { class: `bar bar-${cls}`, tip } : { class: `bar bar-${cls}` },
+    tip ? { ...attrs, tip } : attrs,
     h('div', { class: 'bar-fill', style: `width:${pct}%` }),
+    curse > 0 ? h('div', { class: 'bar-curse', style: `width:${cursePct(Math.min(curse, cur))}%` }) : null,
+    curse > 0 && curse < max ? h('div', { class: 'bar-curse-line', style: `left:${cursePct(curse)}%` }) : null,
     block > 0 ? h('div', { class: 'bar-block', style: `width:${blockPct}%` }) : null,
     h('span', { class: 'bar-text' }, `${label ? label + ' ' : ''}${cur}/${max}`, block > 0 ? h('span', { class: 'bar-block-text' }, ` (+${block})`) : null),
   );
@@ -37,11 +43,14 @@ export function bar(cls: string, cur: number, max: number, label = '', tip: Tip 
  * Подсказка полоски HP (v0.51.2): здоровье шапкой, блок — строкой со значком щита и тем, что он погасит.
  * hero — полоска героя: его блок сгорает в начале следующего хода, а врагу подсказка напоминает, что щит держит и заклинания.
  */
-export function hpTip(cur: number, max: number, block: number, hero: boolean): TipFn {
+export function hpTip(cur: number, max: number, block: number, hero: boolean, curse = 0): TipFn {
   return () => [
     tipHead({ icon: 'hp', title: 'Здоровье', color: uiIconColor('hp'), aside: h('b', { class: 'tip-val' }, `${cur}/${max}`) }),
     block > 0
       ? tipLines([{ icon: 'block', label: `Блок ${block}:`, text: hero ? `первые ${block} урона удара уйдут в него; сгорает в начале следующего хода` : `первые ${block} урона удара или заклинания уйдут в него` }])
+      : null,
+    curse > 0
+      ? tipLines([{ icon: { status: 'curse' }, label: `Проклятье ${curse}:`, text: cur <= curse ? 'приговорён — погибнет после своего хода, если не подлечится' : `погибнет после своего хода, если HP будет не выше ${curse}; сейчас до черты ещё ${cur - curse}` }])
       : null,
   ];
 }
@@ -357,7 +366,7 @@ export function goldBadge(gold: number): HTMLElement {
 // ─── Статусы ───────────────────────────────────────────────────────────────
 
 /** Статусы, у которых число — сила эффекта, а не служебная единица. */
-const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge', 'evade', 'enchant'];
+const VALUE_STATUSES: StatusId[] = ['strength', 'bleed', 'burn', 'poison', 'thorns', 'regen', 'dodge', 'evade', 'enchant', 'curse'];
 
 /** Значок строки эффекта приёма врага по виду; статус — своей иконкой, замах — стрелкой «дальше». */
 const PART_ICON: Record<IntentKind, TipIcon> = { attack: 'dmg', defend: 'block', buff: 'str', debuff: 'skull', heal: 'heal', summon: { glyph: '☍', color: '#ffab91' }, special: 'star' };
@@ -404,6 +413,10 @@ export function statusTip(s: Status, enemy?: EnemyState): TipFn {
       out.push(actionPartLines(doom.parts));
     } else out.push(tipText(statusHint(s.id, showValue ? s.value : null)));
     // Остаток раны (v0.54): сколько она ещё нанесёт, если её не трогать, — это же вскрывают выплаты; у Кровотечения — порции.
+    // Проклятье: сколько ещё бить до черты — или что враг уже приговорён.
+    if (s.id === 'curse' && enemy) {
+      out.push(h('div', { class: 'tip-accent' }, enemy.hp <= s.value ? `Приговорён: HP ${enemy.hp} не выше ${s.value}` : `До черты ещё ${enemy.hp - s.value} HP`));
+    }
     if (s.id === 'bleed' || s.id === 'burn' || s.id === 'poison') {
       if (s.parts && s.parts.length > 1) out.push(tipNote(`Порции: ${s.parts.map((p) => `${p.v}${p.t > 0 ? ` (ещё ${p.t} ${turnsWord(p.t)})` : ''}`).join(' + ')}`));
       out.push(tipNote(`Нанесёт ещё ${statusRemaining(s)}, если не трогать`));

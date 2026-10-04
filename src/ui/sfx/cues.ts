@@ -63,6 +63,8 @@ const ARTIFACT_CUE: Record<string, string> = {
   blood_bath: 'bleed',
   bleed_burst: 'bleed',
   rage: 'buff',
+  // Проклятье: каждое наложение звучит общим «Проклятием» статуса (STATUS_CUE), казнь всех — взрывом.
+  doomsday: 'explode',
 };
 
 /** Звуки, которые сами несут всю цепочку (три разряда молнии и гром): по одному на приём, а не на цель. */
@@ -168,6 +170,7 @@ const STATUS_CUE: Partial<Record<StatusId, string>> = {
   vulnerable: 'curse',
   exhaust: 'curse',
   decay: 'curse',
+  curse: 'curse',
 };
 
 /**

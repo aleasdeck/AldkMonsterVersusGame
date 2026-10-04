@@ -173,7 +173,14 @@ export function artifactShort(inst: ArtifactInstance, s: DerivedStats): string {
         return 'снимает раны';
       case 'status':
         if (def.effects?.(inst.tier).some((x) => x.type === 'spread')) continue;
+        if (e.status === 'curse') return `Проклятье ${e.value + s.curseAdd}${e.target === 'allEnemies' ? ' всем' : ''}`;
         return e.target === 'self' ? 'бафф' : 'дебафф';
+      case 'curseGrow':
+        return `Проклятье +${e.amount + s.curseAdd} и ½`;
+      case 'curseLost':
+        return `Проклятье ${Math.round(e.pct * 100)} % потерь`;
+      case 'reckoning':
+        return `Проклятье ×${e.mult}`;
       case 'pull':
         return 'в первый ряд';
       case 'detonate':

@@ -49,7 +49,8 @@ export type StatusId =
   | 'frozen' // оцепенение (v0.47): пропускает value своих ходов, считается оглушением для крита (только враги)
   | 'focus' // верный глаз (v0.47): следующий удар героя — крит наверняка, тратится им (только герой)
   | 'taunt' // насмешка (v0.47): в ход врагов Шипы и Ответный удар героя вдвое, враги бьют героя, а не союзника (только герой)
-  | 'decay'; // распад (v0.54): любое лечение носителя вдвое слабее, turns ходов; повтор обновляет срок
+  | 'decay' // распад (v0.54): любое лечение носителя вдвое слабее, turns ходов; повтор обновляет срок
+  | 'curse'; // проклятье (архетип «Проклятье», Doom Некробиндера): складывается и не убывает; враг с HP не выше value гибнет после своего хода (только враги)
 
 export interface Status {
   id: StatusId;
@@ -176,7 +177,7 @@ export interface DerivedStats {
   poisonRot: number;
   /** Доля (0..1), на которую заклинание сильнее по горящей цели; её Горение в ближайший тик не гаснет вдвое («Раздуть»). */
   spellVsBurn: number;
-  /** Прибавка к удару за каждое проклятие на цели: Слабость, Кровотечение, Горение, Яд, Оглушение, Уязвимость («Резонанс»). */
+  /** Прибавка к удару за каждый вредный статус на цели: Слабость, Кровотечение, Горение, Яд, Оглушение, Уязвимость («Резонанс»). */
   perDebuff: number;
   /** Стамина за первое заклинание в ходу («Перекрёстный ток»). */
   spellSta: number;
@@ -281,6 +282,17 @@ export interface DerivedStats {
   allyTwice: number;
   /** Доля сверх к урону существ: 1 — вдвое («Повелитель»). */
   allyMult: number;
+  // ── Проклятье ──
+  /** Каждое заклинание героя вешает Проклятье N на каждую свою цель («Чёрная месса»). */
+  spellCurse: number;
+  /** +N к каждому Проклятью, которое вешает герой (набор «Проклятье» 2). */
+  curseAdd: number;
+  /** Блок в начале хода за каждого проклятого врага («Саван»). */
+  blockPerCursed: number;
+  /** >0 — Проклятье исполняется ещё и в начале хода врага, до его приёма («Неотвратимость»). */
+  curseFirst: number;
+  /** >0 — павший от Проклятья передаёт половину его живым и возвращает 1 MP (набор «Проклятье» 3). */
+  curseSpread: number;
 }
 
 export type StatMods = Partial<DerivedStats>;
@@ -382,6 +394,14 @@ export type Effect =
   | { type: 'command'; target: 'enemy'; bonus: number }
   /** Трупный взрыв (v0.56): первое существо гибнет, каждый враг получает pct его HP — как рана, мимо блока. */
   | { type: 'sacrifice'; pct: number }
+  /** Без спасения (архетип «Проклятье», No Escape из StS2): Проклятье цели растёт на amount и ещё на долю pct уже накопленного. */
+  | { type: 'curseGrow'; amount: number; pct: number; target: 'enemy' }
+  /** Знак обречённого: Проклятье + доля pct от HP, которое цель уже потеряла. По нетронутой цели недоступен. */
+  | { type: 'curseLost'; pct: number; target: 'enemy' }
+  /** Расплата: урон = Проклятье цели × mult, как рана — мимо блока; Проклятье снимается. Без Проклятья недоступна. */
+  | { type: 'reckoning'; mult: number; target: 'enemy' }
+  /** Конец дней (End of Days): каждый враг с HP не выше своего Проклятья гибнет сразу, не дожидаясь своего хода. */
+  | { type: 'execute' }
   /** Герой ранит себя: мимо блока и защиты. Нельзя применить, если HP не больше amount. */
   | { type: 'selfDamage'; amount: number }
   | { type: 'gainMp'; amount: number }
@@ -410,7 +430,7 @@ export type ArtifactSlot = 'weapon' | 'armor';
  * Архетип сборки (v0.43, docs/plan-reworka.md §2): метка на артефакте. Две и три вещи одного архетипа в сокетах
  * (и врождённый навык героя) включают бонус набора — `ARCHETYPES` в data/archetypes.ts.
  */
-export type ArchetypeId = 'blood' | 'fire' | 'poison' | 'shield' | 'retribution' | 'light' | 'series' | 'shadow' | 'cold' | 'summon';
+export type ArchetypeId = 'blood' | 'fire' | 'poison' | 'shield' | 'retribution' | 'light' | 'series' | 'shadow' | 'cold' | 'summon' | 'curse';
 
 export interface ArtifactDef {
   id: string;
@@ -996,9 +1016,9 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.56.0';
+export const GAME_VERSION = '0.57.0';
 
-export const SAVE_VERSION = 43;
+export const SAVE_VERSION = 44;
 
 export interface RunState {
   version: typeof SAVE_VERSION;

@@ -152,6 +152,11 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     allyDmg: 0,
     allyTwice: 0,
     allyMult: 0,
+    spellCurse: 0,
+    curseAdd: 0,
+    blockPerCursed: 0,
+    curseFirst: 0,
+    curseSpread: 0,
   };
   applyMods(s, weaponPerkMods(weapon, def));
   applyMods(s, armorPerkMods(armor, def));
