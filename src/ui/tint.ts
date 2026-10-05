@@ -70,6 +70,11 @@ function matrix({ light, k }: LocationTint): string {
 
 const filterId = (id: LocationId): string => `mv-tint-${id}`;
 
+/** Матрица тонировки локации для страниц обсуждения (tools/hl-proto): те же числа, что у фильтра в бою. */
+export function tintMatrix(id: LocationId): string {
+  return matrix(TINTS[id]);
+}
+
 /** Отладочная подмена чисел (`&tint=` в main.ts): подбирать цвет и силу удобно прямо в бою. */
 let enabled = true;
 let override: Partial<LocationTint> | null = null;
@@ -82,7 +87,23 @@ export function setTint(on: boolean, tune?: Partial<LocationTint>): void {
   document.querySelector('.tint-defs')?.remove();
 }
 
-/** Один раз кладёт в документ блок `<svg>` с фильтром на каждую локацию. Сам он ничего не рисует. */
+/**
+ * Свет на цели (подсветка `&hl=`, tools/hl-proto): гамма, а не яркость. Яркость множит все тона и выбеливает светлое,
+ * гамма поднимает тени сильнее светов — тёмная лепка выходит из сумрака сцены, а сталь и глаза не слепнут.
+ */
+export const LIFT = { exponent: 0.72, amplitude: 1.06 };
+export const LIFT_ID = 'mv-lift';
+
+/**
+ * Обводка силуэта (вариант «Контур»): клетка лепки (2 px) вокруг непрозрачных пикселей. Тени на полу, свечения и плёнки
+ * крыльев полупрозрачны и порог альфы их отбрасывает — иначе обводка ложится полосой под ноги. `lift` — ещё и свет цели.
+ */
+export const OUTLINES = [
+  { id: 'mv-ol', color: '#7d6c4a', lift: false },
+  { id: 'mv-ol-lift', color: '#ffd166', lift: true },
+];
+
+/** Один раз кладёт в документ блок `<svg>` с фильтром на каждую локацию и светом цели. Сам он ничего не рисует. */
 function ensureFilters(): void {
   if (injected) return;
   injected = true;
@@ -106,12 +127,33 @@ function ensureFilters(): void {
     filter.appendChild(m);
     svg.appendChild(filter);
   }
+  // Свет цели и обводка вешаются на обёртку спрайта, а лепка выходит за её края замахом: область с запасом вдвое.
+  const el = (tag: string, attrs: Record<string, string | number>, ...kids: Element[]): Element => {
+    const node = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+    for (const kid of kids) node.appendChild(kid);
+    return node;
+  };
+  const box = { x: '-50%', y: '-50%', width: '200%', height: '200%', 'color-interpolation-filters': 'sRGB' };
+  const gamma = (result: string): Element =>
+    el('feComponentTransfer', { in: 'SourceGraphic', result }, ...['R', 'G', 'B'].map((ch) => el(`feFunc${ch}`, { type: 'gamma', exponent: LIFT.exponent, amplitude: LIFT.amplitude })));
+  svg.appendChild(el('filter', { id: LIFT_ID, ...box }, gamma('lit')));
+  for (const o of OUTLINES) {
+    svg.appendChild(el('filter', { id: o.id, ...box },
+      el('feComponentTransfer', { in: 'SourceAlpha', result: 'a' }, el('feFuncA', { type: 'discrete', tableValues: '0 1' })),
+      el('feMorphology', { in: 'a', operator: 'dilate', radius: 2, result: 'd' }),
+      el('feFlood', { 'flood-color': o.color }),
+      el('feComposite', { in2: 'd', operator: 'in', result: 'ol' }),
+      ...(o.lift ? [gamma('src')] : []),
+      el('feMerge', {}, el('feMergeNode', { in: 'ol' }), el('feMergeNode', { in: o.lift ? 'src' : 'SourceGraphic' })),
+    ));
+  }
   document.body.appendChild(svg);
 }
 
 /** Значение переменной `--tint` для поля боя: её читают спрайты бойцов в style.css. Пусто — тонировки нет. */
 export function tintVar(id: LocationId): string {
-  if (!enabled) return '';
   ensureFilters();
+  if (!enabled) return '';
   return `--tint:url(#${filterId(id)});`;
 }

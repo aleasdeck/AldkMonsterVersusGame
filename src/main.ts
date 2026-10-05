@@ -54,6 +54,11 @@ else if (tintParam || tintColor) {
   });
 }
 
+// &hl=a|b|c|d|e — вариант подсветки цели на обсуждение (tools/hl-proto): шаг вперёд, контур, прицел, круг, луч;
+// без параметра — рамка, как была. Варианты — секция «Подсветка цели» в style.css
+const hlParam = params.get('hl');
+if (hlParam && /^[a-e]$/.test(hlParam)) document.documentElement.dataset.hl = hlParam;
+
 // &music=off — без музыки на этой странице (профиль не трогается); &music=crypt — трек этой локации на любом экране,
 // хоть в меню (звук начнётся после первого клика или клавиши — так требует браузер)
 const musicParam = params.get('music');

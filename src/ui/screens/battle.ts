@@ -18,6 +18,7 @@ import { MARK_COLORS, STATUS_COLORS, markIcon, statusIcon, uiIcon } from '../ico
 import { paramTip, tipHead, tipLines, tipNote, tipText, turnsWord } from '../tips';
 import { backgroundStyle } from '../backgrounds';
 import { tintVar } from '../tint';
+import { ringVars } from '../targetMark';
 import { runFrame } from '../frame';
 import { bindPreview, defaultReadout, type PreviewSpec } from '../preview';
 import type { App } from '../app';
@@ -182,7 +183,8 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     fleeTimer(e),
     e.statuses.length ? badges(e, false, e) : null,
     bar('hp', e.hp, e.maxHp, '', hpTip(e.hp, e.maxHp, e.block, false, statusValue(e, 'curse')), e.block, statusValue(e, 'curse')),
-    h('div', { class: 'sprite-wrap' }, enemySprite(def.sprite, def.id, px, '', e)),
+    // Метка цели (.tmark) рисует подсветку тех вариантов `&hl=`, которым мало фильтра на спрайте: уголки, круг, луч.
+    h('div', { class: 'sprite-wrap' }, h('span', { class: 'tmark', 'aria-hidden': 'true', style: document.documentElement.dataset.hl === 'd' ? ringVars(size.width) : null }), enemySprite(def.sprite, def.id, px, '', e)),
     h('div', { class: 'name' }, roleMark(app.run!.battle!, e), e.name),
   );
   return bindPreview(app, el, () => enemyPreview(app, e.uid));

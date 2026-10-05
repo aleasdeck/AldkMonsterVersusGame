@@ -4865,3 +4865,198 @@ p {
   border-color: var(--slot-any);
   color: var(--slot-any);
 }
+
+/* ─── Подсветка цели: варианты на обсуждение (&hl=a…e, tools/hl-proto) ─────── */
+/* Без &hl= — рамка, как была (секция поля боя). Варианты снимают рамку и метят врага по-своему. Общее у всех: цель —
+   досягаемый враг под курсором, под Tab или под предпросмотром; недосягаемый уходит в тень сильнее прежнего, потому что
+   зелёной рамки «можно» больше нет. Метка .tmark — пустой span в обёртке спрайта (battle.ts): уголки, круг, пятно луча.
+   Тело фигуры — --body-w и --body-dx (characterSize.ts), свет цели — гамма #mv-lift (tint.ts). */
+.tmark {
+  display: none;
+}
+[data-hl] :is(.enemy, .enemy:hover, .enemy.ok, .enemy.ok:hover, .enemy.preview, .enemy.aim) {
+  border-color: transparent;
+  background: none;
+}
+[data-hl] .enemy.far .sprite-wrap {
+  filter: brightness(0.58) saturate(0.5);
+}
+[data-hl] .enemy.doomed.far .sprite-wrap {
+  filter: brightness(0.58) saturate(0.5) drop-shadow(0 0 2px #c255e0);
+}
+[data-hl] .enemy.far .name {
+  color: #6f6f86;
+}
+[data-hl] .enemy.ok:is(:hover, .preview, .aim) .name {
+  color: var(--accent);
+}
+/* А «Шаг вперёд»: цель подрастает от стоп и выходит на свет. Полоска и пилюля — над спрайтом, иначе рослая голова их закроет. */
+[data-hl='a'] .enemy .sprite-wrap {
+  transform-origin: calc(50% + var(--body-dx, 0px)) 100%;
+  transition: transform 90ms ease-out;
+}
+[data-hl='a'] .enemy :is(.pill, .badges, .bar) {
+  position: relative;
+  z-index: 1;
+}
+[data-hl='a'] .enemy.ok:is(:hover, .preview, .aim) .sprite-wrap {
+  transform: scale(1.06);
+  filter: url(#mv-lift);
+}
+[data-hl='a'] .enemy.ok.doomed:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift) drop-shadow(0 0 2px #c255e0) drop-shadow(0 0 4px #8f39ad);
+}
+/* Б «Контур»: досягаемых обводит тусклая латунь в клетку лепки (2 px), цель — золото и свет. Обводка — SVG-фильтр
+   по непрозрачным пикселям (tint.ts, OUTLINES): тень на полу и крылья она не обводит. */
+[data-hl='b'] .enemy.ok .sprite-wrap {
+  filter: url(#mv-ol);
+}
+[data-hl='b'] .enemy.ok:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-ol-lift);
+}
+[data-hl='b'] .enemy.ok.doomed .sprite-wrap {
+  filter: url(#mv-ol) drop-shadow(0 0 4px #8f39ad);
+}
+[data-hl='b'] .enemy.ok.doomed:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-ol-lift) drop-shadow(0 0 4px #8f39ad);
+}
+/* В «Прицел»: четыре уголка вокруг тела, а не вокруг всей колонки. У досягаемых — тусклые, у цели — золотые, щёлкают
+   внутрь и дышат. Тень уголков — на клетку вниз-вправо, чтобы читались и на светлом фоне. */
+[data-hl='c'] .enemy.ok .tmark {
+  --c: #d8cfb890;
+  --len: 8px;
+  --gx: 8px;
+  display: block;
+  position: absolute;
+  z-index: 1;
+  left: calc(50% + var(--body-dx, 0px) - var(--body-w, 80px) / 2 - var(--gx));
+  width: calc(var(--body-w, 80px) + 2 * var(--gx));
+  top: 4px;
+  bottom: -4px;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--c) 0 0) left top / var(--len) 2px no-repeat,
+    linear-gradient(var(--c) 0 0) left top / 2px var(--len) no-repeat,
+    linear-gradient(var(--c) 0 0) right top / var(--len) 2px no-repeat,
+    linear-gradient(var(--c) 0 0) right top / 2px var(--len) no-repeat,
+    linear-gradient(var(--c) 0 0) left bottom / var(--len) 2px no-repeat,
+    linear-gradient(var(--c) 0 0) left bottom / 2px var(--len) no-repeat,
+    linear-gradient(var(--c) 0 0) right bottom / var(--len) 2px no-repeat,
+    linear-gradient(var(--c) 0 0) right bottom / 2px var(--len) no-repeat;
+  filter: drop-shadow(2px 2px 0 #000000b0);
+}
+[data-hl='c'] .enemy.ok:is(:hover, .preview, .aim) .tmark {
+  --c: var(--accent);
+  --len: 14px;
+  animation: hl-snap 160ms steps(2) both, hl-breathe 1.4s 160ms ease-in-out infinite;
+}
+[data-hl='c'] .enemy.ok:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift);
+}
+[data-hl='c'] .enemy.ok.doomed:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift) drop-shadow(0 0 2px #c255e0) drop-shadow(0 0 4px #8f39ad);
+}
+@keyframes hl-snap {
+  from {
+    transform: scale(1.18);
+    opacity: 0.3;
+  }
+}
+@keyframes hl-breathe {
+  50% {
+    transform: scale(1.04);
+  }
+}
+/* Г «Круг»: кольцо на земле под ногами, за спрайтом. Досягаемым — тусклое, цели — золотое со светом и свет на фигуре. */
+[data-hl='d'] .enemy .sprite-wrap {
+  isolation: isolate;
+}
+[data-hl='d'] .enemy.ok .tmark {
+  display: block;
+  position: absolute;
+  z-index: -1;
+  left: calc(50% + var(--body-dx, 0px) - var(--ring-w, 88px) / 2);
+  width: var(--ring-w, 88px);
+  height: var(--ring-h, 14px);
+  bottom: calc(var(--ring-h, 14px) / -2);
+  background: var(--ring-ok) 0 0 / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+[data-hl='d'] .enemy.ok:is(:hover, .preview, .aim) .tmark {
+  background-image: var(--ring-target);
+}
+/* Свет внутри кольца цели — мягкий, это свет, а не рисунок; дышит он, а не кольцо: масштаб сбил бы клетки. */
+[data-hl='d'] .enemy.ok:is(:hover, .preview, .aim) .tmark::before {
+  content: '';
+  position: absolute;
+  inset: -4px -8px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #ffd16666, #ffd16620 65%, transparent);
+  animation: hl-ring 1.4s ease-in-out infinite;
+}
+[data-hl='d'] .enemy.ok:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift);
+}
+[data-hl='d'] .enemy.ok.doomed:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift) drop-shadow(0 0 2px #c255e0) drop-shadow(0 0 4px #8f39ad);
+}
+@keyframes hl-ring {
+  50% {
+    opacity: 0.55;
+  }
+}
+/* Д «Луч»: на цель падает свет сверху, под ногами — пятно. Досягаемые не метятся ничем, кроме тени недосягаемых. */
+[data-hl='e'] .enemy {
+  position: relative;
+  isolation: isolate;
+}
+[data-hl='e'] .enemy .sprite-wrap {
+  isolation: isolate;
+}
+[data-hl='e'] .enemy.ok:is(:hover, .preview, .aim)::before {
+  --bw: calc(var(--body-w, 80px) + 64px);
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: calc(50% + var(--body-dx, 0px) - var(--bw) / 2);
+  width: var(--bw);
+  height: 270px;
+  bottom: calc(var(--fighter-caption-height) + 2px);
+  background: linear-gradient(to bottom, #fff0c000 0%, #fff0c016 35%, #fff0c040 100%);
+  clip-path: polygon(36% 0, 64% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+  animation: hl-beam 140ms steps(2) both;
+}
+[data-hl='e'] .enemy.ok:is(:hover, .preview, .aim) .tmark {
+  --rw: calc(var(--body-w, 80px) + 48px);
+  display: block;
+  position: absolute;
+  z-index: -1;
+  left: calc(50% + var(--body-dx, 0px) - var(--rw) / 2);
+  width: var(--rw);
+  height: 22px;
+  bottom: -11px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #fff0c070, #fff0c020 70%, transparent);
+  pointer-events: none;
+}
+[data-hl='e'] .enemy.ok:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift);
+}
+[data-hl='e'] .enemy.ok.doomed:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift) drop-shadow(0 0 2px #c255e0) drop-shadow(0 0 4px #8f39ad);
+}
+@keyframes hl-beam {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-hl] .tmark,
+  [data-hl] .tmark::before,
+  [data-hl] .enemy::before {
+    animation: none !important;
+  }
+}
+/* ─── конец подсветки цели ─── */
