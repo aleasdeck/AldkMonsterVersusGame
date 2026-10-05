@@ -8,7 +8,7 @@
  */
 import type { ArchetypeId, ArtifactInstance, BattleState, GearInstance, HeroPersistent, LockGrade, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
 import { createRng, next as rngNext, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, allyHitCount, allyHitDamage, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
+import { VULNERABLE_MULT, allyHitDamage, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, hitsOverAllies, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { allyAction, allyDef, allyStrikeAction } from '../../src/data/allies';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { archetypeCounts, artifactTags, setMods } from '../../src/data/archetypes';
@@ -214,7 +214,7 @@ let pushBase = 0;
 /** Урон, который враги нанесут герою на ближайшем ходу при нынешних намерениях, с учётом блока, уклонений и скрытности. */
 function projectIncoming(b: BattleState): { hit: number; dot: number } {
   const h = b.hero;
-  // Враги бьют союзника первым, пока он жив (v0.56): обычные удары уходят в существ по очереди, пока у них есть HP и блок;
+  // Враги бьют союзника первым, пока он жив (v0.56; стрелки и заклинатели — поверх, v0.57.2): обычные удары уходят в существ по очереди, пока у них есть HP и блок;
   // перебор на добитом существе пропадает, остальное — в героя. Насмешка возвращает удары на героя. До v0.56 бот считал,
   // что живой союзник гасит весь ход врагов, — и с существом в ряду переставал защищаться.
   const shields = getStatus(h, 'taunt') ? [] : b.allies.map((a) => a.hp + a.block + allyGuard(b, a));
@@ -246,9 +246,9 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
         const hits = eff.type === 'attack' ? (eff.hits ?? 1) : 1;
         const pierce = eff.type === 'attack' && !!eff.pierce;
         for (let i = 0; i < hits; i++) {
-          // Существо принимает удар; перебор сверх его HP — герою (v0.56).
+          // Существо принимает удар; перебор сверх его HP — герою (v0.56). Стрелки и заклинатели бьют поверх существ (v0.57.2).
           let rawHit = dmg;
-          if (eff.type === 'attack' && shields.length > 0) {
+          if (eff.type === 'attack' && shields.length > 0 && !hitsOverAllies(e)) {
             const took = Math.min(shields[0], dmg);
             shields[0] -= took;
             rawHit = dmg - took;
@@ -301,7 +301,7 @@ function allyDpt(b: BattleState, a: BattleState['allies'][number]): number {
   let total = 0;
   for (const id of def.order) {
     for (const e of allyAction(def, a.tier, id).effects) {
-      if (e.type === 'attack') total += allyHitDamage(b, a, e.amount) * allyHitCount(b, e.hits);
+      if (e.type === 'attack') total += allyHitDamage(b, a, e.amount) * (e.hits ?? 1);
       else if (e.type === 'debuff') total += dotWorth(e.status, e.value, e.turns) * 0.7;
       else if (e.type === 'buffStr') total += e.amount;
     }
@@ -757,8 +757,7 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.allyBlock ?? 0) * pack * 3 * 0.8;
     v += (m.allyHp ?? 0) * pack * 0.65;
     v += (m.allyDmg ?? 0) * pack * 1.5 * 3 * W.enemyHp;
-    // Повтор удара и «Повелитель» — ещё столько же урона существ: около шести за ход у каждого.
-    v += ((m.allyTwice ?? 0) > 0 ? 1 : 0) * pack * 6 * 3 * W.enemyHp;
+    // «Повелитель» — ещё столько же урона существ: около шести за ход у каждого.
     v += (m.allyMult ?? 0) * pack * 6 * 3 * W.enemyHp;
     // ── Проклятье: единица Проклятья — единица HP врага с опозданием на его ход (×0.8); всё — только при заклинаниях ──
     const curseApps = applies.has('curse') ? 1.5 : 0.2;
@@ -875,7 +874,7 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         // Существо (v0.56): HP, которые оно примет на себя вместо героя (около двух третей), и его удары за три хода боя.
         const ally = allyDef(e.allyId);
         const strike = allyStrikeAction(ally, e.tier);
-        const hit = (strike?.effects ?? []).reduce((sum, x) => sum + (x.type === 'attack' ? (x.amount + s.allyDmg) * (x.hits ?? 1) * (s.allyTwice > 0 ? 2 : 1) * (1 + s.allyMult) : 0), 0);
+        const hit = (strike?.effects ?? []).reduce((sum, x) => sum + (x.type === 'attack' ? (x.amount + s.allyDmg) * (x.hits ?? 1) * (1 + s.allyMult) : 0), 0);
         per += (ally.hp(e.tier) + s.allyHp) * 0.65 + hit * 0.7 * 3 * W.enemyHp;
         break;
       }

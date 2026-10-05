@@ -891,20 +891,40 @@ export function spawnAlly(state: BattleState, id: string, tier: ArtTier): AllySt
 }
 
 /**
- * Призыв при полном ряде (v0.56, правило Ости из StS2): не пропадает, а подкармливает первое существо — половина HP призыва
- * к HP и максимуму и Сила +1. Иначе плитка призыва при двух существах была бы мёртвой.
+ * Призыв при полном ряде (v0.56, правило Ости из StS2): не пропадает, а лечит самое раненое существо на половину HP призыва.
+ * Иначе плитка призыва при двух существах была бы мёртвой. До v0.57.2 подкормка ещё растила максимум HP и давала Силу +1:
+ * с тремя призывами Мага она шла каждый ход, и стена из двух существ за бой только толстела (отзыв игрока, GDD §13 v0.57.2).
  */
 function feedAlly(state: BattleState, a: AllyState, hp: number): void {
-  a.maxHp += hp;
   a.hp += hp;
   state.events.push({ type: 'heal', target: a.uid, amount: hp });
   log(state, `${a.name} подкормлен: +${hp} HP`);
-  addStatus(state, a, a.uid, 'strength', 1, -1);
 }
 
-/** HP, которые даст подкормка призывом с этого эффекта. */
+/** Кого вылечит призыв при полном ряде: самое раненое существо (при равенстве — первое). */
+export function feedTarget(state: BattleState): AllyState | undefined {
+  return state.allies.reduce<AllyState | undefined>((m, a) => (!m || a.maxHp - a.hp > m.maxHp - m.hp ? a : m), undefined);
+}
+
+/** HP, которые вернёт подкормка призывом с этого эффекта: половина HP призыва, не выше недостающего у цели. */
 export function feedHp(state: BattleState, id: string, tier: ArtTier): number {
-  return Math.ceil((allyDef(id).hp(tier) + state.hero.stats.allyHp) / 2);
+  const a = feedTarget(state);
+  return a ? Math.min(Math.ceil((allyDef(id).hp(tier) + state.hero.stats.allyHp) / 2), a.maxHp - a.hp) : 0;
+}
+
+/**
+ * Стрелки и заклинатели бьют поверх существ — прямо в героя (v0.57.2, отзыв игрока «призыв слишком сильный»: два существа
+ * гасили все обычные удары, и Маг со сборкой терял 3 HP за клетку против 13–17 у остальных). Существа остаются стеной против
+ * ближнего боя — громил, стражей, роя, поддержки и боссов.
+ */
+export function hitsOverAllies(e: EnemyState): boolean {
+  const role = enemyDef(e.defId).role;
+  return role === 'shooter' || role === 'caster';
+}
+
+/** Кого ударит обычный удар врага: первое существо или никого (тогда — герой). Насмешка возвращает удары на героя. */
+export function enemyVictim(state: BattleState, e: EnemyState): AllyState | undefined {
+  return getStatus(state.hero, 'taunt') || hitsOverAllies(e) ? undefined : state.allies[0];
 }
 
 function damageAlly(state: BattleState, a: AllyState, amount: number, pierce = false): number {
@@ -937,11 +957,6 @@ export function allyHitDamage(state: BattleState, a: AllyState, amount: number):
   return Math.max(0, Math.round(dmg * (1 + state.hero.stats.allyMult)));
 }
 
-/** Сколько раз бьёт приём существа: набор «Призыв» 3 повторяет каждый удар. */
-export function allyHitCount(state: BattleState, hits: number | undefined): number {
-  return (hits ?? 1) * (state.hero.stats.allyTwice > 0 ? 2 : 1);
-}
-
 /** Куда прыгнет существо: самый раненый живой враг. Союзник дальности не знает — ограничение «как ближний бой» стоило Магу и Лучнику по 2 пункта (v0.26). */
 function allyTarget(state: BattleState): EnemyState | null {
   return state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
@@ -956,7 +971,7 @@ function allyStrike(state: BattleState, a: AllyState, effects: EnemyEffect[], rn
   for (const eff of effects) {
     if (eff.type === 'attack') {
       const dmg = allyHitDamage(state, a, eff.amount + bonus);
-      for (let i = 0; i < allyHitCount(state, eff.hits); i++) {
+      for (let i = 0; i < (eff.hits ?? 1); i++) {
         const target = fixed && fixed.hp > 0 && state.enemies.includes(fixed) ? fixed : allyTarget(state);
         if (!target || !state.allies.includes(a)) break;
         log(state, `${a.name} атакует ${target.name}: ${dmg}`);
@@ -1507,6 +1522,8 @@ export function canUseAction(state: BattleState, action: PlayerAction): string |
         }
         if (eff.type === 'finisher' && h.strikes <= 0) return 'Сначала атакуйте';
         if ((eff.type === 'allyBuff' || eff.type === 'command' || eff.type === 'sacrifice') && state.allies.length === 0) return 'Нет существ';
+        // Подкормка без роста (v0.57.2) лечит, и только: в полный ряд целых существ призыв ничего не сделал бы.
+        if (eff.type === 'summon' && state.allies.length >= MAX_ALLIES && feedHp(state, eff.allyId, eff.tier) <= 0) return 'Ряд полон, существа целы';
         if (eff.type === 'blockBurst' && h.block <= 0) return 'Нет блока';
         if (eff.type === 'amplify' && statusValue(findEnemy(state, action.target ?? -1) ?? h, eff.status) <= 0) return `На цели нет: ${STATUS_NAMES[eff.status]}`;
         if (eff.type === 'chain' && chainCharges(h) <= 0) return 'Сначала примените приём';
@@ -1681,7 +1698,7 @@ function applyEffect(state: BattleState, eff: Effect, targetUid: number | undefi
     }
     case 'summon':
       if (state.allies.length < MAX_ALLIES) spawnAlly(state, eff.allyId, eff.tier);
-      else feedAlly(state, state.allies[0], feedHp(state, eff.allyId, eff.tier));
+      else feedAlly(state, feedTarget(state)!, feedHp(state, eff.allyId, eff.tier));
       break;
     case 'allyBuff':
       for (const a of state.allies) addStatus(state, a, a.uid, 'strength', eff.amount, -1);
@@ -2354,8 +2371,8 @@ function applyEnemyEffect(state: BattleState, e: EnemyState, eff: EnemyEffect, r
       if (ctx) ctx.attacked = true;
       for (let i = 0; i < hits; i++) {
         if (state.phase === 'lost') break;
-        // «Насмешка» (v0.47): враги лезут на героя, союзника не трогают.
-        const ally = getStatus(h, 'taunt') ? undefined : state.allies[0];
+        // «Насмешка» (v0.47): враги лезут на героя, союзника не трогают; стрелки и заклинатели бьют поверх существ (v0.57.2).
+        const ally = enemyVictim(state, e);
         let toHero = dmg;
         if (ally) {
           // Гибель союзника пишется внутри damageAlly — строка удара встаёт перед ней.
@@ -3133,7 +3150,7 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     switch (eff.type) {
       case 'attack': {
         const dmg = allyHitDamage(state, a, eff.amount);
-        const hits = allyHitCount(state, eff.hits);
+        const hits = eff.hits ?? 1;
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
         const victim = allyTarget(state);
         target = victim?.name ?? null;

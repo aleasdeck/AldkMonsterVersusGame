@@ -150,7 +150,6 @@ export function computeStats(def: HeroDef, weapon: GearInstance, armor: GearInst
     allyBlock: 0,
     allyHp: 0,
     allyDmg: 0,
-    allyTwice: 0,
     allyMult: 0,
     spellCurse: 0,
     curseAdd: 0,

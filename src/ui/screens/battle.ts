@@ -6,7 +6,7 @@ import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ART_TIER_COLORS, SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, effectiveCost, fatigueMult, feedHp, findEnemy, finisherPer, isDoomed, isHidden, previewAttack, statusValue, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, effectiveCost, enemyVictim, fatigueMult, feedHp, feedTarget, findEnemy, finisherPer, isDoomed, isHidden, previewAttack, statusValue, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, HeroBattle, PlayerAction, WeaponReach } from '../../engine/types';
@@ -136,8 +136,8 @@ function intentPill(b: BattleState, e: EnemyState, heroName: string): HTMLElemen
   }
   // «Чаща» (v0.48): в первый ход намерения не видно.
   if (intent.hidden) return h('div', { class: 'pill intent-special', tip: paramTip({ glyph: '?' }, 'Не разглядеть', 'Испытание «Чаща»: в первый ход боя намерения врагов скрыты', { color: 'var(--accent)' }) }, h('span', { class: 'pill-icon' }, '?'));
-  // Враги бьют первого союзника раньше героя.
-  const victim = intent.kinds.includes('attack') ? (b.allies[0]?.name ?? heroName) : null;
+  // Враги бьют первого союзника раньше героя; стрелки и заклинатели — поверх существ (v0.57.2).
+  const victim = intent.kinds.includes('attack') ? (enemyVictim(b, e)?.name ?? heroName) : null;
   return h(
     'div',
     { class: `pill intent-${intent.kind}`, tip: intentTip(intent, victim) },
@@ -249,7 +249,7 @@ function allyView(b: BattleState, a: AllyState, underFire: boolean): HTMLElement
     h(
       'div',
       { class: 'badges' },
-      underFire ? h('span', { class: 'under-fire', tip: paramTip({ glyph: '◀' }, 'Под ударом', `Враги атакуют ${a.name} раньше героя`, { color: '#ff6b6b' }) }, '◀ под ударом') : null,
+      underFire ? h('span', { class: 'under-fire', tip: paramTip({ glyph: '◀' }, 'Под ударом', `Враги атакуют ${a.name} раньше героя. Стрелки и заклинатели бьют поверх существ — прямо в героя`, { color: '#ff6b6b' }) }, '◀ под ударом') : null,
       a.block > 0 ? h('span', { class: 'block-badge' }, `⛨ ${a.block}`) : null,
       statusIcons(a),
     ),
@@ -642,7 +642,7 @@ export function actionSpecs(app: App): TileSpec[] {
           artifactCostText(ad, inst.tier),
           range && base ? `${hits > 1 ? `${hits}×` : ''}${rangeText(range)} урона${usual(range, base)}` : '',
           ad.describe(inst.tier),
-          feed ? `Ряд полон: ${b.allies[0].name} получит +${feed} HP и Силу +1` : '',
+          feed ? `Ряд полон: ${feedTarget(b)?.name ?? 'существо'} вылечит +${feed} HP` : '',
           targeted ? reachWord(actionReach(b, action(first))) : '',
           total ? `перезарядка ${total} х.` : '',
           limit ? `за ход: ${b.hero.uses[ad.id] ?? 0}/${limit}` : '',
