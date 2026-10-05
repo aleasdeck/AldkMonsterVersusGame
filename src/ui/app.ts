@@ -1,7 +1,7 @@
 import { h } from './dom';
 import type { Difficulty, EventKind, BattleEvent, EventTarget, GearKind, LocationId, PlayerAction, RewardFocus, RunState } from '../engine/types';
 import * as R from '../engine/run';
-import { STATUS_NAMES, actionReach, canUseAction, findEnemy } from '../engine/combat';
+import { STATUS_NAMES, actionReach, canUseAction, enemyVictim, findEnemy } from '../engine/combat';
 import { ENEMY_LIST, enemyDef } from '../data/enemies';
 import { HIT_GAP, alignHeroShots, heroClip, eventFx, lungeAgain, planEnemyFx, planHeroFx, playAfter, playShots, delayEnemyShots, type AfterFx, type FxPlan } from './fx';
 import { syncPlates } from './fx/plates';
@@ -909,8 +909,9 @@ export class App {
       this.scheduleStep();
       return;
     }
-    // Жертва атаки — первый союзник, иначе герой: снаряд босса летит в него.
-    const victim: EventTarget = run.battle.allies[0]?.uid ?? 'hero';
+    // Жертва атаки — первый союзник, иначе герой: снаряд босса летит в него. Стрелки и заклинатели бьют поверх существ (v0.57.2).
+    const next = run.battle.allyQueue.length > 0 ? undefined : run.battle.enemyQueue.map((uid) => findEnemy(run.battle!, uid)).find((e) => !!e);
+    const victim: EventTarget = (next ? enemyVictim(run.battle, next) : run.battle.allies[0])?.uid ?? 'hero';
     R.battleEnemyStep(run);
     const events = run.battle.events.splice(0);
     const plan = planEnemyFx(run, events, victim);

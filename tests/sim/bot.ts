@@ -8,7 +8,7 @@
  */
 import type { ArchetypeId, ArtifactInstance, BattleState, GearInstance, HeroPersistent, LockGrade, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
 import { createRng, next as rngNext, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, allyHitCount, allyHitDamage, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
+import { VULNERABLE_MULT, allyHitCount, allyHitDamage, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, hitsOverAllies, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { allyAction, allyDef, allyStrikeAction } from '../../src/data/allies';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { archetypeCounts, artifactTags, setMods } from '../../src/data/archetypes';
@@ -214,7 +214,7 @@ let pushBase = 0;
 /** Урон, который враги нанесут герою на ближайшем ходу при нынешних намерениях, с учётом блока, уклонений и скрытности. */
 function projectIncoming(b: BattleState): { hit: number; dot: number } {
   const h = b.hero;
-  // Враги бьют союзника первым, пока он жив (v0.56): обычные удары уходят в существ по очереди, пока у них есть HP и блок;
+  // Враги бьют союзника первым, пока он жив (v0.56; стрелки и заклинатели — поверх, v0.57.2): обычные удары уходят в существ по очереди, пока у них есть HP и блок;
   // перебор на добитом существе пропадает, остальное — в героя. Насмешка возвращает удары на героя. До v0.56 бот считал,
   // что живой союзник гасит весь ход врагов, — и с существом в ряду переставал защищаться.
   const shields = getStatus(h, 'taunt') ? [] : b.allies.map((a) => a.hp + a.block + allyGuard(b, a));
@@ -246,9 +246,9 @@ function projectIncoming(b: BattleState): { hit: number; dot: number } {
         const hits = eff.type === 'attack' ? (eff.hits ?? 1) : 1;
         const pierce = eff.type === 'attack' && !!eff.pierce;
         for (let i = 0; i < hits; i++) {
-          // Существо принимает удар; перебор сверх его HP — герою (v0.56).
+          // Существо принимает удар; перебор сверх его HP — герою (v0.56). Стрелки и заклинатели бьют поверх существ (v0.57.2).
           let rawHit = dmg;
-          if (eff.type === 'attack' && shields.length > 0) {
+          if (eff.type === 'attack' && shields.length > 0 && !hitsOverAllies(e)) {
             const took = Math.min(shields[0], dmg);
             shields[0] -= took;
             rawHit = dmg - took;
