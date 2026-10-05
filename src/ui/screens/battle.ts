@@ -162,7 +162,7 @@ function fleeTimer(e: EnemyState): HTMLElement | null {
 
 /**
  * Враг в поле. Клик применяет выбранный приём (v0.26: сначала приём, потом цель); без выбранного приёма клик только
- * подсказывает. Рамка досягаемости ставится по выбранному приёму при отрисовке, наведение на плитку перекрашивает её временно.
+ * подсказывает. Кольцо досягаемости ставится по выбранному приёму при отрисовке, наведение на плитку перекрашивает его временно.
  */
 function enemyView(app: App, e: EnemyState): HTMLElement {
   const def = enemyDef(e.defId);
@@ -183,8 +183,8 @@ function enemyView(app: App, e: EnemyState): HTMLElement {
     fleeTimer(e),
     e.statuses.length ? badges(e, false, e) : null,
     bar('hp', e.hp, e.maxHp, '', hpTip(e.hp, e.maxHp, e.block, false, statusValue(e, 'curse')), e.block, statusValue(e, 'curse')),
-    // Метка цели (.tmark) рисует подсветку тех вариантов `&hl=`, которым мало фильтра на спрайте: уголки, круг, луч.
-    h('div', { class: 'sprite-wrap' }, h('span', { class: 'tmark', 'aria-hidden': 'true', style: document.documentElement.dataset.hl === 'd' ? ringVars(size.width) : null }), enemySprite(def.sprite, def.id, px, '', e)),
+    // Метка цели (.tmark) — кольцо под ногами: тусклое у досягаемых, золотое у цели (style.css, «Подсветка цели»).
+    h('div', { class: 'sprite-wrap' }, h('span', { class: 'tmark', 'aria-hidden': 'true', style: ringVars(size.width) }), enemySprite(def.sprite, def.id, px, '', e)),
     h('div', { class: 'name' }, roleMark(app.run!.battle!, e), e.name),
   );
   return bindPreview(app, el, () => enemyPreview(app, e.uid));

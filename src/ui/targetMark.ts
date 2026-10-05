@@ -1,9 +1,9 @@
 import { canvasUrl } from './preload';
 
 /**
- * Кольцо подсветки цели (вариант «Круг», `&hl=d`, tools/hl-proto): эллипс на земле под ногами врага клетками лепки,
- * а не гладкой рамкой CSS — гладкий овал рядом с пиксельной фигурой смотрится наклейкой из другой игры.
- * Размер и клетки считаются без DOM: страница обсуждения рисует кольца теми же функциями.
+ * Кольцо подсветки цели (решение пользователя — вариант «Круг» из пяти, вместо рамки вокруг колонки врага): эллипс на земле
+ * под ногами клетками лепки, а не гладкой рамкой CSS — гладкий овал рядом с пиксельной фигурой смотрится наклейкой
+ * из другой игры. Размер и клетки считаются без DOM (tests/targetMark.test.ts), картинки — по размеру один раз.
  */
 
 /** Клетка кольца в пикселях поля — та же, что у лепки врагов (MOB_STYLE, пиксель 2). */
@@ -17,16 +17,31 @@ export function ringSize(bodyW: number): { w: number; h: number } {
   return { w, h: even(Math.max(16, Math.min(22, w * 0.2))) };
 }
 
-/** Клетки кольца `cw`×`ch` строками: 1 — внутри внешнего эллипса и снаружи внутреннего, сжатого на клетку по обеим осям. */
+/**
+ * Клетки кольца `cw`×`ch` строками: 1 — край эллипса. Край берётся дважды — крайние клетки каждого столбца и каждой строки,
+ * как рисуют эллипс от руки: кольцо «между двумя эллипсами» рвалось на крутых боках маленьких колец (пропадал столбец).
+ */
 export function ringCells(cw: number, ch: number): Uint8Array {
   const out = new Uint8Array(cw * ch);
   const a = cw / 2, b = ch / 2;
-  const inside = (x: number, y: number, ra: number, rb: number): boolean => ((x - a) / ra) ** 2 + ((y - b) / rb) ** 2 <= 1;
-  for (let j = 0; j < ch; j++) {
-    for (let i = 0; i < cw; i++) {
-      const x = i + 0.5, y = j + 0.5;
-      if (inside(x, y, a, b) && !inside(x, y, a - 1, b - 1)) out[j * cw + i] = 1;
+  const inside = (i: number, j: number): boolean => ((i + 0.5 - a) / a) ** 2 + ((j + 0.5 - b) / b) ** 2 <= 1;
+  for (let i = 0; i < cw; i++) {
+    let top = -1, bottom = -1;
+    for (let j = 0; j < ch; j++) {
+      if (!inside(i, j)) continue;
+      if (top < 0) top = j;
+      bottom = j;
     }
+    if (top >= 0) out[top * cw + i] = out[bottom * cw + i] = 1;
+  }
+  for (let j = 0; j < ch; j++) {
+    let left = -1, right = -1;
+    for (let i = 0; i < cw; i++) {
+      if (!inside(i, j)) continue;
+      if (left < 0) left = i;
+      right = i;
+    }
+    if (left >= 0) out[j * cw + left] = out[j * cw + right] = 1;
   }
   return out;
 }
@@ -53,10 +68,10 @@ export function ringUrl(w: number, h: number, color: string): string {
   return url;
 }
 
-/** Тусклое кольцо досягаемого и золотое — цели: цвета колец варианта «Круг». */
+/** Тусклое кольцо досягаемого и золотое — цели. */
 export const RING_COLORS = { ok: '#e8dfc4a0', target: '#ffd166' };
 
-/** Переменные кольца для метки цели: размер и обе картинки. Только для варианта «Круг» — остальным не нужны. */
+/** Переменные кольца для метки цели `.tmark`: размер и обе картинки. */
 export function ringVars(bodyW: number): string {
   const { w, h } = ringSize(bodyW);
   return `--ring-w:${w}px;--ring-h:${h}px;--ring-ok:url(${ringUrl(w, h, RING_COLORS.ok)});--ring-target:url(${ringUrl(w, h, RING_COLORS.target)})`;
