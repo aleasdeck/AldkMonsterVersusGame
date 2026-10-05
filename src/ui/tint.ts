@@ -82,7 +82,14 @@ export function setTint(on: boolean, tune?: Partial<LocationTint>): void {
   document.querySelector('.tint-defs')?.remove();
 }
 
-/** Один раз кладёт в документ блок `<svg>` с фильтром на каждую локацию. Сам он ничего не рисует. */
+/**
+ * Свет на цели (подсветка цели, style.css: `url(#mv-lift)`): гамма, а не яркость. Яркость множит все тона и выбеливает
+ * светлое, гамма поднимает тени сильнее светов — тёмная лепка выходит из сумрака сцены, а сталь и глаза не слепнут.
+ */
+const LIFT = { exponent: 0.72, amplitude: 1.06 };
+const LIFT_ID = 'mv-lift';
+
+/** Один раз кладёт в документ блок `<svg>` с фильтром на каждую локацию и светом цели. Сам он ничего не рисует. */
 function ensureFilters(): void {
   if (injected) return;
   injected = true;
@@ -106,12 +113,30 @@ function ensureFilters(): void {
     filter.appendChild(m);
     svg.appendChild(filter);
   }
+  // Свет цели вешается на обёртку спрайта, а лепка выходит за её края замахом: область с запасом вдвое.
+  const lift = document.createElementNS(NS, 'filter');
+  lift.setAttribute('id', LIFT_ID);
+  lift.setAttribute('color-interpolation-filters', 'sRGB');
+  for (const [k, v] of [['x', '-50%'], ['y', '-50%'], ['width', '200%'], ['height', '200%']]) lift.setAttribute(k, v);
+  const ct = document.createElementNS(NS, 'feComponentTransfer');
+  for (const ch of ['R', 'G', 'B']) {
+    const f = document.createElementNS(NS, `feFunc${ch}`);
+    f.setAttribute('type', 'gamma');
+    f.setAttribute('exponent', String(LIFT.exponent));
+    f.setAttribute('amplitude', String(LIFT.amplitude));
+    ct.appendChild(f);
+  }
+  lift.appendChild(ct);
+  svg.appendChild(lift);
   document.body.appendChild(svg);
 }
 
-/** Значение переменной `--tint` для поля боя: её читают спрайты бойцов в style.css. Пусто — тонировки нет. */
+/**
+ * Значение переменной `--tint` для поля боя: её читают спрайты бойцов в style.css. Пусто — тонировки нет.
+ * Фильтры кладутся и без тонировки (`&tint=off`): свет цели нужен всегда.
+ */
 export function tintVar(id: LocationId): string {
-  if (!enabled) return '';
   ensureFilters();
+  if (!enabled) return '';
   return `--tint:url(#${filterId(id)});`;
 }

@@ -1065,8 +1065,8 @@ p {
   display: flex;
   justify-content: space-evenly;
   align-items: flex-end;
-  /* У врага ещё 6 px padding + 3 px рамки: компенсируем их до линии стоп героя. */
-  padding-bottom: calc(var(--fighter-floor-inset) - 9px);
+  /* У врага ещё 6 px padding: компенсируем его до линии стоп героя. */
+  padding-bottom: calc(var(--fighter-floor-inset) - 6px);
 }
 .enemy {
   display: flex;
@@ -1075,37 +1075,23 @@ p {
   justify-content: flex-end;
   gap: 4px;
   padding: 6px 8px;
-  border: 3px solid transparent;
   cursor: pointer;
   flex: 1;
   min-width: 0;
 }
-.enemy:hover {
-  border-color: #55557a;
-}
-/* Выбор цели (v0.26): досягаемые для выбранного или наведённого приёма враги — зелёная рамка, остальные тускнеют;
-   наведённая цель, цель под предпросмотром и выбранная Tab — жёлтая рамка. */
+/* Выбор цели — кольца на земле (секция «Подсветка цели»); здесь — курсор и тень недосягаемых. Тень сильнее прежней
+   рамочной (яркость 0.7): зелёной рамки «можно» больше нет, и различие держит она. */
 .enemy.ok {
-  border-color: var(--good);
   cursor: crosshair;
-}
-.enemy.ok:hover,
-.enemy.preview,
-.enemy.aim {
-  border-color: var(--accent);
-  background: #ffd16608;
 }
 .enemy.far {
   cursor: not-allowed;
 }
-.enemy.far:hover {
-  border-color: transparent;
-}
 .enemy.far .name {
-  color: var(--dim);
+  color: #6f6f86;
 }
 .enemy.far .sprite-wrap {
-  filter: brightness(0.7);
+  filter: brightness(0.58) saturate(0.5);
 }
 .enemy .bar {
   width: 140px;
@@ -1774,9 +1760,6 @@ p {
 .bar-ghost.min {
   background: repeating-linear-gradient(45deg, #ffffffaa 0 3px, #00000055 3px 6px);
 }
-.enemy.preview {
-  border-color: #ffd16688;
-}
 /* Блок поверх полоски HP: полупрозрачная штриховка цвета щита на первые N HP, число в скобках тем же цветом. */
 .bar-block {
   position: absolute;
@@ -1813,7 +1796,7 @@ p {
   filter: drop-shadow(0 0 2px #c255e0) drop-shadow(0 0 4px #8f39ad);
 }
 .enemy.doomed.far .sprite-wrap {
-  filter: brightness(0.7) drop-shadow(0 0 2px #c255e0);
+  filter: brightness(0.58) saturate(0.5) drop-shadow(0 0 2px #c255e0);
 }
 /* Лог — выдвижная панель поверх поля у правого края, плитки остаются на месте. */
 .log-drawer {
@@ -4864,4 +4847,60 @@ p {
 .sheet-art.empty.k-any {
   border-color: var(--slot-any);
   color: var(--slot-any);
+}
+
+/* ─── Подсветка цели: кольца на земле (решение пользователя — вариант «Круг» из пяти) ───────── */
+/* Вместо рамки вокруг колонки: кольцо под ногами клетками 2 px, за фигурой. У досягаемых тусклое, у цели — золотое со
+   светом внутри, сама цель выходит на свет гаммой (#mv-lift, tint.ts), имя цели — золотом. Цель — досягаемый враг под
+   курсором, под Tab или под предпросмотром. Метка .tmark — пустой span в обёртке спрайта (battle.ts), картинки и размер
+   кольца — ringVars (targetMark.ts), середина тела — --body-dx (characterSize.ts). Обёртка изолирована, чтобы z-index −1
+   метки лёг за фигурой, но над фоном поля. Остальные варианты (шаг, контур, прицел, луч) — в истории, коммит fa5d062. */
+.tmark {
+  display: none;
+}
+.enemy .sprite-wrap {
+  isolation: isolate;
+}
+.enemy.ok .tmark {
+  display: block;
+  position: absolute;
+  z-index: -1;
+  left: calc(50% + var(--body-dx, 0px) - var(--ring-w, 88px) / 2);
+  width: var(--ring-w, 88px);
+  height: var(--ring-h, 16px);
+  bottom: calc(var(--ring-h, 16px) / -2);
+  background: var(--ring-ok) 0 0 / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+.enemy.ok:is(:hover, .preview, .aim) .tmark {
+  background-image: var(--ring-target);
+}
+/* Свет внутри кольца цели — мягкий, это свет, а не рисунок; дышит он, а не кольцо: масштаб сбил бы клетки. */
+.enemy.ok:is(:hover, .preview, .aim) .tmark::before {
+  content: '';
+  position: absolute;
+  inset: -4px -8px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, #ffd16666, #ffd16620 65%, transparent);
+  animation: hl-ring 1.4s ease-in-out infinite;
+}
+.enemy.ok:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift);
+}
+.enemy.ok.doomed:is(:hover, .preview, .aim) .sprite-wrap {
+  filter: url(#mv-lift) drop-shadow(0 0 2px #c255e0) drop-shadow(0 0 4px #8f39ad);
+}
+.enemy.ok:is(:hover, .preview, .aim) .name {
+  color: var(--accent);
+}
+@keyframes hl-ring {
+  50% {
+    opacity: 0.55;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tmark::before {
+    animation: none !important;
+  }
 }
