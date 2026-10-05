@@ -293,7 +293,8 @@ function costsMana(id: string): boolean {
   const def = artifactDef(id);
   // Архетип «Проклятье» магический целиком: его пассивки (Чёрная месса, Саван, Неотвратимость) без заклинаний мертвы,
   // поэтому весь набор падает по мане — безмановому Берсерку ни одной вещи (вопрос 7 страницы обсуждения, принят по рекомендации вместе с А+).
-  const out = !!def.tags?.includes('curse') || ([1, 2, 3] as ArtTier[]).some((tier) => (artifactCost(def, tier).mp ?? 0) > 0);
+  // «Призыв» — так же с v0.57.3: все три призыва стоят маны, и рог, приказ, взрыв и пассивки без существ мертвы.
+  const out = !!def.tags?.some((t) => t === 'curse' || t === 'summon') || ([1, 2, 3] as ArtTier[]).some((tier) => (artifactCost(def, tier).mp ?? 0) > 0);
   manaCostCache.set(id, out);
   return out;
 }
