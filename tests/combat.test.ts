@@ -1130,14 +1130,15 @@ describe('Призыв (v0.56)', () => {
     expect(state.allies[0].hp).toBe(16);
   });
 
-  it('набор Призыв: 2 — +6 HP и удар +1, 3 — удар повторяется; Повелитель — существа вдвое, удар героя −40 %', () => {
+  it('набор Призыв: 2 — +6 HP и удар +1, 3 — удар ещё +2 (v0.57.2, было — повтор удара); Повелитель — существа вдвое, удар героя −40 %', () => {
     const two = mkBattle('mage', ['bear'], { extra: [{ id: 'wolf_whistle', tier: 1 }, { id: 'pack_ward', tier: 1 }] });
     performAction(two.state, { type: 'artifact', artifactId: 'wolf_whistle' }, two.rng);
     expect(two.state.allies[0].maxHp).toBe(16);
     expect(computeAllyIntent(two.state, two.state.allies[0])).toMatchObject({ label: '6' });
     const three = mkBattle('mage', ['bear'], { extra: [{ id: 'wolf_whistle', tier: 1 }, { id: 'pack_ward', tier: 1 }, { id: 'war_horn', tier: 1 }] });
     performAction(three.state, { type: 'artifact', artifactId: 'wolf_whistle' }, three.rng);
-    expect(computeAllyIntent(three.state, three.state.allies[0])).toMatchObject({ label: '6×2' });
+    // Укус 5 + набор 2 (+1) + набор 3 (+2), удар один.
+    expect(computeAllyIntent(three.state, three.state.allies[0])).toMatchObject({ label: '8' });
     const lord = mkBattle('warrior', ['bear'], { extra: [{ id: 'raise_dead', tier: 1 }, { id: 'overlord', tier: 1 }] });
     expect(lord.state.hero.stats.strikeMult).toBeCloseTo(-0.4);
     performAction(lord.state, { type: 'artifact', artifactId: 'raise_dead' }, lord.rng);

@@ -957,11 +957,6 @@ export function allyHitDamage(state: BattleState, a: AllyState, amount: number):
   return Math.max(0, Math.round(dmg * (1 + state.hero.stats.allyMult)));
 }
 
-/** Сколько раз бьёт приём существа: набор «Призыв» 3 повторяет каждый удар. */
-export function allyHitCount(state: BattleState, hits: number | undefined): number {
-  return (hits ?? 1) * (state.hero.stats.allyTwice > 0 ? 2 : 1);
-}
-
 /** Куда прыгнет существо: самый раненый живой враг. Союзник дальности не знает — ограничение «как ближний бой» стоило Магу и Лучнику по 2 пункта (v0.26). */
 function allyTarget(state: BattleState): EnemyState | null {
   return state.enemies.filter((e) => e.hp > 0).reduce<EnemyState | null>((m, e) => (!m || e.hp < m.hp ? e : m), null);
@@ -976,7 +971,7 @@ function allyStrike(state: BattleState, a: AllyState, effects: EnemyEffect[], rn
   for (const eff of effects) {
     if (eff.type === 'attack') {
       const dmg = allyHitDamage(state, a, eff.amount + bonus);
-      for (let i = 0; i < allyHitCount(state, eff.hits); i++) {
+      for (let i = 0; i < (eff.hits ?? 1); i++) {
         const target = fixed && fixed.hp > 0 && state.enemies.includes(fixed) ? fixed : allyTarget(state);
         if (!target || !state.allies.includes(a)) break;
         log(state, `${a.name} атакует ${target.name}: ${dmg}`);
@@ -3155,7 +3150,7 @@ export function computeAllyIntent(state: BattleState, a: AllyState): AllyIntentI
     switch (eff.type) {
       case 'attack': {
         const dmg = allyHitDamage(state, a, eff.amount);
-        const hits = allyHitCount(state, eff.hits);
+        const hits = eff.hits ?? 1;
         label = hits > 1 ? `${dmg}×${hits}` : `${dmg}`;
         const victim = allyTarget(state);
         target = victim?.name ?? null;

@@ -276,10 +276,8 @@ export interface DerivedStats {
   allyBlock: number;
   /** +N к HP существа при призыве (набор «Призыв» 2). */
   allyHp: number;
-  /** +N к каждому удару существа (набор «Призыв» 2). */
+  /** +N к каждому удару существа (набор «Призыв»: 2 — +1, 3 — ещё +2). */
   allyDmg: number;
-  /** >0 — каждый удар существа повторяется (набор «Призыв» 3). */
-  allyTwice: number;
   /** Доля сверх к урону существ: 1 — вдвое («Повелитель»). */
   allyMult: number;
   // ── Проклятье ──
@@ -1016,7 +1014,7 @@ export interface BattleLog {
 }
 
 /** Версия игры: показывается в главном меню. Поднимать вместе с новым абзацем в §13 GDD. */
-export const GAME_VERSION = '0.57.1';
+export const GAME_VERSION = '0.57.2';
 
 export const SAVE_VERSION = 44;
 

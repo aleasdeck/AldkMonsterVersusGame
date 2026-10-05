@@ -8,7 +8,7 @@
  */
 import type { ArchetypeId, ArtifactInstance, BattleState, GearInstance, HeroPersistent, LockGrade, PlayerAction, RewardFocus, RunState, StatMods, Status, StatusId } from '../../src/engine/types';
 import { createRng, next as rngNext, type Rng } from '../../src/engine/rng';
-import { VULNERABLE_MULT, allyHitCount, allyHitDamage, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, hitsOverAllies, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
+import { VULNERABLE_MULT, allyHitDamage, canUseAction, defendBlock, endTurn, enemyHitMult, enrageMult, getStatus, hitsOverAllies, holdsThroughEnemyTurn, performAction, resolveEnemyTurn, statusRemaining, statusValue, tranceReduce, tranceStr } from '../../src/engine/combat';
 import { allyAction, allyDef, allyStrikeAction } from '../../src/data/allies';
 import { artifactCost, artifactDef } from '../../src/data/artifacts';
 import { archetypeCounts, artifactTags, setMods } from '../../src/data/archetypes';
@@ -301,7 +301,7 @@ function allyDpt(b: BattleState, a: BattleState['allies'][number]): number {
   let total = 0;
   for (const id of def.order) {
     for (const e of allyAction(def, a.tier, id).effects) {
-      if (e.type === 'attack') total += allyHitDamage(b, a, e.amount) * allyHitCount(b, e.hits);
+      if (e.type === 'attack') total += allyHitDamage(b, a, e.amount) * (e.hits ?? 1);
       else if (e.type === 'debuff') total += dotWorth(e.status, e.value, e.turns) * 0.7;
       else if (e.type === 'buffStr') total += e.amount;
     }
@@ -757,8 +757,7 @@ function modsValue(run: RunState, m: StatMods, inst: ArtifactInstance): number {
     v += (m.allyBlock ?? 0) * pack * 3 * 0.8;
     v += (m.allyHp ?? 0) * pack * 0.65;
     v += (m.allyDmg ?? 0) * pack * 1.5 * 3 * W.enemyHp;
-    // Повтор удара и «Повелитель» — ещё столько же урона существ: около шести за ход у каждого.
-    v += ((m.allyTwice ?? 0) > 0 ? 1 : 0) * pack * 6 * 3 * W.enemyHp;
+    // «Повелитель» — ещё столько же урона существ: около шести за ход у каждого.
     v += (m.allyMult ?? 0) * pack * 6 * 3 * W.enemyHp;
     // ── Проклятье: единица Проклятья — единица HP врага с опозданием на его ход (×0.8); всё — только при заклинаниях ──
     const curseApps = applies.has('curse') ? 1.5 : 0.2;
@@ -875,7 +874,7 @@ function artifactValueRaw(run: RunState, inst: ArtifactInstance): number {
         // Существо (v0.56): HP, которые оно примет на себя вместо героя (около двух третей), и его удары за три хода боя.
         const ally = allyDef(e.allyId);
         const strike = allyStrikeAction(ally, e.tier);
-        const hit = (strike?.effects ?? []).reduce((sum, x) => sum + (x.type === 'attack' ? (x.amount + s.allyDmg) * (x.hits ?? 1) * (s.allyTwice > 0 ? 2 : 1) * (1 + s.allyMult) : 0), 0);
+        const hit = (strike?.effects ?? []).reduce((sum, x) => sum + (x.type === 'attack' ? (x.amount + s.allyDmg) * (x.hits ?? 1) * (1 + s.allyMult) : 0), 0);
         per += (ally.hp(e.tier) + s.allyHp) * 0.65 + hit * 0.7 * 3 * W.enemyHp;
         break;
       }
