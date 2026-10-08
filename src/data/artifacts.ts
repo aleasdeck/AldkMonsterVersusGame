@@ -1392,16 +1392,19 @@ const list: ArtifactDef[] = [
   // обсуждения — tools/summon-proto (вариант Б «Свора», выбран пользователем).
   {
     id: 'raise_dead',
+    fx: { color: '#c9e4a6' },
     name: 'Поднять мертвеца',
     glyph: '†',
     kind: 'active',
     slot: 'armor',
     tags: ['summon'],
-    school: 'physical',
-    cost: { sta: 1 },
+    school: 'magic',
+    cost: { mp: 2 },
     cooldown: () => 3,
     target: 'self',
-    // Призыв за стамину: героям без маны (Берсерк) Волчий свисток не выпадает вовсе (manaWeight), а набор им нужен тоже.
+    // Призыв — колдовство, как свисток и гнездо: за ману (v0.57.3, решение пользователя). До этого скелет стоил 1 STA, и
+    // Берсерк без маны собирал Призыв на одних скелетах — его сборка обгоняла обычного бота на 10 пунктов (GDD §13 v0.57.2).
+    // Безмановому герою весь призыв теперь не выпадает (manaWeight), и это по замыслу.
     effects: (tier) => [{ type: 'summon', allyId: 'skeleton', tier }],
     describe: (tier) => summonText('skeleton', 'скелета', tier),
   },

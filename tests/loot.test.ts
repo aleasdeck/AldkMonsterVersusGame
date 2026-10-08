@@ -167,6 +167,17 @@ describe('дроп заклинаний по мане (loot.ts, v0.40.1)', () =>
     }
   });
 
+  it('архетип «Призыв» тоже по мане (v0.57.3): все призывы за MP, безмановому не выпадают ни они, ни рог, приказ и пассивки', () => {
+    const summoners = ['wolf_whistle', 'raise_dead', 'wasp_nest'];
+    for (const id of summoners) expect(artifactCost(artifactDef(id), 1).mp ?? 0).toBeGreaterThan(0);
+    const berserk = newRun('berserk', 1).hero;
+    const rng = createRng(22);
+    for (let i = 0; i < 3000; i++) {
+      const a = rollArtifact(rng, berserk, [1], [], i % 2 ? 'weapon' : 'armor');
+      if (a) expect(artifactDef(a.id).tags ?? []).not.toContain('summon');
+    }
+  });
+
   it('мана со снаряжения открывает заклинания: ступень считается по computeStats, а не по базе героя', () => {
     const rich = newRun('berserk', 1).hero;
     rich.armor.affix = { stat: 'maxMp', value: 3 };
