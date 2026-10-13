@@ -124,22 +124,22 @@ await shot('menu', '?x=1', async (page) => {
   });
 });
 await shot('sheet', HERO + '&enter=1&foes=wolf' + ARTS + '&sheet=1');
-await shot('m-map', HERO, null, hub(330, { y: 150 }, 420, 'Лес. Десять шагов по тропе: бои, три развилки <b>«?»</b>, засада <b>☠</b> — и логово <b>♛</b> в конце.', ['.room-strip']));
-await shot('m-f1', HERO + '&enter=1&foes=wolf,wolf', null, fight(176, 'Два волка. Над каждым видно, что он задумал: <b>«⚔ 4»</b> — укусит на четыре.', ['.enemy .pill'], 280));
-await shot('m-f1b', HERO + '&enter=1&foes=wolf,wolf', async (p) => { await attack(p); await attack(p); }, fight(160, 'Второй удар слабее первого — рука устаёт. Третий будет ещё слабее.', ['.fatigue-badge', '.tiles .tile:nth-child(1)'], 280));
-await shot('m-f2', HERO + '&enter=1&foes=goblin,bandit_archer', async (p) => { await mv(p, () => window.mv.arm('attack')); await wait(400); }, fight(176, 'Лучник в тени — мечом не дотянусь. Сперва гоблин: он и так прикрывает лучника собой.', ['.role-mark.role-guard', '.role-mark.covered']));
-await shot('m-f4', HERO + '&enter=1&foes=boar', async (p) => { await endTurn(p); await endTurn(p); }, fight(176, 'Роет копытом — следом <b>«Разгон»</b>. Самое время закрыться.', ['.enemy .pill', '.tiles .tile:nth-child(2)'], 280));
-await shot('m-pool', HERO + '&phase=reward', null, hub(160, { b: 356 }, 600, 'Что именно дадут — не видно, видно из чего: «Нападение» — оружие и его вещи, «Защита» — броня и её вещи.', ['.focus-card .card-head']));
-await shot('m-rdef', HERO + DEF, null, hub(352, { b: 357 }, 586, 'Знак <b>«■ Щит»</b> — тот же, что на моём Щитовом ударе. Две вещи одного знака — уже набор.', ['.art-card .arch-label', '.art-card .art-tbl-row:last-child']));
-await shot('m-ratk', HERO + ATK, null, hub(352, { b: 357 }, 586, 'Лук достанет любого, но тетиву я не тяну: урон вдвое ниже, а Прицел мне не дастся.', ['.cards .card:nth-child(3) .item-type', '.cards .card:nth-child(3) .prop-row']));
-await shot('m-place', HERO + DEF, async (p) => { await wait(500); await mv(p, () => window.mv.takeReward(1)); await wait(900); }, hub(400, { y: 160 }, 420, 'Магический щит — бронный: в меч не встанет. А в кольчуге гнездо как раз пустое.', ['.pl-sock']));
-await shot('m-shop', HERO + '&phase=shop', null, hub(300, { b: 357 }, 636, 'Лекарь, вещь, артефакт, склянка — всё за золото. Не нравится прилавок — за 5 монет завезут другой.', ['.gold']));
-await shot('m-f5', HERO + '&enter=1&foes=spider,bat', null, fight(176, 'Клыки на значке мыши — что откусит, то себе в здоровье. Паук сзади: ✧ заклинатель, кусает ядом.', ['.enemy .pill']));
-await shot('m-chest', HERO + '&phase=event&event=chest', null, hub(18, { y: 96 }, 290, 'Сундук на замке. Сколько штифтов — столько вещей. Сорвусь — уколюсь, и замок заклинит.', ['.lock-row']));
-await shot('m-f7', HERO + '&enter=1&foes=cutthroat,goblin_shaman' + ARTS, null, fight(160, '<b>✚</b> Шаман — поддержка: лечит соседей. Пока он жив, головорез будет подниматься.', ['.role-mark.role-support'], 300));
-await shot('m-elite', HERO + '&enter=1&foes=bear' + ARTS, null, fight(160, 'Медведь. Засада покрепче: здоровья как у троих волков. Зато и награда — тиром выше.', ['.enemy .bar-hp'], 300));
-await shot('m-camp', HERO + '&phase=camp&art=mana_shield', null, hub(486, { y: 232 }, 450, 'Привал. Отдохнуть — вернуть половину здоровья. Или подточить артефакт на тир. Впереди логово — решать мне.'));
-await shot('m-boss', HERO + '&room=9&enter=1&boss2=1' + ARTS, null, fight(160, 'Ранен — красная аура, вторая повадка. И злится: каждая ярость — укус сильнее. Тянуть нельзя.', ['.enemy .pill'], 300));
+await shot('m-map', HERO, null, hub(330, { y: 150 }, 420, 'Тропа в чащу. Где-то в глубине — логово вожака, а по пути драки, развилки и кое-что похуже.', ['.room-strip']));
+await shot('m-f1', HERO + '&enter=1&foes=wolf,wolf', null, fight(176, 'Два волка. Оба припали к земле — сейчас кинутся.', ['.enemy .pill'], 280));
+await shot('m-f1b', HERO + '&enter=1&foes=wolf,wolf', async (p) => { await attack(p); await attack(p); }, fight(160, 'Второй взмах уже слабее — рука тяжелеет. Третий выйдет совсем вялым.', ['.fatigue-badge', '.tiles .tile:nth-child(1)'], 280));
+await shot('m-f2', HERO + '&enter=1&foes=goblin,bandit_archer', async (p) => { await mv(p, () => window.mv.arm('attack')); await wait(400); }, fight(176, 'До лучника не дотянуться — гоблин стоит на пути, да ещё и прикрывает его собой.', ['.role-mark.role-guard', '.role-mark.covered']));
+await shot('m-f4', HERO + '&enter=1&foes=boar', async (p) => { await endTurn(p); await endTurn(p); }, fight(176, 'Роет копытом — сейчас понесётся. Встречу его щитом.', ['.enemy .pill', '.tiles .tile:nth-child(2)'], 280));
+await shot('m-pool', HERO + '&phase=reward', null, hub(160, { b: 356 }, 520, 'Что поискать среди трофеев — клинок получше или доспех покрепче?', ['.focus-card .card-head']));
+await shot('m-rdef', HERO + DEF, null, hub(352, { b: 357 }, 586, 'Оберег для щитового боя — под стать моей выучке. Вдвоём они сработаются.', ['.art-card .arch-label', '.art-card .art-tbl-row:last-child']));
+await shot('m-ratk', HERO + ATK, null, hub(352, { b: 357 }, 400, 'Лук? Я из него и в сарай не попаду.', ['.cards .card:nth-child(3) .item-type', '.cards .card:nth-child(3) .prop-row']));
+await shot('m-place', HERO + DEF, async (p) => { await wait(500); await mv(p, () => window.mv.takeReward(1)); await wait(900); }, hub(400, { y: 160 }, 420, 'Этот оберег — для доспеха, к клинку его не приладишь. В кольчуге как раз пусто.', ['.pl-sock']));
+await shot('m-shop', HERO + '&phase=shop', null, hub(300, { b: 357 }, 636, 'Лечение, сталь, обереги, склянки — всё за монету. Не по душе товар — за пять монет покажет другой.', ['.gold']));
+await shot('m-f5', HERO + '&enter=1&foes=spider,bat', null, fight(176, 'Мышь пьёт кровь — каждый укус её подлечивает. Паук прячется сзади и кусает ядом.', ['.enemy .pill']));
+await shot('m-chest', HERO + '&phase=event&event=chest', null, hub(18, { y: 96 }, 290, 'Замок мудрёный — значит, внутри есть что прятать. Дрогнет рука — уколюсь, и его заест.', ['.lock-row']));
+await shot('m-f7', HERO + '&enter=1&foes=cutthroat,goblin_shaman' + ARTS, null, fight(160, 'Шаман за спиной головореза — будет латать его, пока жив.', ['.role-mark.role-support'], 300));
+await shot('m-elite', HERO + '&enter=1&foes=bear' + ARTS, null, fight(160, 'Медведь. Такой стоит троих волков — но и добыча с него будет знатная.', ['.enemy .bar-hp'], 300));
+await shot('m-camp', HERO + '&phase=camp&art=mana_shield', null, hub(486, { y: 232 }, 450, 'Привал. Отлежаться — или подточить оберег? Впереди логово.'));
+await shot('m-boss', HERO + '&room=9&enter=1&boss2=1' + ARTS, null, fight(160, 'Ранен — и только злее. С каждым рыком кусает сильнее, тянуть нельзя.', ['.enemy .pill'], 300));
 await browser.close();
 
 // PNG 1920×1080 → WebP 1440×810: страница с кадрами весит около 2 МБ вместо 15.

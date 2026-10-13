@@ -100,6 +100,10 @@ table.cover td.c span { cursor: help; }
 table.cover td.topic { font-weight: 500; white-space: nowrap; }
 table.cover td.what { color: var(--muted); font-size: 13px; }
 table.rewards { min-width: 820px; }
+table.dict { min-width: 640px; }
+table.dict td:first-child { white-space: nowrap; font-weight: 500; }
+table.dict td:nth-child(2) { color: var(--muted); }
+table.dict .say { font-size: 18px; box-shadow: 2px 2px 0 #000b; }
 table.rewards td:first-child { white-space: nowrap; font-weight: 500; }
 table.rewards td.lesson { color: var(--muted); font-size: 13px; }
 .it { white-space: nowrap; }
@@ -186,34 +190,62 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
 
 <h2 id="voice">Голос героя</h2>
 <div class="prose">
-<p>Рассказчика нет. Говорит только Воин, от первого лица и о том, что видит сейчас. Каждая мысль — наблюдение и догадка: «вижу вот это — значит, пожалуй, стоит вот так». Решение остаётся за игроком; если он поступил иначе, герой реагирует на итог, а не спорит.</p>
+<p>Рассказчика нет, и экскурсии по интерфейсу тоже. Говорит Воин — бывалый рыцарь, который смотрит на поле и прикидывает вслух: волки припали к земле, кабан роет копытом, рука после второго взмаха тяжелеет. Он не знает слов «полоска», «плитка», «значок», «тир» и «слот». Какая часть экрана стоит за его словами, показывает подсветка: пока Воин думает «сейчас кинутся», намерения волков обведены золотом.</p>
 <ul class="list">
-  <li><b>Только «я».</b> Ни «вы», ни «нажмите», ни «игрок». Герой не знает про клавиши и мышь — он знает про меч, щит и волков.</li>
-  <li><b>Слова — как на экране.</b> STA, Блок, «Защититься», «Конец хода», имена врагов и вещей. Что за слово, показывает мягкий золотой контур на упомянутом элементе: полоске, плитке, значке.</li>
-  <li><b>Одна мысль — одна идея.</b> До 120 знаков, не больше трёх строк в облачке.</li>
-  <li><b>По ситуации и один раз.</b> Мысль срабатывает, когда на поле есть то, о чём она. Если игрок уже сделал правильно, она не звучит или звучит подтверждением.</li>
-  <li><b>Ошибку герой берёт на себя.</b> «Говорил себе — закройся. Учту». Без упрёков, без повторов.</li>
-  <li><b>Ничего не держит.</b> Клики проходят сквозь облачко, ход врагов его не ждёт. Облачко гаснет само через 8 секунд или когда ситуация ушла; клик по нему — следующая мысль из очереди (не больше двух).</li>
+  <li><b>Только мир.</b> Ни «вы» и «нажмите», ни названий интерфейса и цветов. HP — раны, STA — силы, MP — колдовство, Блок — щит, намерение — то, что делает зверь, артефакт — оберег.</li>
+  <li><b>Связь с экраном — подсветка, а не слова.</b> Чисел и значков герой не произносит. Упомянутое мягко обводится золотом: полоска, плитка, намерение, метка на карточке.</li>
+  <li><b>Голос бывалого.</b> Коротко, сухо, иногда с усмешкой. Без «Совет:», без восклицательных лекций, без пересказа правил.</li>
+  <li><b>Одна мысль — одна идея.</b> До 100 знаков, не больше трёх строк в облачке.</li>
+  <li><b>По ситуации и один раз.</b> Мысль звучит, когда на поле есть то, о чём она. Если игрок уже сделал правильно, она молчит.</li>
+  <li><b>Ошибку герой берёт на себя.</b> «Говорил себе — закройся». Без упрёков.</li>
+  <li><b>Ничего не держит.</b> Клики проходят сквозь облачко, ход врагов его не ждёт. Облачко гаснет само через 8 секунд или когда ситуация ушла; клик по нему — следующая мысль (в очереди не больше двух).</li>
 </ul>
 </div>
 
 <div class="versus">
   <div class="vs no">
-    <span class="tag">Не так: рассказчик и приказ</span>
-    <div class="narr">Нажмите «Защититься», чтобы получить блок, равный 80 % вашей Защиты.</div>
-    <div class="narr">Совет: враг готовит сильную атаку!</div>
-    <p>Подсказка из интерфейса, а не из мира. Говорит с игроком свысока и велит кликнуть.</p>
+    <span class="tag">Не так: экскурсия по интерфейсу</span>
+    <div class="narr">Красная полоса — HP: кончится — конец пути. Жёлтая — STA, силы на ход. Синяя — MP, мана для чар.</div>
+    <div class="narr">Знак «■ Щит» — тот же, что на моём Щитовом ударе. Две вещи одного знака — уже набор.</div>
+    <div class="narr">Пробитый щит на значке гоблина — этот удар пройдёт сквозь Блок.</div>
+    <p>Первый круг сценария. Это рассказчик, переодетый героем: называет полоски, значки и цвета. Живой рыцарь так не думает.</p>
   </div>
   <div class="vs yes">
-    <span class="tag">Так: герой прикидывает</span>
-    <div><span class="say big">Последнее очко сил. Добить — или прикрыться? «Защититься» даст <b>6 Блока</b>, волчьи зубы увязнут в щите.</span></div>
-    <p>То же правило и то же число, но это рассуждение Воина: два варианта, и выбор за игроком.</p>
+    <span class="tag">Так: рыцарь смотрит на поле</span>
+    <div><span class="say big">Ран пока нет, сил — на три дела за раз, а колдовства во мне на донышке.</span></div>
+    <div><span class="say big">Оберег для щитового боя — под стать моей выучке.</span></div>
+    <div><span class="say big">Гоблин метит в щель под щитом — от такого не закроешься.</span></div>
+    <p>Те же три правила, но о себе, о вещах и о противнике. Полоски, метку «■ Щит» и метку «сквозь блок» показывает подсветка.</p>
   </div>
 </div>
 
+<h4>Словарь героя</h4>
+<p class="note">Как Воин называет то, что игрок видит на экране. Слова слева в реплики не попадают.</p>
+<div class="scroll">
+<table class="dict">
+  <thead><tr><th>На экране</th><th>Как говорит Воин</th><th>Пример</th></tr></thead>
+  <tbody>
+    <tr><td>HP</td><td>раны, «ещё держусь»</td><td><span class="say">Ран пока нет…</span></td></tr>
+    <tr><td>STA и цена приёма</td><td>силы, «на три дела», «перевести дух»</td><td><span class="say">На три таких дела меня хватит.</span></td></tr>
+    <tr><td>MP</td><td>колдовство, «на донышке»</td><td><span class="say">Колдовства во мне на донышке.</span></td></tr>
+    <tr><td>Блок, «Защититься»</td><td>щит, «прикрыться», «встретить щитом»</td><td><span class="say">Встречу его щитом.</span></td></tr>
+    <tr><td>Намерение врага</td><td>что делает зверь или боец</td><td><span class="say">Оба припали к земле — сейчас кинутся.</span></td></tr>
+    <tr><td>Усталость</td><td>рука тяжелеет</td><td><span class="say">Третий выйдет совсем вялым.</span></td></tr>
+    <tr><td>Конец хода</td><td>«перевести дух», «пусть теперь они»</td><td><span class="say">Выдохся. Пусть теперь они.</span></td></tr>
+    <tr><td>Перезарядка</td><td>плечо гудит, «пару вдохов»</td><td><span class="say">Пару вдохов — и снова смогу.</span></td></tr>
+    <tr><td>Артефакт и гнездо</td><td>оберег, гнездо в эфесе, «к клинку не приладишь»</td><td><span class="say">Этот оберег — для доспеха.</span></td></tr>
+    <tr><td>Тир</td><td>сталь добротнее, рунная сталь</td><td><span class="say">Сталь добротнее моей.</span></td></tr>
+    <tr><td>Архетип и набор</td><td>«вещь для щитового боя», «щит к щиту»</td><td><span class="say">Вдвоём они сработаются.</span></td></tr>
+    <tr><td>Владение</td><td>«не моё», «и в сарай не попаду»</td><td><span class="say">Лук? Я из него и в сарай не попаду.</span></td></tr>
+    <tr><td>Дальность и ряд</td><td>«не дотянуться», «стоит на пути»</td><td><span class="say">Гоблин стоит на пути.</span></td></tr>
+    <tr><td>Пул и переброс награды</td><td>«что поискать среди трофеев», «попытать удачу»</td><td><span class="say">Клинок получше или доспех покрепче?</span></td></tr>
+  </tbody>
+</table>
+</div>
+
 <div class="pair">
-  <figure><img src="img/m-f4.webp" alt="Бой с кабаном: над Воином облачко «Роет копытом — следом «Разгон». Самое время закрыться.», подсвечены намерение кабана и плитка «Защита»" width="1440" height="810" loading="lazy"><figcaption>В бою облачко висит над героем, хвостиком к нему. Упомянутые намерение врага и плитка «Защита» обведены золотом, затемнения нет.</figcaption></figure>
-  <figure><img src="img/m-place.webp" alt="Размещение артефакта: облачко с аватаркой Воина «Магический щит — бронный: в меч не встанет…», подсвечены гнёзда" width="1440" height="810" loading="lazy"><figcaption>На хабах героя на поле нет, поэтому облачко идёт с его аватаркой и садится на свободное место, не закрывая кнопок.</figcaption></figure>
+  <figure><img src="img/m-f4.webp" alt="Бой с кабаном: над Воином облачко «Роет копытом — сейчас понесётся. Встречу его щитом.», подсвечены намерение кабана и плитка «Защита»" width="1440" height="810" loading="lazy"><figcaption>Воин не говорит «намерение» и «плитка» — их обводит подсветка: что задумал кабан и чем его встретить. Затемнения нет.</figcaption></figure>
+  <figure><img src="img/m-place.webp" alt="Размещение артефакта: облачко с аватаркой Воина «Этот оберег — для доспеха, к клинку его не приладишь…», подсвечены гнёзда" width="1440" height="810" loading="lazy"><figcaption>На хабах героя на поле нет, поэтому облачко идёт с его аватаркой и садится на свободное место, не закрывая кнопок.</figcaption></figure>
 </div>
 <p class="note">Кадры сняты в игре, облачко и контур нарисованы поверх тем же шрифтом. Числа — настоящие числа Воина и врагов Леса в первом акте.</p>
 
@@ -264,9 +296,9 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   </div></div>
   <figure><img src="img/m-map.webp" alt="Карта: Лес, «Войти: Бой»; облачко Воина про десять шагов по тропе, подсвечена лента клеток" width="1440" height="810" loading="lazy"></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">p1</span>Первый экран карты</div><div><span class="say">Лес. Десять шагов по тропе: бои, три развилки <b>«?»</b>, засада <b>☠</b> — и логово <b>♛</b> в конце.</span></div><div class="pt">лента клеток в топбаре</div></div>
-    <div class="th"><div class="when"><span class="id">p2</span>Следом</div><div><span class="say">Красная полоса — <b>HP</b>: кончится — конец пути. Жёлтая — <b>STA</b>, силы на ход. Синяя — <b>MP</b>, мана для чар.</span></div><div class="pt">три полоски в консоли</div></div>
-    <div class="th"><div class="when"><span class="id">p3</span>Следом, если ещё не вошёл</div><div><span class="say">Меч и кольчуга, в каждом по пустому гнезду. Найду артефакт — будет куда вставить.</span></div><div class="pt">пустые гнёзда на плитках снаряжения</div></div>
+    <div class="th"><div class="when"><span class="id">p1</span>Первый экран карты</div><div><span class="say">Тропа в чащу. Где-то в глубине — логово вожака, а по пути драки, развилки и кое-что похуже.</span></div><div class="pt">лента клеток в топбаре</div></div>
+    <div class="th"><div class="when"><span class="id">p2</span>Следом</div><div><span class="say">Ран пока нет, сил — на три дела за раз, а колдовства во мне на донышке.</span></div><div class="pt">полоски HP, STA и MP в консоли</div></div>
+    <div class="th"><div class="when"><span class="id">p3</span>Следом, если ещё не вошёл</div><div><span class="say">В эфесе меча и в кольчуге — пустые гнёзда. Попадётся оберег — будет куда вставить.</span></div><div class="pt">пустые гнёзда на плитках снаряжения</div></div>
   </div>
 </section>
 
@@ -284,15 +316,15 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
     <figure><img src="img/m-f1b.webp" alt="После двух ударов: Блок 2 и усталость над героем, число удара на плитке красное; облачко про усталость" width="1440" height="810" loading="lazy"><figcaption>b4 — усталость: над героем «⏳ 2», удар на плитке покраснел до 2–3. Рядом Блок 2 от «Стойки».</figcaption></figure>
   </div>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">b1</span>Начало боя</div><div><span class="say">Два волка. Над каждым видно, что он задумал: <b>«⚔ 4»</b> — укусит на четыре.</span></div><div class="pt">пилюли намерений</div></div>
-    <div class="th"><div class="when"><span class="id">b2</span>Следом, пока ничего не сделано</div><div><span class="say">Сил на три дела: три очка <b>STA</b>. Удар — одно, «Защититься» — одно, Щитовой удар — тоже одно.</span></div><div class="pt">полоска STA, цены в углах плиток</div></div>
-    <div class="th"><div class="when"><span class="id">b3</span>Первый удар оружием</div><div><span class="say">Взмах — и щит сам встал как надо: +1 <b>Блока</b>. Старая привычка.</span></div><div class="pt">значок Блока над героем (черта «Стойка»)</div></div>
-    <div class="th"><div class="when"><span class="id">b4</span>Второй удар за ход</div><div><span class="say">Второй удар слабее первого — рука устаёт. Третий будет ещё слабее.</span></div><div class="pt">значок усталости, красное число на плитке</div></div>
-    <div class="th"><div class="when"><span class="id">b5</span>Осталось 1 STA, враги собираются бить</div><div><span class="say">Последнее очко сил. Добить — или прикрыться? «Защититься» даст <b>6 Блока</b>, волчьи зубы увязнут в щите.</span></div><div class="pt">плитка «Защита»</div></div>
-    <div class="th"><div class="when"><span class="id">b6</span>STA кончилась, ход не закончен 3 секунды</div><div><span class="say">Выдохся. <b>«Конец хода»</b> — и к следующему силы вернутся все.</span></div><div class="pt">кнопка «Конец хода»</div></div>
-    <div class="th"><div class="when"><span class="id">b7</span>Начало хода 2, если Блок был</div><div><span class="say">Блок продержался ход врагов и рассыпался. Каждый ход — щит заново.</span></div><div class="pt">место значка Блока</div></div>
-    <div class="th"><div class="when"><span class="id">b8</span>У волка намерение «Вой»</div><div><span class="say">Оранжевая стрелка — волк не укусит, а завоет. После воя вся стая кусает злее.</span></div><div class="pt">пилюля бафа над волком</div></div>
-    <div class="th react"><div class="when"><span class="id">r1</span>Реакция: ход закончен с неистраченной STA, а враги ранили</div><div><span class="say">Силы остались, а я их не потратил. Несделанное на следующий ход не переносится.</span></div><div class="pt none"></div></div>
+    <div class="th"><div class="when"><span class="id">b1</span>Начало боя</div><div><span class="say">Два волка. Оба припали к земле — сейчас кинутся.</span></div><div class="pt">намерения «⚔ 4» над волками</div></div>
+    <div class="th"><div class="when"><span class="id">b2</span>Следом, пока ничего не сделано</div><div><span class="say">Взмахнуть мечом, прикрыться щитом — на три таких дела меня хватит. Потом надо перевести дух.</span></div><div class="pt">полоска STA, цены в углах плиток</div></div>
+    <div class="th"><div class="when"><span class="id">b3</span>Первый удар оружием</div><div><span class="say">Ударил — и щит сам встал на место. Привычка.</span></div><div class="pt">Блок над героем (черта «Стойка»)</div></div>
+    <div class="th"><div class="when"><span class="id">b4</span>Второй удар за ход</div><div><span class="say">Второй взмах уже слабее — рука тяжелеет. Третий выйдет совсем вялым.</span></div><div class="pt">усталость над героем, красное число удара</div></div>
+    <div class="th"><div class="when"><span class="id">b5</span>Осталось 1 STA, враги собираются бить</div><div><span class="say">Сил на одно дело. Добить — или встретить зубы щитом?</span></div><div class="pt">плитка «Защита»</div></div>
+    <div class="th"><div class="when"><span class="id">b6</span>STA кончилась, ход не закончен 3 секунды</div><div><span class="say">Выдохся. Перевести дух — пусть теперь они.</span></div><div class="pt">кнопка «Конец хода»</div></div>
+    <div class="th"><div class="when"><span class="id">b7</span>Начало хода 2, если Блок был</div><div><span class="say">Щит принял укус. Но держать его поднятым вечно не выйдет — опустил, и всё сначала.</span></div><div class="pt">Блок над героем гаснет</div></div>
+    <div class="th"><div class="when"><span class="id">b8</span>У волка намерение «Вой»</div><div><span class="say">Волк задрал морду — сейчас завоет, и стая озвереет.</span></div><div class="pt">намерение «↑» над волком</div></div>
+    <div class="th react"><div class="when"><span class="id">r1</span>Реакция: ход закончен с неистраченной STA, а враги ранили</div><div><span class="say">Силы остались, а я стоял. Их с собой не унесёшь.</span></div><div class="pt none"></div></div>
   </div>
 
   <div class="sub">
@@ -303,13 +335,13 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
       <figure><img src="img/m-ratk.webp" alt="Награда «Нападение»: копьё, Крюк-кошка, лук с красным типом «Дальнее» и зачёркнутым перком; облачко про лук" width="1440" height="810" loading="lazy"><figcaption>n2 — чужое оружие: красное «Дальнее», кубик 1–4 вместо 4–6, перк зачёркнут.</figcaption></figure>
     </div>
     <div class="thoughts">
-      <div class="th"><div class="when"><span class="id">n1</span>Экран пула</div><div><span class="say">Что именно дадут — не видно, видно из чего: «Нападение» — оружие и его вещи, «Защита» — броня и её вещи.</span></div><div class="pt">две карточки пула</div></div>
-      <div class="th"><div class="when"><span class="id">n2</span>В тройке чужое оружие</div><div><span class="say">Лук достанет любого, но тетиву я не тяну: урон вдвое ниже, а Прицел мне не дастся.</span></div><div class="pt">красный тип и зачёркнутый перк</div></div>
-      <div class="th"><div class="when"><span class="id">n3</span>В тройке чужая броня</div><div><span class="say">Роба мне не по плечу: её чары на мне не заработают. Защита и здоровье — всё равно мои.</span></div><div class="pt">красный тип и зачёркнутый перк</div></div>
-      <div class="th"><div class="when"><span class="id">n4</span>В тройке предмет второго тира</div><div><span class="say">Зелёное имя — тир повыше. И гнёзд два: под своё и <b>◇</b> — под что угодно.</span></div><div class="pt">гнёзда внизу карточки</div></div>
-      <div class="th"><div class="when"><span class="id">q1</span>На награде есть 5 золота и больше</div><div><span class="say">Тройка не нравится — за 5 монет её можно перебросить. Раз на экран.</span></div><div class="pt">кнопка «Перебросить за 5»</div></div>
-      <div class="th"><div class="when"><span class="id">n5</span>Артефакт ждёт гнезда</div><div><span class="say">Магический щит — бронный: в меч не встанет. А в кольчуге гнездо как раз пустое.</span></div><div class="pt">«не подходит» и «Вставить»</div></div>
-      <div class="th"><div class="when"><span class="id">n6</span>Надет предмет взамен старого с артефактом</div><div><span class="say">Новые латы — а артефакт сам перебрался из старой кольчуги. Пока хватает гнёзд, ничего не теряется.</span></div><div class="pt">плитка брони в консоли</div></div>
+      <div class="th"><div class="when"><span class="id">n1</span>Экран пула</div><div><span class="say">Что поискать среди трофеев — клинок получше или доспех покрепче?</span></div><div class="pt">карточки «Нападение» и «Защита»</div></div>
+      <div class="th"><div class="when"><span class="id">n2</span>В тройке чужое оружие</div><div><span class="say">Лук? Я из него и в сарай не попаду.</span></div><div class="pt">красное «Дальнее», урон 1–4, зачёркнутый перк</div></div>
+      <div class="th"><div class="when"><span class="id">n3</span>В тройке чужая броня</div><div><span class="say">Роба колдуна. На мне она просто тряпка — разве что лишний слой.</span></div><div class="pt">красное «Лёгкая», зачёркнутый перк</div></div>
+      <div class="th"><div class="when"><span class="id">n4</span>В тройке предмет второго тира</div><div><span class="say">Сталь добротнее моей, и гнёзд в ней два.</span></div><div class="pt">зелёное имя и гнёзда карточки</div></div>
+      <div class="th"><div class="when"><span class="id">q1</span>На награде есть 5 золота и больше</div><div><span class="say">Ничего путного. За пять монет можно попытать удачу ещё раз.</span></div><div class="pt">кнопка «Перебросить за 5»</div></div>
+      <div class="th"><div class="when"><span class="id">n5</span>Артефакт ждёт гнезда</div><div><span class="say">Этот оберег — для доспеха, к клинку его не приладишь. В кольчуге как раз пусто.</span></div><div class="pt">«не подходит» и «Вставить»</div></div>
+      <div class="th"><div class="when"><span class="id">n6</span>Надет предмет взамен старого с артефактом</div><div><span class="say">Новые латы — а оберег сам перебрался из старой кольчуги. Ничего не потерял.</span></div><div class="pt">плитка брони в консоли</div></div>
     </div>
   </div>
 </section>
@@ -325,13 +357,13 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   <p class="why">Бой о ряде. Меч достаёт только первого, страж прикрывает того, кто сзади, а Щитовой удар толкает стража назад и открывает лучника. Коронный приём Воина объясняет себя сам, на деле.</p>
   <figure><img src="img/m-f2.webp" alt="Выбран удар: под гоблином кольцо цели, лучник в тени; облачко про то, что мечом не дотянуться; подсвечены значки стража и прикрытого" width="1440" height="810" loading="lazy"><figcaption>d2 — выбран «Ударить»: лучник в тени, ридаут пишет «первый в ряду». Подсвечены значки ⛨ у гоблина и ⛉ у прикрытого лучника.</figcaption></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">d1</span>Начало боя</div><div><span class="say">Гоблин впереди, лучник у него за спиной. Мечом я достаю только <b>первого в ряду</b>.</span></div><div class="pt">гоблин</div></div>
-    <div class="th"><div class="when"><span class="id">d2</span>Выбран удар, кто-то вне досягаемости</div><div><span class="say">Лучник в тени — мечом не дотянусь. Сперва гоблин: он и так прикрывает лучника собой.</span></div><div class="pt">значки ⛨ и ⛉</div></div>
-    <div class="th"><div class="when"><span class="id">d3</span>Следом за d1</div><div><span class="say">Значки у имён — повадка. <b>⛨</b> Страж принимает мой удар за того, кто сзади. <b>➶</b> Стрелок бьёт издалека.</span></div><div class="pt">значки ролей</div></div>
-    <div class="th"><div class="when"><span class="id">d4</span>Щитовой удар готов, врагов двое и больше</div><div><span class="say">Щитовой удар: бью, половина урона — в Блок, а гоблин отлетит на шаг назад. И лучник окажется передо мной.</span></div><div class="pt">плитка «Щитовой удар»</div></div>
-    <div class="th"><div class="when"><span class="id">d5</span>Навык ушёл на перезарядку</div><div><span class="say">Теперь Щитовой удар отдыхает два хода. Цифра на плитке — сколько ждать.</span></div><div class="pt">перезарядка на плитке</div></div>
-    <div class="th"><div class="when"><span class="id">d6</span>У намерения метка «сквозь блок»</div><div><span class="say">Пробитый щит на значке гоблина — этот удар пройдёт сквозь Блок. Закрываться от него без толку.</span></div><div class="pt">метка на пилюле</div></div>
-    <div class="th"><div class="when"><span class="id">d7</span>Стрелок оказался первым в ряду</div><div><span class="say">Лучник в упор: так он бьёт вполсилы, а после хода отступит. Бить, пока близко.</span></div><div class="pt">лучник</div></div>
+    <div class="th"><div class="when"><span class="id">d1</span>Начало боя</div><div><span class="say">Гоблин впереди, лучник за ним. Мечом достану только того, кто ближе.</span></div><div class="pt">кольцо цели под гоблином</div></div>
+    <div class="th"><div class="when"><span class="id">d2</span>Выбран удар, кто-то вне досягаемости</div><div><span class="say">До лучника не дотянуться — гоблин стоит на пути, да ещё и прикрывает его собой.</span></div><div class="pt">лучник в тени, метки ⛨ и ⛉</div></div>
+    <div class="th"><div class="when"><span class="id">d3</span>Следом за d1</div><div><span class="say">Лучник держится позади и бьёт издалека. Такого надо вытащить к себе — или обойти.</span></div><div class="pt">метки ролей у имён</div></div>
+    <div class="th"><div class="when"><span class="id">d4</span>Щитовой удар готов, врагов двое и больше</div><div><span class="say">Двину гоблина щитом — отлетит назад, и лучник окажется прямо передо мной.</span></div><div class="pt">плитка «Щитовой удар»</div></div>
+    <div class="th"><div class="when"><span class="id">d5</span>Навык ушёл на перезарядку</div><div><span class="say">Плечо гудит после такого удара. Пару вдохов — и снова смогу.</span></div><div class="pt">перезарядка на плитке</div></div>
+    <div class="th"><div class="when"><span class="id">d6</span>У намерения метка «сквозь блок»</div><div><span class="say">Гоблин метит в щель под щитом — от такого не закроешься.</span></div><div class="pt">метка «сквозь блок» на намерении</div></div>
+    <div class="th"><div class="when"><span class="id">d7</span>Стрелок оказался первым в ряду</div><div><span class="say">Лучник теперь в упор — стрелять ему неудобно, при первой возможности отступит. Бить, пока рядом.</span></div><div class="pt">лучник</div></div>
   </div>
 
   <div class="sub">
@@ -342,10 +374,10 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
       <figure><img src="img/sheet.webp" alt="Лист персонажа: навык Щитовой удар, черта Стойка, «Щит 3/3» и свойства набора" width="1440" height="810" loading="lazy"><figcaption>a3 отсылает к листу ☻: там счёт «Щит 3/3» и то, что набор даёт.</figcaption></figure>
     </div>
     <div class="thoughts">
-      <div class="th"><div class="when"><span class="id">a1</span>На карточке знак, который у героя уже есть</div><div><span class="say">Знак <b>«■ Щит»</b> — тот же, что на моём Щитовом ударе. Две вещи одного знака — уже набор.</span></div><div class="pt">метка и строка «набор Щит 2/3»</div></div>
-      <div class="th"><div class="when"><span class="id">a2</span>В тройке вещь другого знака</div><div><span class="say"><b>♦</b> — знак Крови: раны, что тикают каждый ход. Знаков много — кровь, огонь, яд, свет… Мне по руке щит, но смешивать не запрещено.</span></div><div class="pt">метка на карточке</div></div>
-      <div class="th"><div class="when"><span class="id">a3</span>Набор 2/3 собран</div><div><span class="say">Два знака «■» — и «Защититься» с каждым приёмом на блок дают ещё +2. Счёт знаков — в листе <b>☻</b>.</span></div><div class="pt">кнопка ☻ в топбаре</div></div>
-      <div class="th"><div class="when"><span class="id">w1</span>В тройке копьё</div><div><span class="say">Копьё — тоже ближнее, а древком достанет любого в ряду: три точки горят.</span></div><div class="pt">точки дальности</div></div>
+      <div class="th"><div class="when"><span class="id">a1</span>На карточке знак, который у героя уже есть</div><div><span class="say">Оберег для щитового боя — под стать моей выучке. Вдвоём они сработаются.</span></div><div class="pt">метка «■ Щит» и строка «набор Щит 2/3»</div></div>
+      <div class="th"><div class="when"><span class="id">a2</span>В тройке вещь другого знака</div><div><span class="say">Это для тех, кто пускает кровь: рана кровит ещё долго. Не мой путь — но кто знает.</span></div><div class="pt">метка «♦ Кровь»</div></div>
+      <div class="th"><div class="when"><span class="id">a3</span>Набор 2/3 собран</div><div><span class="say">Щит к щиту — теперь закрываюсь заметно крепче.</span></div><div class="pt">плитки «Защита» и приёмов с блоком</div></div>
+      <div class="th"><div class="when"><span class="id">w1</span>В тройке копьё</div><div><span class="say">Копьё. Достанет и того, кто прячется за первым.</span></div><div class="pt">три точки дальности</div></div>
     </div>
   </div>
 </section>
@@ -360,8 +392,8 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   <p class="why">К этой клетке у героя 14 монет: 10 на старте и по 2 за два боя. Хватит на артефакт или на склянку и переброс — выбор настоящий.</p>
   <figure><img src="img/m-shop.webp" alt="Торговец: лекарь, панцирь, Панцирь черепахи, зелье бодрости; облачко Воина про золото, подсвечено золото" width="1440" height="810" loading="lazy"></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">s1</span>Вход</div><div><span class="say">Лекарь, вещь, артефакт, склянка — всё за золото. Не нравится прилавок — за 5 монет завезут другой.</span></div><div class="pt">золото, цены на кнопках</div></div>
-    <div class="th"><div class="when"><span class="id">s2</span>Не хватает на покупку</div><div><span class="say">На это не хватает. Золото — за победы: бой даёт 2, засада — 4, логово — 6.</span></div><div class="pt">золото в топбаре</div></div>
+    <div class="th"><div class="when"><span class="id">s1</span>Вход</div><div><span class="say">Лечение, сталь, обереги, склянки — всё за монету. Не по душе товар — за пять монет покажет другой.</span></div><div class="pt">золото, цены на кнопках</div></div>
+    <div class="th"><div class="when"><span class="id">s2</span>Не хватает на покупку</div><div><span class="say">Не по карману. Монеты дают драки — а со зверя покрупнее и добыча богаче.</span></div><div class="pt">золото в топбаре</div></div>
   </div>
 </section>
 
@@ -375,17 +407,17 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   </div></div>
   <p class="why">Один враг, но каждый его ход разный: удар, щит, замах. Главный урок — замах: противник честно предупреждает за ход, и это лучший момент закрыться. Здесь же звучит мана, если в руках есть Магический щит.</p>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">k1</span>Начало боя</div><div><span class="say">Кабан. <b>⚒</b> Громила: встал первым — и раззадорился, Сила +2.</span></div><div class="pt">значок роли и ↑2</div></div>
-    <div class="th"><div class="when"><span class="id">k2</span>У врага появился Блок</div><div><span class="say">Ощетинился — <b>Блок 5</b>. Первый удар уйдёт в щетину, а не в мясо.</span></div><div class="pt">«(+5)» на полоске HP</div></div>
-    <div class="th"><div class="when"><span class="id">k3</span>Намерение-замах ✦</div><div><span class="say">Роет копытом — следом <b>«Разгон»</b>. Самое время закрыться.</span></div><div class="pt">пилюля ✦ и плитка «Защита»</div></div>
-    <div class="th react"><div class="when"><span class="id">k4</span>Реакция: «Разгон» пришёлся без Блока</div><div><span class="say">Говорил себе — закройся. Кабан прошёлся по мне от души. Учту.</span></div><div class="pt none"></div></div>
-    <div class="th"><div class="when"><span class="id">k5</span>Первый бой с приёмом за MP</div><div><span class="say">Две капли маны — ровно на один Магический щит. Сама мана у меня не прибывает, но после боя вернётся вся.</span></div><div class="pt">полоска MP</div></div>
+    <div class="th"><div class="when"><span class="id">k1</span>Начало боя</div><div><span class="say">Кабан вышел вперёд и злится — бьёт сильнее.</span></div><div class="pt">метка ⚒ и Сила «↑2»</div></div>
+    <div class="th"><div class="when"><span class="id">k2</span>У врага появился Блок</div><div><span class="say">Ощетинился. Первый удар уйдёт в щетину, а не в мясо.</span></div><div class="pt">«(+5)» на полоске HP</div></div>
+    <div class="th"><div class="when"><span class="id">k3</span>Намерение-замах ✦</div><div><span class="say">Роет копытом — сейчас понесётся. Встречу его щитом.</span></div><div class="pt">намерение ✦ и плитка «Защита»</div></div>
+    <div class="th react"><div class="when"><span class="id">k4</span>Реакция: «Разгон» пришёлся без Блока</div><div><span class="say">Говорил себе — закройся. Кабан прошёлся по мне от души.</span></div><div class="pt none"></div></div>
+    <div class="th"><div class="when"><span class="id">k5</span>Первый бой с приёмом за MP</div><div><span class="say">Колдовства во мне на донышке — как раз на один магический щит. После драки оно вернётся.</span></div><div class="pt">полоска MP и плитка «Магический щит»</div></div>
   </div>
   <div class="sub">
     <div class="eyebrow">Награда за кабана</div>
     <h4>Дубликат</h4>
     <div class="thoughts">
-      <div class="th"><div class="when"><span class="id">u1</span>В тройке дубликат вставленной вещи</div><div><span class="say">Второй Магический щит? Гнезда не займёт — мой станет крепче: тир 2.</span></div><div class="pt">тир на карточке</div></div>
+      <div class="th"><div class="when"><span class="id">u1</span>В тройке дубликат вставленной вещи</div><div><span class="say">Второй такой же оберег? Сложу их вместе — первый станет сильнее.</span></div><div class="pt">дубликат «было → станет» на карточке</div></div>
     </div>
   </div>
 </section>
@@ -401,16 +433,16 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   <p class="why">Бой о статусах на самом герое: Яд тикает мимо Блока и слабеет сам, Паутина отнимает очко сил на следующий ход. Мышь учит читать метки на пилюле и уклонение.</p>
   <figure><img src="img/m-f5.webp" alt="Мышь и паук: у мыши метка клыков, у паука значок яда; облачко про вампиризм и заклинателя" width="1440" height="810" loading="lazy"></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">m1</span>Начало боя</div><div><span class="say">Клыки на значке мыши — что откусит, то себе в здоровье. Паук сзади: <b>✧</b> заклинатель, кусает ядом.</span></div><div class="pt">метки на пилюлях</div></div>
-    <div class="th"><div class="when"><span class="id">m2</span>Мышь получила Уклонение</div><div><span class="say">Мышь порхает — следующий удар пройдёт мимо. Пусть мимо уйдёт простой удар, а не Щитовой.</span></div><div class="pt">статус на мыши</div></div>
-    <div class="th"><div class="when"><span class="id">m3</span>На герое Яд</div><div><span class="say">Яд: в начале моего хода — 2, потом 1, и сойдёт. Блок от него не спасает.</span></div><div class="pt">значок Яда над героем</div></div>
-    <div class="th"><div class="when"><span class="id">m4</span>На герое Изнурение</div><div><span class="say">Паутина на руках — Изнурение: в следующий ход на очко <b>STA</b> меньше.</span></div><div class="pt">значок Изнурения</div></div>
+    <div class="th"><div class="when"><span class="id">m1</span>Начало боя</div><div><span class="say">Мышь пьёт кровь — каждый укус её подлечивает. Паук прячется сзади и кусает ядом.</span></div><div class="pt">метки клыков и яда на намерениях</div></div>
+    <div class="th"><div class="when"><span class="id">m2</span>Мышь получила Уклонение</div><div><span class="say">Мышь вьётся — следующий удар уйдёт в пустоту. Лучший на неё не трачу.</span></div><div class="pt">Уклонение на мыши</div></div>
+    <div class="th"><div class="when"><span class="id">m3</span>На герое Яд</div><div><span class="say">Яд жжёт изнутри. Щит от него не спасёт, но и яд скоро выдохнется.</span></div><div class="pt">Яд над героем</div></div>
+    <div class="th"><div class="when"><span class="id">m4</span>На герое Изнурение</div><div><span class="say">Руки в паутине — в следующий раз замахнусь на раз меньше.</span></div><div class="pt">Изнурение над героем</div></div>
   </div>
   <div class="sub">
     <div class="eyebrow">После боя: зелье</div>
     <h4>Зелье с монстра — в обучении наверняка</h4>
     <div class="thoughts">
-      <div class="th"><div class="when"><span class="id">m5</span>Экран зелья</div><div><span class="say">Склянка с лечением. Слот один — новая вытеснит старую. В бою выпить можно когда угодно, сил не тратит.</span></div><div class="pt">слот зелья в консоли</div></div>
+      <div class="th"><div class="when"><span class="id">m5</span>Экран зелья</div><div><span class="say">Целебное зелье. За поясом место только для одной склянки — зато выпить можно прямо в драке.</span></div><div class="pt">слот зелья в консоли</div></div>
     </div>
   </div>
 </section>
@@ -425,8 +457,8 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   <p class="why">Сундук на два штифта: золото лежит всегда, а вещей две — вещь «■», которой у героя ещё нет, и броня второго тира. Взлом не обязателен — «Пройти мимо» тоже ответ, и герой это допускает.</p>
   <figure><img src="img/m-chest.webp" alt="Закрытый сундук: два штифта, «Взломать» и «Пройти мимо»; облачко Воина слева, подсвечены штифты" width="1440" height="810" loading="lazy"></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">c1</span>Закрытый сундук</div><div><span class="say">Сундук на замке. Сколько штифтов — столько вещей. Сорвусь — уколюсь, и замок заклинит.</span></div><div class="pt">штифты на карточке</div></div>
-    <div class="th react"><div class="when"><span class="id">c2</span>Реакция: замок заклинило</div><div><span class="say">Рука дрогнула. Сундук не мой — зато палец цел почти весь.</span></div><div class="pt none"></div></div>
+    <div class="th"><div class="when"><span class="id">c1</span>Закрытый сундук</div><div><span class="say">Замок мудрёный — значит, внутри есть что прятать. Дрогнет рука — уколюсь, и его заест.</span></div><div class="pt">штифты на карточке</div></div>
+    <div class="th react"><div class="when"><span class="id">c2</span>Реакция: замок заклинило</div><div><span class="say">Рука дрогнула. Сундук не мой — зато палец почти цел.</span></div><div class="pt none"></div></div>
   </div>
 </section>
 
@@ -441,10 +473,10 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   <p class="why">К этому бою у Воина обычно две-три вещи «Щита» и толстый Блок — и головорез на это отвечает. Урок не «блок плох», а «враги видят, как я дерусь».</p>
   <figure><img src="img/m-f7.webp" alt="Головорез и шаман: облачко про поддержку, подсвечен значок ✚ у шамана" width="1440" height="810" loading="lazy"></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">g1</span>Начало боя</div><div><span class="say"><b>✚</b> Шаман — поддержка: лечит соседей. Пока он жив, головорез будет подниматься.</span></div><div class="pt">значок роли у шамана</div></div>
-    <div class="th"><div class="when"><span class="id">g2</span>На герое Уязвимость</div><div><span class="say">Сглаз — Уязвимость: два хода по мне бьют на четверть сильнее.</span></div><div class="pt">значок статуса над героем</div></div>
-    <div class="th"><div class="when"><span class="id">g3</span>Враг сменил приём из-за Блока героя</div><div><span class="say">Головорез приметил мой щит и бьёт в щель — сквозь Блок. Враги отвечают на то, как я дерусь.</span></div><div class="pt">пилюля с меткой «сквозь блок»</div></div>
-    <div class="th"><div class="when"><span class="id">g4</span>Набор 3/3 собран</div><div><span class="say">Три знака «■» — щит стал оружием: удар сильнее на пятую часть моего Блока.</span></div><div class="pt">плитка «Ударить»</div></div>
+    <div class="th"><div class="when"><span class="id">g1</span>Начало боя</div><div><span class="say">Шаман за спиной головореза — будет латать его, пока жив.</span></div><div class="pt">метка ✚ у шамана</div></div>
+    <div class="th"><div class="when"><span class="id">g2</span>На герое Уязвимость</div><div><span class="say">Шаман меня сглазил — каждый удар теперь больнее.</span></div><div class="pt">Уязвимость над героем</div></div>
+    <div class="th"><div class="when"><span class="id">g3</span>Враг сменил приём из-за Блока героя</div><div><span class="say">Головорез приметил щит и бьёт в обход. Видно, не первый раз дерётся с такими, как я.</span></div><div class="pt">метка «сквозь блок» на намерении</div></div>
+    <div class="th"><div class="when"><span class="id">g4</span>Набор 3/3 собран</div><div><span class="say">Три вещи для щитового боя. Чем крепче держу щит, тем тяжелее бью.</span></div><div class="pt">плитка «Ударить»</div></div>
   </div>
 </section>
 
@@ -459,17 +491,17 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   <p class="why">Проверка всего, что было: замах, Блок, реакции врага. Новых правил почти нет — мысли короче, герой уже знает, о чём речь.</p>
   <figure><img src="img/m-elite.webp" alt="Элита: медведь 70 HP; облачко про засаду и награду тиром выше, подсвечена полоска HP" width="1440" height="810" loading="lazy"></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">e1</span>Начало боя</div><div><span class="say">Медведь. Засада покрепче: здоровья как у троих волков. Зато и награда — тиром выше.</span></div><div class="pt">полоска HP медведя</div></div>
-    <div class="th"><div class="when"><span class="id">e2</span>Замах «Встаёт на дыбы»</div><div><span class="say">На дыбы — значит, сейчас обрушится. Щит!</span></div><div class="pt">пилюля ✦</div></div>
-    <div class="th"><div class="when"><span class="id">e3</span>Реакция «Сорвать щит»</div><div><span class="say">Слишком толстый щит — и медведь его срывает. Иногда выгоднее бить, чем прятаться.</span></div><div class="pt">пилюля с меткой</div></div>
-    <div class="th"><div class="when"><span class="id">e4</span>«Зализать раны»</div><div><span class="say">Зализывает раны — лечится и снимает с себя кровь. Раз за бой.</span></div><div class="pt">пилюля лечения</div></div>
+    <div class="th"><div class="when"><span class="id">e1</span>Начало боя</div><div><span class="say">Медведь. Такой стоит троих волков — но и добыча с него будет знатная.</span></div><div class="pt">полоска HP медведя</div></div>
+    <div class="th"><div class="when"><span class="id">e2</span>Замах «Встаёт на дыбы»</div><div><span class="say">Встаёт на дыбы! Сейчас обрушится — щит!</span></div><div class="pt">намерение ✦</div></div>
+    <div class="th"><div class="when"><span class="id">e3</span>Реакция «Сорвать щит»</div><div><span class="say">За щитом не отсидишься — медведь сдирает его лапой.</span></div><div class="pt">метка «сквозь блок» на намерении</div></div>
+    <div class="th"><div class="when"><span class="id">e4</span>«Зализать раны»</div><div><span class="say">Зализывает раны. Второй раз не успеет.</span></div><div class="pt">намерение лечения</div></div>
   </div>
   <div class="sub">
     <div class="eyebrow">Награда элиты</div>
     <h4>Тир цветом и ключевая вещь</h4>
     <div class="thoughts">
-      <div class="th"><div class="when"><span class="id">e5</span>В тройке ключевая вещь</div><div><span class="say">Бастион: Блок больше не рассыпается, но здоровья на пятую часть меньше. Ключевая вещь — ломает правило и берёт цену.</span></div><div class="pt">карточка «Бастион»</div></div>
-      <div class="th"><div class="when"><span class="id">e6</span>В тройке предмет третьего тира</div><div><span class="say">Синее имя — тир ещё выше: урон крупнее, гнёзд не меньше. Цвет имени и есть тир.</span></div><div class="pt">имя карточки</div></div>
+      <div class="th"><div class="when"><span class="id">e5</span>В тройке ключевая вещь</div><div><span class="say">Бастион. Щит больше не опустится — но и сам я стану хрупче. Дорогая сделка.</span></div><div class="pt">карточка «Бастион»</div></div>
+      <div class="th"><div class="when"><span class="id">e6</span>В тройке предмет третьего тира</div><div><span class="say">Рунная сталь — лучше всего, что я держал в руках.</span></div><div class="pt">синее имя карточки</div></div>
     </div>
   </div>
 </section>
@@ -483,7 +515,7 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   </div></div>
   <figure><img src="img/m-camp.webp" alt="Привал: «Отдых» и «Кузница», облачко Воина про выбор перед логовом" width="1440" height="810" loading="lazy"></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">c3</span>Вход</div><div><span class="say">Привал. Отдохнуть — вернуть половину здоровья. Или подточить артефакт на тир. Впереди логово — решать мне.</span></div><div class="pt">две карточки</div></div>
+    <div class="th"><div class="when"><span class="id">c3</span>Вход</div><div><span class="say">Привал. Отлежаться — или подточить оберег? Впереди логово.</span></div><div class="pt">карточки «Отдых» и «Кузница»</div></div>
   </div>
 </section>
 
@@ -498,11 +530,11 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   <p class="why">Босс собирает весь этаж: стая заслоняет вожака, ярость не даёт отсиживаться за щитом, вторая фаза меняет повадку прямо в бою.</p>
   <figure><img src="img/m-boss.webp" alt="Босс во второй фазе: красная аура вокруг Вожака, намерение «↑»; облачко про вторую повадку и ярость" width="1440" height="810" loading="lazy"><figcaption>x4 — вторая фаза: красная аура и Ярость.</figcaption></figure>
   <div class="thoughts">
-    <div class="th"><div class="when"><span class="id">x1</span>Начало боя</div><div><span class="say">Вожак, и с ним волк. Вой зовёт новых — и встают они впереди, заслоняя вожака.</span></div><div class="pt none"></div></div>
-    <div class="th"><div class="when"><span class="id">x2</span>Призыв</div><div><span class="say">Ещё волк — встал прямо передо мной. Призванные всегда выходят вперёд.</span></div><div class="pt">новый волк</div></div>
-    <div class="th"><div class="when"><span class="id">x3</span>Ход перехода фазы</div><div><span class="say">Ощетинился шипами на два хода — каждый удар по нему ранит и меня. Блок от шипов спасает.</span></div><div class="pt">пилюля перехода</div></div>
-    <div class="th"><div class="when"><span class="id">x4</span>Вторая фаза, первая Ярость</div><div><span class="say">Ранен — красная аура, вторая повадка. И злится: каждая ярость — укус сильнее. Тянуть нельзя.</span></div><div class="pt">пилюля ↑</div></div>
-    <div class="th"><div class="when"><span class="id">x5</span>Победа</div><div><span class="say">Логово пусто. Лес пройден.</span></div><div class="pt none"></div></div>
+    <div class="th"><div class="when"><span class="id">x1</span>Начало боя</div><div><span class="say">Вожак. Стая встаёт за него стеной.</span></div><div class="pt none"></div></div>
+    <div class="th"><div class="when"><span class="id">x2</span>Призыв</div><div><span class="say">Ещё волк — прямо передо мной. До вожака опять не дотянуться.</span></div><div class="pt">новый волк</div></div>
+    <div class="th"><div class="when"><span class="id">x3</span>Ход перехода фазы</div><div><span class="say">Ощетинился весь — бить его сейчас, что по ежу. Щит хоть немного прикроет.</span></div><div class="pt">намерение перехода</div></div>
+    <div class="th"><div class="when"><span class="id">x4</span>Вторая фаза, первая Ярость</div><div><span class="say">Ранен — и только злее. С каждым рыком кусает сильнее, тянуть нельзя.</span></div><div class="pt">аура и намерение «↑»</div></div>
+    <div class="th"><div class="when"><span class="id">x5</span>Победа</div><div><span class="say">Логово пусто. Лес позади.</span></div><div class="pt none"></div></div>
   </div>
   <div class="sub">
     <div class="eyebrow">Если герой пал — в любом бою</div>
@@ -529,7 +561,7 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
       <li>Золото, торговец, сундук, привал</li>
     </ul>
     <div class="thoughts">
-      <div class="th"><div class="when"><span class="id">x6</span>Экран итогов</div><div><span class="say">Дальше — три локации подряд, и каждая злее прежней. Пора в настоящий поход.</span></div><div class="pt">кнопка «Новый забег»</div></div>
+      <div class="th"><div class="when"><span class="id">x6</span>Экран итогов</div><div><span class="say">Дальше — три земли подряд, и каждая злее этой.</span></div><div class="pt">кнопка «Новый забег»</div></div>
     </div>
   </div>
 </section>
@@ -566,9 +598,9 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
   <div class="dec">
     <h3>2. Как звучат мысли</h3>
     <div class="opts">
-      <div class="opt"><b class="l">A</b>Облачко без подсветки<p>Только текст над героем. Проще всего, но игроку нужно самому найти, где на экране «STA» и что за «пробитый щит».</p></div>
+      <div class="opt"><b class="l">A</b>Облачко без подсветки<p>Только текст над героем. Раз Воин не называет полоски и значки, без подсветки игрок не поймёт, о какой части экрана речь.</p></div>
       <div class="opt"><b class="l">Б</b>Строка в консоли<p>Мысль идёт строкой ридаута, который в покое пустой. Поле чистое, но при наведении на плитку ридаут занят, и мысль пропадает.</p></div>
-      <div class="opt rec"><b class="l">В</b>Облачко и подсветка <span class="badge">рекомендую</span><p>Как в кадрах выше: облачко над героем или с аватаркой на хабах, упомянутый элемент дважды мягко вспыхивает золотым контуром. Без затемнения, стрелок и блокировки.</p></div>
+      <div class="opt rec"><b class="l">В</b>Облачко и подсветка <span class="badge">рекомендую</span><p>Как в кадрах выше: облачко над героем или с аватаркой на хабах, упомянутое дважды мягко вспыхивает золотым контуром. Слова — о мире, подсветка — об экране. Без затемнения, стрелок и блокировки.</p></div>
     </div>
   </div>
   <div class="dec">
@@ -608,7 +640,7 @@ table.rewards td.lesson { color: var(--muted); font-size: 13px; }
 </div>
 
 <div class="callout">
-  <p><b>Попутно, вне обучения.</b> Плитка «Защита» в бою и строка «блок» в листе показывают Блок без набора «Щит»: у Воина с «Щит 2/3» плитка пишет «+6», а «Защититься» на деле даёт 8. Плитка берёт <code>defendBlock</code>, а движок — <code>heroDefendGain</code> с прибавкой набора, испытаний и благословения. Мысль b5 называет число с плитки, поэтому до обучения это стоит поправить.</p>
+  <p><b>Попутно, вне обучения.</b> Плитка «Защита» в бою и строка «блок» в листе показывают Блок без набора «Щит»: у Воина с «Щит 2/3» плитка пишет «+6», а «Защититься» на деле даёт 8. Плитка берёт <code>defendBlock</code>, а движок — <code>heroDefendGain</code> с прибавкой набора, испытаний и благословения. Мысль a3 («Щит к щиту — теперь закрываюсь заметно крепче») подсвечивает эту плитку, и число на ней должно вырасти вместе со словами, поэтому до обучения это стоит поправить.</p>
 </div>
 
 </div>
