@@ -94,7 +94,8 @@ const list: HeroDef[] = [
     critDmg: 140,
     name: 'Паладин',
     role: 'Тяжёлый воин света: лечится и держит удар, бьёт слабо.',
-    hp: 31,
+    // v0.58.1: 31 → 35 вместе с булавой 3–6 — Паладин стоял на нижней кромке коридора (20 / 21 %), а гибнет он в первом акте.
+    hp: 35,
     def: 5,
     // v0.49: 6 → 5 — Паладин тянул заклинания из общего пула (Высасывание, Шар, Осколок) лучше всех и держался на 50 / 68 %.
     mp: 5,
@@ -102,7 +103,7 @@ const list: HeroDef[] = [
     sta: 3,
     weaponSkill: { melee: true, ranged: false, magic: false },
     armorSkill: { heavy: true, medium: true, light: false },
-    weapon: { base: 'mace', name: 'Булава', dmgMin: 2, dmgMax: 6 },
+    weapon: { base: 'mace', name: 'Булава', dmgMin: 3, dmgMax: 6 },
     armor: { base: 'plate', name: 'Латы', def: 1, hp: 0 },
     signatures: ['light_hammer', 'vengeance_halo'],
     traits: ['faith', 'redemption'],
