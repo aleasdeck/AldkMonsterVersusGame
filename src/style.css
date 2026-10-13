@@ -2901,6 +2901,17 @@ p {
 .pause-buttons .btn {
   width: 100%;
 }
+.pause-pair {
+  display: flex;
+  gap: 10px;
+}
+.pause-pair .btn {
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+  white-space: nowrap;
+}
 .pause-seed {
   display: flex;
   align-items: center;
@@ -4903,4 +4914,149 @@ p {
   .tmark::before {
     animation: none !important;
   }
+}
+
+/* ─── Обучение: мысли героя (v0.58.0) ───────────────────────────────────── */
+/* Слой поверх кадра (ui/tutorial/index.ts): облачко и рамки подсветки. Рамки ставятся по месту узлов, сами узлы не трогаются.
+   Облачко — пергамент шрифтом игры, как на кадрах страницы обсуждения: в бою хвостиком к герою, на хабах — с аватаркой. */
+.thought-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+.thought-layer[hidden] {
+  display: none;
+}
+.th-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 3px #ffd16626, 0 0 10px #ffd16677;
+  animation: th-pulse 0.8s ease-in-out 2;
+}
+/* Мягко вспыхивает дважды и остаётся ровным контуром, пока мысль на экране. */
+@keyframes th-pulse {
+  50% {
+    border-color: #fff3c4;
+    box-shadow: 0 0 0 4px #ffd16655, 0 0 18px 4px #ffd166cc;
+  }
+}
+.th-bubble {
+  position: absolute;
+  max-width: 300px;
+  width: max-content;
+  background: #f3ead6;
+  color: #231c14;
+  border: 2px solid #231c14;
+  box-shadow: 3px 3px 0 #000a;
+  padding: 6px 10px 7px;
+  font-size: 21px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.th-bubble.enter {
+  animation: th-in 0.18s ease-out;
+}
+@keyframes th-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+/* Хвостик к герою: место по горизонтали — переменная --tail (над серединой героя). */
+.th-bubble.field::after {
+  content: '';
+  position: absolute;
+  left: var(--tail, 26px);
+  bottom: -7px;
+  width: 10px;
+  height: 10px;
+  background: #f3ead6;
+  border-right: 2px solid #231c14;
+  border-bottom: 2px solid #231c14;
+  transform: rotate(45deg);
+}
+.th-bubble.hub {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+}
+.th-bubble.hub .hero-avatar {
+  flex: none;
+  outline: 2px solid #231c14;
+}
+/* Реакция — на то, что уже случилось: тот же пергамент, слова чуть приглушены. */
+.th-bubble.react .th-text {
+  color: #5a3b2a;
+  font-style: italic;
+}
+/* Облачко на итогах обучения стоит в панели, а не поверх кадра. */
+.th-bubble.static {
+  position: static;
+  max-width: 520px;
+  margin: 4px auto 10px;
+  text-align: left;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .th-box,
+  .th-bubble.enter {
+    animation: none;
+  }
+}
+
+/* «Записки героя» — всё, о чём он уже подумал, по порядку. */
+.panel.notes {
+  width: 640px;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.notes-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+.notes-head h2 {
+  margin: 0;
+}
+.notes-list {
+  overflow-y: auto;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 20px;
+  scrollbar-width: thin;
+}
+.note-line {
+  padding: 4px 8px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--accent);
+}
+.panel.notes .btn {
+  align-self: center;
+}
+
+/* Итоги обучения: что Воин понял — галочками в две колонки вместо таблицы забега. */
+.learned {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 18px;
+  font-size: 18px;
+}
+.learned-line {
+  display: flex;
+  gap: 6px;
+}
+.learned-mark {
+  color: var(--good);
+}
+.tutorial-end .result-panel {
+  width: 820px;
 }

@@ -24,9 +24,17 @@ export function pauseMenu(app: App): HTMLElement {
         { class: 'pause-buttons' },
         button('Продолжить', () => app.togglePause(), { class: 'primary big' }),
         button('Персонаж', () => app.toggleSheet(), { class: 'big', tip: 'Статы, экипировка, умения (C)' }),
-        button('Лог боя', () => app.toggleLogFromPause(), { class: 'big', tip: 'Все бои забега (L)' }),
-        button('В главное меню', () => app.showMenu(), { class: 'big', tip: 'Забег сохранится, продолжить можно из меню' }),
-        button('Бросить забег', () => app.abandonRun(), { class: 'big danger' }),
+        // В обучении рядом с логом — «Записки героя»: шестая кнопка столбиком не влезла бы в кадр 540.
+        run.tutorial
+          ? h(
+              'div',
+              { class: 'pause-pair' },
+              button('Лог боя', () => app.toggleLogFromPause(), { class: 'big', tip: 'Все бои обучения (L)' }),
+              button('Записки героя', () => app.toggleNotes(), { class: 'big', tip: 'Всё, о чём Воин уже подумал в этом обучении' }),
+            )
+          : button('Лог боя', () => app.toggleLogFromPause(), { class: 'big', tip: 'Все бои забега (L)' }),
+        button('В главное меню', () => app.showMenu(), { class: 'big', tip: run.tutorial ? 'Обучение сохранится, продолжить можно из меню' : 'Забег сохранится, продолжить можно из меню' }),
+        button(run.tutorial ? 'Бросить обучение' : 'Бросить забег', () => app.abandonRun(), { class: 'big danger' }),
       ),
       h('div', { class: 'pause-seed' }, h('span', { class: 'dim' }, 'Сложность: '), h('span', { style: `color:${DIFFICULTIES[run.difficulty]?.color ?? 'inherit'}` }, DIFFICULTIES[run.difficulty]?.name ?? '—'), h('span', { class: 'dim' }, ' · Сид: '), h('span', { class: 'seed-value' }, `${run.seed}`), seedBtn),
       h(

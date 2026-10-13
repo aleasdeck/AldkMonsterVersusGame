@@ -14,6 +14,7 @@ import {
   loadProfile,
   loadRun,
   lockedForRun,
+  markTutorialDone,
   pickedDifficulty,
   pickedSignature,
   pickedStart,
@@ -36,8 +37,10 @@ import {
   musicVolumeOf,
   sfxVolumeOf,
   type Profile,
+  type RunSlot,
   type RunUnlocks,
 } from './save';
+import { TUTORIAL_HERO, TUTORIAL_SEED, TUTORIAL_SIGNATURE, TUTORIAL_TRAIT } from '../data/tutorial';
 import { music } from './music';
 import { sfx } from './sfx';
 import { cueFlip, enemyCue, eventCue, heroCues } from './sfx/cues';
@@ -67,6 +70,8 @@ import { heroSheet } from './screens/heroSheet';
 import { pauseMenu } from './screens/pause';
 import { logOverlay } from './screens/runLog';
 import { ChestLockView } from './chestLock';
+import { Thinker } from './tutorial';
+import { notesOverlay } from './tutorial/notes';
 import { installHotkeys } from './hotkeys';
 import { locationBackground } from './backgrounds';
 import { warmImages } from './preload';
@@ -101,6 +106,8 @@ export class App {
   sheetOpen = false;
   /** Открыта пауза. */
   pauseOpen = false;
+  /** «Записки героя» обучения поверх экрана (v0.58.0): открываются из паузы. */
+  notesOpen = false;
   /**
    * Идёт взлом сундука (v0.54.2): оверлей со скважиной поверх кадра. Живёт только в App — перезагрузка посреди взлома
    * возвращает закрытый сундук; итог уходит в движок и сохраняется сразу после последней засечки.
@@ -158,6 +165,8 @@ export class App {
   private heard: { run: RunState | null; battle: unknown; phase: string | undefined; runPhase: string | undefined; gold: number } = { run: null, battle: null, phase: undefined, runPhase: undefined, gold: 0 };
   /** id врага по uid — со всех перерисовок боя: погибший уже снят с поля, а звуку гибели нужен его ранг. */
   private uidDefs = new Map<number, string>();
+  /** Мысли героя в обучении: облачко и подсветка поверх кадра (ui/tutorial). */
+  private thinker = new Thinker(this);
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -191,23 +200,43 @@ export class App {
   }
 
   start(): void {
-    this.run = loadRun();
-    if (this.run && R.isRunOver(this.run)) {
-      clearRun();
-      this.run = null;
-    }
-    // Сохранение посреди хода врагов — доигрываем его при загрузке.
-    if (this.run?.battle?.phase === 'enemy') {
-      let guard = 0;
-      while (this.run.battle.phase === 'enemy' && guard++ < 50) R.battleEnemyStep(this.run);
-      this.run.battle.events = [];
-    }
+    this.run = this.loadSaved('run');
     this.screen = 'menu';
     this.render();
   }
 
+  /**
+   * Сохранённый забег из слота: законченный стирается, а сохранение посреди хода врагов доигрывается при загрузке.
+   * Обучение (v0.58.0) лежит в своём слоте, поэтому настоящий забег живёт, пока игрок учится, и наоборот.
+   */
+  private loadSaved(slot: RunSlot): RunState | null {
+    let run = loadRun(slot);
+    if (run && R.isRunOver(run)) {
+      clearRun(slot);
+      run = null;
+    }
+    if (run?.battle?.phase === 'enemy') {
+      let guard = 0;
+      while (run.battle.phase === 'enemy' && guard++ < 50) R.battleEnemyStep(run);
+      run.battle.events = [];
+    }
+    return run;
+  }
+
+  /** Есть ли настоящий забег, который можно продолжить (кнопка «Продолжить забег»); обучение сюда не считается. */
   hasSave(): boolean {
-    return !!this.run && !R.isRunOver(this.run);
+    return !!this.run && !this.run.tutorial && !R.isRunOver(this.run);
+  }
+
+  /** Есть ли недопройденное обучение: кнопка в меню тогда — «Продолжить обучение». */
+  hasTutorialSave(): boolean {
+    const t = this.run?.tutorial ? this.run : loadRun('tutorial');
+    return !!t && !R.isRunOver(t);
+  }
+
+  /** С экрана обучения обратно к настоящему забегу: в меню, к выбору героя или к новому забегу. */
+  private backToMainRun(): void {
+    if (!this.run || this.run.tutorial) this.run = this.loadSaved('run');
   }
 
   render(): void {
@@ -269,6 +298,7 @@ export class App {
     if (this.screen === 'run' && this.run) {
       if (this.chestLock) el.appendChild(this.chestLock.el);
       else if (this.sheetOpen) el.appendChild(heroSheet(this));
+      else if (this.notesOpen && this.run.tutorial) el.appendChild(notesOverlay(this));
       else if (this.logOpen && this.run.phase !== 'battle') el.appendChild(logOverlay(this));
       else if (this.pauseOpen && !R.isRunOver(this.run)) el.appendChild(pauseMenu(this));
     }
@@ -281,6 +311,7 @@ export class App {
     this.root.replaceChildren(el);
     this.syncClock();
     if (this.screen === 'run' && this.run?.phase === 'battle') this.syncBlocks(null);
+    this.thinker.afterRender();
   }
 
   /**
@@ -289,7 +320,8 @@ export class App {
    */
   private noteAchievements(): void {
     const run = this.run;
-    if (!run || run.debug) return;
+    // Обучение мастерство не качает (решение пользователя): наборы в нём не открывают закрытых артефактов.
+    if (!run || run.debug || run.tutorial) return;
     const keys = [...(run.setsReached ?? []).map((a) => achievementKey('set', a)), ...(run.bossSets ?? []).map((a) => achievementKey('boss', a))];
     if (keys.every((k) => this.profile.achievements.includes(k))) return;
     const res = recordAchievements(run);
@@ -458,6 +490,16 @@ export class App {
     sfx.play('ui_open');
     this.pauseOpen = !this.pauseOpen;
     this.sheetOpen = false;
+    this.notesOpen = false;
+    this.render();
+  }
+
+  /** «Записки героя» из паузы: пауза закрывается, записки открываются; повтор — закрыть. */
+  toggleNotes(): void {
+    sfx.play('ui_open');
+    this.notesOpen = !this.notesOpen;
+    this.pauseOpen = false;
+    this.sheetOpen = false;
     this.render();
   }
 
@@ -470,6 +512,7 @@ export class App {
   /** Esc: закрыть верхний слой, снять выбор приёма, а если ни того ни другого нет — открыть паузу. */
   escape(): void {
     if (this.sheetOpen) this.toggleSheet();
+    else if (this.notesOpen) this.toggleNotes();
     else if (this.logOpen) this.toggleLog();
     else if (this.pauseOpen) this.togglePause();
     else if (this.run && R.isRunOver(this.run)) return;
@@ -478,7 +521,7 @@ export class App {
   }
 
   private overlayOpen(): boolean {
-    return this.sheetOpen || this.pauseOpen || (this.logOpen && this.run?.phase !== 'battle');
+    return this.sheetOpen || this.pauseOpen || this.notesOpen || (this.logOpen && this.run?.phase !== 'battle');
   }
 
   private commit(): void {
@@ -492,7 +535,8 @@ export class App {
    */
   private report(event: RunReportEvent): void {
     const run = this.run;
-    if (!run || run.reported) return;
+    // Обучение в статистику и рейтинг не идёт: заданный этаж в одну локацию исказил бы и баланс, и очки.
+    if (!run || run.reported || run.tutorial) return;
     run.reported = true;
     // Забег ещё в сохранении (гибель до кнопки «К итогам») — отметку надо сохранить вместе с ним.
     if (!R.isRunOver(run)) saveRun(run);
@@ -521,16 +565,22 @@ export class App {
       if (!this.resultRecorded) {
         this.resultRecorded = true;
         this.run.stats.finishedAt = this.run.stats.finishedAt || Date.now();
-        // Статистика уходит до записи в профиль: в ней число законченных забегов игрока «до этого».
-        this.report(this.run.phase === 'victory' ? 'victory' : 'defeat');
-        // Отладочный забег мастерство не качает: `?hero=` и так открывает всё, что нужно.
-        if (!this.run.debug) {
-          const res = recordResult(this.run);
-          this.profile = res.profile;
-          this.lastUnlocks = res.unlocks;
-        } else this.lastUnlocks = null;
+        if (this.run.tutorial) {
+          // Обучение не пишет забег в профиль, статистику и мастерство — только отметку, что пройдено до конца.
+          if (this.run.phase === 'victory') this.profile = markTutorialDone();
+          this.lastUnlocks = null;
+        } else {
+          // Статистика уходит до записи в профиль: в ней число законченных забегов игрока «до этого».
+          this.report(this.run.phase === 'victory' ? 'victory' : 'defeat');
+          // Отладочный забег мастерство не качает: `?hero=` и так открывает всё, что нужно.
+          if (!this.run.debug) {
+            const res = recordResult(this.run);
+            this.profile = res.profile;
+            this.lastUnlocks = res.unlocks;
+          } else this.lastUnlocks = null;
+        }
       }
-      clearRun();
+      clearRun(this.run.tutorial ? 'tutorial' : 'run');
       this.render();
       return;
     }
@@ -542,9 +592,11 @@ export class App {
   showMenu(): void {
     this.stopStepping();
     this.sheetOpen = false;
+    this.notesOpen = false;
     this.pauseOpen = false;
     this.logOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
+    this.backToMainRun();
     this.screen = 'menu';
     this.render();
   }
@@ -552,8 +604,10 @@ export class App {
   showHeroSelect(): void {
     this.stopStepping();
     this.sheetOpen = false;
+    this.notesOpen = false;
     this.logOpen = false;
     if (this.run && R.isRunOver(this.run)) this.run = null;
+    this.backToMainRun();
     this.screen = 'heroSelect';
     this.render();
   }
@@ -688,6 +742,8 @@ export class App {
    * `difficulty` — отладочный `&diff=`; без него — сложность, выбранная на экране героя.
    */
   newRun(heroId: string, seed?: number, debug = false, signature?: string, difficulty?: Difficulty): void {
+    // Из обучения — сначала к настоящему сохранённому забегу: новый заменяет его, и он уходит в статистику брошенным.
+    this.backToMainRun();
     this.dropRun();
     const def = heroDef(heroId);
     // Чужой или опечатанный id из URL — молча первый из пары, а не сломанная страница.
@@ -706,6 +762,28 @@ export class App {
     this.commit();
   }
 
+  /**
+   * Обучение (v0.58.0): продолжить недопройденное или начать заново — Воин, один этаж Леса по сценарию data/tutorial.ts,
+   * мысли героя вслух (ui/tutorial/). Настоящий забег остаётся в своём слоте нетронутым.
+   */
+  startTutorial(fresh = false): void {
+    this.stopStepping();
+    this.sheetOpen = false;
+    this.notesOpen = false;
+    this.pauseOpen = false;
+    this.logOpen = false;
+    if (fresh) clearRun('tutorial');
+    this.run =
+      this.loadSaved('tutorial') ??
+      R.newRun(TUTORIAL_HERO, TUTORIAL_SEED, Date.now(), TUTORIAL_SIGNATURE, TUTORIAL_TRAIT, { tutorial: true, locked: [] });
+    this.armed = null;
+    this.resultRecorded = false;
+    this.lastUnlocks = null;
+    this.screen = 'run';
+    sfx.play('run_start');
+    this.commit();
+  }
+
   continueRun(): void {
     if (!this.hasSave()) return;
     this.screen = 'run';
@@ -715,12 +793,14 @@ export class App {
 
   abandonRun(): void {
     if (!this.run) return;
-    if (!window.confirm('Бросить текущий забег? Прогресс пропадёт.')) return;
+    const tutorial = !!this.run.tutorial;
+    if (!window.confirm(tutorial ? 'Бросить обучение? Начнётся заново.' : 'Бросить текущий забег? Прогресс пропадёт.')) return;
     this.stopStepping();
     this.sheetOpen = false;
+    this.notesOpen = false;
     this.pauseOpen = false;
     this.dropRun();
-    clearRun();
+    clearRun(tutorial ? 'tutorial' : 'run');
     this.run = null;
     this.showMenu();
   }

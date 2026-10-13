@@ -11,9 +11,9 @@ import type { EventKind, LocationId } from './engine/types';
 import { ART_TIERS, COLLECTIBLES, findKey } from './data/collection';
 import { ENEMY_LIST, enemyDef } from './data/enemies';
 import { loadProfile, saveProfile } from './ui/save';
-import { GEAR_TIERS, baseArmorStats, baseDamage, baseOf, baseTitle, rollAffix, rollSlotKinds, upgradeGearTier } from './data/gear';
-import type { ArtTier, DerivedStats, GearAffix, GearKind, GearTier, LootItem, SlotKind } from './engine/types';
-import type { Rng } from './engine/rng';
+import { upgradeGearTier } from './data/gear';
+import { parseOffer } from './data/offer';
+import type { ArtTier } from './engine/types';
 import { setTint } from './ui/tint';
 import { music } from './ui/music';
 import { SONGS } from './ui/music/songs';
@@ -90,6 +90,16 @@ if (params.get('mock')) {
   });
   app.profile = loadProfile();
   app.render();
+}
+
+// ?tutorial=1 — обучение с начала (его сохранение стирается, настоящий забег не трогается); &room=7 — сразу на эту клетку
+// этажа, &enter=1 — и войти в неё. Мысли героя приходят по ходу, как в игре.
+if (params.get('tutorial')) {
+  app.startTutorial(true);
+  const room = Number(params.get('room'));
+  if (room > 0) app.run!.roomIndex = Math.min(ROOMS_PER_LOCATION - 1, room);
+  if (params.get('enter')) app.enterRoom();
+  else app.render();
 }
 
 const heroParam = params.get('hero');
@@ -172,8 +182,8 @@ if (heroParam) {
     // &focus=attack|defense — сразу выбрать пул награды (без него экран ждёт выбора); &take=art выбирает «Нападение» сам.
     const focus = params.get('focus') ?? (params.get('take') === 'art' ? 'attack' : null);
     if (focus === 'attack' || focus === 'defense') app.chooseRewardFocus(focus);
-    // &offer=w:whip:2:onHitBleed=1,art:fireball:1 — заменить варианты награды заданными (проверка карточек, см. debugOffer)
-    const offer = debugOffer(params.get('offer'), run.rng);
+    // &offer=w:whip:2:onHitBleed=1,art:fireball:1 — заменить варианты награды заданными (проверка карточек, см. parseOffer в data/offer.ts)
+    const offer = parseOffer(params.get('offer'), run.rng);
     if (offer.length && run.rewards[0]) {
       run.rewards[0].focus ??= 'attack';
       run.rewards[0].options = offer;
@@ -196,7 +206,7 @@ if (heroParam) {
     run.roomIndex = 2;
     startEvent(run, phase);
     // &offer=… у торговца — первый предмет, первый артефакт и первое зелье из списка встают на прилавок
-    const offer = debugOffer(params.get('offer'), run.rng);
+    const offer = parseOffer(params.get('offer'), run.rng);
     if (run.shop && offer.length) {
       for (const it of offer) {
         if (it.kind === 'gear') run.shop.gear = it.gear;
@@ -313,55 +323,4 @@ function mockRuns(): RunsFeed {
     ]);
   }
   return { keys: ['ts', 'event', 'hero', 'act', 'location', 'room', 'turns', 'duration', 'lastBattle', 'damageDealt', 'damageTaken', 'weapon', 'armor', 'artifacts', 'difficulty', 'who'], rows };
-}
-
-/**
- * Отладочный набор предметов из адреса (проверка карточек, v0.50): `w:<база>:<тир>[:<стат>=<число>][:s=<сокеты>]` — оружие,
- * `a:…` — броня, `art:<id>:<тир>` — артефакт, `p:<зелье>`; через запятую. Сокеты буквами: w — оружейный, a — бронный,
- * x — универсальный (`s=wx`). Без аффикса в адресе он бросается случайно; `none` — без аффикса.
- */
-function debugOffer(spec: string | null, rng: Rng): LootItem[] {
-  const out: LootItem[] = [];
-  for (const part of (spec ?? '').split(',').filter(Boolean)) {
-    const [kind, id, tierRaw, ...rest] = part.split(':');
-    if (kind === 'p') {
-      out.push({ kind: 'potion', potion: id });
-      continue;
-    }
-    if (kind === 'art') {
-      out.push({ kind: 'artifact', artifact: { id, tier: Math.max(1, Math.min(3, Number(tierRaw) || 1)) as ArtTier } });
-      continue;
-    }
-    const gk: GearKind = kind === 'w' ? 'weapon' : 'armor';
-    const tier = Math.max(1, Math.min(5, Number(tierRaw) || 1)) as GearTier;
-    const base = baseOf(gk, id);
-    const dmg = baseDamage(base, tier);
-    const arm = baseArmorStats(base, tier);
-    const n = GEAR_TIERS[tier].slots;
-    let affix: GearAffix | null = rollAffix(rng, gk, tier);
-    let kinds: SlotKind[] = rollSlotKinds(rng, gk, n);
-    for (const r of rest) {
-      const [k, v] = r.split('=');
-      if (k === 's') kinds = Array.from({ length: n }, (_, i) => (v[i] === 'w' ? 'weapon' : v[i] === 'a' ? 'armor' : 'any'));
-      else if (k === 'none') affix = null;
-      else affix = { stat: k as keyof DerivedStats, value: Number(v) };
-    }
-    out.push({
-      kind: 'gear',
-      gear: {
-        kind: gk,
-        tier,
-        base: id,
-        name: baseTitle(base, tier),
-        dmgMin: gk === 'weapon' ? dmg.min : 0,
-        dmgMax: gk === 'weapon' ? dmg.max : 0,
-        def: gk === 'armor' ? arm.def : 0,
-        hp: gk === 'armor' ? arm.hp : 0,
-        affix,
-        slots: Array.from({ length: n }, () => null),
-        slotKinds: kinds,
-      },
-    });
-  }
-  return out;
 }

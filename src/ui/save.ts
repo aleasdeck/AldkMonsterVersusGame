@@ -7,6 +7,15 @@ import { migrateFinds } from '../data/collection';
 import { HERO_MASTERY, LOCKED, UNLOCK_LEVEL, achievementKey, legacyXp, lockedArtifacts, masteryLevel, runXp, type MasteryState } from '../data/mastery';
 
 const RUN_KEY = 'mv_run_v1';
+/** Обучение (v0.58.0) — в своём слоте: оно не затирает настоящий забег, а настоящий — его. */
+const TUTORIAL_KEY = 'mv_tutorial_v1';
+
+/** Какой слот сохранения: настоящий забег или обучение. */
+export type RunSlot = 'run' | 'tutorial';
+
+function slotKey(slot: RunSlot): string {
+  return slot === 'tutorial' ? TUTORIAL_KEY : RUN_KEY;
+}
 const PROFILE_KEY = 'mv_profile_v1';
 /** Старый формат «лучшего результата» — переносится в профиль один раз. */
 const BEST_KEY = 'mv_best_v1';
@@ -65,6 +74,8 @@ export interface Profile {
   sfxVolume?: number;
   /** Звуки действий выключены (кнопка в паузе); громкость при этом помнится. */
   sfxMuted?: boolean;
+  /** Обучение пройдено до конца (v0.58.0): кнопка «Обучение» в меню больше не первая. */
+  tutorialDone?: boolean;
 }
 
 /** Громкость музыки по умолчанию: половина шкалы. */
@@ -270,17 +281,18 @@ function storage(): Storage | null {
   }
 }
 
+/** Сохранить забег в его слот: обучение — в свой (`run.tutorial`), настоящий — в основной. */
 export function saveRun(run: RunState): void {
   try {
-    storage()?.setItem(RUN_KEY, JSON.stringify(run));
+    storage()?.setItem(slotKey(run.tutorial ? 'tutorial' : 'run'), JSON.stringify(run));
   } catch {
     /* переполнено или недоступно — играем без сохранения */
   }
 }
 
-export function loadRun(): RunState | null {
+export function loadRun(slot: RunSlot = 'run'): RunState | null {
   try {
-    const raw = storage()?.getItem(RUN_KEY);
+    const raw = storage()?.getItem(slotKey(slot));
     if (!raw) return null;
     const run = JSON.parse(raw) as RunState;
     if (run.version !== SAVE_VERSION) return null;
@@ -292,9 +304,9 @@ export function loadRun(): RunState | null {
   }
 }
 
-export function clearRun(): void {
+export function clearRun(slot: RunSlot = 'run'): void {
   try {
-    storage()?.removeItem(RUN_KEY);
+    storage()?.removeItem(slotKey(slot));
   } catch {
     /* ignore */
   }
@@ -400,5 +412,12 @@ export function recordFinds(keys: string[]): Profile {
 export function recordEnemies(ids: string[]): Profile {
   const p = loadProfile();
   for (const id of ids) if (!p.bestiary.includes(id)) p.bestiary.push(id);
+  return saveProfile(p);
+}
+
+/** Обучение пройдено до конца: меню больше не ставит его первым. Опыта, статистики и рейтинга оно не даёт. */
+export function markTutorialDone(): Profile {
+  const p = loadProfile();
+  p.tutorialDone = true;
   return saveProfile(p);
 }
