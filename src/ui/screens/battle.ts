@@ -6,7 +6,7 @@ import { HERO_BODY_HEIGHT } from '../../data/characterSizes';
 import { enemySize, enemySizeStyle } from '../characterSize';
 import { artifactCostText, artifactDef } from '../../data/artifacts';
 import { ART_TIER_COLORS, SWEEP_MULT } from '../../data/gear';
-import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, defendBlock, effectiveCost, enemyVictim, fatigueMult, feedHp, feedTarget, findEnemy, finisherPer, isDoomed, isHidden, previewAttack, statusValue, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
+import { INTENT_ICON, actionReach, attackExtra, canUseAction, chargeBonus, computeAllyIntent, computeIntent, coveringGuard, effectiveCost, enemyVictim, fatigueMult, feedHp, feedTarget, findEnemy, finisherPer, heroDefendGain, isDoomed, isHidden, previewAttack, statusValue, rangeText, reachableEnemies, remainingDot, restAttackRange, skillBlock, skillHeal, sureCritOn, turnsToFlee, type ActionMark, type DamageRange, type IntentInfo, type IntentKind } from '../../engine/combat';
 import { GNOME_BOUNTY, goldReward } from '../../engine/loot';
 import { currentLocation, currentRoomKind } from '../../engine/run';
 import type { AllyState, ArtTier, ArtifactDef, BattleState, Combatant, DerivedStats, Effect, EnemyState, HeroBattle, PlayerAction, WeaponReach } from '../../engine/types';
@@ -509,7 +509,10 @@ export function actionSpecs(app: App): TileSpec[] {
   });
 
   const defAction = (): PlayerAction => ({ type: 'defend' });
-  const blk = defendBlock(b.hero.stats);
+  // Сколько блока даст «Защититься» в этом бою — тем же расчётом, что движок: с набором «Щит», испытанием и благословением
+  // (до v0.58.0 плитка брала голые 80 % Защиты и с «Щит 2/3» показывала +6 вместо +8).
+  const blk = heroDefendGain(b);
+  const setAdd = b.hero.stats.blockSkillAdd;
   specs.push({
     key: 'defend',
     glyph: '⛨',
@@ -520,7 +523,7 @@ export function actionSpecs(app: App): TileSpec[] {
     targeted: false,
     action: defAction,
     targets: [],
-    preview: () => ({ title: 'Защититься', parts: ['1 STA', `+${blk} блока до начала следующего хода`, '80 % от Защиты, округление вверх, раз за ход'] }),
+    preview: () => ({ title: 'Защититься', parts: ['1 STA', `+${blk} блока до начала следующего хода`, `80 % от Защиты, округление вверх${setAdd ? `, +${setAdd} набора «Щит»` : ''}, раз за ход`] }),
   });
 
   for (const inst of b.hero.artifacts) {
@@ -744,7 +747,7 @@ export function battleScreen(app: App): HTMLElement {
                       coin(),
                       ' золота.',
                     ]
-                  : ['Забег окончен.']),
+                  : [run.tutorial ? 'Обучение окончено.' : 'Забег окончен.']),
             ),
             h(
               'div',

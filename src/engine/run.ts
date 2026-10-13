@@ -10,6 +10,7 @@ import { addArtifact, canPlaceArtifact, equipGear, findSameArtifact, gearOf, rep
 import { activeSets, archetypeCounts } from '../data/archetypes';
 import { trialValue, trialsOf } from '../data/trials';
 import { boonsOf } from '../data/boons';
+import { TUTORIAL_EVENTS, TUTORIAL_FIGHTS, TUTORIAL_LOCATION, TUTORIAL_POTION, tutorialChest, tutorialRewards } from '../data/tutorial';
 import {
   ALTAR_HEAL_PCT,
   ALTAR_SACRIFICE_PCT,
@@ -59,6 +60,11 @@ export interface RunOpts {
    * на «Среднем» — без выбора перед локацией.
    */
   difficulty?: Difficulty;
+  /**
+   * Забег обучения (v0.58.0): одна локация Леса, встречи, события и награды по сценарию data/tutorial.ts, победа — после её
+   * босса. Сложность — «Средний»: порога перед локацией нет.
+   */
+  tutorial?: boolean;
 }
 
 export function newRun(
@@ -83,7 +89,7 @@ export function newRun(
     rng,
     hero: { defId: heroId, signature, innateTier: 1, trait, locked: opts.locked ?? [], start: gear.weapon.base, hp: stats.maxHp, weapon: gear.weapon, armor: gear.armor, potion: null },
     gold: START_GOLD,
-    locations: pickRunLocations(rng),
+    locations: opts.tutorial ? [TUTORIAL_LOCATION] : pickRunLocations(rng),
     locationIndex: 0,
     roomIndex: 0,
     phase: 'map',
@@ -96,7 +102,7 @@ export function newRun(
     logs: [],
     setsReached: [],
     bossSets: [],
-    difficulty: opts.difficulty ?? 'normal',
+    difficulty: opts.tutorial ? 'normal' : (opts.difficulty ?? 'normal'),
     trial: null,
     trialOffer: [],
     trialLog: [],
@@ -105,6 +111,7 @@ export function newRun(
     boonLog: [],
     encounters: [],
   };
+  if (opts.tutorial) run.tutorial = { seen: [] };
   offerThreshold(run);
   return run;
 }
@@ -225,7 +232,9 @@ export function enterRoom(run: RunState): void {
   if (run.phase !== 'map' || awaitsThreshold(run)) return;
   const kind = currentRoomKind(run);
   if (kind === 'event') {
-    startEvent(run, rollEventKind(run.rng));
+    // Обучение: событие клетки задано сценарием — торговец, сундук, привал.
+    const scripted = run.tutorial ? TUTORIAL_EVENTS[run.roomIndex] : undefined;
+    startEvent(run, scripted ?? rollEventKind(run.rng));
     return;
   }
   if (kind === 'shop') {
@@ -251,7 +260,8 @@ function startBattle(run: RunState, kind: 'fight' | 'elite' | 'boss'): void {
   const played = (run.encounters ??= []);
   const keyOf = (enc: string[]) => `${run.locationIndex}:${enc.join(',')}`;
   const fresh = table.filter((enc) => !played.includes(keyOf(enc)));
-  let ids = pick(run.rng, fresh.length ? fresh : table);
+  // Обучение: встреча клетки задана сценарием (роли приходят по одной).
+  let ids = (run.tutorial && TUTORIAL_FIGHTS[run.roomIndex]) || pick(run.rng, fresh.length ? fresh : table);
   played.push(keyOf(ids));
   // «Стая» и «Кладка» (v0.48): лишний противник в каждом бою, кроме босса.
   const extra = run.trial === 'pack' ? 'wolf' : run.trial === 'clutch' ? 'egg_cluster' : null;
@@ -300,7 +310,7 @@ export function startEvent(run: RunState, kind: EventKind): void {
       startBattle(run, 'elite');
       return;
     case 'chest':
-      run.event = { kind, ...rollChest(run.rng, run.hero, act, run.locationIndex) };
+      run.event = { kind, ...(run.tutorial ? tutorialChest(run.hero, run.rng) : rollChest(run.rng, run.hero, act, run.locationIndex)) };
       run.phase = 'event';
       return;
     case 'altar':
@@ -322,7 +332,12 @@ export function startEvent(run: RunState, kind: EventKind): void {
   }
 }
 
-/** Следующая клетка; после последней — следующая локация без остановки, после третьего босса — победа. */
+/** Последняя ли локация забега: у обучения она одна, у обычного забега — третья. */
+export function lastLocation(run: RunState): boolean {
+  return run.locationIndex >= (run.tutorial ? 0 : ACTS_PER_RUN - 1);
+}
+
+/** Следующая клетка; после последней — следующая локация без остановки, после последнего босса — победа. */
 export function advanceRoom(run: RunState): void {
   run.battle = null;
   run.event = null;
@@ -331,7 +346,7 @@ export function advanceRoom(run: RunState): void {
   run.pending = null;
   run.roomIndex += 1;
   if (run.roomIndex >= ROOMS_PER_LOCATION) {
-    if (run.locationIndex >= ACTS_PER_RUN - 1) {
+    if (lastLocation(run)) {
       run.phase = 'victory';
       return;
     }
@@ -407,7 +422,11 @@ export function finishBattle(run: RunState): void {
   }
   run.battle = null;
   run.gold += goldReward(kind);
-  if (kind === 'boss') {
+  // Последний босс обучения — конец забега: трофей и лечение некому отдавать, дальше итоги.
+  const finalBoss = kind === 'boss' && (!act.bossGearTier || !!run.tutorial);
+  if (kind === 'boss' && run.tutorial) {
+    run.rewards = [];
+  } else if (kind === 'boss') {
     // Достижение «босс с набором 3/3» (v0.45): набор, с которым герой закончил бой с боссом.
     for (const arch of fullSets(run)) if (!run.bossSets.includes(arch)) run.bossSets.push(arch);
     // Привала после босса нет: герой сразу подлечивается и идёт дальше. Сколько дало — подписью на трофее.
@@ -422,8 +441,10 @@ export function finishBattle(run: RunState): void {
     if (herbs > 0) run.rewards[0].note = `Целебные травы: +${herbs} HP. Можно взять только одно.`;
   }
   // С любого монстра может выпасть зелье — отдельным экраном после награды. После финального босса некуда: забег окончен.
-  const finalBoss = kind === 'boss' && !act.bossGearTier;
-  if (!finalBoss && chance(run.rng, POTION_DROP_CHANCE)) run.rewards.push(potionRewardScreen(rollPotion(run.rng, run.hero)));
+  // В обучении — не шансом, а наверняка и в одной клетке сценария (урок про слот зелья).
+  if (run.tutorial) {
+    if (run.roomIndex === TUTORIAL_POTION.room) run.rewards.push(potionRewardScreen(TUTORIAL_POTION.potion));
+  } else if (!finalBoss && chance(run.rng, POTION_DROP_CHANCE)) run.rewards.push(potionRewardScreen(rollPotion(run.rng, run.hero)));
   if (run.rewards.length === 0) {
     advanceRoom(run);
     return;
@@ -541,7 +562,9 @@ export function chooseRewardFocus(run: RunState, focus: RewardFocus): boolean {
   if (canChooseFocus(run)) return false;
   const screen = run.rewards[0];
   screen.focus = focus;
-  screen.options = rollRewards(run.rng, run.hero, currentAct(run), screen.source as 'fight' | 'elite', focus);
+  // Обучение: тройка клетки задана сценарием для обоих пулов; переброс потом катит обычную.
+  const scripted = run.tutorial ? tutorialRewards(run.roomIndex, focus, run.hero, run.rng) : null;
+  screen.options = scripted ?? rollRewards(run.rng, run.hero, currentAct(run), screen.source as 'fight' | 'elite', focus);
   return true;
 }
 

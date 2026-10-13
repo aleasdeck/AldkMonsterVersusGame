@@ -51,6 +51,13 @@ function statsPanel(p: Profile): HTMLElement {
 export function menuScreen(app: App): HTMLElement {
   const p = app.profile;
   const hasSave = app.hasSave();
+  // Обучение (v0.58.0, решение пользователя): новичку — первой и главной кнопкой, после первого забега или пройденного
+  // обучения — обычной под «Новым забегом». Недопройденное продолжается с того места.
+  const novice = !p.runs && !p.tutorialDone && !hasSave;
+  const tutorial = button(app.hasTutorialSave() ? 'Продолжить обучение' : 'Обучение', () => app.startTutorial(), {
+    class: novice ? 'primary big' : 'big',
+    tip: 'Один этаж Леса за Воина: герой сам думает вслух, что к чему',
+  });
   return h(
     'div',
     { class: 'screen menu' },
@@ -62,7 +69,9 @@ export function menuScreen(app: App): HTMLElement {
         'div',
         { class: 'menu-buttons' },
         hasSave ? button('Продолжить забег', () => app.continueRun(), { class: 'primary big' }) : null,
-        button('Новый забег', () => app.showHeroSelect(), { class: hasSave ? 'big' : 'primary big' }),
+        novice ? tutorial : null,
+        button('Новый забег', () => app.showHeroSelect(), { class: hasSave || novice ? 'big' : 'primary big' }),
+        novice ? null : tutorial,
         button('Коллекция', () => app.showCollection(), { class: 'big' }),
         button('Бестиарий', () => app.showBestiary(), { class: 'big' }),
         button('Статистика', () => app.showStats(), { class: 'big' }),

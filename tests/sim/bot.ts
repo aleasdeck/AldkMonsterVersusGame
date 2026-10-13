@@ -1210,7 +1210,7 @@ export function chooseEventRoom(run: RunState): void {
   else leaveEvent(run);
 }
 
-function chooseCamp(run: RunState): void {
+export function chooseCamp(run: RunState): void {
   const heal = campHealAmount(run);
   let best: SocketRef | null = null;
   let bestGain = 0;
@@ -1228,7 +1228,7 @@ function chooseCamp(run: RunState): void {
 }
 
 /** Торговец: покупки по ценности за монету, пока хватает золота; ничего стоящего — переброс; потом уйти. */
-function shopVisit(run: RunState): void {
+export function shopVisit(run: RunState): void {
   const shop = run.shop!;
   const max = heroStats(run).maxHp;
   const deals: { value: number; price: number; buy: () => boolean }[] = [];

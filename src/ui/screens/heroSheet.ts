@@ -35,7 +35,7 @@ function statTiles(s: DerivedStats): HTMLElement {
     tile('def', s.defendBonus ? `${s.def}+${s.defendBonus}` : `${s.def}`, 'защита', `Защита${s.defendBonus ? ' и бонус брони к «Защититься»' : ''}: «Защититься» даёт 80 % от неё блоком, округление вверх`),
     tile('sta', s.firstTurnSta ? `${s.sta}+${s.firstTurnSta}` : `${s.sta}`, 'стамина', `Очки действий за ход, полностью восстанавливаются в начале хода${s.firstTurnSta ? `; в первый ход боя ещё +${s.firstTurnSta}` : ''}`),
     tile('mp', s.mpRegen ? `${s.maxMp}+${s.mpRegen}` : `${s.maxMp}`, 'мана', 'Мана и реген за ход; полностью — после комнаты'),
-    tile('block', `+${defendBlock(s)}`, 'блок', '«Защититься»: столько блока до начала следующего хода'),
+    tile('block', `+${defendBlock(s) + s.blockSkillAdd}`, 'блок', `«Защититься»: столько блока до начала следующего хода${s.blockSkillAdd ? ` (с набором «Щит» +${s.blockSkillAdd})` : ''}`),
     tile('fatigue', `−${Math.round((1 - s.fatigue) * 100)}%`, 'усталость', 'На столько слабее каждая следующая атака в этом ходу'),
     tile('crit', `${Math.round(s.crit * 100)}%`, 'крит', 'Шанс критического удара'),
     tile('critDmg', `${s.critDmg}%`, 'крит. урон', 'Сколько процентов обычного урона наносит критический удар'),

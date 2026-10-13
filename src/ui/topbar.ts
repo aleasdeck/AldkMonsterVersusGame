@@ -132,7 +132,7 @@ export function topbar(app: App): HTMLElement {
         : null,
       trialChip(app),
     ),
-    h('div', { class: 'top-center' }, h('span', { class: 'dim' }, `Акт ${run.locationIndex + 1}/${ACTS_PER_RUN} · ${loc.name} · ${where}`), roomStrip(app)),
+    h('div', { class: 'top-center' }, h('span', { class: 'dim' }, `${run.tutorial ? 'Обучение' : `Акт ${run.locationIndex + 1}/${ACTS_PER_RUN}`} · ${loc.name} · ${where}`), roomStrip(app)),
     h(
       'div',
       { class: 'top-right' },

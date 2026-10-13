@@ -7,6 +7,8 @@ import { currentLocation, currentRoomKind } from '../../engine/run';
 import { heroSprite } from '../heroSprite';
 import { artifactDef } from '../../data/artifacts';
 import { nextUnlockText } from '../../data/mastery';
+import { heroAvatar } from '../heroSprite';
+import { thoughtText } from '../tutorial/thoughts';
 import type { App } from '../app';
 
 /** «45 с», «12 мин 34 с», «1 ч 05 мин» — крупнее часа секунды не нужны. */
@@ -22,6 +24,7 @@ export function formatDuration(ms: number): string {
 
 export function endScreen(app: App): HTMLElement {
   const run = app.run!;
+  if (run.tutorial) return tutorialEnd(app);
   const won = run.phase === 'victory';
   const def = heroDef(run.hero.defId);
   const loc = currentLocation(run);
@@ -83,4 +86,73 @@ function masteryNote(app: App): HTMLElement | null {
   }
   if (u.artifacts.length) lines.push(`Открыто в пуле: ${u.artifacts.map((id) => artifactDef(id).name).join(', ')}`);
   return h('div', { class: 'mastery-note' }, ...lines.map((l) => h('div', null, l)));
+}
+
+/** Что Воин понял за обучение — список на итогах вместо трофея (страница обсуждения, «Записки героя» вместо трофея). */
+const LEARNED = [
+  'Над врагом видно, что он сделает',
+  'STA — силы на ход, каждый удар слабее',
+  'Блок держит один ход врагов',
+  'Мана возвращается после боя',
+  'Меч достаёт только первого в ряду',
+  'Шесть повадок врагов и их значки',
+  'Свой и чужой тип оружия и брони',
+  'Гнёзда: оружейное, бронное, ◇ любое',
+  'Знаки вещей складываются в наборы',
+  'Ключевая вещь ломает правило за цену',
+  'Золото, торговец, сундук, привал',
+];
+
+/**
+ * Итоги обучения (v0.58.0): победа — что герой понял и путь в настоящий поход, гибель — честно, как в забеге, и обучение
+ * с начала. Мысль героя стоит облачком с аватаркой, как на хабах.
+ */
+function tutorialEnd(app: App): HTMLElement {
+  const run = app.run!;
+  const won = run.phase === 'victory';
+  const def = heroDef(run.hero.defId);
+  const loc = currentLocation(run);
+  const s = run.stats;
+  const row = (k: string, v: string) => h('div', { class: 'stat' }, h('span', { class: 'stat-k' }, k), h('span', { class: 'stat-v' }, v));
+  const body = won
+    ? h('div', { class: 'learned' }, ...LEARNED.map((line) => h('div', { class: 'learned-line' }, h('span', { class: 'learned-mark' }, '✓'), line)))
+    : h(
+        'div',
+        { class: 'stats-grid wide' },
+        row('Боёв выиграно', `${s.roomsCleared}`),
+        row('Врагов убито', `${s.kills}`),
+        row('Ходов', `${s.turns}`),
+        s.startedAt && s.finishedAt ? row('Время', formatDuration(s.finishedAt - s.startedAt)) : null,
+      );
+  return h(
+    'div',
+    { class: `screen end tutorial-end ${won ? 'won' : 'lost'}` },
+    h(
+      'div',
+      { class: 'panel result-panel' },
+      h('h1', null, won ? 'Лес пройден' : 'Обучение прервано'),
+      h('p', { class: 'dim' }, won ? `${enemyDef('alpha_wolf').name} повержен. Обучение окончено.` : `${def.name} пал: ${loc.name}, комната ${run.roomIndex + 1} (${ROOM_NAMES[currentRoomKind(run)]}).`),
+      h('div', { class: 'result-body' }, heroSprite(def.id, 112, won ? 'idle' : 'death'), body),
+      h('div', { class: 'th-bubble hub static' }, heroAvatar(def.id, 44), h('span', { class: 'th-text' }, thoughtText(won ? 'x6' : 'z1'))),
+      h(
+        'div',
+        { class: 'row' },
+        button('Персонаж', () => app.toggleSheet(), { class: 'big', tip: 'Билд, с которым закончилось обучение (C)' }),
+        button('Лог боя', () => app.toggleLog(), { class: 'big', tip: 'Все бои обучения (L)' }),
+      ),
+      won
+        ? h(
+            'div',
+            { class: 'row' },
+            button('Новый забег', () => app.showHeroSelect(), { class: 'primary big', tip: 'Настоящий поход: три локации подряд, любой герой' }),
+            button('В меню', () => app.showMenu(), { class: 'big' }),
+          )
+        : h(
+            'div',
+            { class: 'row' },
+            button('Начать заново', () => app.startTutorial(true), { class: 'primary big', tip: 'Обучение с первой клетки' }),
+            button('В меню', () => app.showMenu(), { class: 'big' }),
+          ),
+    ),
+  );
 }
